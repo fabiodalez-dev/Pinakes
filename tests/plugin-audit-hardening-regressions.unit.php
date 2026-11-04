@@ -26,9 +26,9 @@ function auditRead(string $path): string
 
 // SSRF guard: private literals must be rejected before any connection attempt.
 $loopback = \App\Support\HttpClient::get('http://127.0.0.1:9/test', [], ['ssrf_guard' => true]);
-auditOk($loopback === ['ok' => false, 'status' => 0, 'body' => ''], 'HttpClient blocks IPv4 loopback');
+auditOk($loopback === ['ok' => false, 'status' => 0, 'body' => '', 'error' => \App\Support\HttpClient::FAILURE_BLOCKED], 'HttpClient blocks IPv4 loopback');
 $private = \App\Support\HttpClient::get('https://10.0.0.1/test', [], ['ssrf_guard' => true]);
-auditOk($private === ['ok' => false, 'status' => 0, 'body' => ''], 'HttpClient blocks RFC1918 targets');
+auditOk($private === ['ok' => false, 'status' => 0, 'body' => '', 'error' => \App\Support\HttpClient::FAILURE_BLOCKED], 'HttpClient blocks RFC1918 targets');
 
 // #382 / PR #383 review follow-up: author-photo downloads must be bounded
 // during transfer, not merely checked after the entire body is in memory.

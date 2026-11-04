@@ -34,6 +34,8 @@ class NotificationService {
         // Serialized by a connection-scoped lock and acknowledged through
         // pickup_reminder_sent_for: an outbox copy would send it twice.
         'loan_pickup_reminder',
+        // Acknowledged through utenti.card_expiry_warning_sent_for.
+        'card_expiring',
     ];
 
     /**
@@ -43,6 +45,13 @@ class NotificationService {
      * batch e conservando dati personali a tempo indeterminato.
      */
     private const OUTBOX_MAX_ATTEMPTS = 10;
+
+    /**
+     * Why the last claimAndSendRecall() sent nothing: 'busy' (a calendar change
+     * held the lock), 'not_due' (no longer as late as the recall needs),
+     * 'claimed' (another run took it), 'send_failed' (the e-mail did not go out).
+     */
+    private string $lastRecallOutcome = '';
 
     public function __construct(mysqli $db) {
         $this->db = $db;
@@ -64,15 +73,20 @@ class NotificationService {
      * the pickup window to the deadline actually set. A loan shorter than the
      * window caps the deadline at its end, and the staff may move it: in both
      * cases the configured number would promise days the reader does not have.
+     * $copiaId applies that copy's branch closures, as pickupDeadline() does.
      */
-    private function effectivePickupDays(?string $windowStart, ?string $deadline): string
+    private function effectivePickupDays(?string $windowStart, ?string $deadline, ?int $copiaId = null): string
     {
         if ($windowStart !== null && $windowStart !== '' && $deadline !== null && $deadline !== '') {
             try {
                 $start = new \DateTimeImmutable(substr($windowStart, 0, 10));
                 $end = new \DateTimeImmutable(substr($deadline, 0, 10));
                 if ($end >= $start) {
-                    return (string) min($this->pickupExpiryDays(), (int) $start->diff($end)->days);
+                    // Open days only (closures calendar): a closed day inside
+                    // the window is not a day to collect the book; calendar
+                    // days without closures.
+                    $openDays = LibraryCalendar::forDb($this->db)->openDaysBetween($start->format('Y-m-d'), $end->format('Y-m-d'), LibraryCalendar::branchOfCopy($this->db, $copiaId));
+                    return (string) min($this->pickupExpiryDays(), $openDays);
                 }
             } catch (\Throwable) {
             }
@@ -95,10 +109,11 @@ class NotificationService {
      * MaintenanceService::activateScheduledLoans() applies: start + pickup days,
      * never past the end of the loan. Lets the approval email name it up front.
      */
-    private function expectedPickupDeadline(string $start, string $end): string
+    private function expectedPickupDeadline(string $start, string $end, ?int $copiaId = null): string
     {
-        $deadline = (new \DateTimeImmutable($start))->modify('+' . $this->pickupExpiryDays() . ' days')->format('Y-m-d');
-        return ($end !== '' && $end < $deadline) ? $end : $deadline;
+        // Open days only (closures calendar, with the copy's branch), as
+        // activateScheduledLoans() computes it.
+        return LibraryCalendar::pickupDeadline($this->db, $start, $this->pickupExpiryDays(), $end !== '' ? $end : null, $copiaId);
     }
 
     /**
@@ -721,7 +736,7 @@ class NotificationService {
             // Get overdue loans
             // CI-SOFT-DELETE-EXEMPT: the first overdue notice must keep firing for active loans whose book was archived — soft-deleting the book silenced this notice AND, since sendLoanRecalls() requires overdue_notification_sent=1, every automatic recall after it.
             $stmt = $this->db->prepare("
-                SELECT p.id, p.data_scadenza, l.titolo as libro_titolo,
+                SELECT p.id, p.data_scadenza, p.copia_id, l.titolo as libro_titolo,
                        CONCAT(u.nome, ' ', u.cognome) as utente_nome, u.email as utente_email,
                        DATEDIFF(?, p.data_scadenza) as giorni_ritardo
                 FROM prestiti p
@@ -736,28 +751,43 @@ class NotificationService {
             $stmt->execute();
             $result = $stmt->get_result();
 
-            // Collect all loans first to avoid result set issues
+            // Collect all loans first to avoid result set issues. A due day
+            // marked closed later is not late until the first open day after
+            // it has gone by (same rule as the overdue sweep): no notice yet.
             $loans = [];
             while ($loan = $result->fetch_assoc()) {
-                $loans[] = $loan;
+                $copyId = $loan['copia_id'] !== null ? (int) $loan['copia_id'] : null;
+                if (LibraryCalendar::isPastDue($this->db, (string) $loan['data_scadenza'], $copyId, $today)) {
+                    // Days late as the fine counts them (open days), at least 1.
+                    $loan['giorni_ritardo'] = LibraryCalendar::lateDaysForNotice($this->db, (string) $loan['data_scadenza'], $copyId, $today);
+                    $loans[] = $loan;
+                }
             }
             $stmt->close();
 
             foreach ($loans as $loan) {
-                // ATOMIC: Mark notification as sent BEFORE sending email
-                // Only proceed if we successfully claimed this loan (affected_rows == 1).
-                // Guardia di stato (M3): il loop di invio (retry SMTP con sleep) può
-                // durare minuti dopo la SELECT — senza il filtro su attivo/stato il
-                // claim riporterebbe in 'in_ritardo' un prestito restituito nel
-                // frattempo (attivo=0 + stato in_ritardo: combinazione invalida).
-                // Re-assert data_scadenza (#252): a renew() between the SELECT and this
-                // claim can push the due date into the future, so the loan is no longer
-                // overdue and must NOT be transitioned to 'in_ritardo' with a stale date.
-                $updateStmt = $this->db->prepare("UPDATE prestiti SET overdue_notification_sent = 1, stato = 'in_ritardo' WHERE id = ? AND data_scadenza = ? AND (overdue_notification_sent IS NULL OR overdue_notification_sent = 0) AND attivo = 1 AND stato IN ('in_corso', 'in_ritardo')");
-                $updateStmt->bind_param('is', $loan['id'], $loan['data_scadenza']);
-                $updateStmt->execute();
-                $claimed = $updateStmt->affected_rows === 1;
-                $updateStmt->close();
+                // A closure saved since the list was read can make this loan
+                // not late any more: check again under the lock the calendar
+                // writes hold, and claim it before letting the calendar change.
+                $claimed = (bool) $this->underCalendarLock(function () use (&$loan, $today): bool {
+                    $copyId = $loan['copia_id'] !== null ? (int) $loan['copia_id'] : null;
+                    if (!LibraryCalendar::isPastDue($this->db, (string) $loan['data_scadenza'], $copyId, $today)) {
+                        return false;
+                    }
+                    // The e-mail and the in-app notice say the count of the
+                    // calendar as it is now, under the lock.
+                    $loan['giorni_ritardo'] = LibraryCalendar::lateDaysForNotice($this->db, (string) $loan['data_scadenza'], $copyId, $today);
+                    // ATOMIC: mark the notice sent BEFORE the e-mail; only an
+                    // affected row proceeds. The state guard (M3) keeps a loan
+                    // returned meanwhile out, and re-asserting data_scadenza
+                    // (#252) keeps a loan renewed meanwhile out.
+                    $updateStmt = $this->db->prepare("UPDATE prestiti SET overdue_notification_sent = 1, stato = 'in_ritardo' WHERE id = ? AND data_scadenza = ? AND (overdue_notification_sent IS NULL OR overdue_notification_sent = 0) AND attivo = 1 AND stato IN ('in_corso', 'in_ritardo')");
+                    $updateStmt->bind_param('is', $loan['id'], $loan['data_scadenza']);
+                    $updateStmt->execute();
+                    $claimed = $updateStmt->affected_rows === 1;
+                    $updateStmt->close();
+                    return $claimed;
+                }, false);
 
                 if (!$claimed) {
                     // Another process already claimed this loan, skip
@@ -822,6 +852,110 @@ class NotificationService {
     }
 
     /**
+     * Warn patrons whose library card expires within
+     * loans.card_expiry_warning_days (0 = off, the default).
+     *
+     * Only standard/premium accounts (admin and staff have no card) that are
+     * active and have an email. The expiry date is acknowledged in
+     * utenti.card_expiry_warning_sent_for only after delivery: it goes out
+     * once per expiry, and a renewed card (new date) re-arms it. An advisory
+     * lock per patron serializes concurrent cron/HTTP workers.
+     */
+    public function sendCardExpiryWarnings(): int {
+        $warningDays = max(0, min(365, (int) ((new \App\Models\SettingsRepository($this->db))->get('loans', 'card_expiry_warning_days', '0') ?? 0)));
+        if ($warningDays <= 0 || !(new \App\Services\CirculationPolicy($this->db))->schemaReady()) {
+            return 0;
+        }
+        $hasFlag = $this->db->query("SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'utenti' AND COLUMN_NAME = 'card_expiry_warning_sent_for'");
+        if (!$hasFlag instanceof \mysqli_result || (int) ($hasFlag->fetch_row()[0] ?? 0) === 0) {
+            return 0;
+        }
+
+        $sentCount = 0;
+        try {
+            $today = DateHelper::today();
+            $lastDay = (new \DateTimeImmutable($today))->modify('+' . $warningDays . ' days')->format('Y-m-d');
+            $eligibleSql = "
+                SELECT id, email, data_scadenza_tessera, codice_tessera,
+                       CONCAT(nome, ' ', cognome) AS utente_nome
+                FROM utenti
+                WHERE stato = 'attivo'
+                  AND tipo_utente IN ('standard', 'premium')
+                  AND data_scadenza_tessera IS NOT NULL
+                  AND data_scadenza_tessera >= ? AND data_scadenza_tessera <= ?
+                  AND (card_expiry_warning_sent_for IS NULL OR card_expiry_warning_sent_for <> data_scadenza_tessera)
+                  AND email IS NOT NULL AND TRIM(email) <> ''
+            ";
+            $stmt = $this->db->prepare($eligibleSql);
+            $stmt->bind_param('ss', $today, $lastDay);
+            $stmt->execute();
+            $users = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+            $stmt->close();
+
+            $database = (string) $this->db->query('SELECT DATABASE()')->fetch_row()[0];
+            $lockPrefix = 'pinakes_card_expiry_' . substr(hash('sha256', $database), 0, 24) . '_';
+            foreach ($users as $user) {
+                $userId = (int) $user['id'];
+                $lockName = $lockPrefix . $userId;
+                $locked = false;
+                try {
+                    $claim = $this->db->prepare('SELECT GET_LOCK(?, 0)');
+                    $claim->bind_param('s', $lockName);
+                    $claim->execute();
+                    $locked = (int) $claim->get_result()->fetch_row()[0] === 1;
+                    $claim->close();
+                    if (!$locked) {
+                        continue;
+                    }
+                    // Re-read under the lock: another worker may have sent it,
+                    // or the desk may have renewed the card meanwhile.
+                    $fresh = $this->db->prepare($eligibleSql . ' AND id = ?');
+                    $fresh->bind_param('ssi', $today, $lastDay, $userId);
+                    $fresh->execute();
+                    $user = $fresh->get_result()->fetch_assoc();
+                    $fresh->close();
+                    if (!$user) {
+                        continue;
+                    }
+                    $expiry = (string) $user['data_scadenza_tessera'];
+                    $recipientLocale = $this->resolveRecipientLocale((string) $user['email']);
+                    $daysLeft = (int) (new \DateTimeImmutable($today))->diff(new \DateTimeImmutable($expiry))->days;
+                    $sent = $this->sendWithRetry((string) $user['email'], 'card_expiring', [
+                        'utente_nome' => $user['utente_nome'],
+                        'codice_tessera' => (string) $user['codice_tessera'],
+                        'data_scadenza_tessera' => $this->formatEmailDate($expiry, false, $recipientLocale),
+                        'giorni_rimasti' => $daysLeft === 0 ? $this->translateInLocale('oggi', $recipientLocale) : (string) $daysLeft,
+                    ]);
+                    if ($sent) {
+                        $ack = $this->db->prepare('UPDATE utenti SET card_expiry_warning_sent_for = ? WHERE id = ? AND data_scadenza_tessera = ?');
+                        $ack->bind_param('sis', $expiry, $userId, $expiry);
+                        $ack->execute();
+                        $ack->close();
+                        $sentCount++;
+                    }
+                } catch (\Throwable $e) {
+                    SecureLogger::error("Failed to send card expiry warning for user {$userId}: " . $e->getMessage());
+                } finally {
+                    if ($locked) {
+                        try {
+                            $release = $this->db->prepare('SELECT RELEASE_LOCK(?)');
+                            $release->bind_param('s', $lockName);
+                            $release->execute();
+                            $release->close();
+                        } catch (\Throwable $releaseError) {
+                            SecureLogger::error("Failed to release card expiry lock for user {$userId}: " . $releaseError->getMessage());
+                        }
+                    }
+                }
+            }
+        } catch (\Throwable $e) {
+            SecureLogger::error('Failed to send card expiry warnings: ' . $e->getMessage());
+        }
+
+        return $sentCount;
+    }
+
+    /**
      * Reminder to collect a book that is waiting for pickup, sent
      * loans.pickup_reminder_days before the pickup deadline (0 = off).
      *
@@ -855,7 +989,7 @@ class NotificationService {
             $openedBefore = (new \DateTimeImmutable($today))->modify('+' . $this->pickupExpiryDays() . ' days')->format('Y-m-d');
 
             $eligibleSql = "
-                SELECT p.id, p.utente_id, p.pickup_deadline, p.data_prestito, p.data_scadenza,
+                SELECT p.id, p.utente_id, p.copia_id, p.pickup_deadline, p.data_prestito, p.data_scadenza,
                        l.titolo AS libro_titolo,
                        CONCAT(u.nome, ' ', u.cognome) AS utente_nome, u.email AS utente_email
                 FROM prestiti p
@@ -917,7 +1051,7 @@ class NotificationService {
                         'libro_titolo' => $loan['libro_titolo'],
                         'data_inizio' => $this->formatEmailDate((string) $loan['data_prestito'], false, $recipientLocale),
                         'data_fine' => $this->formatEmailDate((string) $loan['data_scadenza'], false, $recipientLocale),
-                        'giorni_ritiro' => $this->effectivePickupDays((string) $loan['data_prestito'], $deadline),
+                        'giorni_ritiro' => $this->effectivePickupDays((string) $loan['data_prestito'], $deadline, !empty($loan['copia_id']) ? (int) $loan['copia_id'] : null),
                         'giorni_rimasti' => $daysLeft === 0 ? $todayLabels[$recipientLocale] : (string) $daysLeft,
                         'scadenza_ritiro' => $formattedDeadline,
                         'pickup_deadline' => $formattedDeadline,
@@ -1040,7 +1174,7 @@ class NotificationService {
             // CI-SOFT-DELETE-EXEMPT: an active overdue loan remains physically
             // owed to the library even when its catalog record is archived.
             $stmt = $this->db->prepare("
-                SELECT p.id, p.data_scadenza, p.recall_count, p.last_recall_at,
+                SELECT p.id, p.data_scadenza, p.copia_id, p.recall_count, p.last_recall_at,
                        l.titolo as libro_titolo,
                        CONCAT(u.nome, ' ', u.cognome) as utente_nome, u.email as utente_email,
                        DATEDIFF(?, p.data_scadenza) as giorni_ritardo
@@ -1061,14 +1195,27 @@ class NotificationService {
             $stmt->execute();
             $result = $stmt->get_result();
 
+            // The calendar-day filter above is a superset: the recall cadence
+            // counts open days late, as the fine does, so closed days in the
+            // overdue period never bring a recall forward.
             $loans = [];
             while ($loan = $result->fetch_assoc()) {
-                $loans[] = $loan;
+                $copyId = $loan['copia_id'] !== null ? (int) $loan['copia_id'] : null;
+                $loan['giorni_ritardo'] = LibraryCalendar::openDaysLate($this->db, (string) $loan['data_scadenza'], $copyId, $today);
+                if ($loan['giorni_ritardo'] >= $intervalDays * ((int) $loan['recall_count'] + 1)) {
+                    $loans[] = $loan;
+                }
             }
             $stmt->close();
 
             foreach ($loans as $loan) {
-                $sentCount += $this->claimAndSendRecall($loan) ? 1 : 0;
+                $copyId = $loan['copia_id'] !== null ? (int) $loan['copia_id'] : null;
+                $needed = $intervalDays * ((int) $loan['recall_count'] + 1);
+                $stillDue = function () use ($loan, $copyId, $today, $needed): int|false {
+                    $days = LibraryCalendar::openDaysLate($this->db, (string) $loan['data_scadenza'], $copyId, $today);
+                    return $days >= $needed ? $days : false;
+                };
+                $sentCount += $this->claimAndSendRecall($loan, 3, 1000, $stillDue) ? 1 : 0;
             }
 
         } catch (\Throwable $e) {
@@ -1095,7 +1242,7 @@ class NotificationService {
             // CI-SOFT-DELETE-EXEMPT: staff must be able to recall an outstanding
             // physical loan after the related catalog record is archived.
             $stmt = $this->db->prepare("
-                SELECT p.id, p.data_scadenza, p.recall_count, p.last_recall_at,
+                SELECT p.id, p.data_scadenza, p.copia_id, p.recall_count, p.last_recall_at,
                        p.stato, p.attivo,
                        l.titolo as libro_titolo,
                        CONCAT(u.nome, ' ', u.cognome) as utente_nome, u.email as utente_email,
@@ -1116,6 +1263,9 @@ class NotificationService {
             if ((int) $loan['attivo'] !== 1 || !in_array((string) $loan['stato'], ['in_corso', 'in_ritardo'], true)) {
                 return ['success' => false, 'message' => __('Il sollecito è disponibile solo per prestiti attivi con libro in mano all\'utente.')];
             }
+            // 0 only when the loan is not late yet (isPastDue()); a late loan
+            // counts at least 1 day even when today is closed.
+            $loan['giorni_ritardo'] = LibraryCalendar::lateDaysForNotice($this->db, (string) $loan['data_scadenza'], $loan['copia_id'] !== null ? (int) $loan['copia_id'] : null, $today);
             if ((int) $loan['giorni_ritardo'] < 1) {
                 return ['success' => false, 'message' => __('Il prestito non è scaduto: nessun sollecito da inviare.')];
             }
@@ -1132,8 +1282,28 @@ class NotificationService {
                 return ['success' => false, 'message' => __('Un sollecito è già stato inviato oggi per questo prestito.')];
             }
 
-            if ($this->claimAndSendRecall($loan, $maxRetries, $retryDelayMs)) {
+            $copyId = $loan['copia_id'] !== null ? (int) $loan['copia_id'] : null;
+            $stillDue = function () use ($loan, $copyId, $today): int|false {
+                $days = LibraryCalendar::lateDaysForNotice($this->db, (string) $loan['data_scadenza'], $copyId, $today);
+                return $days >= 1 ? $days : false;
+            };
+            if ($this->claimAndSendRecall($loan, $maxRetries, $retryDelayMs, $stillDue)) {
                 return ['success' => true, 'message' => __('Sollecito inviato con successo.')];
+            }
+            if ($this->lastRecallOutcome === 'busy') {
+                return ['success' => false, 'message' => __('Il calendario della biblioteca è in aggiornamento: riprova tra qualche istante.')];
+            }
+            if ($this->lastRecallOutcome === 'not_due') {
+                return ['success' => false, 'message' => __('Il prestito non è scaduto: nessun sollecito da inviare.')];
+            }
+            if ($this->lastRecallOutcome === 'changed') {
+                return ['success' => false, 'message' => __('Il prestito è stato modificato nel frattempo: ricarica la pagina e riprova.')];
+            }
+            if ($this->lastRecallOutcome === 'claimed') {
+                // Another recall claimed the loan between the read and this
+                // claim: its e-mail may still be on its way, or fail and be
+                // reverted, so this does not say it was sent.
+                return ['success' => false, 'message' => __('Un altro sollecito per questo prestito è appena partito: ricarica la pagina tra qualche istante per vederne l\'esito.')];
             }
             return ['success' => false, 'message' => __('Invio del sollecito non riuscito. Controlla la configurazione email e riprova.')];
 
@@ -1144,23 +1314,122 @@ class NotificationService {
     }
 
     /**
+     * Run $work under the named lock every calendar write holds, with the
+     * calendar read afresh: a claim decided there cannot use a calendar that a
+     * closure saved a moment ago has changed. $busy is returned, without
+     * running $work, when a calendar change holds the lock (the next run
+     * retries). The lock is released before any e-mail is sent.
+     */
+    private function underCalendarLock(callable $work, mixed $busy): mixed
+    {
+        // Plain queries, no prepared statement: a release must not depend on
+        // prepare() succeeding (strict mode throws, max_prepared_stmt_count).
+        $lockName = $this->db->real_escape_string(LibraryCalendar::lockName($this->db));
+        try {
+            $res = $this->db->query("SELECT GET_LOCK('{$lockName}', 5)");
+        } catch (\Throwable $e) {
+            SecureLogger::warning('Calendar lock not taken: ' . $e->getMessage());
+            return $busy;
+        }
+        $locked = $res instanceof \mysqli_result && (int) ($res->fetch_row()[0] ?? 0) === 1;
+        if (!$locked) {
+            return $busy;
+        }
+        try {
+            LibraryCalendar::reset();
+            return $work();
+        } finally {
+            $this->releaseCalendarLock($lockName);
+        }
+    }
+
+    /**
+     * RELEASE_LOCK with one retry. A release that fails while the session is
+     * alive would keep every calendar writer waiting until this batch ends, so
+     * a second attempt follows a failed one; only a lock still held after both
+     * is logged (it then dies with the session at the latest).
+     */
+    private function releaseCalendarLock(string $escapedName): void
+    {
+        for ($attempt = 1; $attempt <= 2; $attempt++) {
+            try {
+                $this->db->query("SELECT RELEASE_LOCK('{$escapedName}')");
+                return;
+            } catch (\Throwable $e) {
+                if ($attempt === 2) {
+                    SecureLogger::error('Calendar lock not released: ' . $e->getMessage());
+                }
+            }
+        }
+    }
+
+    /**
+     * True when the loan is still the one read (same due date, still out) and
+     * another recall claimed it today: the claim lost to that recall, whose
+     * e-mail may still be in flight (last_recall_at is written before SMTP).
+     */
+    private function recalledTodayUnchanged(array $loan): bool
+    {
+        $stmt = $this->db->prepare("SELECT last_recall_at FROM prestiti WHERE id = ? AND data_scadenza = ? AND attivo = 1 AND stato IN ('in_corso', 'in_ritardo')");
+        if ($stmt === false) {
+            return false;
+        }
+        $id = (int) $loan['id'];
+        $due = (string) $loan['data_scadenza'];
+        $stmt->bind_param('is', $id, $due);
+        $stmt->execute();
+        $row = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        return is_array($row) && $row['last_recall_at'] !== null
+            && substr((string) $row['last_recall_at'], 0, 10) === DateHelper::today();
+    }
+
+    /**
      * Shared claim-then-send for one recall (automatic and manual paths).
      * Expects a row carrying id, data_scadenza, recall_count, last_recall_at,
      * libro_titolo, utente_nome, utente_email, giorni_ritardo. Returns true iff
      * the recall email actually went out; on failure the claim is reverted so a
      * later run can retry.
+     *
+     * @param ?callable(): (int|false) $stillDue re-checked under the calendar
+     *        lock right before the claim: the days late by the calendar as it
+     *        is now when the loan is still as late as the recall needs (used
+     *        in the e-mail), false otherwise; null = no calendar check.
      */
-    private function claimAndSendRecall(array $loan, int $maxRetries = 3, int $retryDelayMs = 1000): bool {
+    private function claimAndSendRecall(array $loan, int $maxRetries = 3, int $retryDelayMs = 1000, ?callable $stillDue = null): bool {
         // ATOMIC: bump the counter BEFORE sending. Re-assert data_scadenza and
         // recall_count so a concurrent renew()/recall claims at most once
         // (same #252/M3 rationale as the overdue sender).
         $now = DateHelper::now();
         $expectedCount = (int) $loan['recall_count'];
-        $updateStmt = $this->db->prepare("UPDATE prestiti SET recall_count = recall_count + 1, last_recall_at = ? WHERE id = ? AND data_scadenza = ? AND recall_count = ? AND attivo = 1 AND stato IN ('in_corso', 'in_ritardo')");
-        $updateStmt->bind_param('sisi', $now, $loan['id'], $loan['data_scadenza'], $expectedCount);
-        $updateStmt->execute();
-        $claimed = $updateStmt->affected_rows === 1;
-        $updateStmt->close();
+        $this->lastRecallOutcome = '';
+        $claim = function () use ($stillDue, $now, &$loan, $expectedCount): bool {
+            if ($stillDue !== null) {
+                $days = $stillDue();
+                if ($days === false) {
+                    $this->lastRecallOutcome = 'not_due';
+                    return false;
+                }
+                $loan['giorni_ritardo'] = $days;
+            }
+            $updateStmt = $this->db->prepare("UPDATE prestiti SET recall_count = recall_count + 1, last_recall_at = ? WHERE id = ? AND data_scadenza = ? AND recall_count = ? AND attivo = 1 AND stato IN ('in_corso', 'in_ritardo')");
+            $updateStmt->bind_param('sisi', $now, $loan['id'], $loan['data_scadenza'], $expectedCount);
+            $updateStmt->execute();
+            $claimed = $updateStmt->affected_rows === 1;
+            $updateStmt->close();
+            if (!$claimed) {
+                // Nothing claimed: another recall went out today on the same
+                // loan, or the loan changed (renewed, returned) since it was read.
+                $this->lastRecallOutcome = $this->recalledTodayUnchanged($loan) ? 'claimed' : 'changed';
+            }
+            return $claimed;
+        };
+        $claimed = $stillDue === null ? $claim() : $this->underCalendarLock($claim, null);
+        if ($claimed === null) {
+            $this->lastRecallOutcome = 'busy';
+            return false;
+        }
+        $claimed = (bool) $claimed;
 
         if (!$claimed) {
             return false;
@@ -1430,6 +1699,7 @@ class NotificationService {
             'overdue_notifications' => 0,
             'loan_recalls' => 0,
             'pickup_reminders' => 0,
+            'card_expiry_warnings' => 0,
             'wishlist_notifications' => 0,
             'errors' => []
         ];
@@ -1445,6 +1715,7 @@ class NotificationService {
             // recall query requires overdue_notification_sent = 1.
             $results['loan_recalls'] = $this->sendLoanRecalls();
             $results['pickup_reminders'] = $this->sendPickupReminders();
+            $results['card_expiry_warnings'] = $this->sendCardExpiryWarnings();
             $results['wishlist_notifications'] = $this->checkAndNotifyWishlistAvailability();
 
         } catch (\Throwable $e) {
@@ -1814,9 +2085,9 @@ class NotificationService {
                 'giorni_prestito' => $days,
                 // A loan starting later gets its pickup deadline only on the start
                 // day; say now which one it will be and how many days that is.
-                'giorni_ritiro' => $this->effectivePickupDays((string) $loan['data_prestito'], $this->expectedPickupDeadline((string) $loan['data_prestito'], (string) $loan['data_scadenza'])),
-                'scadenza_ritiro' => $this->formatEmailDate($this->expectedPickupDeadline((string) $loan['data_prestito'], (string) $loan['data_scadenza']), false, $recipientLocale),
-                'pickup_deadline' => $this->formatEmailDate($this->expectedPickupDeadline((string) $loan['data_prestito'], (string) $loan['data_scadenza']), false, $recipientLocale),
+                'giorni_ritiro' => $this->effectivePickupDays((string) $loan['data_prestito'], $this->expectedPickupDeadline((string) $loan['data_prestito'], (string) $loan['data_scadenza'], !empty($loan['copia_id']) ? (int) $loan['copia_id'] : null), !empty($loan['copia_id']) ? (int) $loan['copia_id'] : null),
+                'scadenza_ritiro' => $this->formatEmailDate($this->expectedPickupDeadline((string) $loan['data_prestito'], (string) $loan['data_scadenza'], !empty($loan['copia_id']) ? (int) $loan['copia_id'] : null), false, $recipientLocale),
+                'pickup_deadline' => $this->formatEmailDate($this->expectedPickupDeadline((string) $loan['data_prestito'], (string) $loan['data_scadenza'], !empty($loan['copia_id']) ? (int) $loan['copia_id'] : null), false, $recipientLocale),
                 'pickup_instructions' => $this->translateInLocale('Recati in biblioteca durante gli orari di apertura per ritirare il libro.', $recipientLocale),
                 'sezione_calendario' => $this->buildCalendarSection((int)$loan['id'], (string)$loan['libro_titolo'], (string)$loan['data_prestito'], (string)$loan['data_scadenza'], $recipientLocale)
             ];
@@ -1997,7 +2268,7 @@ class NotificationService {
                 'data_inizio' => $this->formatEmailDate($loan['data_prestito'], false, $recipientLocale),
                 'data_fine' => $this->formatEmailDate($loan['data_scadenza'], false, $recipientLocale),
                 'giorni_prestito' => $days,
-                'giorni_ritiro' => $this->effectivePickupDays((string) $loan['data_prestito'], $loan['pickup_deadline'] ? (string) $loan['pickup_deadline'] : null),
+                'giorni_ritiro' => $this->effectivePickupDays((string) $loan['data_prestito'], $loan['pickup_deadline'] ? (string) $loan['pickup_deadline'] : null, !empty($loan['copia_id']) ? (int) $loan['copia_id'] : null),
                 'scadenza_ritiro' => $loan['pickup_deadline'] ? $this->formatEmailDate($loan['pickup_deadline'], false, $recipientLocale) : '',
                 // #304: alias under the DB column name so a customised template using
                 // {{pickup_deadline}} (the natural name a user copies from the schema)
@@ -2181,7 +2452,7 @@ class NotificationService {
             $variables = [
                 'utente_nome' => $loan['utente_nome'],
                 'libro_titolo' => $loan['libro_titolo'],
-                'giorni_ritiro' => $this->effectivePickupDays((string) ($loan['data_prestito'] ?? ''), $deadline ? (string) $deadline : null),
+                'giorni_ritiro' => $this->effectivePickupDays((string) ($loan['data_prestito'] ?? ''), $deadline ? (string) $deadline : null, !empty($loan['copia_id']) ? (int) $loan['copia_id'] : null),
                 'scadenza_ritiro' => $deadline ? $this->formatEmailDate($deadline, false, $recipientLocale) : '',
                 // #304: alias under the DB column name, see sendPickupReadyNotification.
                 'pickup_deadline' => $deadline ? $this->formatEmailDate($deadline, false, $recipientLocale) : ''
@@ -2245,7 +2516,7 @@ class NotificationService {
                 return $this->sendWithRetry($loan['utente_email'], 'loan_pickup_expired', [
                     'utente_nome' => $loan['utente_nome'],
                     'libro_titolo' => $loan['libro_titolo'],
-                    'giorni_ritiro' => $this->effectivePickupDays((string) ($loan['data_prestito'] ?? ''), $effectiveDeadline ? (string) $effectiveDeadline : null),
+                    'giorni_ritiro' => $this->effectivePickupDays((string) ($loan['data_prestito'] ?? ''), $effectiveDeadline ? (string) $effectiveDeadline : null, !empty($loan['copia_id']) ? (int) $loan['copia_id'] : null),
                     'scadenza_ritiro' => $formattedDeadline,
                     'pickup_deadline' => $formattedDeadline,
                 ]);
@@ -2285,6 +2556,23 @@ class NotificationService {
     /**
      * Invia conferma di restituzione all'utente (GAP-1)
      */
+    /**
+     * {{multa}} of the loan-returned email (plan §7): the late fine left on
+     * this loan after any waiver. Empty when nothing was charged, so the
+     * line vanishes from the email of an install without fines, and empty
+     * while the ledger is off, even for an older charge.
+     */
+    private function returnedLoanFineLine(int $loanId, string $locale): string
+    {
+        if (!\App\Services\PatronLedger::active($this->db)) {
+            return '';
+        }
+        $cents = \App\Services\PatronLedger::forDb($this->db)->lateFineNetCents($loanId);
+        return $cents > 0
+            ? $this->translateInLocale('Multa per ritardo', $locale) . ': ' . \App\Services\FineParameters::format($cents, $locale)
+            : '';
+    }
+
     public function sendLoanReturnedNotification(int $loanId): bool {
         try {
             // CI-SOFT-DELETE-EXEMPT: the return-confirmation must reach the
@@ -2311,15 +2599,76 @@ class NotificationService {
                 return false;
             }
 
+            $recipientLocale = $this->resolveRecipientLocale((string) $loan['utente_email']);
             $variables = [
                 'utente_nome' => $loan['utente_nome'],
                 'libro_titolo' => $loan['libro_titolo'],
-                'data_restituzione' => $this->formatEmailDate($loan['data_restituzione'] ?? DateHelper::today(), false, $this->resolveRecipientLocale((string) $loan['utente_email'])),
+                'data_restituzione' => $this->formatEmailDate($loan['data_restituzione'] ?? DateHelper::today(), false, $recipientLocale),
+                'multa' => $this->returnedLoanFineLine($loanId, $recipientLocale),
             ];
 
             return $this->sendWithRetry($loan['utente_email'], 'loan_returned', $variables);
         } catch (\Throwable $e) {
             SecureLogger::error("Failed to send loan returned notification: " . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Late fine charged on return (plan §7). Off by default: sent only when
+     * Settings → Loans → Fines → "email the reader" is on and the loan still
+     * carries a late fine (a fine waived at the desk sends nothing).
+     */
+    public function sendFineChargedNotification(int $loanId): bool
+    {
+        if (!\App\Services\PatronLedger::active($this->db)) {
+            return false;
+        }
+        try {
+            $enabled = (string) ((new \App\Models\SettingsRepository($this->db))->get('loans', \App\Services\FineParameters::SETTING_FINE_EMAIL, '0') ?? '0');
+            if ($enabled !== '1') {
+                return false;
+            }
+            $ledger = \App\Services\PatronLedger::forDb($this->db);
+            $fineCents = $ledger->lateFineNetCents($loanId);
+            if ($fineCents <= 0) {
+                return false;
+            }
+            $stmt = $this->db->prepare("
+                SELECT p.utente_id, p.data_scadenza, p.data_restituzione,
+                       l.titolo AS libro_titolo,
+                       CONCAT(u.nome, ' ', u.cognome) AS utente_nome,
+                       u.email AS utente_email
+                FROM prestiti p
+                -- CI-SOFT-DELETE-EXEMPT: the fine notice must reach the reader even for an archived title.
+                JOIN libri l ON l.id = p.libro_id
+                JOIN utenti u ON u.id = p.utente_id
+                WHERE p.id = ?
+            ");
+            $stmt->bind_param('i', $loanId);
+            $stmt->execute();
+            $loan = $stmt->get_result()->fetch_assoc();
+            $stmt->close();
+            if (!$loan || empty($loan['utente_email'])) {
+                return false;
+            }
+            $email = (string) $loan['utente_email'];
+            $locale = $this->resolveRecipientLocale($email);
+            $due = (string) $loan['data_scadenza'];
+            $returned = (string) ($loan['data_restituzione'] ?: DateHelper::today());
+            $variables = [
+                'utente_nome' => $loan['utente_nome'],
+                'libro_titolo' => $loan['libro_titolo'],
+                'data_scadenza' => $this->formatEmailDate($due, false, $locale),
+                'data_restituzione' => $this->formatEmailDate($returned, false, $locale),
+                'giorni_ritardo' => (string) $ledger->lateFineDays($loanId),
+                'multa' => \App\Services\FineParameters::format($fineCents, $locale),
+                'saldo' => \App\Services\FineParameters::format(max(0, $ledger->balanceCents((int) $loan['utente_id'])), $locale),
+            ];
+
+            return $this->sendWithRetry($email, 'fine_charged', $variables);
+        } catch (\Throwable $e) {
+            SecureLogger::error('Failed to send fine charged notification: ' . $e->getMessage());
             return false;
         }
     }

@@ -286,6 +286,10 @@ final class SearchIndexBuilder
      * match somewhere" behaviour without letting unindexable required terms zero
      * out otherwise valid results.
      *
+     * The column collation folds accents (`haffner` finds `Häffner`). A quoted
+     * group (`"haffner"`, `"thomas mann"`, unclosed quote = closed) is matched
+     * with its exact spelling and as a phrase instead — see ExactSearch (#501).
+     *
      * UPGRADE-WINDOW SAFETY: when the `search_index` column does not exist yet
      * (new PHP deployed but the admin has not run the 0.7.31 DB migration),
      * MATCH/LIKE on it would 500 every catalog search + autocomplete/preview
@@ -311,16 +315,27 @@ final class SearchIndexBuilder
             return self::buildLegacyCondition($db, $column, $searchQuery);
         }
 
-        $words = preg_split('/\s+/', $searchQuery, -1, PREG_SPLIT_NO_EMPTY) ?: [];
-
         $booleanTerms = [];
         $parts = [];
         $params = [];
         $types = '';
 
-        foreach ($words as $word) {
-            $wordBase = self::normalizeSearchWord($word);
-            if ($wordBase === '') {
+        foreach (self::searchTerms($searchQuery) as ['term' => $wordBase, 'exact' => $exact]) {
+            if ($exact) {
+                // Quoted term (#501): FULLTEXT still narrows the rows — every
+                // indexable word must start a word, accent-folded, the same
+                // prefix rule an unquoted word follows — and the binary-collation
+                // LIKE then keeps only the exact spelling/phrase. Without the
+                // `*`, "haff" would demand the whole word "haff" and find
+                // nothing while the autocomplete above it lists Haffner.
+                foreach (self::fulltextTokens($wordBase) as $token) {
+                    if (self::fulltextTermForWord($token) !== null) {
+                        $booleanTerms[] = '+' . $token . '*';
+                    }
+                }
+                $parts[] = ExactSearch::likeSql($column, true);
+                $params[] = self::likePattern($wordBase);
+                $types .= 's';
                 continue;
             }
             $fulltextTerm = self::fulltextTermForWord($wordBase);
@@ -369,39 +384,50 @@ final class SearchIndexBuilder
         $prefix = $dot === false ? '' : substr($column, 0, $dot + 1);
         $descExpr = self::descriptionExpr($db, $prefix);
 
-        $words = preg_split('/\s+/', $searchQuery, -1, PREG_SPLIT_NO_EMPTY) ?: [];
-
         $parts = [];
         $params = [];
         $types = '';
 
         $hasJunction = SchemaInfo::hasLibriEditori($db);
 
-        foreach ($words as $word) {
-            $wordBase = self::normalizeSearchWord($word);
-            if ($wordBase === '') {
-                continue;
-            }
+        foreach (self::searchTerms($searchQuery) as ['term' => $wordBase, 'exact' => $exact]) {
             $like = self::likePattern($wordBase);
+            // A quoted term must also START a word, as on the FULLTEXT path
+            // (`+token*`): "haffner" in quotes must not answer for Schaffner.
+            // The exact LIKE keeps the spelling, the REGEXP the word start;
+            // both compare the lowered value under the binary collation.
+            // `_` is a word character for the InnoDB FULLTEXT parser too, so
+            // "haffner" must not start a word after it (x_haffner).
+            $wordStart = '(^|[^[:alnum:]_])' . preg_quote(mb_strtolower($wordBase, 'UTF-8'));
+            $exprCount = 0;
+            $m = static function (string $expr) use ($exact, &$exprCount): string {
+                $exprCount++;
+                return $exact
+                    ? '(' . ExactSearch::likeSql($expr, true) . " AND LOWER({$expr}) COLLATE utf8mb4_bin REGEXP ?)"
+                    : ExactSearch::likeSql($expr, false);
+            };
             $bookIdExpr = $prefix . 'id';
             $publisherIdExpr = $prefix . 'editore_id';
-            $parts[] = "({$prefix}titolo LIKE ? ESCAPE '\\\\'"
-                . " OR {$prefix}sottotitolo LIKE ? ESCAPE '\\\\'"
-                . " OR {$descExpr} LIKE ? ESCAPE '\\\\'"
-                . " OR {$prefix}parole_chiave LIKE ? ESCAPE '\\\\'"
-                . " OR {$prefix}isbn10 LIKE ? ESCAPE '\\\\'"
-                . " OR {$prefix}isbn13 LIKE ? ESCAPE '\\\\'"
-                . " OR {$prefix}ean LIKE ? ESCAPE '\\\\'"
-                . " OR EXISTS (SELECT 1 FROM libri_autori la JOIN autori a ON la.autore_id = a.id WHERE la.libro_id = {$bookIdExpr} AND CONCAT_WS(' ', a.nome, a.pseudonimo) LIKE ? ESCAPE '\\\\')"
-                . " OR EXISTS (SELECT 1 FROM editori e WHERE e.id = {$publisherIdExpr} AND e.nome LIKE ? ESCAPE '\\\\')"
+            $parts[] = '(' . $m("{$prefix}titolo")
+                . ' OR ' . $m("{$prefix}sottotitolo")
+                . ' OR ' . $m($descExpr)
+                . ' OR ' . $m("{$prefix}parole_chiave")
+                . ' OR ' . $m("{$prefix}isbn10")
+                . ' OR ' . $m("{$prefix}isbn13")
+                . ' OR ' . $m("{$prefix}ean")
+                . " OR EXISTS (SELECT 1 FROM libri_autori la JOIN autori a ON la.autore_id = a.id WHERE la.libro_id = {$bookIdExpr} AND " . $m("CONCAT_WS(' ', a.nome, a.pseudonimo)") . ')'
+                . " OR EXISTS (SELECT 1 FROM editori e WHERE e.id = {$publisherIdExpr} AND " . $m('e.nome') . ')'
                 . ($hasJunction
-                    ? " OR EXISTS (SELECT 1 FROM libri_editori le JOIN editori e2 ON e2.id = le.editore_id WHERE le.libro_id = {$bookIdExpr} AND e2.nome LIKE ? ESCAPE '\\\\')"
+                    ? " OR EXISTS (SELECT 1 FROM libri_editori le JOIN editori e2 ON e2.id = le.editore_id WHERE le.libro_id = {$bookIdExpr} AND " . $m('e2.nome') . ')'
                     : '')
                 . ')';
-            $paramsPerWord = $hasJunction ? 10 : 9;
-            for ($i = 0; $i < $paramsPerWord; $i++) {
+            for ($i = 0; $i < $exprCount; $i++) {
                 $params[] = $like;
                 $types .= 's';
+                if ($exact) {
+                    $params[] = $wordStart;
+                    $types .= 's';
+                }
             }
         }
 
@@ -444,14 +470,7 @@ final class SearchIndexBuilder
         ?int $maxWords = null
     ): array
     {
-        $rawWords = preg_split('/\s+/', trim($searchQuery), -1, PREG_SPLIT_NO_EMPTY) ?: [];
-        $words = [];
-        foreach ($rawWords as $word) {
-            $wordBase = self::normalizeSearchWord($word);
-            if ($wordBase !== '') {
-                $words[] = $wordBase;
-            }
-        }
+        $words = self::searchTerms($searchQuery);
         if ($maxWords !== null) {
             $words = array_slice($words, 0, max(0, $maxWords));
         }
@@ -468,18 +487,21 @@ final class SearchIndexBuilder
         $params = [];
         $types = '';
 
-        foreach ($words as $word) {
+        foreach ($words as ['term' => $word, 'exact' => $exact]) {
             $like = self::likePattern($word);
+            // A quoted term (#501) scores only on its exact spelling, matching
+            // the rows buildSearchCondition admitted.
+            $m = static fn(string $expr): string => ExactSearch::likeSql($expr, $exact);
 
-            $terms[] = "(CASE WHEN ({$prefix}isbn10 LIKE ? ESCAPE '\\\\'"
-                . " OR {$prefix}isbn13 LIKE ? ESCAPE '\\\\'"
-                . " OR {$prefix}ean LIKE ? ESCAPE '\\\\') THEN 120 ELSE 0 END)";
+            $terms[] = '(CASE WHEN (' . $m("{$prefix}isbn10")
+                . ' OR ' . $m("{$prefix}isbn13")
+                . ' OR ' . $m("{$prefix}ean") . ') THEN 120 ELSE 0 END)';
             $params[] = $like;
             $params[] = $like;
             $params[] = $like;
             $types .= 'sss';
 
-            $terms[] = "(CASE WHEN {$titleExpr} LIKE ? ESCAPE '\\\\' THEN 100 ELSE 0 END)";
+            $terms[] = "(CASE WHEN " . $m($titleExpr) . " THEN 100 ELSE 0 END)";
             $params[] = $like;
             $types .= 's';
 
@@ -487,25 +509,25 @@ final class SearchIndexBuilder
             $terms[] = "(CASE WHEN EXISTS (SELECT 1 FROM libri_autori la_rel"
                 . " JOIN autori a_rel ON a_rel.id = la_rel.autore_id"
                 . " WHERE la_rel.libro_id = {$prefix}id"
-                . " AND {$authorExpr} LIKE ? ESCAPE '\\\\') THEN 60 ELSE 0 END)";
+                . " AND " . $m($authorExpr) . ") THEN 60 ELSE 0 END)";
             $params[] = $like;
             $types .= 's';
 
-            $terms[] = "(CASE WHEN {$subtitleExpr} LIKE ? ESCAPE '\\\\' THEN 40 ELSE 0 END)";
+            $terms[] = "(CASE WHEN " . $m($subtitleExpr) . " THEN 40 ELSE 0 END)";
             $params[] = $like;
             $types .= 's';
 
             $publisherExpr = self::decodedSearchExpr('e_rel.nome');
             $publisherMatch = "EXISTS (SELECT 1 FROM editori e_rel"
                 . " WHERE e_rel.id = {$prefix}editore_id"
-                . " AND {$publisherExpr} LIKE ? ESCAPE '\\\\')";
+                . " AND " . $m($publisherExpr) . ")";
             $publisherParams = 1;
             if ($hasJunction) {
                 $publisher2Expr = self::decodedSearchExpr('e2_rel.nome');
                 $publisherMatch .= " OR EXISTS (SELECT 1 FROM libri_editori le_rel"
                     . " JOIN editori e2_rel ON e2_rel.id = le_rel.editore_id"
                     . " WHERE le_rel.libro_id = {$prefix}id"
-                    . " AND {$publisher2Expr} LIKE ? ESCAPE '\\\\')";
+                    . " AND " . $m($publisher2Expr) . ")";
                 $publisherParams++;
             }
             $terms[] = "(CASE WHEN ({$publisherMatch}) THEN 25 ELSE 0 END)";
@@ -514,11 +536,11 @@ final class SearchIndexBuilder
                 $types .= 's';
             }
 
-            $terms[] = "(CASE WHEN {$keywordsExpr} LIKE ? ESCAPE '\\\\' THEN 10 ELSE 0 END)";
+            $terms[] = "(CASE WHEN " . $m($keywordsExpr) . " THEN 10 ELSE 0 END)";
             $params[] = $like;
             $types .= 's';
 
-            $terms[] = "(CASE WHEN {$descExpr} LIKE ? ESCAPE '\\\\' THEN 3 ELSE 0 END)";
+            $terms[] = "(CASE WHEN " . $m($descExpr) . " THEN 3 ELSE 0 END)";
             $params[] = $like;
             $types .= 's';
         }
@@ -560,7 +582,9 @@ final class SearchIndexBuilder
      */
     private static function fulltextTokens(string $word): array
     {
-        if (preg_match_all('/[\p{L}\p{N}_]+/u', $word, $matches) !== 1) {
+        // Every token, not only a lone one: a quoted phrase needs each of its
+        // words (fulltextTermForWord() still rejects a multi-token word).
+        if (!preg_match_all('/[\p{L}\p{N}_]+/u', $word, $matches)) {
             return [];
         }
         return array_values(array_filter($matches[0], static fn(string $token): bool => $token !== ''));
@@ -585,7 +609,7 @@ final class SearchIndexBuilder
 
     private static function likePattern(string $term): string
     {
-        return '%' . str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $term) . '%';
+        return ExactSearch::likePattern($term);
     }
 
     /**
@@ -602,15 +626,25 @@ final class SearchIndexBuilder
     }
 
     /**
-     * Normalize a raw user search word for LIKE/FULLTEXT matching: strip a
-     * trailing '*' (the wildcard the FULLTEXT boolean path adds itself) and
-     * surrounding whitespace. Shared by buildSearchCondition (the WHERE) and
-     * buildRelevanceOrder (the ORDER BY) so the two paths tokenize identically
+     * Split a raw user query into search terms: quoted groups become one exact
+     * term (#501, see ExactSearch), other words are tolerant terms with a
+     * trailing '*' stripped (the wildcard the FULLTEXT boolean path adds
+     * itself). Shared by buildSearchCondition (the WHERE), the legacy fallback
+     * and buildRelevanceOrder (the ORDER BY) so all paths tokenize identically
      * and ranking never diverges from the rows the WHERE admitted.
+     *
+     * @return list<array{term: string, exact: bool}>
      */
-    private static function normalizeSearchWord(string $word): string
+    private static function searchTerms(string $searchQuery): array
     {
-        return trim(rtrim($word, '*'));
+        $terms = [];
+        foreach (ExactSearch::tokenize(trim($searchQuery)) as $term) {
+            $value = $term['exact'] ? $term['term'] : trim(rtrim($term['term'], '*'));
+            if ($value !== '') {
+                $terms[] = ['term' => $value, 'exact' => $term['exact']];
+            }
+        }
+        return $terms;
     }
 
     private static ?bool $hasDescrizionePlain = null;

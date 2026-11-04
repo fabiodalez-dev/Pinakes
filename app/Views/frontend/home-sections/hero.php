@@ -55,6 +55,7 @@ $spinner = '<span class="inline-block animate-spin rounded-full border-2 border-
                     <div class="hero-search-input-group pk-search">
                         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
                         <input type="search" name="q" class="hero-search-input search-input"
+                               title="<?= $e(__('Usa le virgolette per la grafia esatta: "Häffner" trova solo Häffner, non Haffner.')) ?>"
                                placeholder="<?= $e(__("Titolo, autore, editore o ISBN")) ?>"
                                aria-label="<?= $e(__("Cerca nella biblioteca")) ?>">
                         <button type="submit" class="hero-search-button"><?= __("Cerca") ?></button>

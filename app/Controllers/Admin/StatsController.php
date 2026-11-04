@@ -9,105 +9,22 @@ class StatsController
 {
     public function index(Request $request, Response $response, \mysqli $db): Response
     {
-        // Top 10 most borrowed books
-        // IMPORTANT: Use consistent definition of "active loan": attivo = 1 AND stato IN ('in_corso', 'in_ritardo')
-        $topBooksQuery = "
-            SELECT
-                l.id,
-                l.titolo,
-                l.copertina_url,
-                COUNT(p.id) as prestiti_totali,
-                COUNT(CASE WHEN p.stato = 'restituito' THEN 1 END) as prestiti_completati,
-                COUNT(CASE WHEN p.attivo = 1 AND p.stato IN ('in_corso', 'in_ritardo') THEN 1 END) as prestiti_attivi,
-                COUNT(CASE WHEN p.attivo = 1 AND p.stato = 'in_ritardo' THEN 1 END) as prestiti_in_ritardo
-            FROM libri l
-            LEFT JOIN prestiti p ON l.id = p.libro_id
-            WHERE l.deleted_at IS NULL
-            GROUP BY l.id
-            HAVING prestiti_totali > 0
-            ORDER BY prestiti_totali DESC
-            LIMIT 10
-        ";
-        $topBooksResult = $db->query($topBooksQuery);
-        $topBooks = [];
-        while ($row = $topBooksResult->fetch_assoc()) {
-            $topBooks[] = $row;
-        }
+        // The loan figures live in LoanStatistics, shared with the app's
+        // GET /api/v1/staff/statistics.
+        $topBooks = \App\Support\LoanStatistics::topBooks($db);
+        $topReaders = \App\Support\LoanStatistics::topReaders($db);
+        $loansByMonth = \App\Support\LoanStatistics::loansByMonth($db);
+        $loansByStatus = \App\Support\LoanStatistics::loansByStatus($db);
+        $stats = \App\Support\LoanStatistics::overview($db);
 
-        // Top 10 most active readers
-        // IMPORTANT: Use consistent definition of "active loan": attivo = 1 AND stato IN ('in_corso', 'in_ritardo')
-        $topReadersQuery = "
-            SELECT
-                u.id,
-                u.nome,
-                u.cognome,
-                u.email,
-                u.tipo_utente,
-                COUNT(p.id) as prestiti_totali,
-                COUNT(CASE WHEN p.stato = 'restituito' THEN 1 END) as prestiti_completati,
-                COUNT(CASE WHEN p.attivo = 1 AND p.stato IN ('in_corso', 'in_ritardo') THEN 1 END) as prestiti_attivi,
-                COUNT(CASE WHEN p.attivo = 1 AND p.stato = 'in_ritardo' THEN 1 END) as prestiti_in_ritardo
-            FROM utenti u
-            LEFT JOIN prestiti p ON u.id = p.utente_id
-            GROUP BY u.id
-            HAVING prestiti_totali > 0
-            ORDER BY prestiti_totali DESC
-            LIMIT 10
-        ";
-        $topReadersResult = $db->query($topReadersQuery);
-        $topReaders = [];
-        while ($row = $topReadersResult->fetch_assoc()) {
-            $topReaders[] = $row;
-        }
-
-        // Loans by month (last 12 months)
-        $loansByMonthQuery = "
-            SELECT
-                DATE_FORMAT(data_prestito, '%Y-%m') as mese,
-                DATE_FORMAT(data_prestito, '%M %Y') as mese_label,
-                COUNT(*) as totale_prestiti
-            FROM prestiti
-            WHERE data_prestito >= DATE_SUB(CURDATE(), INTERVAL 12 MONTH)
-            GROUP BY DATE_FORMAT(data_prestito, '%Y-%m'), DATE_FORMAT(data_prestito, '%M %Y')
-            ORDER BY mese ASC
-        ";
-        $loansByMonthResult = $db->query($loansByMonthQuery);
-        $loansByMonth = [];
-        while ($row = $loansByMonthResult->fetch_assoc()) {
-            $loansByMonth[] = $row;
-        }
-
-        // Loans by status (only active loans)
-        // Shows breakdown of current active loans by their status
-        $loansByStatusQuery = "
-            SELECT
-                stato,
-                COUNT(*) as totale
-            FROM prestiti
-            WHERE attivo = 1 AND stato IN ('in_corso', 'in_ritardo')
-            GROUP BY stato
-        ";
-        $loansByStatusResult = $db->query($loansByStatusQuery);
-        $loansByStatus = [];
-        while ($row = $loansByStatusResult->fetch_assoc()) {
-            $loansByStatus[] = $row;
-        }
-
-        // Overall stats
-        // IMPORTANT: Use consistent definition of "active loan" across all queries:
-        // - attivo = 1
-        // - stato IN ('in_corso', 'in_ritardo')
-        $statsQuery = "
-            SELECT
-                (SELECT COUNT(*) FROM libri WHERE stato = 'disponibile' AND deleted_at IS NULL) as libri_disponibili,
-                (SELECT COUNT(*) FROM libri WHERE stato = 'prestato' AND deleted_at IS NULL) as libri_prestati,
-                (SELECT COUNT(*) FROM prestiti WHERE attivo = 1 AND stato IN ('in_corso', 'in_ritardo')) as prestiti_attivi,
-                (SELECT COUNT(*) FROM prestiti WHERE attivo = 1 AND stato = 'in_ritardo') as prestiti_in_ritardo,
-                (SELECT COUNT(*) FROM prestiti WHERE stato = 'restituito') as prestiti_completati,
-                (SELECT COUNT(DISTINCT utente_id) FROM prestiti) as utenti_con_prestiti
-        ";
-        $statsResult = $db->query($statsQuery);
-        $stats = $statsResult->fetch_assoc();
+        // 0.9.0 sections: visitors (attendance log), loans by material and the
+        // extension points other branches fill (see StatisticsSections).
+        $visitors = \App\Support\StatisticsSections::visitors($db, 30);
+        $loansByMedia = \App\Support\StatisticsSections::loansByMediaType($db);
+        $extraSections = \App\Support\StatisticsSections::extensions($db);
+        // Fines report (plan §7): charged / collected / waived per month.
+        [$finesFrom, $finesTo] = self::finesPeriod($request);
+        $finesByMonth = \App\Services\PatronLedger::forDb($db)->periodTotals($finesFrom, $finesTo);
 
         $title = 'Statistiche Prestiti';
 
@@ -121,5 +38,53 @@ class StatsController
 
         $response->getBody()->write($html);
         return $response;
+    }
+
+    /** CSV of the fines report for the selected period. */
+    public function finesCsv(Request $request, Response $response, \mysqli $db): Response
+    {
+        [$from, $to] = self::finesPeriod($request);
+        $rows = \App\Services\PatronLedger::forDb($db)->periodTotals($from, $to);
+        $currency = \App\Services\FineParameters::currency();
+        $out = fopen('php://temp', 'r+');
+        fputcsv($out, [__('Mese'), __('Addebitato') . ' (' . $currency . ')', __('Incassato') . ' (' . $currency . ')', __('Condonato') . ' (' . $currency . ')', __('Stornato') . ' (' . $currency . ')'], ',', '"', '');
+        $sum = ['addebitato' => 0, 'incassato' => 0, 'condonato' => 0, 'stornato' => 0];
+        foreach ($rows as $row) {
+            fputcsv($out, [
+                $row['mese'],
+                \App\Services\FineParameters::centsToDecimal($row['addebitato']),
+                \App\Services\FineParameters::centsToDecimal($row['incassato']),
+                \App\Services\FineParameters::centsToDecimal($row['condonato']),
+                \App\Services\FineParameters::centsToDecimal($row['stornato']),
+            ], ',', '"', '');
+            foreach ($sum as $k => $v) {
+                $sum[$k] = $v + $row[$k];
+            }
+        }
+        fputcsv($out, [
+            __('Totale'),
+            \App\Services\FineParameters::centsToDecimal($sum['addebitato']),
+            \App\Services\FineParameters::centsToDecimal($sum['incassato']),
+            \App\Services\FineParameters::centsToDecimal($sum['condonato']),
+            \App\Services\FineParameters::centsToDecimal($sum['stornato']),
+        ], ',', '"', '');
+        rewind($out);
+        $csv = "\xEF\xBB\xBF" . (string) stream_get_contents($out);
+        fclose($out);
+        $filename = 'multe_' . $from . '_' . $to . '.csv';
+        $response->getBody()->write($csv);
+        return $response
+            ->withHeader('Content-Type', 'text/csv; charset=UTF-8')
+            ->withHeader('Content-Disposition', 'attachment; filename="' . $filename . '"');
+    }
+
+    /**
+     * Report period from ?fines_from / ?fines_to (see LoanStatistics::finesPeriod()).
+     *
+     * @return array{0: string, 1: string}
+     */
+    private static function finesPeriod(Request $request): array
+    {
+        return \App\Support\LoanStatistics::finesPeriod($request->getQueryParams());
     }
 }

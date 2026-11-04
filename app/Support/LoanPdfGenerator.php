@@ -15,7 +15,7 @@ use App\Models\LoanRepository;
  */
 class LoanPdfGenerator
 {
-    private mysqli $db;
+    protected mysqli $db;
 
     public function __construct(mysqli $db)
     {
@@ -64,7 +64,7 @@ class LoanPdfGenerator
     /**
      * Configure PDF document metadata and settings
      */
-    private function configurePdf(TCPDF $pdf, string $appName): void
+    protected function configurePdf(TCPDF $pdf, string $appName): void
     {
         // Document metadata
         $pdf->SetCreator($appName);
@@ -86,7 +86,7 @@ class LoanPdfGenerator
      *
      * @return string|null Absolute path to logo file, or null if not found
      */
-    private function resolveLogoPath(): ?string
+    protected function resolveLogoPath(): ?string
     {
         $logoRelative = Branding::fullLogo(); // e.g., '/assets/brand/logo.png'
 
@@ -110,7 +110,7 @@ class LoanPdfGenerator
     /**
      * Render PDF header with logo and library name
      */
-    private function renderHeader(TCPDF $pdf, string $appName, ?string $logoPath): void
+    protected function renderHeader(TCPDF $pdf, string $appName, ?string $logoPath, ?string $documentTitle = null): void
     {
         // Logo (scaled to fit max 60x25mm)
         if ($logoPath) {
@@ -156,7 +156,7 @@ class LoanPdfGenerator
 
         // Document title (centered, regular, medium)
         $pdf->SetFont('dejavusans', '', 14);
-        $pdf->Cell(0, 8, __('Ricevuta di Prestito'), 0, 1, 'C');
+        $pdf->Cell(0, 8, $documentTitle ?? __('Ricevuta di Prestito'), 0, 1, 'C');
 
         // Separator line
         $pdf->Ln(3);
@@ -231,7 +231,7 @@ class LoanPdfGenerator
     /**
      * Render a section with title and field-value pairs
      */
-    private function renderSection(TCPDF $pdf, string $title, array $fields): void
+    protected function renderSection(TCPDF $pdf, string $title, array $fields): void
     {
         // Section title (gray background)
         $pdf->SetFont('dejavusans', 'B', 12);
@@ -256,7 +256,7 @@ class LoanPdfGenerator
     /**
      * Render PDF footer with generation timestamp
      */
-    private function renderFooter(TCPDF $pdf): void
+    protected function renderFooter(TCPDF $pdf): void
     {
         $pdf->Ln(10);
 

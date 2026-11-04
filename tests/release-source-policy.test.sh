@@ -23,7 +23,17 @@ FAKEGIT
 
 cat >"$test_root/bin/gh" <<'FAKEGH'
 #!/usr/bin/env bash
-if [[ "${1:-}" == api ]]; then
+if [[ "${1:-}" == api && "$*" == *"/check-runs"* ]]; then
+  title='Review skipped: 654 files exceed the limit of 100'
+  case "${FAKE_CR_RUN:-none}" in
+    file_limit) printf '{"total_count":1,"check_runs":[{"app":{"slug":"coderabbitai"},"head_sha":"sha-rc","conclusion":"skipped","output":{"title":"%s"}}]}\n' "$title" ;;
+    wrong_sha) printf '{"total_count":1,"check_runs":[{"app":{"slug":"coderabbitai"},"head_sha":"other-sha","conclusion":"skipped","output":{"title":"%s"}}]}\n' "$title" ;;
+    rate_limit) printf '{"total_count":1,"check_runs":[{"app":{"slug":"coderabbitai"},"head_sha":"sha-rc","conclusion":"skipped","output":{"title":"Review skipped: rate limit exceeded"}}]}\n' ;;
+    other_app) printf '{"total_count":1,"check_runs":[{"app":{"slug":"impostor-bot"},"head_sha":"sha-rc","conclusion":"skipped","output":{"title":"%s"}}]}\n' "$title" ;;
+    mixed) printf '{"total_count":2,"check_runs":[{"app":{"slug":"coderabbitai"},"head_sha":"sha-rc","conclusion":"skipped","output":{"title":"%s"}},{"app":{"slug":"impostor-bot"},"head_sha":"sha-rc","conclusion":"skipped","output":{"title":"%s"}}]}\n' "$title" "$title" ;;
+    *) printf '{"total_count":0,"check_runs":[]}\n' ;;
+  esac
+elif [[ "${1:-}" == api ]]; then
   case "${FAKE_PR_KIND:-valid}" in
     none) printf '[[]]\n' ;;
     draft) printf '[[{"number":341,"draft":true,"base":{"ref":"main"},"head":{"sha":"sha-rc","ref":"release/0.7.59-rc.1","repo":{"full_name":"fabiodalez-dev/Pinakes"}}}]]\n' ;;
@@ -64,6 +74,8 @@ elif [[ "${1:-} ${2:-}" == "pr checks" ]]; then
         exit 8
       fi
       ;;
+    coderabbit_skipped) printf '[{"name":"CodeRabbit","state":"SKIPPED","bucket":"skipping","workflow":""},{"name":"Full E2E","state":"SUCCESS","bucket":"pass","workflow":"E2E"}]\n' ;;
+    coderabbit_skipped_e2e_failed) printf '[{"name":"CodeRabbit","state":"SKIPPED","bucket":"skipping","workflow":""},{"name":"Full E2E","state":"FAILURE","bucket":"fail","workflow":"E2E"}]\n'; exit 1 ;;
     missing_coderabbit) printf '[{"name":"Full E2E","state":"SUCCESS","bucket":"pass","workflow":"E2E"}]\n' ;;
     empty) printf '[]\n' ;;
     *) printf '[{"name":"CodeRabbit","state":"SUCCESS","bucket":"pass","workflow":""},{"name":"Full E2E","state":"SUCCESS","bucket":"pass","workflow":"E2E"}]\n' ;;
@@ -129,6 +141,13 @@ run_case "RC rejects self-blocked state when GitHub reports a conflict" fail "0.
 run_case "RC rejects self-blocked state when a review is required" fail "0.7.59-rc.3" "sha-rc" FAKE_MERGE_STATE=BLOCKED FAKE_CHECKS=self_blocked FAKE_REVIEW_DECISION=REVIEW_REQUIRED
 run_case "RC with pending required check" fail "0.7.59-rc.3" "sha-rc" FAKE_CHECKS=pending
 run_case "RC without required CodeRabbit" fail "0.7.59-rc.3" "sha-rc" FAKE_CHECKS=missing_coderabbit
+run_case "RC accepts CodeRabbit skipped only for its file limit" pass "0.7.59-rc.3" "sha-rc" FAKE_CHECKS=coderabbit_skipped FAKE_CR_RUN=file_limit
+run_case "RC rejects CodeRabbit skipped without a check run" fail "0.7.59-rc.3" "sha-rc" FAKE_CHECKS=coderabbit_skipped
+run_case "RC rejects CodeRabbit skipped for a rate limit" fail "0.7.59-rc.3" "sha-rc" FAKE_CHECKS=coderabbit_skipped FAKE_CR_RUN=rate_limit
+run_case "RC rejects a file-limit skip posted by another app" fail "0.7.59-rc.3" "sha-rc" FAKE_CHECKS=coderabbit_skipped FAKE_CR_RUN=other_app
+run_case "RC rejects a file-limit skip next to another app's run" fail "0.7.59-rc.3" "sha-rc" FAKE_CHECKS=coderabbit_skipped FAKE_CR_RUN=mixed
+run_case "RC rejects a file-limit skip on another commit" fail "0.7.59-rc.3" "sha-rc" FAKE_CHECKS=coderabbit_skipped FAKE_CR_RUN=wrong_sha
+run_case "RC file-limit skip does not excuse a failed check" fail "0.7.59-rc.3" "sha-rc" FAKE_CHECKS=coderabbit_skipped_e2e_failed FAKE_CR_RUN=file_limit
 run_case "RC without required checks" fail "0.7.59-rc.3" "sha-rc" FAKE_CHECKS=empty
 run_case "unsupported prerelease channel" fail "0.7.59-preview.1" "sha-rc"
 

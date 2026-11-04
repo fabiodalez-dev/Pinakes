@@ -95,6 +95,9 @@ final class StaffReservationsController
             'data_scadenza'         => $dates['expires_at'] ?? '',
             'data_inizio_richiesta' => $dates['requested_from'] ?? '',
             'data_fine_richiesta'   => $dates['requested_to'] ?? '',
+            // Staff may override the patron type's reservation limits
+            // explicitly (Pinakes 0.9.0), as the admin form does.
+            'force_limits'          => ($json['override_limits'] ?? false) === true ? '1' : '',
         ];
         $db = $this->db;
         $reader = $this->reader;

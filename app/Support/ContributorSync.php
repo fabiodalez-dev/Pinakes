@@ -20,7 +20,7 @@ final class ContributorSync
     private const ROLES = ['co-autore', 'traduttore', 'illustratore', 'curatore', 'colorista'];
 
     /** @var list<string> */
-    private const IMPORT_SOURCES = ['csv', 'librarything', 'legacy-backfill'];
+    private const IMPORT_SOURCES = ['csv', 'librarything', 'marc', 'legacy-backfill'];
 
     /**
      * Split a legacy contributor value into individual names.

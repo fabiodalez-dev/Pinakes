@@ -99,6 +99,9 @@ $expect = [
     ['CREATE', 'copy_wrong_book', 422, 'validation_error', 'copy_code', null],
     ['CREATE', 'duplicate_reservation', 409, 'duplicate', null, 'duplicate_reservation'],
     ['CREATE', 'max_loans_reached', 409, 'max_loans_reached', null, null],
+    ['CREATE', 'media_limit_reached', 409, 'media_limit_reached', null, null],
+    ['CREATE', 'not_loanable', 409, 'not_loanable', null, null],
+    ['UPDATE', 'media_limit_reached', 409, 'media_limit_reached', null, null],
     ['CREATE', 'libro_in_prestito', 409, 'not_available', null, 'libro_in_prestito'],
     ['CREATE', 'duplicate_submission', 500, 'internal_error', null, null],
     ['UPDATE', 'loan_closed', 409, 'loan_closed', null, null],
@@ -118,6 +121,9 @@ $expect = [
     ['RESERVATION', 'capacity_full', 409, 'not_available', null, 'capacity_full'],
     ['RESERVATION', 'promoted_loan_active', 409, 'conflict', null, 'promoted_loan_active'],
     ['RESERVATION', 'not_found', 404, 'not_found', null, null],
+    ['RESERVATION', 'not_loanable', 409, 'not_loanable', null, null],
+    ['RESERVATION', 'reservations_disabled', 409, 'reservations_disabled', null, null],
+    ['RESERVATION', 'reservation_limit_reached', 409, 'reservation_limit_reached', null, null],
 ];
 foreach ($expect as [$table, $code, $status, $apiCode, $field, $reason]) {
     [$got, $body] = $decode(CirculationOutcome::error(new Response(), constant(CirculationOutcome::class . '::' . $table), $code, 'unit'));
@@ -164,6 +170,19 @@ foreach ([[400, 409, 'conflict'], [409, 409, 'conflict'], [403, 409, 'not_eligib
         $check(($body['error']['message'] ?? null) === 'Messaggio del core', "core {$core} keeps the server message");
     }
 }
+
+// The reader's request (POST /reservations → UserActionsController::loan()):
+// the status the app gets is the persisted state, not "approved = da_ritirare".
+echo "\nD2. Reader request state from the loan() redirect\n";
+$check(CirculationOutcome::requestState(['loan_request_success' => '1', 'auto_approved' => '0', 'loan_state' => '']) === 'pendente', 'not auto-approved → pendente');
+$check(CirculationOutcome::requestState(['loan_request_success' => '1']) === 'pendente', 'no auto_approved key → pendente');
+$check(CirculationOutcome::requestState(['auto_approved' => '1', 'loan_state' => 'da_ritirare']) === 'da_ritirare', 'approved, starts today → da_ritirare');
+$check(CirculationOutcome::requestState(['auto_approved' => '1', 'loan_state' => 'prenotato']) === 'prenotato', 'approved, library closed today → prenotato (starts on the next open day)');
+$check(CirculationOutcome::requestState(['auto_approved' => '1', 'loan_state' => '']) === 'da_ritirare', 'approved without a state → da_ritirare (fallback)');
+$check(CirculationOutcome::requestState(['auto_approved' => '1', 'loan_state' => 'in_corso']) === 'da_ritirare', 'approved with an unexpected state → da_ritirare');
+$check(CirculationOutcome::requestState(['auto_approved' => '0', 'loan_state' => 'prenotato']) === 'pendente', 'a state without approval is still pendente');
+$openApi = (string) file_get_contents(__DIR__ . '/../storage/plugins/mobile-api/src/Controllers/OpenApiController.php');
+$check(str_contains($openApi, "'enum' => ['pendente', 'da_ritirare', 'prenotato']"), 'the OpenAPI status enum of POST /reservations lists prenotato');
 
 // ── E. Health flags ──────────────────────────────────────────────────────────
 echo "\nE. staff_* flags only for mounted areas\n";

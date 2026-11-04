@@ -67,14 +67,15 @@ final class StaffContentOpenApi
             'copies' => [
                 '/staff/copies/{id}' => [
                     'get' => O::op($t, 'staffCopy', 'One physical copy', ['200' => O::ok('Copy.', O::ref('StaffCopy'))] + O::notFound(), $copyId),
-                    'put' => O::op($t, 'staffUpdateCopy', 'Change the status and/or notes of a copy', [
+                    'put' => O::op($t, 'staffUpdateCopy', 'Change the status, notes and/or consultation flag of a copy', [
                         '200' => O::ok('Updated copy.', O::ref('StaffCopy')),
-                    ] + O::notFound() + O::invalid() + O::conflict('`copy_on_loan` (out on loan: use the return), `copy_held` (reserved: use circulation), `conflict` (refused by the server, message = its text).'), $copyId + [
+                    ] + O::notFound() + O::invalid() + O::conflict('`copy_on_loan` (out on loan: use the return), `copy_held` (reserved: use circulation), `conflict` (refused by the server, message = its text; also a copy held by a loan, a pickup or a request cannot become consultation only).'), $copyId + [
                         'requestBody' => O::inlineBody([
                             'status' => ['type' => 'string', 'enum' => \App\Plugins\MobileApi\Controllers\StaffBooksController::CREATABLE_COPY_STATES],
                             'notes' => ['type' => ['string', 'null'], 'maxLength' => 500],
+                            'consultation_only' => ['type' => 'boolean', 'description' => 'Pinakes 0.9.0: keep the copy for in-house consultation (true) or make it lendable again (false), as the book page does. 404 feature_disabled with features.consultation_only off.'],
                         ]),
-                        'description' => 'Setting `disponibile` on a copy that is out on loan records the return of that loan (same as the web copy page).',
+                        'description' => 'Setting `disponibile` on a copy that is out on loan records the return of that loan (same as the web copy page). `consultation_only` is applied first, with the book page\'s refusals; making a copy lendable again promotes the waitlist.',
                     ]),
                     'delete' => O::op($t, 'staffDeleteCopy', 'Delete a copy that is out of circulation and has no loan history', [
                         '200' => O::ok('Deleted.', O::object(['id' => ['type' => 'integer'], 'deleted' => ['type' => 'boolean']])),

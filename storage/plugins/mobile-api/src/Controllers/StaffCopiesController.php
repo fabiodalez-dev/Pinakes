@@ -6,9 +6,11 @@ namespace App\Plugins\MobileApi\Controllers;
 
 use App\Controllers\CopyController;
 use App\Plugins\MobileApi\Support\Delegation;
+use App\Plugins\MobileApi\Support\DelegationOutcome;
 use App\Plugins\MobileApi\Support\JsonBody;
 use App\Plugins\MobileApi\Support\ResponseEnvelope;
 use App\Plugins\MobileApi\Support\StaffCopyReader;
+use App\Support\Permissions;
 use App\Support\SecureLogger;
 use mysqli;
 use Psr\Http\Message\ResponseInterface;
@@ -54,40 +56,60 @@ final class StaffCopiesController
         if (array_key_exists('notes', $json) && $json['notes'] !== null && !is_string($json['notes'])) {
             return ResponseEnvelope::error($response, 'validation_error', __('Valore non valido.'), 422, ['field' => 'notes']);
         }
+        if (array_key_exists('consultation_only', $json) && !is_bool($json['consultation_only'])) {
+            return ResponseEnvelope::error($response, 'validation_error', __('Valore non valido.'), 422, ['field' => 'consultation_only']);
+        }
         try {
             $reader = new StaffCopyReader($this->db);
             $row = $reader->row($id);
             if ($row === null) {
                 return $this->notFound($response);
             }
+            // Consultation only (Pinakes 0.9.0): the same toggle as the book
+            // page, with its refusals (a copy held by a loan, a pickup or a
+            // copy-bound request) and its queue promotion when it is lendable
+            // again.
+            $toggle = array_key_exists('consultation_only', $json);
+            if ($toggle && !$reader->consultationActive()) {
+                return ResponseEnvelope::error($response, 'feature_disabled', __('Funzione non disponibile su questa istanza.'), 404);
+            }
+            $editsCopy = array_key_exists('status', $json) || array_key_exists('notes', $json);
             $current = (string) $row['stato'];
             $target = is_string($json['status'] ?? null) ? (string) $json['status'] : $current;
             $notes = array_key_exists('notes', $json) ? (string) ($json['notes'] ?? '') : (string) ($row['note'] ?? '');
 
-            if ($current === 'prenotato' && $target === 'disponibile') {
-                return $this->refuse($response, 'copy_held', __('Per annullare o spostare una prenotazione, utilizza il sistema Prestiti.'));
-            }
-            $physicallyOut = $this->scalar(
-                "SELECT COUNT(*) FROM prestiti WHERE copia_id = ? AND attivo = 1 AND stato IN ('in_corso','in_ritardo')",
-                $id
-            ) > 0;
-            // prestato → disponibile with an open loan is a return (the core
-            // hands it to processReturn); anything else on a copy that is out
-            // must go through the return workflow.
-            if ($physicallyOut && !($current === 'prestato' && $target === 'disponibile')) {
-                return $this->refuse($response, 'copy_on_loan', __('La copia è fisicamente in prestito: registra prima la restituzione o l’esito perso/danneggiato dal sistema Prestiti.'));
+            // Refuse known invalid transitions before entering the core action.
+            // Combined status/flag changes are committed by that action together.
+            if ($editsCopy) {
+                if ($current === 'prenotato' && $target === 'disponibile') {
+                    return $this->refuse($response, 'copy_held', __('Per annullare o spostare una prenotazione, utilizza il sistema Prestiti.'));
+                }
+                $physicallyOut = $this->scalar(
+                    "SELECT COUNT(*) FROM prestiti WHERE copia_id = ? AND attivo = 1 AND stato IN ('in_corso','in_ritardo')",
+                    $id
+                ) > 0;
+                // prestato → disponibile with an open loan is a return (the core
+                // hands it to processReturn); anything else on a copy that is out
+                // must go through the return workflow.
+                if ($physicallyOut && !($current === 'prestato' && $target === 'disponibile')) {
+                    return $this->refuse($response, 'copy_on_loan', __('La copia è fisicamente in prestito: registra prima la restituzione o l’esito perso/danneggiato dal sistema Prestiti.'));
+                }
+                // That return is PrestitiController::processReturn(), a loan-desk
+                // action: a catalogue-only role is refused before the
+                // consultation flag of the same request is written.
+                if ($physicallyOut && !Permissions::can('loans.manage')) {
+                    return ResponseEnvelope::error($response, 'not_permitted', __('Accesso negato.'), 403);
+                }
             }
 
-            $db = $this->db;
-            $outcome = Delegation::run(static fn (): ResponseInterface => (new CopyController())->updateCopy(
-                Delegation::request('POST', '/admin/books/copies/' . $id . '/update', ['stato' => $target, 'note' => $notes]),
-                new SlimResponse(),
-                $db,
-                $id
-            ));
-            $error = $outcome->flash('error_message');
-            if ($error !== null || $outcome->errorCode() !== null) {
-                return ResponseEnvelope::error($response, 'conflict', $error ?? __('Operazione non consentita nello stato attuale.'), 409);
+            if ($editsCopy) {
+                if ($refused = $this->applyStatus($id, $target, $notes, $toggle ? $json['consultation_only'] : null)) {
+                    return ResponseEnvelope::error($response, $refused['code'], $refused['message'], $refused['status']);
+                }
+            } elseif ($toggle) {
+                if ($refused = $this->setConsultation($id, $json['consultation_only'])) {
+                    return ResponseEnvelope::error($response, $refused['code'], $refused['message'], $refused['status']);
+                }
             }
             $copy = $reader->copy($id);
 
@@ -95,6 +117,64 @@ final class StaffCopiesController
         } catch (\Throwable $e) {
             return $this->fail($response, 'copy update', $e);
         }
+    }
+
+    /**
+     * Status and notes through CopyController::updateCopy(). Returns the
+     * refusal, or null when the copy was updated.
+     *
+     * @return array{status:int, code:string, message:string}|null
+     */
+    private function applyStatus(int $id, string $target, string $notes, ?bool $consultation = null): ?array
+    {
+        $db = $this->db;
+
+        return self::refusal(Delegation::run(static fn (): ResponseInterface => (new CopyController())->updateCopy(
+            Delegation::request('POST', '/admin/books/copies/' . $id . '/update', ['stato' => $target, 'note' => $notes]),
+            new SlimResponse(),
+            $db,
+            $id,
+            $consultation
+        )));
+    }
+
+    /**
+     * Mark the copy consultation only, or lendable again, through
+     * CopyController::toggleConsultation(). Returns the refusal, or null
+     * when the copy now has the requested flag.
+     *
+     * @return array{status:int, code:string, message:string}|null
+     */
+    private function setConsultation(int $id, bool $consultation): ?array
+    {
+        $db = $this->db;
+
+        return self::refusal(Delegation::run(static fn (): ResponseInterface => (new CopyController())->toggleConsultation(
+            Delegation::request('POST', '/admin/books/copies/' . $id . '/consultation', ['solo_consultazione' => $consultation ? '1' : '0']),
+            new SlimResponse(),
+            $db,
+            $id
+        )));
+    }
+
+    /**
+     * What a delegated copy action refused, null when it went through. A bare
+     * 403 (no flash, no Location: a guard such as processReturn's
+     * loans.manage check) is a refusal too, not a success.
+     *
+     * @return array{status:int, code:string, message:string}|null
+     */
+    private static function refusal(DelegationOutcome $outcome): ?array
+    {
+        if ($outcome->status === 403) {
+            return ['status' => 403, 'code' => 'not_permitted', 'message' => __('Accesso negato.')];
+        }
+        $error = $outcome->flash('error_message');
+        if ($outcome->status >= 400 || $error !== null || $outcome->errorCode() !== null) {
+            return ['status' => 409, 'code' => 'conflict', 'message' => $error ?? __('Operazione non consentita nello stato attuale.')];
+        }
+
+        return null;
     }
 
     public function delete(ServerRequestInterface $request, ResponseInterface $response, int $id): ResponseInterface

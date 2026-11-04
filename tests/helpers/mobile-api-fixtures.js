@@ -184,6 +184,21 @@ function headers(token, extra) {
 }
 
 /**
+ * Whether a request may be sent again after a connection reset: a read or a
+ * PUT (same answer twice), or a write that carries an idempotency key
+ * (header or `idempotency_key` in the JSON body), which the server replays.
+ * Not a DELETE: when the reset hid a deletion that did happen, the resent
+ * one answers 404 and the test would fail on an outcome the server never
+ * gave to the first call.
+ */
+function safeToResend(method, requestHeaders, body) {
+    if (['GET', 'HEAD', 'OPTIONS', 'PUT'].includes(String(method).toUpperCase())) return true;
+    const key = Object.keys(requestHeaders || {}).find((h) => h.toLowerCase() === 'idempotency-key');
+    if (key && requestHeaders[key]) return true;
+    return !!(body && typeof body === 'object' && typeof body.idempotency_key === 'string' && body.idempotency_key !== '');
+}
+
+/**
  * Call the API. `body` is sent as JSON; `multipart` as multipart/form-data.
  * Returns {status, json, headers, text}.
  */
@@ -195,7 +210,23 @@ async function api(request, method, path, { token, body, multipart, extraHeaders
         opts.headers['Content-Type'] = 'application/json';
         opts.data = JSON.stringify(body);
     }
-    const res = await request.fetch(path.startsWith('http') ? path : `${API}${path}`, opts);
+    const url = path.startsWith('http') ? path : `${API}${path}`;
+    let res;
+    try {
+        res = await request.fetch(url, opts);
+    } catch (error) {
+        // Apache closes a kept-alive connection after MaxKeepAliveRequests
+        // (100 by default) or KeepAliveTimeout; a request sent on it at that
+        // moment fails with no response at all. A long loop of calls meets
+        // that race: retry once on a fresh socket, but only a request that
+        // is safe to send twice. A reset can also cut a request the server
+        // already ran, and a plain POST resent then would write twice.
+        if (!/socket hang up|ECONNRESET/.test(String(error && error.message))) throw error;
+        // A login sent twice only issues a second token, which the suites never
+        // count, so it is resent like a safe method.
+        if (!safeToResend(method, opts.headers, body) && !/\/auth\/login$/.test(url)) throw error;
+        res = await request.fetch(url, opts);
+    }
     const text = await res.text();
     let json = null;
     try { json = JSON.parse(text); } catch { json = null; }

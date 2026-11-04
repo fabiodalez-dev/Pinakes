@@ -87,6 +87,13 @@ require_once __DIR__ . '/src/Controllers/StaffDesiderataController.php';
 require_once __DIR__ . '/src/Controllers/StaffArchivesController.php';
 require_once __DIR__ . '/src/Controllers/StaffWorksController.php';
 require_once __DIR__ . '/src/Controllers/StaffDigitalController.php';
+// Mobile API 1.10.0: the Pinakes 0.9.0 staff areas load themselves from
+// src/Staff090 (support, controllers, areas), so a new area needs no line here.
+require_once __DIR__ . '/src/Staff090/AreaRegistry.php';
+foreach (\App\Plugins\MobileApi\Staff090\AreaRegistry::files() as $staff090File) {
+    require_once $staff090File;
+}
+unset($staff090File);
 
 /**
  * Mobile API plugin.
@@ -380,7 +387,7 @@ class MobileApiPlugin
                 id              CHAR(36)     NOT NULL PRIMARY KEY,
                 user_id         INT          NOT NULL,
                 token_id        INT          NULL,
-                kind            ENUM('csv','librarything') NOT NULL,
+                kind            VARCHAR(32)  NOT NULL,
                 file_name       VARCHAR(255) NOT NULL,
                 total_rows      INT          NOT NULL DEFAULT 0,
                 processed       INT          NOT NULL DEFAULT 0,
@@ -415,7 +422,22 @@ class MobileApiPlugin
             }
         }
 
+        // Mobile API 1.10.0: job kinds beyond csv/librarything (MARC, patron
+        // CSV, copy cataloguing). Installs created before 1.10.0 still have the
+        // two-value ENUM; widen it once. An admin-UI upgrade may run the old
+        // onActivate(), so ImportJobStore::create() also widens it before the
+        // first job of a newer kind.
+        if (!in_array('mobile_import_jobs', $failed, true) && !$this->widenImportJobKind()) {
+            $failed[] = 'mobile_import_jobs.kind';
+        }
+
         return ['created' => $created, 'failed' => $failed];
+    }
+
+    /** Turns the pre-1.10.0 ENUM `kind` into VARCHAR(32); a no-op afterwards. */
+    private function widenImportJobKind(): bool
+    {
+        return \App\Plugins\MobileApi\Support\ImportJobStore::widenKind($this->db);
     }
 
     // ─── Hook registration ──────────────────────────────────────────────────
@@ -693,6 +715,24 @@ class MobileApiPlugin
                 return $handler->handle($request);
             };
 
+            // The fines module (Settings -> Loans) switched off: the reader's
+            // balance and movements are not available, in the same shape as
+            // the catalogue-mode refusal (the app hides the screen on it).
+            $finesGuard = function (
+                ServerRequestInterface $request,
+                \Psr\Http\Server\RequestHandlerInterface $handler
+            ): ResponseInterface {
+                if (!\App\Support\Features::enabled('fines')) {
+                    return \App\Plugins\MobileApi\Support\ResponseEnvelope::error(
+                        new \Slim\Psr7\Response(),
+                        'feature_disabled',
+                        __('Funzione non disponibile su questa istanza.'),
+                        404
+                    );
+                }
+                return $handler->handle($request);
+            };
+
             // ── User actions (loans / reservations / wishlist / profile / msg) ──
             // Every handler is bearer-authenticated and strictly scoped to the
             // token-resolved user; loan/reservation overlap + availability reuse
@@ -704,6 +744,13 @@ class MobileApiPlugin
             ) use ($db): ResponseInterface {
                 return (new ActionsController($db))->myLoans($request, $response);
             })->add($catalogueModeGuard)->add($quotaMw())->add($authMw());
+
+            $group->get('/me/movements', function (
+                ServerRequestInterface $request,
+                ResponseInterface $response
+            ) use ($db): ResponseInterface {
+                return (new ActionsController($db))->myMovements($request, $response);
+            })->add($finesGuard)->add($catalogueModeGuard)->add($quotaMw())->add($authMw());
 
             $group->get('/me/reservations', function (
                 ServerRequestInterface $request,
@@ -1132,6 +1179,64 @@ class MobileApiPlugin
                 ['GET', '/staff/settings/labels', static fn ($c, $q, $r, $a) => $c->settings($q, $r)],
                 ['PUT', '/staff/settings/labels', static fn ($c, $q, $r, $a) => $c->updateSettings($q, $r)],
             ]);
+
+            // ── Mobile API 1.10.0: the Pinakes 0.9.0 staff areas (stocktake,
+            // patrons, fines, library settings, cataloguing, visitor log...).
+            // A route of a switched-off module answers 404 feature_disabled,
+            // the shape the app already reads for catalogue mode.
+            // Slim binds closure middleware to its container, so these
+            // closures must not be static.
+            $featureGuard = static function (string $feature): callable {
+                return function (
+                    ServerRequestInterface $request,
+                    \Psr\Http\Server\RequestHandlerInterface $handler
+                ) use ($feature): ResponseInterface {
+                    if (!\App\Support\Features::enabled($feature)) {
+                        return \App\Plugins\MobileApi\Support\ResponseEnvelope::error(
+                            new \Slim\Psr7\Response(),
+                            'feature_disabled',
+                            __('Funzione non disponibile su questa istanza.'),
+                            404
+                        );
+                    }
+                    return $handler->handle($request);
+                };
+            };
+            foreach (\App\Plugins\MobileApi\Staff090\AreaRegistry::areas() as $areaClass) {
+                foreach ($areaClass::routes() as $route) {
+                    [$method, $pattern, $handler] = $route;
+                    // Innermost first; the auth chain is added last so it runs first.
+                    $middleware = [];
+                    if (isset($route['limit'])) {
+                        $middleware[] = $throttle(...$route['limit']);
+                    }
+                    $feature = array_key_exists('feature', $route) ? $route['feature'] : $areaClass::feature();
+                    if ($feature !== null) {
+                        $middleware[] = $featureGuard($feature);
+                    }
+                    if ($route['circulation'] ?? $areaClass::circulation()) {
+                        $middleware[] = $catalogueModeGuard;
+                    }
+                    array_push($middleware, $staffMw(), $quotaMw(), $authMw());
+
+                    $mapped = $group->map([$method], $pattern, function ($request, $response, array $args) use ($db, $handler) {
+                        // Defence in depth: a route reached without the auth
+                        // chain (a middleware that failed to attach) refuses.
+                        if ($request->getAttribute(AppAuthMiddleware::ATTR_USER) === null) {
+                            return \App\Plugins\MobileApi\Support\ResponseEnvelope::error(
+                                $response,
+                                'unauthorized',
+                                __('Token di autenticazione mancante o non valido.'),
+                                401
+                            );
+                        }
+                        return $handler($db, $request, $response, $args);
+                    });
+                    foreach ($middleware as $layer) {
+                        $mapped->add($layer);
+                    }
+                }
+            }
         });
 
         // Answer in the language the app is showing (Accept-Language).

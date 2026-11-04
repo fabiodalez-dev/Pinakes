@@ -71,26 +71,26 @@ require dirname(__DIR__, 3) . '/app/Views/partials/workspace-header.php';
 unset($workspaceHeader);
 ?>
 
-    <!-- Quick Actions Bar -->
-    <div class="grid grid-cols-1 gap-4 mb-6">
+    <!-- Quick Actions Bar: only for a book that has a cover to show (a card
+         saying there is none, or one whose image file is gone, is just an
+         empty box at the top of the form). -->
+    <?php $currentCover = $book['copertina_url'] ?? ($book['copertina'] ?? ''); ?>
+    <?php if (!empty($currentCover)): ?>
+    <div class="grid grid-cols-1 gap-4 mb-6" data-current-cover>
       <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
         <h3 class="text-sm font-semibold text-gray-900 mb-2">
           <i class="fas fa-image text-gray-900 mr-2"></i>
           <?= __("Copertina Attuale") ?>
         </h3>
         <div class="flex items-center gap-3">
-          <?php $currentCover = $book['copertina_url'] ?? ($book['copertina'] ?? ''); ?>
-          <?php if (!empty($currentCover)): ?>
             <img src="<?= htmlspecialchars(url($currentCover), ENT_QUOTES, 'UTF-8') ?>"
                  alt="<?php echo HtmlHelper::e(($book['titolo'] ?? 'Libro') . ' - Copertina attuale'); ?>"
                  class="w-12 h-16 object-cover rounded border"
-                 onerror="this.style.display='none'" />
-          <?php else: ?>
-            <span class="text-sm text-gray-500"><?= __("Nessuna copertina caricata") ?></span>
-          <?php endif; ?>
+                 onerror="this.style.display='none'; this.closest('[data-current-cover]').style.display = 'none';" />
         </div>
       </div>
     </div>
+    <?php endif; ?>
 
     <!-- Main Form -->
     <?php

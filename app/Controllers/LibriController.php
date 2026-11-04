@@ -400,7 +400,16 @@ class LibriController
 
         ob_start();
         $articleHintState = \App\Support\PeriodicalArticlesHint::state($db);
-        $data = ['libri' => $libri, 'genreFilterName' => $genreFilterName, 'subgenreFilterName' => $subgenreFilterName];
+        // Copy cataloguing (SRU search) is served by the z39-server plugin.
+        $copyCatalogingAvailable = false;
+        try {
+            $pluginRow = $db->query("SELECT is_active FROM plugins WHERE name = 'z39-server' LIMIT 1");
+            $copyCatalogingAvailable = \App\Support\Features::enabled('marc')
+                && $pluginRow instanceof \mysqli_result && (int) ($pluginRow->fetch_row()[0] ?? 0) === 1;
+        } catch (\Throwable) {
+            $copyCatalogingAvailable = false;
+        }
+        $data = ['libri' => $libri, 'genreFilterName' => $genreFilterName, 'subgenreFilterName' => $subgenreFilterName, 'fornitori' => (new \App\Models\SupplierRepository($db))->options()];
         // extract($data);
         require __DIR__ . '/../Views/libri/index.php';
         $content = ob_get_clean();
@@ -555,15 +564,15 @@ class LibriController
         // Renewal cap is admin-configurable (loans.max_renewals); pass it to the
         // view so the displayed limit and the "Renew" button gate match the
         // server-side check in PrestitiController::renew (#157).
-        $loanSettingsRepo = new \App\Models\SettingsRepository($db);
-        // Validate numeric BEFORE casting: a non-numeric stored value (e.g. "abc")
-        // would cast to 0, silently flipping the cap to "no renewals" instead of
-        // falling back to the safe default. Only a genuine number is honoured.
-        $rawMaxRenewals = $loanSettingsRepo->get('loans', 'max_renewals', '3');
-        $maxRenewals = is_numeric($rawMaxRenewals) ? (int) $rawMaxRenewals : 3;
-        if ($maxRenewals < 0) {
-            $maxRenewals = 3;
-        }
+        // The limit is the one of the active loan's patron and material
+        // (CirculationPolicy, which also validates a non-numeric stored value
+        // back to the default 3), the global one when nothing is on loan.
+        $circulation = new \App\Services\CirculationPolicy($db);
+        $activeLoanPolicy = !empty($activeLoan['id'])
+            ? $circulation->forExistingLoan((int) $activeLoan['id'])
+            : $circulation->defaults();
+        $maxRenewals = $activeLoanPolicy->maxRenewals;
+        $renewalDays = $activeLoanPolicy->renewalDays;
 
         // Issue #374: the audit timeline is staff-only. This route is also
         // reachable by patrons, so do not even query audit/operator data unless
@@ -625,6 +634,7 @@ class LibriController
         $sottogeneri = $taxRepo->subgenres();
         $libraryThingInstalled = \App\Support\LibraryThingInstaller::isInstalled($db);
         $articleHintState = \App\Support\PeriodicalArticlesHint::state($db);
+        $fornitori = (new \App\Models\SupplierRepository($db))->options();
         ob_start();
         // Variables are available in the template scope via require
         require __DIR__ . '/../Views/libri/crea_libro.php';
@@ -1395,6 +1405,9 @@ class LibriController
                 $this->saveLtVisibility($db, $id, $data['lt_visibility']);
             }
 
+            // Supplier and RDA overrides (0.9.0): only the keys the form posts.
+            \App\Support\CataloguingExtras::save($db, $id, $data);
+
             // Plugin hook: After book save
             \App\Support\Hooks::do('book.save.after', [$id, $fields]);
 
@@ -1490,6 +1503,7 @@ class LibriController
         $sottogeneri = $taxRepo->subgenres();
         $libraryThingInstalled = \App\Support\LibraryThingInstaller::isInstalled($db);
         $articleHintState = \App\Support\PeriodicalArticlesHint::state($db);
+        $fornitori = (new \App\Models\SupplierRepository($db))->options();
         ob_start();
         // Variables are available in the template scope via require
         require __DIR__ . '/../Views/libri/modifica_libro.php';
@@ -2025,6 +2039,9 @@ class LibriController
                 && isset($data['lt_visibility']) && is_array($data['lt_visibility'])) {
                 $this->saveLtVisibility($db, $id, $data['lt_visibility']);
             }
+
+            // Supplier and RDA overrides (0.9.0): only the keys the form posts.
+            \App\Support\CataloguingExtras::save($db, $id, $data);
 
             // Plugin hook: After book save (update)
             \App\Support\Hooks::do('book.save.after', [$id, $fields]);
@@ -3409,13 +3426,12 @@ class LibriController
         $bindValues = [];
 
         // Global search filter
-        if (!empty($search)) {
-            $whereClauses[] = "(l.titolo LIKE ? OR l.sottotitolo LIKE ? OR l.descrizione LIKE ? OR l.isbn13 LIKE ? OR l.isbn10 LIKE ? OR a.nome LIKE ? OR e.nome LIKE ?)";
-            $searchParam = "%{$search}%";
-            for ($i = 0; $i < 7; $i++) {
-                $bindTypes .= 's';
-                $bindValues[] = $searchParam;
-            }
+        // Quoted value = exact spelling, accents included (#501), as in the list.
+        $searchCond = \App\Support\SearchIndexBuilder::buildSearchCondition($db, 'l.search_index', (string) $search);
+        if ($searchCond !== null) {
+            $whereClauses[] = $searchCond['sql'];
+            $bindTypes .= $searchCond['types'];
+            array_push($bindValues, ...$searchCond['params']);
         }
 
         // Status filter

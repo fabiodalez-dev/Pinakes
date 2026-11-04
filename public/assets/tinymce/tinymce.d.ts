@@ -91,6 +91,7 @@ interface CustomElementSpec {
     attributes?: string[];
     children?: string[];
     padEmpty?: boolean;
+    componentUrl?: string;
 }
 interface Schema {
     type: SchemaType;
@@ -111,6 +112,7 @@ interface Schema {
     getWhitespaceElements: () => SchemaMap;
     getTransparentElements: () => SchemaMap;
     getSpecialElements: () => SchemaRegExpMap;
+    getComponentUrls: () => Record<string, string>;
     isValidChild: (name: string, child: string) => boolean;
     isValid: (name: string, attr?: string) => boolean;
     isBlock: (name: string) => boolean;
@@ -170,6 +172,7 @@ interface BlobInfoData {
     base64: string;
     blobUri?: string;
     uri?: string;
+    allowEmptyFile?: boolean;
 }
 interface BlobInfo {
     id: () => string;
@@ -225,7 +228,11 @@ interface UploadFailure {
     remove?: boolean;
 }
 type ProgressFn = (percent: number) => void;
-type UploadHandler = (blobInfo: BlobInfo, progress: ProgressFn) => Promise<string>;
+interface UploadFileData {
+    url: string;
+    fileName: string;
+}
+type UploadHandler<T extends UploadFileData | string = string> = (blobInfo: BlobInfo, progress: ProgressFn) => Promise<T>;
 interface UploadResult$2 {
     url: string;
     blobInfo: BlobInfo;
@@ -552,7 +559,7 @@ interface DOMUtils {
     dispatch: (target: Node | Window, name: string, evt?: {}) => EventUtils;
     getContentEditable: (node: Node) => string | null;
     getContentEditableParent: (node: Node) => string | null;
-    isEditable: (node: Node | null | undefined) => boolean;
+    isEditable: (node: Node | null | undefined) => node is HTMLElement;
     destroy: () => void;
     isChildOf: (node: Node, parent: Node) => boolean;
     dumpRng: (r: Range) => string;
@@ -673,6 +680,11 @@ type CustomEditorSpec = CustomEditorOldSpec | CustomEditorNewSpec;
 interface DropZoneSpec extends FormComponentWithLabelSpec {
     type: 'dropzone';
     context?: string;
+    dropAreaLabel?: string;
+    buttonLabel?: string;
+    allowedFileTypes?: string;
+    allowedFileExtensions?: string[];
+    onInvalidFiles?: () => Promise<void>;
 }
 interface GridSpec {
     type: 'grid';
@@ -1119,6 +1131,7 @@ interface TabSpec {
 interface TabPanelSpec {
     type: 'tabpanel';
     tabs: TabSpec[];
+    dynamicHeight?: boolean;
 }
 type DialogDataItem = any;
 type DialogData = Record<string, DialogDataItem>;
@@ -1398,6 +1411,7 @@ interface SidebarInstanceApi {
 interface SidebarSpec {
     icon?: string;
     tooltip?: string;
+    resizable?: boolean;
     onShow?: (api: SidebarInstanceApi) => void;
     onSetup?: (api: SidebarInstanceApi) => (api: SidebarInstanceApi) => void;
     onHide?: (api: SidebarInstanceApi) => void;
@@ -1456,6 +1470,7 @@ interface ViewInstanceApi {
 }
 interface ViewSpec {
     buttons?: ViewButtonSpec[];
+    keepToolbar?: boolean;
     onShow: (api: ViewInstanceApi) => void;
     onHide: (api: ViewInstanceApi) => void;
 }
@@ -1592,7 +1607,7 @@ type UndoLevel = NewUndoLevel & {
 interface UndoManager {
     data: UndoLevel[];
     typing: boolean;
-    add: (level?: Partial<UndoLevel>, event?: EditorEvent<any>) => UndoLevel | null;
+    add: (level?: Partial<UndoLevel>, event?: EditorEvent<unknown>) => UndoLevel | null;
     dispatchChange: () => void;
     beforeChange: () => void;
     undo: () => UndoLevel | undefined;
@@ -1738,6 +1753,9 @@ interface ObjectResizeEvent {
     height: number;
     origin: string;
 }
+interface SidebarResizedEvent {
+    width: number;
+}
 interface ObjectSelectedEvent {
     target: Node;
     targetClone?: Node;
@@ -1763,7 +1781,7 @@ interface ChangeEvent {
     lastLevel: UndoLevel | undefined;
 }
 interface AddUndoEvent extends ChangeEvent {
-    originalEvent: Event | undefined;
+    originalEvent: EditorEvent<unknown> | undefined;
 }
 interface UndoRedoEvent {
     level: UndoLevel;
@@ -1850,6 +1868,8 @@ interface EditorEventMap extends Omit<NativeEventMap, 'blur' | 'focus'> {
     AfterScrollIntoView: ScrollIntoViewEvent;
     ObjectResized: ObjectResizeEvent;
     ObjectResizeStart: ObjectResizeEvent;
+    SidebarResizeStart: {};
+    SidebarResized: SidebarResizedEvent;
     SwitchMode: SwitchModeEvent;
     ScrollWindow: Event;
     ResizeWindow: UIEvent;
@@ -1944,6 +1964,7 @@ type EventTypes_d_NewBlockEvent = NewBlockEvent;
 type EventTypes_d_NodeChangeEvent = NodeChangeEvent;
 type EventTypes_d_FormatEvent = FormatEvent;
 type EventTypes_d_ObjectResizeEvent = ObjectResizeEvent;
+type EventTypes_d_SidebarResizedEvent = SidebarResizedEvent;
 type EventTypes_d_ObjectSelectedEvent = ObjectSelectedEvent;
 type EventTypes_d_ScrollIntoViewEvent = ScrollIntoViewEvent;
 type EventTypes_d_SetSelectionRangeEvent = SetSelectionRangeEvent;
@@ -1973,7 +1994,7 @@ type EventTypes_d_DisabledStateChangeEvent = DisabledStateChangeEvent;
 type EventTypes_d_EditorEventMap = EditorEventMap;
 type EventTypes_d_EditorManagerEventMap = EditorManagerEventMap;
 declare namespace EventTypes_d {
-    export { EventTypes_d_ExecCommandEvent as ExecCommandEvent, EventTypes_d_BeforeGetContentEvent as BeforeGetContentEvent, EventTypes_d_GetContentEvent as GetContentEvent, EventTypes_d_BeforeSetContentEvent as BeforeSetContentEvent, EventTypes_d_SetContentEvent as SetContentEvent, EventTypes_d_SaveContentEvent as SaveContentEvent, EventTypes_d_NewBlockEvent as NewBlockEvent, EventTypes_d_NodeChangeEvent as NodeChangeEvent, EventTypes_d_FormatEvent as FormatEvent, EventTypes_d_ObjectResizeEvent as ObjectResizeEvent, EventTypes_d_ObjectSelectedEvent as ObjectSelectedEvent, EventTypes_d_ScrollIntoViewEvent as ScrollIntoViewEvent, EventTypes_d_SetSelectionRangeEvent as SetSelectionRangeEvent, EventTypes_d_ShowCaretEvent as ShowCaretEvent, EventTypes_d_SwitchModeEvent as SwitchModeEvent, EventTypes_d_ChangeEvent as ChangeEvent, EventTypes_d_AddUndoEvent as AddUndoEvent, EventTypes_d_UndoRedoEvent as UndoRedoEvent, EventTypes_d_WindowEvent as WindowEvent, EventTypes_d_ProgressStateEvent as ProgressStateEvent, EventTypes_d_AfterProgressStateEvent as AfterProgressStateEvent, EventTypes_d_PlaceholderToggleEvent as PlaceholderToggleEvent, EventTypes_d_LoadErrorEvent as LoadErrorEvent, EventTypes_d_PreProcessEvent as PreProcessEvent, EventTypes_d_PostProcessEvent as PostProcessEvent, EventTypes_d_PastePlainTextToggleEvent as PastePlainTextToggleEvent, EventTypes_d_PastePreProcessEvent as PastePreProcessEvent, EventTypes_d_PastePostProcessEvent as PastePostProcessEvent, EventTypes_d_EditableRootStateChangeEvent as EditableRootStateChangeEvent, EventTypes_d_NewTableRowEvent as NewTableRowEvent, EventTypes_d_NewTableCellEvent as NewTableCellEvent, EventTypes_d_TableEventData as TableEventData, EventTypes_d_TableModifiedEvent as TableModifiedEvent, EventTypes_d_BeforeOpenNotificationEvent as BeforeOpenNotificationEvent, EventTypes_d_OpenNotificationEvent as OpenNotificationEvent, EventTypes_d_DisabledStateChangeEvent as DisabledStateChangeEvent, EventTypes_d_EditorEventMap as EditorEventMap, EventTypes_d_EditorManagerEventMap as EditorManagerEventMap, };
+    export { EventTypes_d_ExecCommandEvent as ExecCommandEvent, EventTypes_d_BeforeGetContentEvent as BeforeGetContentEvent, EventTypes_d_GetContentEvent as GetContentEvent, EventTypes_d_BeforeSetContentEvent as BeforeSetContentEvent, EventTypes_d_SetContentEvent as SetContentEvent, EventTypes_d_SaveContentEvent as SaveContentEvent, EventTypes_d_NewBlockEvent as NewBlockEvent, EventTypes_d_NodeChangeEvent as NodeChangeEvent, EventTypes_d_FormatEvent as FormatEvent, EventTypes_d_ObjectResizeEvent as ObjectResizeEvent, EventTypes_d_SidebarResizedEvent as SidebarResizedEvent, EventTypes_d_ObjectSelectedEvent as ObjectSelectedEvent, EventTypes_d_ScrollIntoViewEvent as ScrollIntoViewEvent, EventTypes_d_SetSelectionRangeEvent as SetSelectionRangeEvent, EventTypes_d_ShowCaretEvent as ShowCaretEvent, EventTypes_d_SwitchModeEvent as SwitchModeEvent, EventTypes_d_ChangeEvent as ChangeEvent, EventTypes_d_AddUndoEvent as AddUndoEvent, EventTypes_d_UndoRedoEvent as UndoRedoEvent, EventTypes_d_WindowEvent as WindowEvent, EventTypes_d_ProgressStateEvent as ProgressStateEvent, EventTypes_d_AfterProgressStateEvent as AfterProgressStateEvent, EventTypes_d_PlaceholderToggleEvent as PlaceholderToggleEvent, EventTypes_d_LoadErrorEvent as LoadErrorEvent, EventTypes_d_PreProcessEvent as PreProcessEvent, EventTypes_d_PostProcessEvent as PostProcessEvent, EventTypes_d_PastePlainTextToggleEvent as PastePlainTextToggleEvent, EventTypes_d_PastePreProcessEvent as PastePreProcessEvent, EventTypes_d_PastePostProcessEvent as PastePostProcessEvent, EventTypes_d_EditableRootStateChangeEvent as EditableRootStateChangeEvent, EventTypes_d_NewTableRowEvent as NewTableRowEvent, EventTypes_d_NewTableCellEvent as NewTableCellEvent, EventTypes_d_TableEventData as TableEventData, EventTypes_d_TableModifiedEvent as TableModifiedEvent, EventTypes_d_BeforeOpenNotificationEvent as BeforeOpenNotificationEvent, EventTypes_d_OpenNotificationEvent as OpenNotificationEvent, EventTypes_d_DisabledStateChangeEvent as DisabledStateChangeEvent, EventTypes_d_EditorEventMap as EditorEventMap, EventTypes_d_EditorManagerEventMap as EditorManagerEventMap, };
 }
 type Format_d_Formats = Formats;
 type Format_d_Format = Format;
@@ -2026,6 +2047,10 @@ type ThemeInitFunc = (editor: Editor, elm: HTMLElement) => {
     iframeHeight?: number;
     api?: EditorUiApi;
 };
+interface DocumentsFileTypes {
+    readonly mimeType: string;
+    readonly extensions: Array<string>;
+}
 type SetupCallback = (editor: Editor) => void;
 type FilePickerCallback = (callback: (value: string, meta?: Record<string, any>) => void, value: string, meta: Record<string, any>) => void;
 type FilePickerValidationStatus = 'valid' | 'unknown' | 'invalid' | 'none';
@@ -2055,6 +2080,7 @@ interface BaseEditorOptions {
     allow_conditional_comments?: boolean;
     allow_html_data_urls?: boolean;
     allow_html_in_named_anchor?: boolean;
+    allow_noneditable?: boolean;
     allow_script_urls?: boolean;
     allow_svg_data_urls?: boolean;
     allow_unsafe_link_target?: boolean;
@@ -2084,6 +2110,7 @@ interface BaseEditorOptions {
     content_css_cors?: boolean;
     content_security_policy?: string;
     content_style?: string;
+    content_language?: string;
     content_langs?: ContentLanguage[];
     contextmenu?: string | string[] | false;
     contextmenu_never_use_native?: boolean;
@@ -2214,6 +2241,9 @@ interface BaseEditorOptions {
     selector?: string;
     setup?: SetupCallback;
     sidebar_show?: string;
+    sidebar_width?: number;
+    sidebar_min_width?: number;
+    sidebar_max_width?: number;
     skin?: boolean | string;
     skin_url?: string;
     smart_paste?: boolean;
@@ -2224,6 +2254,7 @@ interface BaseEditorOptions {
     submit_patch?: boolean;
     suffix?: string;
     user_id?: string;
+    content_id?: string;
     table_tab_navigation?: boolean;
     target?: HTMLElement;
     text_patterns?: RawPattern[] | false;
@@ -2255,6 +2286,7 @@ interface BaseEditorOptions {
     valid_elements?: string;
     valid_styles?: string | Record<string, string>;
     verify_html?: boolean;
+    view_show?: string;
     visual?: boolean;
     visual_anchor_class?: string;
     visual_table_class?: string;
@@ -2349,6 +2381,9 @@ interface EditorOptions extends NormalizedEditorOptions {
     removed_menuitems: string;
     sandbox_iframes: boolean;
     sandbox_iframes_exclusions: string[];
+    sidebar_width: number;
+    sidebar_min_width: number;
+    sidebar_max_width: number;
     toolbar: boolean | string | string[] | Array<ToolbarGroup>;
     toolbar_groups: Record<string, GroupToolbarButtonSpec>;
     toolbar_location: ToolbarLocation;
@@ -2365,6 +2400,7 @@ interface EditorOptions extends NormalizedEditorOptions {
     width: number | string;
     xss_sanitization: boolean;
     disabled: boolean;
+    documents_file_types: DocumentsFileTypes[];
 }
 type Content = string | AstNode;
 type ContentFormat = 'raw' | 'text' | 'html' | 'tree';
@@ -2402,6 +2438,10 @@ interface BlobInfoImagePair {
     image: HTMLImageElement;
     blobInfo: BlobInfo;
 }
+interface EditorFocusOptions {
+    readonly scrollToSelection?: boolean;
+}
+type EditorFocusArg = boolean | EditorFocusOptions;
 interface UrlObject {
     prefix: string;
     resource: string;
@@ -2629,6 +2669,7 @@ declare class EditorCommands {
     addCommands(commandList: Record<string, EditorCommandsCallback>): void;
     addCommand<S>(command: string, callback: EditorCommandCallback<S>, scope: S): void;
     addCommand(command: string, callback: EditorCommandCallback<Editor>): void;
+    removeCommand(command: string, type?: 'exec' | 'state' | 'value'): void;
     queryCommandSupported(command: string): boolean;
     addQueryStateHandler<S>(command: string, callback: (this: S) => boolean, scope: S): void;
     addQueryStateHandler(command: string, callback: (this: Editor) => boolean): void;
@@ -2873,11 +2914,20 @@ interface Model {
     };
 }
 type ModelManager = AddOnManager<Model>;
+interface BasePluginMetadata {
+    name: string;
+    hidden?: boolean;
+}
+interface UrlPluginMetadata extends BasePluginMetadata {
+    url: string;
+}
+interface TypedPluginMetadata extends BasePluginMetadata {
+    type: 'premium' | 'opensource';
+    slug: string;
+}
+type PluginMetadata = UrlPluginMetadata | TypedPluginMetadata;
 interface Plugin {
-    getMetadata?: () => {
-        name: string;
-        url: string;
-    };
+    getMetadata?: () => PluginMetadata;
     init?: (editor: Editor, url: string) => void;
     [key: string]: any;
 }
@@ -2920,6 +2970,7 @@ interface Theme {
     getNotificationManagerImpl?: () => NotificationManagerImpl;
     getWindowManagerImpl?: () => WindowManagerImpl;
     getPromotionElement?: () => HTMLElement | null;
+    getSinkElement?: (type: 'dialog' | 'popup') => HTMLElement;
 }
 type ThemeManager = AddOnManager<void | Theme>;
 interface EditorConstructor {
@@ -3004,7 +3055,7 @@ declare class Editor implements EditorObservable {
     hasEventListeners: EditorObservable['hasEventListeners'];
     constructor(id: string, options: RawEditorOptions, editorManager: EditorManager);
     render(): void;
-    focus(skipFocus?: boolean): void;
+    focus(skipFocus?: EditorFocusArg): void;
     hasFocus(): boolean;
     translate(text: Untranslated): TranslatedString;
     getParam<K extends BuiltInOptionType>(name: string, defaultVal: BuiltInOptionTypeMap[K], type: K): BuiltInOptionTypeMap[K];
@@ -3052,6 +3103,9 @@ declare class Editor implements EditorObservable {
     addVisual(elm?: HTMLElement): void;
     setEditableRoot(state: boolean): void;
     hasEditableRoot(): boolean;
+    announce(message: string, options?: {
+        assertive?: boolean;
+    }): void;
     remove(): void;
     destroy(automatic?: boolean): void;
     uploadImages(): Promise<UploadResult$1[]>;
@@ -3108,6 +3162,7 @@ declare class ScriptLoader {
     remove(url: string): void;
     loadQueue(): Promise<void>;
     loadScripts(scripts: string[]): Promise<void>;
+    getScriptAttributes(url: string): Record<string, string>;
 }
 type TextProcessCallback = (node: Text, offset: number, text: string) => number;
 interface Spot {
@@ -3230,6 +3285,11 @@ type TextPatterns_d_InlineFormatPattern = InlineFormatPattern;
 declare namespace TextPatterns_d {
     export { TextPatterns_d_Pattern as Pattern, TextPatterns_d_RawPattern as RawPattern, TextPatterns_d_DynamicPatternsLookup as DynamicPatternsLookup, TextPatterns_d_RawDynamicPatternsLookup as RawDynamicPatternsLookup, TextPatterns_d_DynamicPatternContext as DynamicPatternContext, TextPatterns_d_BlockCmdPattern as BlockCmdPattern, TextPatterns_d_BlockPattern as BlockPattern, TextPatterns_d_BlockFormatPattern as BlockFormatPattern, TextPatterns_d_InlineCmdPattern as InlineCmdPattern, TextPatterns_d_InlinePattern as InlinePattern, TextPatterns_d_InlineFormatPattern as InlineFormatPattern, };
 }
+interface AriaAnnouncer {
+    readonly announce: (message: string, options?: {
+        assertive?: boolean;
+    }) => void;
+}
 interface Delay {
     setEditorInterval: (editor: Editor, callback: () => void, time?: number) => number;
     setEditorTimeout: (editor: Editor, callback: () => void, time?: number) => number;
@@ -3345,6 +3405,7 @@ interface TinyMCE extends EditorManager {
         BookmarkManager: BookmarkManagerNamespace;
         Selection: (dom: DOMUtils, win: Window, serializer: DomSerializer, editor: Editor) => EditorSelection;
         StyleSheetLoader: (documentOrShadowRoot: Document | ShadowRoot, settings: StyleSheetLoaderSettings) => StyleSheetLoader;
+        AriaAnnouncer: AriaAnnouncer;
         Event: EventUtils;
     };
     html: {
@@ -3393,4 +3454,4 @@ interface TinyMCE extends EditorManager {
     _addCacheSuffix: Tools['_addCacheSuffix'];
 }
 declare const tinymce: TinyMCE;
-export { AddOnManager, Annotator, AstNode, Bookmark, BookmarkManager, ControlSelection, DOMUtils, Delay, DomParser, DomParserSettings, DomSerializer, DomSerializerSettings, DomTreeWalker, Editor, EditorCommands, EditorEvent, EditorManager, EditorModeApi, EditorObservable, EditorOptions, EditorSelection, Entities, Env, EventDispatcher, EventUtils, EventTypes_d as Events, ExpectedUser, FakeClipboard, FocusManager, Format_d as Formats, Formatter, GeomRect, HtmlSerializer, HtmlSerializerSettings, I18n, IconManager, Model, ModelManager, NotificationApi, NotificationManager, NotificationSpec, Observable, Plugin, PluginManager, RangeUtils, RawEditorOptions, Rect, Resource, Schema, SchemaSettings, ScriptLoader, Shortcuts, StyleSheetLoader, Styles, TextPatterns_d as TextPatterns, TextSeeker, Theme, ThemeManager, TinyMCE, Tools, URI, Ui_d as Ui, UndoManager, User, VK, WindowManager, Writer, WriterSettings, tinymce as default };
+export { AddOnManager, Annotator, AstNode, BlobInfo, Bookmark, BookmarkManager, ControlSelection, DOMUtils, Delay, DomParser, DomParserSettings, DomSerializer, DomSerializerSettings, DomTreeWalker, Editor, EditorCommands, EditorEvent, EditorManager, EditorModeApi, EditorObservable, EditorOptions, EditorSelection, Entities, Env, EventDispatcher, EventUtils, EventTypes_d as Events, ExpectedUser, FakeClipboard, FocusManager, Format_d as Formats, Formatter, GeomRect, HtmlSerializer, HtmlSerializerSettings, I18n, IconManager, Model, ModelManager, NotificationApi, NotificationManager, NotificationSpec, Observable, Plugin, PluginManager, RangeUtils, RawEditorOptions, Rect, Resource, Schema, SchemaSettings, ScriptLoader, Shortcuts, StyleSheetLoader, Styles, TextPatterns_d as TextPatterns, TextSeeker, Theme, ThemeManager, TinyMCE, Tools, URI, Ui_d as Ui, UndoManager, User, VK, WindowManager, Writer, WriterSettings, tinymce as default };

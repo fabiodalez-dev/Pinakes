@@ -85,6 +85,7 @@ unset($workspaceHeader);
               <option value="scaduto"><?= __("Scaduto") ?></option>
             </select>
           </div>
+          <?php require __DIR__ . '/tipologia-lettore.php'; ?>
         </div>
       </section>
 
@@ -172,6 +173,14 @@ unset($workspaceHeader);
             <label for="data_scadenza_tessera" class="block text-sm font-medium text-gray-700"><?= __("Scadenza tessera") ?></label>
             <input type="date" id="data_scadenza_tessera" name="data_scadenza_tessera" class="mt-1 block w-full rounded-md border-gray-300 focus:border-gray-900 focus:ring-gray-900">
           </div>
+          <?php if (\App\Support\Features::enabled('automatic_card_expiry')): ?>
+          <div class="md:col-span-2">
+            <label class="flex items-center gap-2 text-sm text-gray-700">
+              <input type="checkbox" id="card_auto" name="card_auto" value="1" class="rounded border-gray-300" checked>
+              <?= __("Calcola la scadenza dalla durata tessera della tipologia lettore (se indicata e se la data qui sopra è lasciata vuota)") ?>
+            </label>
+          </div>
+          <?php endif; ?>
         </div>
       </section>
 
@@ -211,6 +220,20 @@ unset($workspaceHeader);
     const day = String(fiveYearsLater.getDate()).padStart(2, '0');
     dataScadenzaTesseraField.value = `${year}-${month}-${day}`;
     dataScadenzaTesseraField.dataset.originalValue = dataScadenzaTesseraField.value;
+    // The 5-year date is a suggestion, not a date the librarian typed: tell
+    // the server, so "Calcola la scadenza dalla durata tessera" still applies
+    // the patron type's card duration. Any edit of the field clears the flag.
+    const userForm = document.getElementById('user-form');
+    if (userForm) {
+      const prefilled = document.createElement('input');
+      prefilled.type = 'hidden';
+      prefilled.name = 'card_expiry_prefilled';
+      prefilled.value = '1';
+      userForm.appendChild(prefilled);
+      const typed = () => { prefilled.value = '0'; };
+      dataScadenzaTesseraField.addEventListener('input', typed);
+      dataScadenzaTesseraField.addEventListener('change', typed);
+    }
   }
 
   const storeOriginalState = (container) => {

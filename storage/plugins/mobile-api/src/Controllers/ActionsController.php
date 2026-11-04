@@ -10,9 +10,11 @@ use App\Controllers\ProfileController;
 use App\Controllers\UserActionsController;
 use App\Controllers\UserWishlistController;
 use App\Plugins\MobileApi\Support\AppAuthMiddleware;
+use App\Plugins\MobileApi\Support\CirculationOutcome;
 use App\Plugins\MobileApi\Support\JsonBody;
 use App\Plugins\MobileApi\Support\ResponseEnvelope;
 use App\Support\DateHelper;
+use App\Support\LoanWindow;
 use App\Support\SecureLogger;
 use mysqli;
 use Psr\Http\Message\ResponseInterface;
@@ -139,6 +141,71 @@ final class ActionsController
         }
     }
 
+    // ─── GET /me/movements ───────────────────────────────────────────────────
+
+    /**
+     * Balance and ledger of the authenticated reader (plan §7, additive in
+     * 1.9.0): amounts in cents and as a decimal string, plus the fines
+     * accruing today on overdue loans (not charged until the return).
+     */
+    public function myMovements(Request $request, ResponseInterface $response): ResponseInterface
+    {
+        $userId = $this->userId($request);
+        if ($userId === 0) {
+            return $this->unauth($response);
+        }
+
+        try {
+            $ledger = \App\Services\PatronLedger::forDb($this->db);
+            $params = \App\Services\FineParameters::forUser($this->db, $userId);
+            $balance = $ledger->balanceCents($userId);
+            // Paged like the staff lists (opaque `cursor`, `limit` up to 200,
+            // the previous fixed page size, still the default): one row more
+            // than the page tells whether older movements exist. The cursor
+            // also pins the newest row of the first page (`u`): the ledger is
+            // append-only, so a movement written between two requests does
+            // not shift the offset and repeat an id on the next page.
+            $limit = \App\Plugins\MobileApi\Support\StaffPaging::limit($request, 200, 200);
+            $offset = \App\Plugins\MobileApi\Support\StaffPaging::offset($request);
+            $rawCursor = $request->getQueryParams()['cursor'] ?? null;
+            $cursor = \App\Plugins\MobileApi\Support\CursorCodec::decode(is_string($rawCursor) ? $rawCursor : null);
+            $upTo = is_array($cursor) && is_int($cursor['u'] ?? null) && $cursor['u'] >= 0
+                ? $cursor['u']
+                : $ledger->latestMovementId($userId);
+            $rows = $ledger->movements($userId, $limit + 1, $offset, $upTo);
+            $hasMore = count($rows) > $limit;
+            // One item shape for the reader and the desk (GET /staff/users/{id}/ledger).
+            $items = array_map(
+                static fn (array $m): array => \App\Plugins\MobileApi\Staff090\Support\LedgerMovementPayload::item($m),
+                array_slice($rows, 0, $limit)
+            );
+            $accrued = array_map(static fn (array $a): array => [
+                'loan_id'      => $a['loan_id'],
+                'title'        => $a['titolo'],
+                'due_at'       => $a['data_scadenza'],
+                'days_late'    => $a['days'],
+                'amount_cents' => $a['cents'],
+            ], $ledger->accruedFines($userId));
+            $threshold = \App\Support\Features::enabled('debt_block') ? $params->debtBlockThresholdCents : null;
+            $meta = \App\Plugins\MobileApi\Support\StaffPaging::meta(count($items), $limit, $offset, $hasMore);
+            $meta['next_cursor'] = $hasMore ? \App\Plugins\MobileApi\Support\CursorCodec::encode(['o' => $offset + $limit, 'u' => $upTo]) : null;
+
+            return ResponseEnvelope::success($response, [
+                'currency'               => $params->currency,
+                'balance_cents'          => $balance,
+                'balance'                => \App\Services\FineParameters::centsToDecimal($balance),
+                'accrued_cents'          => array_sum(array_column($accrued, 'amount_cents')),
+                'accrued'                => $accrued,
+                'debt_block_threshold_cents' => $threshold,
+                'debt_blocked'           => $threshold !== null && $balance > $threshold,
+                'items'                  => $items,
+            ], $meta, 200);
+        } catch (\Throwable $e) {
+            SecureLogger::error('[MobileApi] my movements failed: ' . $e->getMessage());
+            return ResponseEnvelope::error($response, 'internal_error', __('Movimenti non disponibili.'), 500);
+        }
+    }
+
     // ─── GET /me/reservations ────────────────────────────────────────────────
 
     public function myReservations(Request $request, ResponseInterface $response): ResponseInterface
@@ -257,19 +324,32 @@ final class ActionsController
                 $outcome   = $this->redirectOutcome($result);
 
                 if (isset($outcome['loan_request_success'])) {
-                    $autoApproved = ($outcome['auto_approved'] ?? '0') === '1';
+                    // The persisted state, not a guess: with the library closed
+                    // today the approved loan starts on the next open day and is
+                    // `prenotato`, not awaiting pickup.
+                    $status = CirculationOutcome::requestState($outcome);
+                    $loanId = isset($outcome['loan_id']) ? (int) $outcome['loan_id'] : null;
+                    $startDate = $status === 'prenotato' ? $this->loanStartDate($loanId) : null;
+                    $message = match ($status) {
+                        // Without the stored start the day is not promised:
+                        // today would be wrong when the library is closed.
+                        'prenotato' => $startDate !== null
+                            ? __('Prestito approvato: potrai ritirare il libro dal %s.', LoanWindow::displayDate($startDate))
+                            : __('Prestito prenotato con successo'),
+                        'da_ritirare' => __('Prestito approvato. Il libro è in attesa di ritiro.'),
+                        default => __('Richiesta di prestito inviata. In attesa di approvazione.'),
+                    };
                     return ResponseEnvelope::success(
                         $response,
                         [
                             'type' => 'loan',
                             'book_id' => $bookId,
-                            'loan_id' => isset($outcome['loan_id']) ? (int) $outcome['loan_id'] : null,
-                            'auto_approved' => $autoApproved,
-                            'status' => $autoApproved ? 'da_ritirare' : 'pendente',
+                            'loan_id' => $loanId,
+                            'auto_approved' => $status !== 'pendente',
+                            'status' => $status,
+                            'start_date' => $startDate,
                         ],
-                        ['message' => $autoApproved
-                            ? __('Prestito approvato. Il libro è in attesa di ritiro.')
-                            : __('Richiesta di prestito inviata. In attesa di approvazione.')],
+                        ['message' => $message],
                         201
                     );
                 }
@@ -595,6 +675,7 @@ final class ActionsController
             ];
 
             $data += \App\Support\Permissions::describe(\App\Support\Permissions::viewer($userId, $this->db));
+            $data['patron_type'] = $this->patronTypeOf($userId);
 
             // Fields the administrator has hidden (Settings -> Registration) are
             // omitted from the payload and listed in hidden_fields, so the app
@@ -610,6 +691,34 @@ final class ActionsController
         } catch (\Throwable $e) {
             SecureLogger::error('[MobileApi] get profile failed: ' . $e->getMessage());
             return ResponseEnvelope::error($response, 'internal_error', __('Profilo non disponibile.'), 500);
+        }
+    }
+
+    /**
+     * The patron type that governs the reader's circulation rules (Pinakes
+     * 0.9.0): their own, else the library's default one. Null with the
+     * module off, before the migration, or when no type exists. A failure
+     * here never takes the profile down with it.
+     *
+     * @return array{id: int, code: string, name: string}|null
+     */
+    private function patronTypeOf(int $userId): ?array
+    {
+        try {
+            $policy = new \App\Services\CirculationPolicy($this->db);
+            $typeId = $policy->patronTypeOf($userId);
+            $type = $typeId !== null ? ($policy->types()[$typeId] ?? null) : null;
+            if (!is_array($type)) {
+                return null;
+            }
+            return [
+                'id'   => (int) $type['id'],
+                'code' => (string) ($type['codice'] ?? ''),
+                'name' => \App\Support\HtmlHelper::decode((string) ($type['nome'] ?? '')),
+            ];
+        } catch (\Throwable $e) {
+            SecureLogger::warning('[MobileApi] patron type lookup failed: ' . $e->getMessage());
+            return null;
         }
     }
 
@@ -1186,6 +1295,28 @@ final class ActionsController
      *
      * @return array<string, string>
      */
+    /** The stored start day (prestiti.data_prestito) of a loan, null when unknown. */
+    private function loanStartDate(?int $loanId): ?string
+    {
+        if ($loanId === null || $loanId <= 0) {
+            return null;
+        }
+        try {
+            $stmt = $this->db->prepare('SELECT data_prestito FROM prestiti WHERE id = ?');
+            if ($stmt === false) {
+                return null;
+            }
+            $stmt->bind_param('i', $loanId);
+            $stmt->execute();
+            $row = $stmt->get_result()->fetch_row();
+            $stmt->close();
+            $start = $row === null || $row[0] === null ? '' : substr((string) $row[0], 0, 10);
+            return DateHelper::isISODateFormat($start) ? $start : null;
+        } catch (\Throwable $e) {
+            return null;
+        }
+    }
+
     private function redirectOutcome(ResponseInterface $result): array
     {
         $location = $result->getHeaderLine('Location');
@@ -1231,10 +1362,23 @@ final class ActionsController
                 return ResponseEnvelope::error($response, 'not_available', __('Il libro non è disponibile per il periodo richiesto.'), 409);
             case 'max_loans_reached':
                 return ResponseEnvelope::error($response, 'max_loans_reached', __('Hai raggiunto il numero massimo di prestiti attivi.'), 409);
+            // Circulation rules of the patron type (Pinakes 0.9.0): additive
+            // codes; older apps still show the server message.
+            case 'media_limit_reached':
+            case 'not_loanable':
+            case 'reservations_disabled':
+            case 'reservation_limit_reached':
+                return ResponseEnvelope::error($response, $code, \App\Support\LoanEligibility::errorMessage($code), 409);
             case 'not_eligible':
                 // Guardia di idoneità M7 (utente sospeso o tessera scaduta):
                 // condizione permanente lato utente, mai un errore server.
                 return ResponseEnvelope::error($response, 'not_eligible', __('Non sei idoneo al prestito: account sospeso o tessera scaduta.'), 403);
+            case 'debt_block':
+                // Same code as before for existing app builds; the message
+                // says the balance is the reason.
+                // meta.reason tells it apart from a suspended account or an
+                // expired card (Mobile API 1.9.0, as the changelog says).
+                return ResponseEnvelope::error($response, 'not_eligible', \App\Support\LoanEligibility::errorMessage('debt_block'), 403, ['reason' => 'debt_block']);
             case 'book_not_found':
                 return ResponseEnvelope::error($response, 'not_found', __('Libro non trovato.'), 404);
             case 'past_date':

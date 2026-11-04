@@ -413,6 +413,32 @@ $selectedSeriesType = \App\Support\SeriesLabels::canonical($book['tipo_collana']
               <input id="prezzo" name="prezzo" type="number" step="0.01" class="form-input" placeholder="<?= htmlspecialchars(__('es. 19.90'), ENT_QUOTES, 'UTF-8') ?>" value="<?php echo HtmlHelper::e($book['prezzo'] ?? ''); ?>" />
             </div>
           </div>
+          <?php if (\App\Support\Features::enabled('suppliers')): // optional module: off = the field is not posted, the stored supplier stays ?>
+          <?php
+          // Supplier (0.9.0). $fornitori is id => name, loaded by the controller.
+          $supplierOptions = isset($fornitori) && is_array($fornitori) ? $fornitori : [];
+          $currentSupplier = (int) ($book['fornitore_id'] ?? 0);
+          // A stored supplier missing from the options (list not loaded) must
+          // not be posted back as "no supplier": the select is then disabled,
+          // so the field is not submitted and the stored value is kept.
+          $supplierLocked = $currentSupplier > 0 && !isset($supplierOptions[$currentSupplier]);
+          ?>
+          <div class="form-grid-3 mt-4">
+            <div>
+              <label for="fornitore_id" class="form-label"><?= __("Fornitore") ?></label>
+              <select id="fornitore_id" name="fornitore_id" class="form-input"<?= $supplierLocked ? ' disabled' : '' ?>>
+                <option value=""><?= __("Nessun fornitore") ?></option>
+                <?php foreach ($supplierOptions as $supplierId => $supplierName): ?>
+                  <option value="<?= (int) $supplierId ?>" <?= $currentSupplier === (int) $supplierId ? 'selected' : '' ?>><?= htmlspecialchars((string) ($supplierName), ENT_QUOTES, 'UTF-8') ?></option>
+                <?php endforeach; ?>
+              </select>
+              <p class="text-xs text-gray-500 mt-1">
+                <?= __("Da chi è stato acquistato il libro.") ?>
+                <a class="underline" href="<?= htmlspecialchars(url('/admin/suppliers'), ENT_QUOTES, 'UTF-8') ?>"><?= __("Gestisci fornitori") ?></a>
+              </p>
+            </div>
+          </div>
+          <?php endif; ?>
         </div>
       </div>
 
@@ -464,6 +490,62 @@ $selectedSeriesType = \App\Support\SeriesLabels::canonical($book['tipo_collana']
             <label for="dimensioni" class="form-label"><?= __("Dimensioni") ?></label>
             <input id="dimensioni" name="dimensioni" type="text" class="form-input" placeholder="<?= htmlspecialchars(__('es. 21x14 cm'), ENT_QUOTES, 'UTF-8') ?>" value="<?php echo HtmlHelper::e($book['dimensioni'] ?? ''); ?>" />
           </div>
+
+          <?php if (\App\Support\Features::enabled('rda_types')): // optional module: off = the selects are not posted, stored overrides stay ?>
+          <?php
+          // RDA content / media / carrier (0.9.0): derived from tipo_media,
+          // with an optional per-record override. The first option is the
+          // derived value; the script below keeps its label in sync with the
+          // media type select.
+          $rdaDerived = \App\Support\RdaTypes::derive($book['tipo_media'] ?? 'libro');
+          $rdaDerivedByMedia = [];
+          foreach (array_keys(\App\Support\MediaLabels::allTypes()) as $mediaKey) {
+              foreach (\App\Support\RdaTypes::derive($mediaKey) as $rdaKind => $rdaCode) {
+                  $rdaDerivedByMedia[$mediaKey][$rdaKind] = __(\App\Support\RdaTypes::label($rdaKind, $rdaCode)) . ' (' . $rdaCode . ')';
+              }
+          }
+          $rdaKindLabels = [
+              \App\Support\RdaTypes::KIND_CONTENT => __('Tipo di contenuto RDA'),
+              \App\Support\RdaTypes::KIND_MEDIA => __('Tipo di mediazione RDA'),
+              \App\Support\RdaTypes::KIND_CARRIER => __('Tipo di supporto RDA'),
+          ];
+          ?>
+          <div class="mt-4" id="rda-types">
+            <p class="form-label mb-1"><?= __("Tipologia RDA") ?></p>
+            <p class="text-xs text-gray-500 mb-2"><?= __("Ricavata dal tipo media. Scegli un valore solo se questa risorsa fa eccezione.") ?></p>
+            <div class="form-grid-3">
+              <?php foreach (\App\Support\RdaTypes::COLUMNS as $rdaKind => $rdaColumn): $rdaCurrent = \App\Support\RdaTypes::normalize($rdaKind, $book[$rdaColumn] ?? null); ?>
+                <div>
+                  <label for="<?= htmlspecialchars($rdaColumn, ENT_QUOTES, 'UTF-8') ?>" class="form-label"><?= htmlspecialchars($rdaKindLabels[$rdaKind], ENT_QUOTES, 'UTF-8') ?></label>
+                  <select id="<?= htmlspecialchars($rdaColumn, ENT_QUOTES, 'UTF-8') ?>" name="<?= htmlspecialchars($rdaColumn, ENT_QUOTES, 'UTF-8') ?>" class="form-input" data-rda-kind="<?= htmlspecialchars($rdaKind, ENT_QUOTES, 'UTF-8') ?>">
+                    <option value="" data-rda-derived><?= htmlspecialchars(sprintf(__('Automatico: %s'), __(\App\Support\RdaTypes::label($rdaKind, $rdaDerived[$rdaKind])) . ' (' . $rdaDerived[$rdaKind] . ')'), ENT_QUOTES, 'UTF-8') ?></option>
+                    <?php foreach (\App\Support\RdaTypes::options($rdaKind) as $rdaCode => $rdaLabel): ?>
+                      <option value="<?= htmlspecialchars($rdaCode, ENT_QUOTES, 'UTF-8') ?>" <?= $rdaCurrent === $rdaCode ? 'selected' : '' ?>><?= htmlspecialchars(__($rdaLabel) . ' (' . $rdaCode . ')', ENT_QUOTES, 'UTF-8') ?></option>
+                    <?php endforeach; ?>
+                  </select>
+                </div>
+              <?php endforeach; ?>
+            </div>
+          </div>
+          <script>
+          (function () {
+            const derived = <?= json_encode($rdaDerivedByMedia, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+            const prefix = <?= json_encode(__('Automatico: %s'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+            const media = document.getElementById('tipo_media');
+            if (!media) { return; }
+            const sync = function () {
+              const row = derived[media.value] || derived.libro || {};
+              document.querySelectorAll('#rda-types select[data-rda-kind]').forEach(function (select) {
+                const opt = select.querySelector('option[data-rda-derived]');
+                if (opt && row[select.dataset.rdaKind]) {
+                  opt.textContent = prefix.replace('%s', row[select.dataset.rdaKind]);
+                }
+              });
+            };
+            media.addEventListener('change', sync);
+          })();
+          </script>
+          <?php endif; ?>
 
           <?php
           // The id is cast, not passed through: handlers declare `?int $id`
@@ -646,12 +728,14 @@ $selectedSeriesType = \App\Support\SeriesLabels::canonical($book['tipo_collana']
             <!-- Cover preview area -->
             <div id="cover-preview-container" class="mt-4">
               <?php if (!empty($currentCover)): ?>
-                <div class="inline-flex flex-col items-start space-y-2">
+                <?php // A cover whose file is gone shows no empty frame, but keeps "Rimuovi": it is the only way to clear the dead path. ?>
+                <div class="inline-flex flex-col items-start space-y-2" data-current-cover>
                   <div class="relative group">
-                    <img src="<?php echo HtmlHelper::e(url($currentCover)); ?>" alt="Copertina attuale" class="max-h-48 object-contain border border-gray-200 rounded-lg shadow-sm" onerror="this.dataset.error='true'; this.style.display='none';" />
+                    <img src="<?php echo htmlspecialchars(url($currentCover), ENT_QUOTES, 'UTF-8'); ?>" alt="Copertina attuale" class="max-h-48 object-contain border border-gray-200 rounded-lg shadow-sm" onerror="this.dataset.error='true'; this.style.display='none'; var box = this.closest('[data-current-cover]'); box.querySelector('[data-cover-caption]').hidden = true; box.querySelector('[data-cover-missing]').hidden = false;" />
                   </div>
                   <div class="flex items-center gap-2">
-                    <span class="text-xs text-gray-500"><?= __("Copertina attuale") ?></span>
+                    <span class="text-xs text-gray-500" data-cover-caption><?= __("Copertina attuale") ?></span>
+                    <span class="text-xs text-gray-500" data-cover-missing hidden><?= __("File della copertina non trovato") ?></span>
                     <button type="button" onclick="removeCoverImage()" class="text-xs text-red-600 hover:text-red-800 hover:underline flex items-center gap-1">
                       <i class="fas fa-trash"></i>
                       <?= __('Rimuovi') ?>
@@ -1946,7 +2030,8 @@ function stackChoicesInput(wrapper) {
         input.style.setProperty('flex', '1 0 100%', 'important');
         input.style.setProperty('min-width', '100%', 'important');
         input.style.setProperty('width', '100%', 'important');
-        input.style.setProperty('margin', '6px 8px 2px', 'important');
+        // No side margin: at width 100% it pushed the field out of its box.
+        input.style.setProperty('margin', '6px 0 2px', 'important');
     };
     apply();
     // Re-apply identical values when Choices rewrites the style attribute; setting
@@ -3884,6 +3969,8 @@ function initializeIsbnImport() {
                     const tipoMediaSelect = document.getElementById('tipo_media');
                     if (tipoMediaSelect) {
                         tipoMediaSelect.value = data.tipo_media;
+                        // Listeners (the RDA "Automatico" labels) follow the new material.
+                        tipoMediaSelect.dispatchEvent(new Event('change', { bubbles: true }));
                     }
                 }
             } catch (err) {
@@ -4455,6 +4542,11 @@ function initBookTinyMCE() {
         menubar: false,
         toolbar_mode: 'wrap',
         toolbar_sticky: true,
+        // On a phone TinyMCE switches to its mobile settings, where the
+        // default toolbar scrolls sideways and hid everything after B/I.
+        mobile: {
+            toolbar_mode: 'wrap'
+        },
         plugins: [
             'advlist', 'autolink', 'lists', 'link', 'preview', 'code', 'fullscreen'
         ],

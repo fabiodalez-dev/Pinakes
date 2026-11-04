@@ -178,6 +178,14 @@
     width: 18px;
 }
 
+/* Under the catalogue search box: quotes = exact spelling (#501). */
+.search-hint {
+    margin: 0.375rem 0 0;
+    font-size: 0.75rem;
+    line-height: 1.4;
+    color: var(--text-muted);
+}
+
 .filter-options {
     display: flex;
     flex-direction: column;

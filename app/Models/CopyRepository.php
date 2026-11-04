@@ -770,6 +770,7 @@ class CopyRepository
             LEFT JOIN prestiti p ON c.id = p.copia_id AND ((p.attivo = 1 AND p.stato IN ('in_corso', 'in_ritardo', 'da_ritirare', 'prenotato')) OR (p.stato = 'pendente' AND p.copia_id IS NOT NULL))
             WHERE c.libro_id = ?
             AND c.stato = 'disponibile'
+            AND " . (new \App\Services\CirculationPolicy($this->db))->lendableCopySql('c') . "
             AND p.id IS NULL
             ORDER BY c.numero_inventario ASC
         ");
@@ -806,6 +807,7 @@ class CopyRepository
             FROM copie c
             WHERE c.libro_id = ?
             AND c.stato NOT IN ('perso', 'danneggiato', 'manutenzione', 'in_restauro', 'in_trasferimento')
+            AND " . (new \App\Services\CirculationPolicy($this->db))->lendableCopySql('c') . "
             AND NOT EXISTS (
                 SELECT 1 FROM prestiti p
                 WHERE p.copia_id = c.id
@@ -840,6 +842,7 @@ class CopyRepository
             LEFT JOIN prestiti p ON c.id = p.copia_id AND ((p.attivo = 1 AND p.stato IN ('in_corso', 'in_ritardo', 'da_ritirare', 'prenotato')) OR (p.stato = 'pendente' AND p.copia_id IS NOT NULL))
             WHERE c.libro_id = ?
             AND c.stato = 'disponibile'
+            AND " . (new \App\Services\CirculationPolicy($this->db))->lendableCopySql('c') . "
             AND p.id IS NULL
         ");
         $stmt->bind_param('i', $bookId);

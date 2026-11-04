@@ -49,14 +49,16 @@ $check(str_contains((string) $maintenance, 'retryQueuedEmailDeliveries'),
 
 $capacity = file_get_contents($root . '/app/Services/CapacityService.php');
 $check(str_contains((string) $capacity, "JOIN utenti u ON u.id = r.utente_id")
-    && str_contains((string) $capacity, "eligibleUserWhere('u')"),
+    && str_contains((string) $capacity, "eligibleUserWhere('u', \$this->db)"),
     'ineligible reservations are paused instead of consuming capacity');
-$check(str_contains((string) $capacity, 'maxActiveLoansPerUser') && str_contains((string) $capacity, 'FROM prestiti cap'),
+// 0.9.0: the limit is the patron's (CirculationPolicy::totalLoanLimitSql()).
+$check(str_contains((string) $capacity, 'totalLoanLimitSql') && str_contains((string) $capacity, 'FROM prestiti cap'),
     'reservations at the active-loan limit are paused in capacity calculations');
 
 $reservationManager = file_get_contents($root . '/app/Controllers/ReservationManager.php');
 $promote = $method((string) $reservationManager, 'processBookAvailability');
-$check(str_contains($promote, 'max_active_loans_per_user') && str_contains($promote, 'SELECT COUNT(*) AS c'),
+$check(str_contains($promote, 'totalLoanLimitSql') && str_contains($promote, 'FROM prestiti cap')
+    && str_contains($promote, 'loanLimitError('),
     'promotion enforces the active-loan cap both in selection and under lock');
 
 $notifications = file_get_contents($root . '/app/Support/NotificationService.php');

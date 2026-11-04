@@ -220,6 +220,8 @@
 - /.github/
 - /docs/
 - /*.md
+# Upstream TinyMCE changelog: gitignored, never part of the release.
+- /public/assets/tinymce/CHANGELOG.md
 - .travis.yml
 - .circleci/
 - azure-pipelines.yml

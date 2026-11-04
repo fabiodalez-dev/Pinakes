@@ -109,6 +109,13 @@ $htmlLang = substr($currentLocale, 0, 2);
         margin-top: 8px;
       }
     }
+    /* "99+" is wider than the 1.5rem circle: grow into a pill instead of clipping. */
+    #notifications-badge {
+      width: auto;
+      min-width: 1.5rem;
+      padding: 0 0.3rem;
+      font-size: 0.75rem;
+    }
     /* Notifications dropdown: on phones the panel is anchored to the (right-hand)
        bell button, so a near-full-width panel overflowed the right edge and was
        clipped. Pin it to the viewport instead and centre it within the screen.
@@ -267,6 +274,20 @@ $htmlLang = substr($currentLocale, 0, 2);
             </div>
           </a>
 
+          <?php if (\App\Support\Features::enabled('suppliers')): // optional module (Settings → Modules) ?>
+          <a class="nav-link group flex items-center px-4 py-3 rounded-lg transition-all duration-200 hover:bg-gray-100 text-gray-700 hover:text-gray-900"
+            href="<?= htmlspecialchars(url('/admin/suppliers'), ENT_QUOTES, 'UTF-8') ?>">
+            <div
+              class="flex items-center justify-center w-8 h-8 rounded-lg bg-gray-100 group-hover:bg-gray-200 transition-all duration-200">
+              <i class="fas fa-truck text-gray-600"></i>
+            </div>
+            <div class="ml-3">
+              <div class="font-medium"><?= __("Fornitori") ?></div>
+              <div class="text-xs text-gray-500"><?= __("Acquisti e forniture") ?></div>
+            </div>
+          </a>
+          <?php endif; ?>
+
           <a class="nav-link group flex items-center px-4 py-3 rounded-lg transition-all duration-200 hover:bg-gray-100 text-gray-700 hover:text-gray-900"
             href="<?= htmlspecialchars(url('/admin/genres'), ENT_QUOTES, 'UTF-8') ?>">
             <div
@@ -305,6 +326,20 @@ $htmlLang = substr($currentLocale, 0, 2);
             </a>
           <?php endif; ?>
 
+          <?php if (\App\Support\Features::enabled('visitor_log')): // optional module; also off in catalogue mode ?>
+          <a class="nav-link group flex items-center px-4 py-3 rounded-lg transition-all duration-200 hover:bg-gray-100 text-gray-700 hover:text-gray-900"
+            href="<?= htmlspecialchars(url('/admin/attendance'), ENT_QUOTES, 'UTF-8') ?>">
+            <div
+              class="flex items-center justify-center w-8 h-8 rounded-lg bg-gray-100 group-hover:bg-gray-200 transition-all duration-200">
+              <i class="fas fa-door-open text-gray-600"></i>
+            </div>
+            <div class="ml-3">
+              <div class="font-medium"><?= __("Presenze") ?></div>
+              <div class="text-xs text-gray-500"><?= __("Registro ingressi") ?></div>
+            </div>
+          </a>
+          <?php endif; ?>
+
           <a class="nav-link group flex items-center px-4 py-3 rounded-lg transition-all duration-200 hover:bg-gray-100 text-gray-700 hover:text-gray-900"
             href="<?= htmlspecialchars(url('/admin/placement'), ENT_QUOTES, 'UTF-8') ?>">
             <div
@@ -316,6 +351,20 @@ $htmlLang = substr($currentLocale, 0, 2);
               <div class="text-xs text-gray-500"><?= __("Scaffali e mensole") ?></div>
             </div>
           </a>
+
+          <?php if (\App\Support\Features::enabled('stocktake')): // optional module (Settings → Modules) ?>
+          <a class="nav-link group flex items-center px-4 py-3 rounded-lg transition-all duration-200 hover:bg-gray-100 text-gray-700 hover:text-gray-900"
+            href="<?= htmlspecialchars(url('/admin/inventory'), ENT_QUOTES, 'UTF-8') ?>">
+            <div
+              class="flex items-center justify-center w-8 h-8 rounded-lg bg-gray-100 group-hover:bg-gray-200 transition-all duration-200">
+              <i class="fas fa-clipboard-check text-gray-600"></i>
+            </div>
+            <div class="ml-3">
+              <div class="font-medium"><?= __("Revisione inventariale") ?></div>
+              <div class="text-xs text-gray-500"><?= __("Verifica le copie sugli scaffali") ?></div>
+            </div>
+          </a>
+          <?php endif; ?>
 
           <?php
           // Plugin hook: lets optional plugins (e.g. archives) inject their own
@@ -444,6 +493,20 @@ $htmlLang = substr($currentLocale, 0, 2);
                   <?php endforeach; ?>
                 </div>
               </details>
+
+              <?php if (!$isCatalogueMode && \App\Support\Features::enabled('closures_calendar')): ?>
+              <a class="nav-link group flex items-center px-4 py-3 rounded-lg transition-all duration-200 hover:bg-gray-100 text-gray-700 hover:text-gray-900"
+                href="<?= htmlspecialchars(url('/admin/calendar'), ENT_QUOTES, 'UTF-8') ?>">
+                <div
+                  class="flex items-center justify-center w-8 h-8 rounded-lg bg-gray-100 group-hover:bg-gray-200 transition-all duration-200">
+                  <i class="fas fa-calendar-times text-gray-600"></i>
+                </div>
+                <div class="ml-3">
+                  <div class="font-medium"><?= __("Calendario chiusure") ?></div>
+                  <div class="text-xs text-gray-500"><?= __("Giorni di chiusura e festività") ?></div>
+                </div>
+              </a>
+              <?php endif; ?>
 
               <a class="nav-link group flex items-center px-4 py-3 rounded-lg transition-all duration-200 hover:bg-gray-100 text-gray-700 hover:text-gray-900"
                 href="<?= htmlspecialchars(url('/admin/languages'), ENT_QUOTES, 'UTF-8') ?>">
@@ -634,7 +697,7 @@ $htmlLang = substr($currentLocale, 0, 2);
                       class="hidden sm:inline text-xs text-gray-600 transition-colors"><?= htmlspecialchars($adminSearchLabel, ENT_QUOTES, 'UTF-8') ?></span>
                   </div>
                 </div>
-                <input type="text" id="global-search" aria-label="<?= htmlspecialchars($adminSearchLabel, ENT_QUOTES, 'UTF-8') ?>"
+                <input type="text" id="global-search" title="<?= htmlspecialchars(__('Usa le virgolette per la grafia esatta: "Häffner" trova solo Häffner, non Haffner.'), ENT_QUOTES, 'UTF-8') ?>" aria-label="<?= htmlspecialchars($adminSearchLabel, ENT_QUOTES, 'UTF-8') ?>"
                   class="w-full pl-12 pr-4 py-3 lg:py-3.5 text-sm text-gray-800 bg-gray-50 border border-gray-300 rounded-2xl shadow-sm hover:shadow-md focus:border-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-500/20 focus:bg-white transition-all duration-200 placeholder:text-gray-400"
                   autocomplete="off">
 
@@ -1551,7 +1614,9 @@ $htmlLang = substr($currentLocale, 0, 2);
           if (badge) {
             const count = parseInt(data.count || 0, 10);
             if (count > 0) {
-              badge.textContent = String(count);
+              // Three digits do not fit the round badge: 99+ like other apps.
+              badge.textContent = count > 99 ? '99+' : String(count);
+              badge.setAttribute('aria-label', String(count));
               badge.classList.remove('hidden');
             } else {
               badge.classList.add('hidden');
@@ -2041,6 +2106,31 @@ $htmlLang = substr($currentLocale, 0, 2);
   </div>
 </div>
 
+<script>
+// .pk-stack-table (workspace-ui.css): each cell carries its column name as
+// text, shown above the value when the table stacks as cards on a phone. Rows added later
+// by the page (live scans, paged lists) are labelled as they arrive.
+(function () {
+  function label(table) {
+    var heads = Array.prototype.map.call(table.querySelectorAll('thead th'), function (th) { return th.textContent.trim(); });
+    Array.prototype.forEach.call(table.querySelectorAll('tbody > tr'), function (tr) {
+      Array.prototype.forEach.call(tr.children, function (td, i) {
+        if (td.hasAttribute('colspan') || !heads[i] || td.hasAttribute('data-label')) { return; }
+        td.setAttribute('data-label', heads[i]);
+        var name = document.createElement('span');
+        name.className = 'pk-stack-label';
+        name.textContent = heads[i];
+        td.insertBefore(name, td.firstChild);
+      });
+    });
+  }
+  document.querySelectorAll('table.pk-stack-table').forEach(function (table) {
+    label(table);
+    var body = table.querySelector('tbody');
+    if (body && window.MutationObserver) { new MutationObserver(function () { label(table); }).observe(body, { childList: true }); }
+  });
+})();
+</script>
 </body>
 
 </html>
