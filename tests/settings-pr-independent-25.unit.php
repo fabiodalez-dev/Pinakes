@@ -479,6 +479,7 @@ $cases = [
         $staff = (new \App\Plugins\MobileApi\Support\StaffLoanReader($t->db))->loan($loan);
         SettingsReview25::eq([$staff['effective_due_at'], $staff['is_overdue'], $staff['days_overdue']], [$t->today, false, 0], 'Desk agrees with the reader and the fine calendar');
         SettingsReview25::check(in_array('renew', $staff['actions'], true) && !in_array('recall', $staff['actions'], true), 'Native desk offers renewal, not recall, to an on-time reader');
+        SettingsReview25::eq((new \App\Plugins\MobileApi\Support\StaffLoanReader($t->db))->summary()['due_today'], 1, 'The staff dashboard counts the loan due on its first usable return day');
         $dueNotices = array_values(array_filter($t->feed(), static fn (array $n): bool => $n['type'] === 'loan_due'));
         SettingsReview25::eq(array_column($dueNotices, 'date'), [$t->today], 'Due-soon notice names the usable day');
         $list = (new \App\Models\LoanRepository($t->db))->listRecent();
@@ -500,6 +501,14 @@ $cases = [
             })($view, [$readerLoan]);
             SettingsReview25::check(!str_contains($html, '<div class="alert-overdue"'), 'Reader page must not show a false overdue alert: ' . $view);
         }
+
+        $closedToday = $t->book($t->branchB);
+        $closedTodayLoan = $t->loan($closedToday, $t->today);
+        $t->db->query("INSERT INTO prenotazioni (libro_id,utente_id,data_inizio_richiesta,data_fine_richiesta,data_scadenza_prenotazione,stato)
+            VALUES ({$closedToday['id']},{$t->secondReader},'{$t->day(1)}','{$t->day(1)}','{$t->day(1)} 23:59:59','attiva')");
+        $t->closure($t->today, $t->day(3), $t->branchB);
+        SettingsReview25::eq($t->due($closedTodayLoan), $t->today, 'The nominally due-today date is genuinely blocked from moving');
+        SettingsReview25::eq((new \App\Plugins\MobileApi\Support\StaffLoanReader($t->db))->summary()['due_today'], 1, 'A loan nominally due today on a closed branch is not counted before its usable day');
 
         // The e-mail warning follows the same usable day and horizon. A
         // future blocked move must not announce the closed nominal date early.

@@ -227,7 +227,7 @@ final class StaffLoanReader
                 '',
                 []
             ) ?? 0),
-            'due_today'      => $count("p.attivo = 1 AND p.stato IN ('in_corso','in_ritardo') AND p.data_scadenza = ?", 's', [$today]),
+            'due_today'      => $this->dueTodayCount($today),
             'returned_today' => $count('p.data_restituzione = ?', 's', [$today]),
             'today'          => $today,
             'settings'       => [
@@ -238,6 +238,39 @@ final class StaffLoanReader
                 'allow_multiple_loans_same_book' => $settings->allowsMultipleLoansSameBook(),
             ],
         ];
+    }
+
+    /** Count usable return days, including nominal dates blocked from moving. */
+    private function dueTodayCount(string $today): int
+    {
+        $calendar = \App\Support\LibraryCalendar::forDb($this->db);
+        if (!$calendar->hasRules()) {
+            return (int) ($this->scalar(
+                "SELECT COUNT(*) FROM prestiti p
+                   JOIN libri l ON l.id = p.libro_id AND l.deleted_at IS NULL
+                  WHERE p.attivo = 1 AND p.stato IN ('in_corso','in_ritardo') AND p.data_scadenza = ?",
+                's',
+                [$today]
+            ) ?? 0);
+        }
+        $rows = $this->all(
+            "SELECT p.data_scadenza, c.sede_id
+               FROM prestiti p
+               JOIN libri l ON l.id = p.libro_id AND l.deleted_at IS NULL
+               LEFT JOIN copie c ON c.id = p.copia_id
+              WHERE p.attivo = 1 AND p.stato IN ('in_corso','in_ritardo')
+                AND p.data_scadenza <= ?",
+            's',
+            [$today]
+        );
+        $due = 0;
+        foreach ($rows as $row) {
+            $branch = $row['sede_id'] !== null ? (int) $row['sede_id'] : null;
+            if ($calendar->nextOpenDay((string) $row['data_scadenza'], $branch) === $today) {
+                $due++;
+            }
+        }
+        return $due;
     }
 
     /** The global renewal limit (no patron context). */
