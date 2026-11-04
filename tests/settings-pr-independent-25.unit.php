@@ -383,6 +383,17 @@ $cases = [
         \App\Support\LibraryCalendar::reset();
         (new PrestitiController())->bulkExtend($t->request('/admin/loans/bulk-extend', ['ids' => [(string) $bulkLoan], 'days' => '7']), new Response(), $t->db);
         SettingsReview25::eq($t->due($bulkLoan), $t->day(13), 'Bulk extension of 7 days counts from the first open day after the closed stored date');
+        // Its capacity window still starts the day after the STORED date: a
+        // commitment on a day closed after that date blocks the extension even
+        // though the extension itself counts from a later open day.
+        $wide = $t->book($t->branchA); $wideLoan = $t->loan($wide, $t->day(5));
+        $t->db->query("INSERT INTO calendario_chiusure (data_inizio,data_fine,descrizione,sede_id,attiva) VALUES ('{$t->day(6)}','{$t->day(6)}','Review25 blocked move 2',{$t->branchA},1)");
+        $t->db->query("INSERT INTO prenotazioni (libro_id,utente_id,data_inizio_richiesta,data_fine_richiesta,data_scadenza_prenotazione,stato)
+            VALUES ({$wide['id']},{$t->secondReader},'{$t->day(6)}','{$t->day(6)}','{$t->day(6)} 23:59:59','attiva')");
+        \App\Support\LibraryCalendar::reset();
+        $wideResult = (new PrestitiController())->bulkExtend($t->request('/admin/loans/bulk-extend', ['ids' => [(string) $wideLoan], 'days' => '7']), new Response(), $t->db);
+        SettingsReview25::check(str_contains($wideResult->getHeaderLine('Location'), 'error=bulk_extend_conflict'), 'A commitment inside the closed days after the stored date blocks the bulk extension: ' . $wideResult->getHeaderLine('Location'));
+        SettingsReview25::eq($t->due($wideLoan), $t->day(5), 'The blocked bulk extension leaves the stored date');
 
         // Both controller return paths record the return on the first open day
         // after the closed due day as on time; on a branch with no closure the
