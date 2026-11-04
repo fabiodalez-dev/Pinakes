@@ -39,9 +39,10 @@ $check(
 );
 $check(
     str_contains($loansView, 'DateHelper::today()')
-        && str_contains($loansView, 'data <= applicationToday')
+        && str_contains($loansView, 'row.due_attention === true')
+        && str_contains($api, 'LibraryCalendar::loanDates($db, $r)')
         && !str_contains($loansView, "strtotime(date('Y-m-d'))"),
-    'loan list highlighting uses the application date in PHP and JavaScript'
+    'loan list highlighting consumes the server calendar instead of a browser date comparison'
 );
 $check(
     str_contains($dashboardView, 'DateHelper::today()')

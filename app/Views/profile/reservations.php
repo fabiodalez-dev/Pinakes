@@ -334,7 +334,7 @@ $profileReservationCoverUrl = static function (array $item): string {
   // Check for overdue loans
   $overdueCount = 0;
   foreach ($activePrestiti as $p) {
-    if (!empty($p['data_scadenza']) && strtotime($p['data_scadenza']) < time()) {
+    if (!empty($p['is_overdue'])) {
       $overdueCount++;
     }
   }
@@ -426,7 +426,8 @@ $profileReservationCoverUrl = static function (array $item): string {
         $dataPrestito = $p['data_prestito'] ?? '';
         $stato = $p['stato'] ?? 'in_corso';
         $isScheduled = ($stato === 'prenotato');
-        $isOverdue = !$isScheduled && $scadenza && strtotime($scadenza) < time();
+        $isOverdue = !empty($p['is_overdue']);
+        $scadenza = $p['effective_due_at'] ?? $scadenza;
         $hasReview = !empty($p['has_review']);
       ?>
         <div class="item-card">

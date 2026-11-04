@@ -1445,9 +1445,11 @@ final class OpenApiController
                 'requested_at' => ['type' => ['string', 'null'], 'format' => 'date', 'description' => 'Date the loan request was created (since 1.4.3). The honest date for cancelled/expired loans, which never went out.'],
                 'loaned_at'   => ['type' => 'string', 'format' => 'date', 'nullable' => true],
                 'due_at'      => ['type' => 'string', 'format' => 'date', 'nullable' => true],
+                'effective_due_at' => ['type' => ['string', 'null'], 'format' => 'date', 'description' => 'Usable return day after the copy branch closures. Display this date; due_at retains the stored deadline.'],
+                'is_overdue' => ['type' => 'boolean', 'description' => 'Server-authoritative lateness in the library timezone and branch calendar, even if raw status awaits reconciliation.'],
                 'due_attention' => [
                     'type' => 'boolean',
-                    'description' => 'True when an active in-progress/overdue loan is due today or earlier in the application timezone.',
+                    'description' => 'True when the effective return day of an active in-progress/overdue loan is today or earlier in the application timezone.',
                 ],
                 'returned_at' => ['type' => 'string', 'format' => 'date', 'nullable' => true],
                 'renewals'    => ['type' => 'integer', 'nullable' => true],

@@ -55,7 +55,7 @@ class UserActionsController
         // e col titolo REALE (convenzione unica con mobile ed email —
         // CI-SOFT-DELETE-EXEMPT: prestito proprio dell'utente, che per
         // quel titolo riceve anche i solleciti).
-        $sql = "SELECT pr.id, pr.libro_id, pr.data_prestito, pr.data_scadenza, pr.stato,
+        $sql = "SELECT pr.id, pr.libro_id, pr.copia_id, pr.data_prestito, pr.data_scadenza, pr.stato,
                        l.titolo, l.copertina_url,
                        EXISTS(SELECT 1 FROM recensioni r WHERE r.libro_id = pr.libro_id AND r.utente_id = ?) as has_review
                 FROM prestiti pr
@@ -69,7 +69,7 @@ class UserActionsController
         $activePrestiti = [];
         while ($r = $res->fetch_assoc()) {
             $r['titolo'] = $r['titolo'] ?? __('Titolo non disponibile');
-            $activePrestiti[] = $r;
+            $activePrestiti[] = $r + \App\Support\LibraryCalendar::loanDates($db, $r);
         }
         $stmt->close();
 

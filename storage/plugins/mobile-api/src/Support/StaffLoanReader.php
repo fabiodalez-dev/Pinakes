@@ -491,10 +491,11 @@ final class StaffLoanReader
         $today = DateHelper::today();
         $status = (string) ($r['stato'] ?? '');
         $due = self::date($r['data_scadenza'] ?? null);
-        $daysOverdue = 0;
-        if ($due !== null && in_array($status, ['in_corso', 'in_ritardo'], true) && (int) ($r['attivo'] ?? 0) === 1 && $due < $today) {
-            $daysOverdue = (int) ((new \DateTimeImmutable($due))->diff(new \DateTimeImmutable($today))->days ?: 0);
-        }
+        $holding = in_array($status, ['in_corso', 'in_ritardo'], true) && (int) ($r['attivo'] ?? 0) === 1;
+        $copyId = isset($r['copia_id']) ? (int) $r['copia_id'] : null;
+        $dates = \App\Support\LibraryCalendar::loanDates($this->db, $r, $today);
+        $isOverdue = $dates['is_overdue'];
+        $daysOverdue = $isOverdue ? \App\Support\LibraryCalendar::lateDaysForNotice($this->db, $due, $copyId, $today) : 0;
         $penalty = $r['sanzione'] ?? null;
         $maxRenewals = $this->maxRenewalsFor($r);
         $processedBy = isset($r['processed_by'], $r['pb_nome'])
@@ -528,6 +529,8 @@ final class StaffLoanReader
             'requested_at'    => self::date($r['created_at'] ?? null),
             'loaned_at'       => self::date($r['data_prestito'] ?? null),
             'due_at'          => $due,
+            'effective_due_at' => $dates['effective_due_at'],
+            'is_overdue'      => $isOverdue,
             'pickup_deadline' => self::date($r['pickup_deadline'] ?? null),
             'returned_at'     => self::date($r['data_restituzione'] ?? null),
             'returned_late'   => (int) ($r['restituito_in_ritardo'] ?? 0) === 1,
@@ -540,7 +543,7 @@ final class StaffLoanReader
             'last_recall_at'  => self::str($r['last_recall_at'] ?? null),
             'created_at'      => self::str($r['created_at'] ?? null),
             'updated_at'      => self::str($r['updated_at'] ?? null),
-            'actions'         => CirculationOutcome::actionsFor($r, $maxRenewals, $today),
+            'actions'         => CirculationOutcome::actionsFor($r, $maxRenewals, $today, $holding ? $isOverdue : null),
         ];
     }
 

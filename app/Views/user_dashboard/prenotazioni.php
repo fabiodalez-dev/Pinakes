@@ -522,15 +522,10 @@ function resolveCoverUrl(array $item, string $key = 'copertina_url'): string {
   <?php endif; ?>
 
   <?php
-    // "In ritardo" con la STESSA semantica del cron (updateOverdueLoans):
-    // data_scadenza < oggi nel timezone applicativo. Il vecchio
-    // strtotime() < time() (TZ processo) marcava in ritardo già nel
-    // pomeriggio del giorno di scadenza, in disaccordo col backend.
-    $appToday = \App\Support\DateHelper::today();
+    // The alert and cards share the server's calendar-aware overdue flag.
     $overdueCount = 0;
     foreach ($activePrestiti as $loan) {
-        $dueAt = $loan['data_scadenza'] ?? '';
-        if ($dueAt !== '' && $dueAt < $appToday) {
+        if (!empty($loan['is_overdue'])) {
             $overdueCount++;
         }
     }
@@ -618,7 +613,8 @@ function resolveCoverUrl(array $item, string $key = 'copertina_url'): string {
       <?php foreach ($activePrestiti as $loan):
         $cover = resolveCoverUrl($loan);
         $scadenza = $loan['data_scadenza'] ?? '';
-        $isOverdue = ($scadenza !== '' && $scadenza < $appToday);
+        $isOverdue = !empty($loan['is_overdue']);
+        $scadenza = $loan['effective_due_at'] ?? $scadenza;
         $startDate = $loan['data_prestito'] ?? '';
         $hasReview = !empty($loan['has_review']);
       ?>

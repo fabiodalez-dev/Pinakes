@@ -43,7 +43,12 @@ final class CapacityService
     /** Circulation rules, resolved once per instance (the settings rows are cached there). */
     private ?CirculationPolicy $circulation = null;
 
-    public function __construct(private mysqli $db) {}
+    /**
+     * $lockingReads is for writers holding the book row in a transaction.
+     * Current reads must see commitments confirmed after an earlier calendar
+     * read established a REPEATABLE READ snapshot on the same connection.
+     */
+    public function __construct(private mysqli $db, private bool $lockingReads = false) {}
 
     /**
      * Lendable physical copies of a book (the capacity ceiling). If the book has
@@ -54,7 +59,8 @@ final class CapacityService
      */
     public function totalCopies(int $libroId): int
     {
-        $stmt = $this->db->prepare("SELECT COUNT(*) AS total FROM copie WHERE libro_id = ?");
+        $lock = $this->lockingReads ? ' FOR UPDATE' : '';
+        $stmt = $this->db->prepare("SELECT COUNT(*) AS total FROM copie WHERE libro_id = ?" . $lock);
         $stmt->bind_param('i', $libroId);
         $stmt->execute();
         $copyRows = (int) ($stmt->get_result()->fetch_assoc()['total'] ?? 0);
@@ -65,7 +71,7 @@ final class CapacityService
                 "SELECT COUNT(*) AS total FROM copie
                  WHERE libro_id = ?
                    AND stato NOT IN ('perso','danneggiato','manutenzione','in_restauro','in_trasferimento')
-                   AND " . ($this->circulation ??= new CirculationPolicy($this->db))->lendableCopySql('') . ""
+                   AND " . ($this->circulation ??= new CirculationPolicy($this->db))->lendableCopySql('') . $lock
             );
             $stmt->bind_param('i', $libroId);
             $stmt->execute();
@@ -75,7 +81,7 @@ final class CapacityService
         }
 
         // No per-copy rows: legacy fallback to libri.copie_totali (NULL → 1, 0 → 0).
-        $stmt = $this->db->prepare("SELECT IFNULL(copie_totali, 1) AS total FROM libri WHERE id = ? AND deleted_at IS NULL");
+        $stmt = $this->db->prepare("SELECT IFNULL(copie_totali, 1) AS total FROM libri WHERE id = ? AND deleted_at IS NULL" . $lock);
         $stmt->bind_param('i', $libroId);
         $stmt->execute();
         $row = $stmt->get_result()->fetch_assoc();
@@ -525,6 +531,9 @@ final class CapacityService
      */
     private function fetchIntervals(string $sql, string $types, array $params): array
     {
+        if ($this->lockingReads) {
+            $sql .= ' FOR UPDATE';
+        }
         $stmt = $this->db->prepare($sql);
         $refs = [$types];
         foreach ($params as $k => $v) {

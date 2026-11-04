@@ -185,13 +185,14 @@ final class PushDispatcher
             if (!$this->claimIfPastDue($userId, $key, (int) $r['id'], (string) $r['data_scadenza'], $copyId, $today)) {
                 continue;
             }
+            $effectiveDue = LibraryCalendar::dueDate($this->db, (string) $r['data_scadenza'], $copyId);
             $events++;
             $payload = new PushPayload(
                 'loan_overdue',
                 __('Prestito scaduto'),
-                sprintf(__('Il prestito di "%s" è scaduto il %s.'), (string) $r['titolo'], (string) $r['data_scadenza']),
+                sprintf(__('Il prestito di "%s" è scaduto il %s.'), (string) $r['titolo'], $effectiveDue),
                 (int) $r['libro_id'],
-                ['loan_id' => (int) $r['id'], 'due_at' => (string) $r['data_scadenza']]
+                ['loan_id' => (int) $r['id'], 'due_at' => (string) $r['data_scadenza'], 'effective_due_at' => $effectiveDue]
             );
             $outcome = $this->deliver($userId, $payload, $counters);
             if ($outcome['sent'] === 0 && $outcome['failed'] > 0) {

@@ -230,6 +230,8 @@ final class StaffCirculationOpenApi
                 'user' => $person,
                 'processed_by' => ['oneOf' => [['type' => 'null'], O::object(['id' => $i, 'name' => $s])]],
                 'requested_at' => $nd, 'loaned_at' => $nd, 'due_at' => $nd, 'pickup_deadline' => $nd, 'returned_at' => $nd,
+                'effective_due_at' => $nd,
+                'is_overdue' => ['type' => 'boolean', 'description' => 'Lateness in the library timezone and copy branch calendar; authoritative over a stale raw status.'],
                 'returned_late' => $b, 'days_overdue' => $i, 'renewals' => $i, 'max_renewals' => $i,
                 'penalty' => O::nullable('number'), 'notes' => $ns, 'recall_count' => $i, 'last_recall_at' => $ns,
                 'created_at' => $ns, 'updated_at' => $ns,

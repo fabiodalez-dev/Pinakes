@@ -414,6 +414,10 @@ test.describe.serial('Closures added after the loan', () => {
     expect(loanRow(loanId).split('|')[0]).toBe('in_corso');
     // The notice already sent stays recorded: no second overdue e-mail later.
     expect(db(`SELECT overdue_notification_sent FROM prestiti WHERE id=${loanId}`)).toBe('1');
+    const bookId = F.dbInt(`SELECT libro_id FROM prestiti WHERE id=${loanId}`);
+    await page.goto(`${F.BASE}/admin/books/${bookId}`);
+    await expect(page.locator(`form[action$="/admin/loans/renew/${loanId}"] button[type="submit"]`)).toBeVisible();
+    await expect(page.getByText('Non rinnovabile: prestito in ritardo', { exact: true })).toHaveCount(0);
   });
 
   test('Past 2: the overdue sweep waits for the first open day after a due day closed afterwards', async () => {

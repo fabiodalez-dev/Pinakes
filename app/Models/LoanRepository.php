@@ -17,7 +17,7 @@ class LoanRepository
     {
         $rows = [];
         $sql = "SELECT p.id, l.titolo AS libro_titolo, CONCAT(u.nome,' ',u.cognome) AS utente_nome,
-                       u.email as utente_email, p.data_prestito, p.data_scadenza, p.data_restituzione, p.stato, p.attivo
+                       u.email as utente_email, p.copia_id, p.data_prestito, p.data_scadenza, p.data_restituzione, p.stato, p.attivo
                 FROM prestiti p
                 LEFT JOIN libri l ON p.libro_id = l.id AND l.deleted_at IS NULL
                 LEFT JOIN utenti u ON p.utente_id = u.id
@@ -28,7 +28,7 @@ class LoanRepository
         $stmt->execute();
         $res = $stmt->get_result();
         while ($row = $res->fetch_assoc()) {
-            $rows[] = $row;
+            $rows[] = $row + \App\Support\LibraryCalendar::loanDates($this->db, $row);
         }
         return $rows;
     }
@@ -55,7 +55,8 @@ class LoanRepository
         $stmt->bind_param('i', $id);
         $stmt->execute();
         $res = $stmt->get_result();
-        return $res->fetch_assoc() ?: null;
+        $row = $res->fetch_assoc();
+        return $row ? $row + \App\Support\LibraryCalendar::loanDates($this->db, $row) : null;
     }
 
     /**
@@ -130,7 +131,7 @@ class LoanRepository
         $loan = $res->fetch_assoc();
         $stmt->close();
 
-        return $loan ?: null;
+        return $loan ? $loan + \App\Support\LibraryCalendar::loanDates($this->db, $loan) : null;
     }
 
     /**

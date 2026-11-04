@@ -191,12 +191,15 @@ final class CirculationOutcome
      * @param array<string, mixed> $row prestiti row (stato, data_prestito, data_scadenza, renewals, attivo)
      * @return list<string>
      */
-    public static function actionsFor(array $row, int $maxRenewals, string $today): array
+    public static function actionsFor(array $row, int $maxRenewals, string $today, ?bool $isOverdue = null): array
     {
         $status = (string) ($row['stato'] ?? '');
         $start = (string) ($row['data_prestito'] ?? '');
         $due = (string) ($row['data_scadenza'] ?? '');
         $renewals = (int) ($row['renewals'] ?? 0);
+        if ($isOverdue !== null && in_array($status, ['in_corso', 'in_ritardo'], true)) {
+            $status = $isOverdue ? 'in_ritardo' : 'in_corso';
+        }
 
         switch ($status) {
             case 'pendente':
@@ -210,7 +213,7 @@ final class CirculationOutcome
                 return ['edit', 'receipt'];
             case 'in_corso':
                 $actions = ['return'];
-                if ($renewals < $maxRenewals && ($due === '' || $due >= $today)) {
+                if ($renewals < $maxRenewals && ($isOverdue === false || $due === '' || $due >= $today)) {
                     $actions[] = 'renew';
                 }
                 return array_merge($actions, ['edit', 'receipt', 'email_receipt']);

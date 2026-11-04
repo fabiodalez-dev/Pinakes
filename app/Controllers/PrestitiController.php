@@ -1867,6 +1867,7 @@ class PrestitiController
         $prestito = $result->fetch_assoc();
         $stmt->close();
 
+        $prestito += \App\Support\LibraryCalendar::loanDates($db, $prestito);
         // Plan §7: fine accruing on an open overdue loan (shown, written only at
         // return) and the late fine already charged on a closed one.
         $ledger = \App\Services\PatronLedger::forDb($db);
@@ -2256,15 +2257,12 @@ class PrestitiController
             return $response->withHeader('Location', url($errorUrl . $separator . 'error=loan_not_active'))->withStatus(302);
         }
 
-        // Check if loan is overdue — by STATE or by DATE (#366 residual): a loan
-        // whose data_scadenza is already past but that the maintenance sweep has
-        // not yet flipped to 'in_ritardo' is just as overdue. Renewing it would
-        // compute the new due date from the stale past date AND reset
-        // warning_sent/overdue_notification_sent, re-arming a duplicate overdue
-        // email. Same refusal, same error code.
+        // A due day closed after lending remains usable on its next open day,
+        // as in the overdue sweep and fines. Check both before and under the
+        // loan lock so renewal and the calendar agree on who is actually late.
         $todayApp = \App\Support\DateHelper::today();
-        $isLate = ($loan['stato'] === 'in_ritardo')
-            || ($loan['stato'] === 'in_corso' && (string) $loan['data_scadenza'] < $todayApp);
+        $isLate = in_array($loan['stato'], ['in_corso', 'in_ritardo'], true)
+            && \App\Support\LibraryCalendar::isPastDue($db, (string) $loan['data_scadenza'], isset($loan['copia_id']) ? (int) $loan['copia_id'] : null, $todayApp);
         if ($isLate) {
             $errorUrl = $redirectTo ?? url('/admin/loans');
             $separator = strpos($errorUrl, '?') === false ? '?' : '&';
@@ -2372,9 +2370,8 @@ class PrestitiController
                 $separator = strpos($errorUrl, '?') === false ? '?' : '&';
                 return $response->withHeader('Location', url($errorUrl . $separator . 'error=loan_not_active'))->withStatus(302);
             }
-            // State- OR date-based overdue, same predicate as the pre-lock check.
-            if ($lockedLoan['stato'] === 'in_ritardo'
-                || ($lockedLoan['stato'] === 'in_corso' && (string) $lockedLoan['data_scadenza'] < $todayApp)) {
+            if (in_array($lockedLoan['stato'], ['in_corso', 'in_ritardo'], true)
+                && \App\Support\LibraryCalendar::isPastDue($db, (string) $lockedLoan['data_scadenza'], isset($lockedLoan['copia_id']) ? (int) $lockedLoan['copia_id'] : null, $todayApp)) {
                 $db->rollback();
                 $errorUrl = $redirectTo ?? url('/admin/loans');
                 $separator = strpos($errorUrl, '?') === false ? '?' : '&';

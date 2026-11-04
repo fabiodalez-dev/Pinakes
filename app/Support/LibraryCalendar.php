@@ -212,6 +212,27 @@ final class LibraryCalendar
     }
 
     /**
+     * Calendar facts shared by web lists and native clients. The persisted
+     * date remains available for history and editing; only an outstanding
+     * physical loan receives a later usable return day.
+     * @param array<string, mixed> $loan
+     * @return array{effective_due_at: ?string, is_overdue: bool, due_attention: bool}
+     */
+    public static function loanDates(\mysqli $db, array $loan, ?string $today = null): array
+    {
+        $today ??= DateHelper::today();
+        $due = !empty($loan['data_scadenza']) ? substr((string) $loan['data_scadenza'], 0, 10) : null;
+        $holding = (int) ($loan['attivo'] ?? 1) === 1 && in_array($loan['stato'] ?? '', ['in_corso', 'in_ritardo'], true);
+        $copyId = isset($loan['copia_id']) ? (int) $loan['copia_id'] : null;
+        $effectiveDue = $holding && $due !== null ? self::dueDate($db, $due, $copyId) : $due;
+        return [
+            'effective_due_at' => $effectiveDue,
+            'is_overdue' => $holding && $due !== null && self::isPastDue($db, $due, $copyId, $today),
+            'due_attention' => $holding && $effectiveDue !== null && $effectiveDue <= $today,
+        ];
+    }
+
+    /**
      * After a calendar change: an active loan whose due date (today or later)
      * now falls on a closed day of the copy's branch is due on the next open
      * day instead, as if it had been lent after the change: the reader never
@@ -260,7 +281,7 @@ final class LibraryCalendar
         $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
         $stmt->close();
 
-        $capacity = new \App\Services\CapacityService($db);
+        $capacity = new \App\Services\CapacityService($db, lockingReads: true);
         $moved = 0;
         $notMoved = 0;
         foreach ($rows as $row) {
@@ -292,6 +313,9 @@ final class LibraryCalendar
                 $lockBook->execute();
                 $lockBook->get_result();
                 $lockBook->close();
+                // The calendar scan may already have opened an older MVCC
+                // snapshot. Locking capacity reads see the operator who held
+                // this book lock before us, including copyless reservations.
                 if ($capacity->hasFreeCapacity($bookId, self::shift($due, 1), $next, excludePrestitoId: $id)) {
                     $before = ActivityLog::loadLoanSnapshot($db, $id);
                     $update = $db->prepare(

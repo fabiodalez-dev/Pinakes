@@ -64,6 +64,11 @@ test.describe.serial('Rules matrix: total and per-material limits, due date per 
     const ctx = await browser.newContext({ ...devices['iPhone 13'] });
     const phone = await ctx.newPage();
     try {
+      // A fresh phone's consent banner can cover the login button too.
+      await phone.goto(`${F.BASE}/accedi`);
+      const rejectCookies = phone.locator('#silktide-wrapper .reject-all');
+      const consentVisible = await rejectCookies.waitFor({ state: 'visible', timeout: 3000 }).then(() => true).catch(() => false);
+      if (consentVisible) await rejectCookies.click();
       await F.loginAsAdmin(phone);
       await F.openCirculationTab(phone);
       const widths = await phone.evaluate(() => [document.documentElement.scrollWidth, window.innerWidth]);

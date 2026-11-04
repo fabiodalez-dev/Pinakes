@@ -138,7 +138,7 @@ class PrestitiApiController
         $param_types .= 'ii';
 
         $sql_prepared = "SELECT p.id, l.titolo AS libro, CONCAT(u.nome,' ',u.cognome) AS utente,
-                       p.data_prestito, p.data_scadenza, p.data_restituzione, p.attivo, p.stato,
+                       p.copia_id, p.data_prestito, p.data_scadenza, p.data_restituzione, p.attivo, p.stato,
                        CONCAT(staff.nome,' ',staff.cognome) AS processed_by
                 $base $where_prepared
                 ORDER BY $orderColumn $orderDir LIMIT ?, ?";
@@ -161,7 +161,7 @@ class PrestitiApiController
             if ((int)$r['attivo'] === 1 && in_array((string) $r['stato'], ['in_corso', 'in_ritardo'], true)) {
                 $actions .= ' | <a class="text-green-600" href="'.htmlspecialchars(url('/admin/loans/returned/'.(int)$r['id']), ENT_QUOTES, 'UTF-8').'">'.htmlspecialchars(__('Restituito'), ENT_QUOTES, 'UTF-8').'</a>';
             }
-            $rows[] = [
+            $rows[] = \App\Support\LibraryCalendar::loanDates($db, $r) + [
                 'id' => (int)$r['id'],
                 'libro' => $r['libro'] ?? '',
                 'utente' => $r['utente'] ?? '',

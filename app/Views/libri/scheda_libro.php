@@ -376,8 +376,11 @@ unset($workspaceHeader);
           </div>
           <div class="flex items-center justify-between">
             <span class="font-medium"><?= __("Scadenza") ?></span>
-            <?php $isLate = strtotime($activeLoan['data_scadenza'] ?? '1970-01-01') < strtotime(date('Y-m-d')); ?>
-            <span class="<?php echo $isLate ? 'text-red-600 font-semibold' : ''; ?>"><?php echo App\Support\HtmlHelper::e(format_date($activeLoan['data_scadenza'] ?? '', false, '/')); ?></span>
+            <?php
+              $isLate = !empty($activeLoan['is_overdue']);
+              $activeEffectiveDue = $activeLoan['effective_due_at'] ?? $activeLoan['data_scadenza'] ?? '';
+            ?>
+            <span class="<?php echo $isLate ? 'text-red-600 font-semibold' : ''; ?>"><?php echo App\Support\HtmlHelper::e(format_date($activeEffectiveDue, false, '/')); ?></span>
           </div>
           <div class="flex items-center justify-between">
             <span class="font-medium"><?= __("Rinnovi effettuati") ?></span>
@@ -1894,9 +1897,12 @@ unset($workspaceHeader);
             <div>
               <div class="text-xs text-gray-500 uppercase"><?= __("Prestito") ?></div>
               <div class="font-medium"><?= __("Dal") ?> <?php echo App\Support\HtmlHelper::e(format_date($activeLoan['data_prestito'] ?? '', false, '/')); ?></div>
-              <?php $modalLate = strtotime($activeLoan['data_scadenza'] ?? '1970-01-01') < strtotime(date('Y-m-d')); ?>
+              <?php
+                $modalLate = !empty($activeLoan['is_overdue']);
+                $modalEffectiveDue = $activeLoan['effective_due_at'] ?? $activeLoan['data_scadenza'] ?? '';
+              ?>
               <div class="text-xs <?php echo $modalLate ? 'text-red-600 font-semibold' : 'text-gray-500'; ?>">
-                <?= __("Scadenza") ?> <?php echo App\Support\HtmlHelper::e(format_date($activeLoan['data_scadenza'] ?? '', false, '/')); ?>
+                <?= __("Scadenza") ?> <?php echo App\Support\HtmlHelper::e(format_date($modalEffectiveDue, false, '/')); ?>
               </div>
             </div>
           </div>
