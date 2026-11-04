@@ -1534,17 +1534,22 @@ test.describe.serial('Loan & Reservation Complete Suite (26 tests)', () => {
     // calendar's (LibraryCalendar::isPastDue()), not the raw status alone: a
     // due day closed afterwards stays renewable, so the loan is made really
     // late, due yesterday on an open day, not only flagged 'in_ritardo'.
-    dbQuery(`UPDATE prestiti SET stato='in_ritardo', data_prestito=DATE_SUB(CURDATE(), INTERVAL 15 DAY), data_scadenza=DATE_SUB(CURDATE(), INTERVAL 1 DAY) WHERE id=${loanId25}`);
+    // Dates in the application timezone, as renew() reads "today".
+    dbQuery(`UPDATE prestiti SET stato='in_ritardo', data_prestito='${dateISO(-15)}', data_scadenza='${dateISO(-1)}' WHERE id=${loanId25}`);
 
     await adminPage.goto(`${BASE}/admin/prestiti/${loanId25}`);
     await adminPage.waitForLoadState('domcontentloaded');
     const csrf25b = await getCsrf(adminPage);
 
-    const renewRes2 = await adminPage.request.post(`${BASE}/admin/prestiti/rinnova/${loanId25}`, {
+    // The canonical route (the Italian path answers 308 to it), read without
+    // following the redirect so the refusal reason is visible.
+    const renewRes2 = await adminPage.request.post(`${BASE}/admin/loans/renew/${loanId25}`, {
       form: { csrf_token: csrf25b },
+      maxRedirects: 0,
     });
-    // The app redirects to an error URL on failure (returns 302 to ?error=...)
-    // OR returns a non-success status. Either way, renewals should NOT increase.
+    // Refused for the right reason: the loan is late, not another error.
+    expect(renewRes2.status()).toBe(302);
+    expect(renewRes2.headers()['location'] || '').toContain('error=loan_overdue');
     const renewalsOverdue = parseInt(dbQuery(`SELECT renewals FROM prestiti WHERE id=${loanId25}`), 10);
     expect(renewalsOverdue).toBe(renewalsAfter); // unchanged
 
