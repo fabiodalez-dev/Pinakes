@@ -1530,9 +1530,11 @@ test.describe.serial('Loan & Reservation Complete Suite (26 tests)', () => {
     expect(renewalsAfter).toBe(renewalsBefore + 1);
     expect(dueDateAfter > dueDate25).toBe(true);
 
-    // Also verify that renewing an in_ritardo (overdue) loan is blocked
-    // by setting stato to in_ritardo then calling renew
-    dbQuery(`UPDATE prestiti SET stato='in_ritardo' WHERE id=${loanId25}`);
+    // Also verify that renewing an overdue loan is blocked. Lateness is the
+    // calendar's (LibraryCalendar::isPastDue()), not the raw status alone: a
+    // due day closed afterwards stays renewable, so the loan is made really
+    // late, due yesterday on an open day, not only flagged 'in_ritardo'.
+    dbQuery(`UPDATE prestiti SET stato='in_ritardo', data_prestito=DATE_SUB(CURDATE(), INTERVAL 15 DAY), data_scadenza=DATE_SUB(CURDATE(), INTERVAL 1 DAY) WHERE id=${loanId25}`);
 
     await adminPage.goto(`${BASE}/admin/prestiti/${loanId25}`);
     await adminPage.waitForLoadState('domcontentloaded');
