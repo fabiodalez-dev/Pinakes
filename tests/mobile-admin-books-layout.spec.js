@@ -290,4 +290,26 @@ test.describe.serial('book pages on a phone', () => {
       expect(await pastTheEdge(page), 'text past the screen edge').toEqual([]);
     });
   }
+
+  test('updates requirements: a value next to a long path keeps each word on one line', async ({ page }) => {
+    await F.loginAsAdmin(page);
+    await page.goto('/admin/updates', { waitUntil: 'networkidle' });
+    const split = await page.locator('main .space-y-4 > .flex.justify-between > span').evaluateAll((spans) => {
+      const out = [];
+      for (const span of spans) {
+        const node = [...span.childNodes].find((n) => n.nodeType === Node.TEXT_NODE && n.textContent.trim() !== '');
+        if (!node) continue;
+        const text = node.textContent;
+        for (const match of text.matchAll(/\S+/g)) {
+          const range = document.createRange();
+          range.setStart(node, match.index);
+          range.setEnd(node, match.index + match[0].length);
+          const lines = new Set([...range.getClientRects()].filter((r) => r.width > 0).map((r) => Math.round(r.top)));
+          if (lines.size > 1) out.push(match[0]);
+        }
+      }
+      return out;
+    });
+    expect(split, 'words broken across lines').toEqual([]);
+  });
 });

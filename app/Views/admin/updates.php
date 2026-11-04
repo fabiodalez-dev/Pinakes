@@ -221,7 +221,7 @@ unset($workspaceHeader);
                                 <p class="text-xs text-gray-500 break-words"><?= __("Richiesto:") ?> <?= HtmlHelper::e($req['required']) ?></p>
                             </div>
                         </div>
-                        <span class="min-w-0 break-words text-right text-sm <?= $req['met'] ? 'text-gray-600' : 'text-red-600 font-medium' ?>">
+                        <span class="break-words text-right text-sm <?= $req['met'] ? 'text-gray-600' : 'text-red-600 font-medium' ?>">
                             <?= HtmlHelper::e($req['current']) ?>
                         </span>
                     </div>
