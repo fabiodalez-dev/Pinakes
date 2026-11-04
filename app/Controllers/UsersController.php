@@ -258,9 +258,14 @@ class UsersController
                 $customRoleId,
                 $digitalAccess
             );
-            $stmt->execute();
-            $userId = (int) $stmt->insert_id;
-            \App\Support\PatronTypeAssignment::save($db, $userId, $patronTypeId);
+            // The type may have been removed since form validation. Account
+            // creation and assignment must succeed together; otherwise a
+            // reported failure would still leave a newly created account.
+            \App\Support\DbAtomic::run($db, static function () use ($stmt, $db, $patronTypeId, &$userId): void {
+                $stmt->execute();
+                $userId = (int) $stmt->insert_id;
+                \App\Support\PatronTypeAssignment::save($db, $userId, $patronTypeId);
+            }, 'Users.create');
         } catch (\Throwable $e) {
             $code = ($e instanceof \mysqli_sql_exception) ? \App\Support\UniqueViolation::errorCode($e) : 'db_error';
             if ($code === 'db_error') {
@@ -579,10 +584,14 @@ class UsersController
                 $digitalAccess,
                 $id
             );
-            $stmt->execute();
-            if ($patronTypeId !== $originalPatronType) {
-                \App\Support\PatronTypeAssignment::save($db, $id, $patronTypeId);
-            }
+            // A failed type assignment must also undo the account fields,
+            // password and privileges saved by this same form.
+            \App\Support\DbAtomic::run($db, static function () use ($stmt, $db, $id, $patronTypeId, $originalPatronType): void {
+                $stmt->execute();
+                if ($patronTypeId !== $originalPatronType) {
+                    \App\Support\PatronTypeAssignment::save($db, $id, $patronTypeId);
+                }
+            }, 'Users.update');
         } catch (\Throwable $e) {
             // $stmt stays null if prepare() itself threw — guard the close().
             if ($stmt instanceof \mysqli_stmt) {
