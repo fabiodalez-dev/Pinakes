@@ -100,13 +100,20 @@ try {
     // The due-soon push follows the same calendar as the feed: the loan whose
     // due day was closed is due today (first open day) and is announced so,
     // the loan that is really late is not "due soon".
-    $dueClaimed = static function (int $loanId) use ($db, $ids, $yesterday): bool {
-        $key = $db->real_escape_string("loan_due:{$loanId}:{$yesterday}");
+    // Keyed by the usable day (today), the day the push names.
+    $dueClaimed = static function (int $loanId, string $day) use ($db, $ids): bool {
+        $key = $db->real_escape_string("loan_due:{$loanId}:{$day}");
         $r = $db->query("SELECT COUNT(*) FROM mobile_push_log WHERE user_id={$ids['user']} AND event_key='{$key}'");
         return $r instanceof mysqli_result && (int) $r->fetch_row()[0] === 1;
     };
-    $check($dueClaimed($ids['loans']['closed']), 'a due-soon push for the loan whose due day was closed afterwards (due today)');
-    $check(!$dueClaimed($ids['loans']['open']), 'no due-soon push for a loan already past due');
+    $check($dueClaimed($ids['loans']['closed'], $today) && !$dueClaimed($ids['loans']['closed'], $yesterday), 'a due-soon push for the loan whose due day was closed afterwards, keyed and dated by the usable day (today)');
+    $check(!$dueClaimed($ids['loans']['open'], $today) && !$dueClaimed($ids['loans']['open'], $yesterday), 'no due-soon push for a loan already past due');
+    // Under the calendar lock the usable day is read again: a sweep that saw an
+    // older calendar (another usable day) does not claim, the next sweep does.
+    $claimDue = new ReflectionMethod(PushDispatcher::class, 'claimIfDueUnchanged');
+    $lateCopy = (int) $db->query("SELECT copia_id FROM prestiti WHERE id={$ids['loans']['late']}")->fetch_row()[0];
+    $check($claimDue->invoke(new PushDispatcher($db, new NullProvider()), $ids['user'], "loan_due:{$ids['loans']['late']}:stale", $ids['loans']['late'], $yesterday, $lateCopy, $yesterday) === false, 'no due-soon claim when the usable day changed since the sweep read the calendar');
+    $check($claimDue->invoke(new PushDispatcher($db, new NullProvider()), $ids['user'], "loan_due:{$ids['loans']['late']}:current", $ids['loans']['late'], $yesterday, $lateCopy, $today) === true, 'the same claim with the usable day the calendar gives goes through');
 
     // A return on the first open day after a closed due day is on time, as the
     // fine counts it; the same return with every day open is late.

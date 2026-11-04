@@ -374,6 +374,31 @@ $cases = [
         parse_str((string) parse_url($refused, PHP_URL_QUERY), $offer);
         SettingsReview25::check((int) ($offer['max_extension_days'] ?? 0) === 0, 'No "renew until" offer from the closed stored date: ' . $refused);
         SettingsReview25::eq($t->due($heldLoan), $t->day(-1), 'The refused renewal leaves the loan as it was');
+
+        // A bulk extension counts from the same usable day: a stored due date on
+        // a closed day whose move did not happen (written straight to the table,
+        // as a blocked move leaves it) extends from the next open day.
+        $bulk = $t->book($t->branchA); $bulkLoan = $t->loan($bulk, $t->day(5));
+        $t->db->query("INSERT INTO calendario_chiusure (data_inizio,data_fine,descrizione,sede_id,attiva) VALUES ('{$t->day(5)}','{$t->day(5)}','Review25 blocked move',{$t->branchA},1)");
+        \App\Support\LibraryCalendar::reset();
+        (new PrestitiController())->bulkExtend($t->request('/admin/loans/bulk-extend', ['ids' => [(string) $bulkLoan], 'days' => '7']), new Response(), $t->db);
+        SettingsReview25::eq($t->due($bulkLoan), $t->day(13), 'Bulk extension of 7 days counts from the first open day after the closed stored date');
+
+        // Both controller return paths record the return on the first open day
+        // after the closed due day as on time; on a branch with no closure the
+        // same return is late.
+        $flag = static fn (int $id): string => (string) $t->db->query("SELECT CONCAT(stato,'|',restituito_in_ritardo) FROM prestiti WHERE id={$id}")->fetch_row()[0];
+        foreach (['return form' => 'form', 'quick return' => 'quick'] as $label => $path) {
+            foreach ([[$t->branchA, 'restituito|0', 'on time'], [null, 'restituito|1', 'late']] as [$branch, $expected, $what]) {
+                $back = $t->loan($t->book($branch), $t->day(-1));
+                if ($path === 'form') {
+                    (new PrestitiController())->processReturn($t->request('/admin/loans/return/' . $back, ['stato' => 'restituito']), new Response(), $t->db, $back);
+                } else {
+                    (new \App\Controllers\LoanApprovalController())->returnLoan($t->request('/admin/loans/return-quick', ['loan_id' => (string) $back]), new Response(), $t->db);
+                }
+                SettingsReview25::eq($flag($back), $expected, "The {$label} records a return the day after a due day " . ($branch === null ? 'with every day open' : 'closed afterwards') . " as {$what}");
+            }
+        }
     },
     '03 Mobile feed must not call that on-time reader overdue' => static function (SettingsReview25 $t): void {
         $loan = $t->loan($t->book($t->branchA), $t->day(-1), ['status' => 'in_ritardo']);

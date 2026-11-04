@@ -128,13 +128,15 @@ final class PushDispatcher
                 continue;
             }
             $userId = (int) $r['utente_id'];
-            $key    = 'loan_due:' . (int) $r['id'] . ':' . (string) $r['data_scadenza'];
+            // Keyed by the usable day: a closure that moves it without moving the
+            // stored date announces the new day instead of being deduplicated.
+            $key    = 'loan_due:' . (int) $r['id'] . ':' . $effectiveDue;
             // Gate BEFORE claim so a quiet-hours/pref-off pass doesn't burn the dedup.
             if (!$this->shouldNotify($userId, 'loan_due')) {
                 $counters['skipped']++;
                 continue;
             }
-            if (!$this->claimIfDueUnchanged($userId, $key, (int) $r['id'], (string) $r['data_scadenza'])) {
+            if (!$this->claimIfDueUnchanged($userId, $key, (int) $r['id'], (string) $r['data_scadenza'], $copyId, $effectiveDue)) {
                 continue;
             }
             $events++;
@@ -602,9 +604,9 @@ final class PushDispatcher
      * calendar write holds): the push never quotes a date that was moved. The
      * moved date gets its own event key on the next sweep.
      */
-    private function claimIfDueUnchanged(int $userId, string $eventKey, int $loanId, string $dueDate): bool
+    private function claimIfDueUnchanged(int $userId, string $eventKey, int $loanId, string $dueDate, ?int $copyId, string $effectiveDue): bool
     {
-        return (bool) $this->underCalendarLock(function () use ($userId, $eventKey, $loanId, $dueDate): bool {
+        return (bool) $this->underCalendarLock(function () use ($userId, $eventKey, $loanId, $dueDate, $copyId, $effectiveDue): bool {
             // Same reader too: a loan reassigned since the sweep read it is
             // not announced to the previous borrower.
             $stmt = $this->db->prepare("SELECT 1 FROM prestiti WHERE id = ? AND utente_id = ? AND attivo = 1 AND stato IN ('in_corso', 'in_ritardo') AND data_scadenza = ?");
@@ -616,7 +618,12 @@ final class PushDispatcher
             $res = $stmt->get_result();
             $same = $res instanceof \mysqli_result && $res->num_rows === 1;
             $stmt->close();
-            return $same && $this->claim($userId, $eventKey);
+            // The calendar is read afresh under the lock: a calendar save since
+            // the sweep read it may have moved the usable day; the next sweep
+            // announces the new one.
+            return $same
+                && LibraryCalendar::dueDate($this->db, $dueDate, $copyId) === $effectiveDue
+                && $this->claim($userId, $eventKey);
         }, false);
     }
 

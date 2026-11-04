@@ -2174,8 +2174,18 @@ class PrestitiController
         // in the future and clears the "Overdue" status — instead of staying
         // overdue when N is smaller than the overdue gap. A loan not yet due keeps
         // extending from its due date.
+        // The due date counts as its usable return day, as for a single renewal:
+        // a stored date on a day closed afterwards is due on the next open day.
+        // The capacity window below still starts after the stored date (wider).
+        $usableDue = $dueDate;
+        if ($db !== null) {
+            $usable = \DateTimeImmutable::createFromFormat('!Y-m-d', \App\Support\LibraryCalendar::dueDate($db, $dueDate->format('Y-m-d'), $loan['copia_id'] !== null ? (int) $loan['copia_id'] : null));
+            if ($usable !== false && $usable > $dueDate) {
+                $usableDue = $usable;
+            }
+        }
         $todayDate = \DateTimeImmutable::createFromFormat('!Y-m-d', $today);
-        $base = ($todayDate !== false && $todayDate > $dueDate) ? $todayDate : $dueDate;
+        $base = ($todayDate !== false && $todayDate > $usableDue) ? $todayDate : $usableDue;
         // With the connection, a new due date on a closed day moves forward.
         $newDueDate = \App\Services\CirculationPolicy::dueDateFor($base->format('Y-m-d'), $days, $db, $loan['copia_id'] !== null ? (int) $loan['copia_id'] : null);
 
