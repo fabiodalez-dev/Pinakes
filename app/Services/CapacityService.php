@@ -455,7 +455,7 @@ final class CapacityService
                 JOIN utenti u ON u.id = r.utente_id
                 WHERE r.libro_id = ?
                   AND r.stato = 'attiva'
-                  AND " . \App\Support\LoanEligibility::eligibleUserWhere('u', $this->db) . "
+                  AND " . \App\Support\LoanEligibility::eligibleUserWhere('u', $this->db, $this->lockingReads) . "
                   AND $rStart IS NOT NULL
                   AND $rStart <= ?
                   AND $rEnd >= ?";
@@ -497,7 +497,7 @@ final class CapacityService
         // Same pause as queue promotion for the per-material rules: a
         // promotable reservation of a patron the matrix refuses for this
         // title does not hold capacity (ReservationManager skips it too).
-        $materialRefused = $circulation->materialRefusedReservationUserIds($libroId);
+        $materialRefused = $circulation->materialRefusedReservationUserIds($libroId, $this->lockingReads);
         if ($materialRefused !== []) {
             $sql .= ' AND NOT (r.utente_id IN (' . implode(',', array_map('intval', $materialRefused)) . ')
                       AND ' . \App\Support\LoanEligibility::promotableReservationWhere('r') . ')';

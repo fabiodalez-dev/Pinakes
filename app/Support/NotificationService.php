@@ -605,6 +605,7 @@ class NotificationService {
             // dipende dalla session timezone del client DB, che differiva tra cron
             // (UTC forzato) e web (nessuna impostazione).
             $today = DateHelper::today();
+            $warningLimit = (new \DateTimeImmutable($today))->modify('+' . $daysBeforeWarning . ' days')->format('Y-m-d');
 
             // Include every still-unnotified loan from today through the configured
             // warning horizon. An exact "today + X" match misses short loans created
@@ -612,18 +613,18 @@ class NotificationService {
             // Overdue loans remain handled separately below by the overdue workflow.
             // CI-SOFT-DELETE-EXEMPT: the expiry warning must keep firing for active loans whose book was archived — the copy is still out and the borrower must be chased (same rationale as sendLoanRecalls).
             $stmt = $this->db->prepare("
-                SELECT p.id, p.data_scadenza, l.titolo as libro_titolo,
-                       CONCAT(u.nome, ' ', u.cognome) as utente_nome, u.email as utente_email,
-                       DATEDIFF(p.data_scadenza, ?) as giorni_rimasti
+                SELECT p.id, p.utente_id, p.copia_id, c.sede_id, p.data_scadenza, l.titolo as libro_titolo,
+                       CONCAT(u.nome, ' ', u.cognome) as utente_nome, u.email as utente_email
                 FROM prestiti p
                 JOIN libri l ON p.libro_id = l.id
                 JOIN utenti u ON p.utente_id = u.id
-                WHERE p.stato = 'in_corso'
+                LEFT JOIN copie c ON c.id = p.copia_id
+                WHERE p.stato IN ('in_corso', 'in_ritardo')
                   AND p.attivo = 1
-                  AND p.data_scadenza BETWEEN ? AND DATE_ADD(?, INTERVAL ? DAY)
+                  AND p.data_scadenza <= DATE_ADD(?, INTERVAL ? DAY)
                   AND (p.warning_sent IS NULL OR p.warning_sent = 0)
             ");
-            $stmt->bind_param('sssi', $today, $today, $today, $daysBeforeWarning);
+            $stmt->bind_param('si', $today, $daysBeforeWarning);
             $stmt->execute();
             $result = $stmt->get_result();
 
@@ -640,8 +641,16 @@ class NotificationService {
             // session locale (this runs from the admin-login maintenance path
             // as well as cron).
             $todayLabels = [];
+            $candidateCalendar = LibraryCalendar::forDb($this->db);
 
             foreach ($loans as $loan) {
+                $copyId = $loan['copia_id'] !== null ? (int) $loan['copia_id'] : null;
+                // The sweep may include many genuinely overdue rows: their
+                // branches come from the same query, without a query per copy.
+                $effectiveDue = $candidateCalendar->nextOpenDay((string) $loan['data_scadenza'], $loan['sede_id'] !== null ? (int) $loan['sede_id'] : null);
+                if ($effectiveDue < $today || $effectiveDue > $warningLimit) {
+                    continue;
+                }
                 $recipientLocale = $this->resolveRecipientLocale((string) $loan['utente_email']);
                 $todayLabels[$recipientLocale] ??= $this->translateInLocale('oggi', $recipientLocale);
                 // ATOMIC: Mark warning as sent BEFORE sending email
@@ -649,11 +658,23 @@ class NotificationService {
                 // Re-assert data_scadenza too: renew()/update() may have moved the
                 // due date between the SELECT and this claim; without it we'd send a
                 // warning quoting a now-stale date (#252).
-                $updateStmt = $this->db->prepare("UPDATE prestiti SET warning_sent = 1 WHERE id = ? AND attivo = 1 AND stato = 'in_corso' AND data_scadenza = ? AND (warning_sent IS NULL OR warning_sent = 0)");
-                $updateStmt->bind_param('is', $loan['id'], $loan['data_scadenza']);
-                $updateStmt->execute();
-                $claimed = $updateStmt->affected_rows === 1;
-                $updateStmt->close();
+                $claimed = (bool) $this->underCalendarLock(function () use (&$loan, $copyId, $today, $warningLimit): bool {
+                    // A save may change the usable day without changing the
+                    // stored date when capacity blocks the move. Read it again
+                    // under the calendar lock, before claiming or rendering.
+                    $effectiveDue = LibraryCalendar::dueDate($this->db, (string) $loan['data_scadenza'], $copyId);
+                    if ($effectiveDue < $today || $effectiveDue > $warningLimit) {
+                        return false;
+                    }
+                    $loan['effective_due_at'] = $effectiveDue;
+                    $loan['giorni_rimasti'] = (int) (new \DateTimeImmutable($today))->diff(new \DateTimeImmutable($effectiveDue))->days;
+                    $updateStmt = $this->db->prepare("UPDATE prestiti SET warning_sent = 1 WHERE id = ? AND utente_id = ? AND copia_id <=> ? AND attivo = 1 AND stato IN ('in_corso', 'in_ritardo') AND data_scadenza = ? AND (warning_sent IS NULL OR warning_sent = 0)");
+                    $updateStmt->bind_param('iiis', $loan['id'], $loan['utente_id'], $copyId, $loan['data_scadenza']);
+                    $updateStmt->execute();
+                    $claimed = $updateStmt->affected_rows === 1;
+                    $updateStmt->close();
+                    return $claimed;
+                }, false);
 
                 if (!$claimed) {
                     // Another process already claimed this loan, skip
@@ -687,7 +708,7 @@ class NotificationService {
                 $variables = [
                     'utente_nome' => $loan['utente_nome'],
                     'libro_titolo' => $loan['libro_titolo'],
-                    'data_scadenza' => $this->formatEmailDate($loan['data_scadenza'], false, $recipientLocale),
+                    'data_scadenza' => $this->formatEmailDate($loan['effective_due_at'], false, $recipientLocale),
                     'giorni_rimasti' => $daysRemaining === 0 ? $todayLabels[$recipientLocale] : (string)$daysRemaining
                 ];
 
@@ -705,8 +726,8 @@ class NotificationService {
                     $sentCount++;
                 } else {
                     // Email failed after retries, revert the flag so it can be retried next run
-                    $revertStmt = $this->db->prepare("UPDATE prestiti SET warning_sent = 0 WHERE id = ? AND attivo = 1 AND stato = 'in_corso'");
-                    $revertStmt->bind_param('i', $loan['id']);
+                    $revertStmt = $this->db->prepare("UPDATE prestiti SET warning_sent = 0 WHERE id = ? AND data_scadenza = ? AND utente_id = ? AND copia_id <=> ? AND attivo = 1 AND stato IN ('in_corso', 'in_ritardo')");
+                    $revertStmt->bind_param('isii', $loan['id'], $loan['data_scadenza'], $loan['utente_id'], $copyId);
                     $revertStmt->execute();
                     $revertStmt->close();
                     SecureLogger::warning("Failed to send expiration warning for loan {$loan['id']} after retries, flag reverted");

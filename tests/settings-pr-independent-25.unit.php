@@ -34,6 +34,7 @@ use Slim\Psr7\Response;
 
 require dirname(__DIR__) . '/vendor/autoload.php';
 require_once dirname(__DIR__) . '/storage/plugins/mobile-api/MobileApiPlugin.php';
+require_once dirname(__DIR__) . '/storage/plugins/ncip-server/NcipServerPlugin.php';
 mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 putenv('PINAKES_DISABLE_CLI_PURGE=1');
 
@@ -351,6 +352,40 @@ $cases = [
         SettingsReview25::check($t->closure($due, branch: $t->branchA) > 0, 'Calendar save must finish');
         SettingsReview25::check($competingWrite, 'Competing reservation must commit during the calendar save');
         SettingsReview25::eq($t->due($loan), $due, 'The only copy is already promised on the added day');
+
+        // A material cap pauses a promotable reservation while its reader has
+        // another loan of that material. A return after the calendar's first
+        // read makes that reservation eligible again, just like a total cap.
+        $materialBook = $t->book($t->branchB);
+        $materialLoan = $t->loan($materialBook, $due);
+        $otherBook = $t->book();
+        $otherLoan = $t->loan($otherBook, $t->day(10), ['reader' => $t->secondReader]);
+        $t->rules([0 => ['libro' => ['max' => '1']]]);
+        $t->db->query("INSERT INTO prenotazioni (libro_id,utente_id,data_inizio_richiesta,data_fine_richiesta,data_scadenza_prenotazione,stato)
+            VALUES ({$materialBook['id']},{$t->secondReader},'{$t->today}','{$next}','{$next} 23:59:59','attiva')");
+        $returned = false;
+        $t->db->beforeBookLock = static function () use ($t, $otherLoan, &$returned): void {
+            $returned = (new \App\Models\LoanRepository($t->other))->close($otherLoan);
+        };
+        SettingsReview25::check($t->closure($due, branch: $t->branchB) > 0 && $returned, 'Other material loan must return during the calendar save');
+        SettingsReview25::eq($t->due($materialLoan), $due, 'A newly eligible material-limited reservation must still hold the only copy');
+
+        // A payment can similarly make a debt-paused reservation eligible
+        // after the calendar scan opened its snapshot.
+        $t->rules([]);
+        $t->set('loans', 'debt_block_threshold', '1.00');
+        $debtBook = $t->book($t->branchA);
+        $debtLoan = $t->loan($debtBook, $due);
+        PatronLedger::forDb($t->db)->manualCharge($t->secondReader, 200, 'Review debt', $t->operator);
+        $t->db->query("INSERT INTO prenotazioni (libro_id,utente_id,data_inizio_richiesta,data_fine_richiesta,data_scadenza_prenotazione,stato)
+            VALUES ({$debtBook['id']},{$t->secondReader},'{$t->today}','{$next}','{$next} 23:59:59','attiva')");
+        $paid = false;
+        $t->db->beforeBookLock = static function () use ($t, &$paid): void {
+            PatronLedger::forDb($t->other)->recordPayment($t->secondReader, 200, 'contanti', null, $t->operator);
+            $paid = PatronLedger::forDb($t->other)->balanceCents($t->secondReader) === 0;
+        };
+        SettingsReview25::check($t->closure($due, $next, $t->branchA) > 0 && $paid, 'Payment must commit during the calendar save');
+        SettingsReview25::eq($t->due($debtLoan), $due, 'A reservation re-enabled by a concurrent payment still holds capacity');
     },
     '02 First open day after a retroactively closed due day still permits renewal' => static function (SettingsReview25 $t): void {
         $b = $t->book($t->branchA); $loan = $t->loan($b, $t->day(-1));
@@ -361,6 +396,20 @@ $cases = [
         // date the calendar save moved: the order of the two changes does not
         // matter, and a closure longer than the renewal cannot swallow it.
         SettingsReview25::eq($t->due($loan), $t->day(14), 'Fourteen-day renewal starts from the first open day after the closed due day');
+
+        // NCIP is another renewal writer, not a delegate to the web action.
+        // Both a not-yet-swept loan and an old late flag use the usable day.
+        $ncip = new \App\Plugins\NcipServer\NcipServerPlugin($t->db, new \App\Support\HookManager($t->db));
+        $extendNcip = new ReflectionMethod($ncip, 'extendLoan');
+        foreach (['in_corso', 'in_ritardo'] as $state) {
+            $ncipBook = $t->book($t->branchA);
+            $ncipLoan = $t->loan($ncipBook, $t->day(-1), ['status' => $state]);
+            $t->db->query("UPDATE prestiti SET origine='ncip' WHERE id={$ncipLoan}");
+            $reason = null;
+            $date = $extendNcip->invokeArgs($ncip, [$ncipLoan, $ncipBook['id'], $t->reader, &$reason]);
+            SettingsReview25::eq($date, $t->day(14), "NCIP renewal of {$state} starts from the same first open day as the desk (reason: {$reason})");
+            SettingsReview25::eq($t->scalar("SELECT stato FROM prestiti WHERE id={$ncipLoan}"), 'in_corso', 'A successful NCIP renewal clears an obsolete late state');
+        }
 
         // Refused because another reader's reservation starts tomorrow: the
         // "renew until D" offer counts from the same usable day, so it never
@@ -374,6 +423,12 @@ $cases = [
         parse_str((string) parse_url($refused, PHP_URL_QUERY), $offer);
         SettingsReview25::check((int) ($offer['max_extension_days'] ?? 0) === 0, 'No "renew until" offer from the closed stored date: ' . $refused);
         SettingsReview25::eq($t->due($heldLoan), $t->day(-1), 'The refused renewal leaves the loan as it was');
+        $t->db->query("UPDATE prestiti SET origine='ncip' WHERE id={$heldLoan}");
+        $reason = null;
+        SettingsReview25::eq($extendNcip->invokeArgs($ncip, [$heldLoan, $held['id'], $t->reader, &$reason]), null, 'NCIP also refuses the conflicting renewal');
+        $ncipCap = (new ReflectionProperty($ncip, 'renewalCap'))->getValue($ncip);
+        SettingsReview25::eq($reason, 'no_capacity', 'NCIP must reach the capacity guard rather than incorrectly refuse an on-time reader as overdue');
+        SettingsReview25::eq($ncipCap['max_extension_days'] ?? null, 0, 'NCIP never offers renewal until the usable day the reader already has');
 
         // A bulk extension counts from the same usable day: a stored due date on
         // a closed day whose move did not happen (written straight to the table,
@@ -445,6 +500,58 @@ $cases = [
             })($view, [$readerLoan]);
             SettingsReview25::check(!str_contains($html, '<div class="alert-overdue"'), 'Reader page must not show a false overdue alert: ' . $view);
         }
+
+        // The e-mail warning follows the same usable day and horizon. A
+        // future blocked move must not announce the closed nominal date early.
+        $laterBook = $t->book($t->branchB);
+        $laterLoan = $t->loan($laterBook, $t->day(1));
+        $t->db->query("INSERT INTO prenotazioni (libro_id,utente_id,data_inizio_richiesta,data_fine_richiesta,data_scadenza_prenotazione,stato)
+            VALUES ({$laterBook['id']},{$t->secondReader},'{$t->day(2)}','{$t->day(2)}','{$t->day(2)} 23:59:59','attiva')");
+        $t->closure($t->day(1), $t->day(10), $t->branchB);
+        SettingsReview25::eq($t->due($laterLoan), $t->day(1), 'The future stored date is genuinely blocked by another reservation');
+        $t->set('advanced', 'days_before_expiry_warning', '3');
+        $fakeEmail = new class extends \App\Support\EmailService {
+            public array $sent = [];
+            public function __construct() {}
+            public function sendTemplate(string $to, string $templateName, array $variables = [], ?string $locale = null, array $attachments = []): bool
+            {
+                $this->sent[] = ['template' => $templateName, 'variables' => $variables];
+                return true;
+            }
+        };
+        $notifications = new \App\Support\NotificationService($t->db);
+        (new ReflectionProperty($notifications, 'emailService'))->setValue($notifications, $fakeEmail);
+        $reachable = new ReflectionProperty(\App\Support\Mailer::class, 'smtpReachable');
+        $reachableBefore = $reachable->getValue();
+        $reachable->setValue(null, true);
+        try {
+            $notifications->sendLoanExpirationWarnings();
+            $notifications->sendLoanExpirationWarnings();
+        } finally {
+            $reachable->setValue(null, $reachableBefore);
+        }
+        $warnings = array_values(array_filter($fakeEmail->sent, static fn (array $mail): bool => $mail['template'] === 'loan_expiring_warning'));
+        SettingsReview25::eq(count($warnings), 1, 'Exactly the on-time loan due on the first open day gets one expiry e-mail');
+        SettingsReview25::eq($warnings[0]['variables']['data_scadenza'] ?? null, (new DateTimeImmutable($t->today))->format('d-m-Y'), 'The expiry e-mail names the first open day');
+        SettingsReview25::eq($warnings[0]['variables']['giorni_rimasti'] ?? null, 'oggi', 'The expiry e-mail calls the usable due day today');
+        SettingsReview25::eq((int) $t->scalar("SELECT warning_sent FROM prestiti WHERE id={$loan}"), 1, 'The usable-day warning is acknowledged once');
+        SettingsReview25::eq((int) $t->scalar("SELECT warning_sent FROM prestiti WHERE id={$laterLoan}"), 0, 'An effective due date outside the warning horizon is not claimed');
+
+        $eventOf = static function (string $ics, int $id): string {
+            foreach (explode("BEGIN:VEVENT\r\n", $ics) as $event) {
+                if (str_contains($event, "UID:loan-{$id}@pinakes\r\n")) { return explode("END:VEVENT\r\n", $event)[0]; }
+            }
+            return '';
+        };
+        $expectedEnd = 'DTEND;VALUE=DATE:' . (new DateTimeImmutable($t->day(1)))->format('Ymd');
+        $generator = new \App\Support\IcsGenerator($t->db);
+        foreach (['single loan' => $generator->generateForLoan($loan) ?? '',
+            'library feed' => $generator->generate(),
+            'personal feed' => (new \App\Plugins\MobileApi\Support\UserLoanCalendar($t->db))->generate($t->reader, 'Review')] as $surface => $ics) {
+            $event = $eventOf($ics, $loan);
+            SettingsReview25::check($event !== '' && str_contains($event, $expectedEnd), "The {$surface} includes the loan through its usable return day");
+            SettingsReview25::check(!str_contains($event, '⚠️'), "The {$surface} does not call an on-time loan overdue");
+        }
     },
     '04 A reader who also missed the first open day really is overdue in the feed' => static function (SettingsReview25 $t): void {
         $loan = $t->loan($t->book($t->branchA), $t->day(-3));
@@ -462,6 +569,20 @@ $cases = [
         $a = $t->loan($t->book($t->branchA), $due); $b = $t->loan($t->book($t->branchB), $due);
         $t->closure($due, $t->day(9), $t->branchA);
         SettingsReview25::eq([$t->due($a), $t->due($b)], [$t->day(10), $due], 'Two-day branch closure must not leak to another branch');
+
+        // A scheduled loan can move to a replacement copy after the calendar
+        // scan, before its book lock. Its new branch is still open that day.
+        $replacement = $t->book($t->branchA, copies: 2);
+        [$oldCopy, $newCopy] = $replacement['copies'];
+        $t->db->query("UPDATE copie SET sede_id={$t->branchB} WHERE id={$newCopy}");
+        $scheduled = $t->loan($replacement, $t->day(15), ['start' => $t->day(12), 'status' => 'prenotato']);
+        $t->db->beforeBookLock = static function () use ($t, $oldCopy): void {
+            $t->other->query("UPDATE copie SET stato='perso' WHERE id={$oldCopy}");
+            (new \App\Services\ReservationReassignmentService($t->other))->reassignOnCopyLost($oldCopy);
+        };
+        SettingsReview25::check($t->closure($t->day(15), branch: $t->branchA) > 0, 'Closure must save after the replacement');
+        SettingsReview25::eq((int) $t->scalar("SELECT copia_id FROM prestiti WHERE id={$scheduled}"), $newCopy, 'Lost copy must actually be replaced by the open branch copy');
+        SettingsReview25::eq($t->due($scheduled), $t->day(15), 'A calendar move must use the replacement copy branch, not the stale scan branch');
     },
     '06 A booked physical copy cannot be extended just because another copy is free' => static function (SettingsReview25 $t): void {
         $b = $t->book($t->branchA, copies: 2); $due = $t->day(6);

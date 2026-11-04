@@ -80,7 +80,7 @@ class IcsGenerator
         // loan on a record must keep being able to add it to their calendar,
         // even in the legacy case of a flagged title that still carries one.
 
-        $stmt = $this->db->prepare("SELECT p.id, p.stato, p.data_prestito, p.data_scadenza, p.updated_at,
+        $stmt = $this->db->prepare("SELECT p.id, p.stato, p.attivo, p.copia_id, p.data_prestito, p.data_scadenza, p.updated_at,
                        l.titolo, CONCAT(u.nome, ' ', u.cognome) AS utente_nome
                 FROM prestiti p
                 JOIN libri l ON p.libro_id = l.id AND l.deleted_at IS NULL
@@ -103,7 +103,11 @@ class IcsGenerator
         // Mirror fetchEvents(): an overdue copy is still physically occupied
         // through today, so ending the event on the missed due date would
         // falsely render it as already available.
-        $endDate = (string) $row['data_scadenza'];
+        $dates = LibraryCalendar::loanDates($this->db, $row);
+        $endDate = (string) ($dates['effective_due_at'] ?? $row['data_scadenza']);
+        if ((int) $row['attivo'] === 1 && in_array($row['stato'], ['in_corso', 'in_ritardo'], true)) {
+            $row['stato'] = $dates['is_overdue'] ? 'in_ritardo' : 'in_corso';
+        }
         if ($row['stato'] === 'in_ritardo') {
             $endDate = max($endDate, DateHelper::today());
         }
@@ -196,7 +200,7 @@ class IcsGenerator
             : '';
 
         // Fetch active/scheduled loans
-        $loanSql = "SELECT p.id, p.stato, p.data_prestito, p.data_scadenza, p.pickup_deadline,
+        $loanSql = "SELECT p.id, p.stato, p.copia_id, p.data_prestito, p.data_scadenza, p.pickup_deadline,
                            l.titolo, CONCAT(u.nome, ' ', u.cognome) AS utente_nome,
                            u.email, p.updated_at
                     FROM prestiti p
@@ -210,7 +214,7 @@ class IcsGenerator
                               THEN p.pickup_deadline
                               ELSE p.data_scadenza
                            END) >= ?
-                          OR p.stato = 'in_ritardo'
+                          OR p.stato IN ('in_corso', 'in_ritardo')
                       )
                     ORDER BY p.data_prestito ASC";
         $stmt = $this->db->prepare($loanSql);
@@ -222,12 +226,18 @@ class IcsGenerator
             return $events;
         }
         $res = $stmt->get_result();
-        while ($row = $res->fetch_assoc()) {
+        $loans = $res->fetch_all(MYSQLI_ASSOC);
+        LibraryCalendar::primeCopyBranches($this->db, array_map(static fn (array $r): int => (int) ($r['copia_id'] ?? 0), $loans));
+        foreach ($loans as $row) {
+            $dates = LibraryCalendar::loanDates($this->db, $row, $today);
+            if (in_array($row['stato'], ['in_corso', 'in_ritardo'], true)) {
+                $row['stato'] = $dates['is_overdue'] ? 'in_ritardo' : 'in_corso';
+            }
             // For da_ritirare state, use pickup_deadline as end date (shows pickup window)
             // For other states, use data_scadenza (shows full loan period)
             $endDate = ($row['stato'] === 'da_ritirare' && !empty($row['pickup_deadline']))
                 ? $row['pickup_deadline']
-                : $row['data_scadenza'];
+                : ($dates['effective_due_at'] ?? $row['data_scadenza']);
             if ($row['stato'] === 'in_ritardo') {
                 // The copy remains physically occupied through today; ending the
                 // event on the missed due date falsely shows it as available.

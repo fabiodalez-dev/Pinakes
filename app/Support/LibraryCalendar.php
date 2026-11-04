@@ -313,6 +313,31 @@ final class LibraryCalendar
                 $lockBook->execute();
                 $lockBook->get_result();
                 $lockBook->close();
+                // The copy of a scheduled loan can be replaced while this
+                // save waits for the book lock (e.g. the original was lost).
+                // Re-read the loan and its current branch with a current read;
+                // applying the scan's branch would move an open-day deadline.
+                $lockLoan = $db->prepare(
+                    "SELECT p.data_scadenza, c.sede_id
+                     FROM prestiti p LEFT JOIN copie c ON c.id = p.copia_id
+                     WHERE p.id = ? AND p.libro_id = ? AND p.attivo = 1
+                       AND p.stato IN ('in_corso', 'da_ritirare', 'prenotato')
+                       AND p.data_scadenza >= ? FOR UPDATE"
+                );
+                $lockLoan->bind_param('iis', $id, $bookId, $today);
+                $lockLoan->execute();
+                $current = $lockLoan->get_result()->fetch_assoc();
+                $lockLoan->close();
+                if ($current === null) {
+                    if ($ownTransaction) { $db->commit(); }
+                    continue;
+                }
+                $due = substr((string) $current['data_scadenza'], 0, 10);
+                $next = $calendar->nextOpenDay($due, $current['sede_id'] !== null ? (int) $current['sede_id'] : null);
+                if (!DateHelper::isISODateFormat($due) || $next <= $due) {
+                    if ($ownTransaction) { $db->commit(); }
+                    continue;
+                }
                 // The calendar scan may already have opened an older MVCC
                 // snapshot. Locking capacity reads see the operator who held
                 // this book lock before us, including copyless reservations.

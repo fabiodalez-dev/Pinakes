@@ -2814,17 +2814,15 @@ class NcipServerPlugin
                 $failureReason = 'identity_changed';
                 return null;
             }
-            if ((int) $loan['attivo'] !== 1 || $loan['stato'] !== 'in_corso') {
+            if ((int) $loan['attivo'] !== 1 || !in_array($loan['stato'], ['in_corso', 'in_ritardo'], true)) {
                 $this->db->rollback();
                 $failureReason = 'ineligible_state';
                 return null;
             }
-            // Parità con PrestitiController::renew() (#366 residual): un prestito
-            // in_corso la cui data_scadenza è già passata è scaduto anche se il
-            // sweep non l'ha ancora marcato in_ritardo. Rinnovarlo calcolerebbe
-            // la nuova scadenza da una data passata E riarmerebbe i flag di
-            // notifica, duplicando l'email di ritardo. Stesso rifiuto.
-            if ((string) $loan['data_scadenza'] < \App\Support\DateHelper::today()) {
+            // Same rule as the desk: a due day closed afterwards remains
+            // usable on its next open day, even with an obsolete late flag.
+            $copyId = $loan['copia_id'] !== null ? (int) $loan['copia_id'] : null;
+            if (\App\Support\LibraryCalendar::isPastDue($this->db, (string) $loan['data_scadenza'], $copyId, \App\Support\DateHelper::today())) {
                 $this->db->rollback();
                 $failureReason = 'overdue';
                 return null;
@@ -2854,7 +2852,8 @@ class NcipServerPlugin
             }
             $renewDays = $renewPolicy->renewalDays;
             $currentDue = (string) $loan['data_scadenza'];
-            $newDueDate = \App\Services\CirculationPolicy::dueDateFor($currentDue, $renewDays, $this->db, $loan['copia_id'] !== null ? (int) $loan['copia_id'] : null);
+            $usableDue = \App\Support\LibraryCalendar::dueDate($this->db, $currentDue, $copyId);
+            $newDueDate = \App\Services\CirculationPolicy::dueDateFor($usableDue, $renewDays, $this->db, $copyId);
 
             // #336 parity con PrestitiController::renew/bulkExtend: il giorno di
             // scadenza corrente è già detenuto da QUESTO prestito, quindi la
@@ -2862,7 +2861,6 @@ class NcipServerPlugin
             // [currentDue, newDue] un RenewItem falliva dove il rinnovo web
             // identico riusciva (giorno di confine contato due volte).
             $extensionStart = (new \DateTimeImmutable($currentDue))->modify('+1 day')->format('Y-m-d');
-            $copyId = $loan['copia_id'] !== null ? (int) $loan['copia_id'] : null;
 
             $capacity = new \App\Services\CapacityService($this->db);
             if (!$capacity->hasFreeCapacity($expectedBookId, $extensionStart, $newDueDate, excludePrestitoId: $loanId)) {
@@ -2870,7 +2868,7 @@ class NcipServerPlugin
                 $this->db->rollback();
                 $failureReason = 'no_capacity';
                 // Same figures the web renew() redirect carries (LoanWindow).
-                $this->renewalCap = \App\Support\LoanWindow::renewalCap($currentDue, $blocked, null, \App\Support\LibraryCalendar::forDb($this->db), \App\Support\LibraryCalendar::branchOfCopy($this->db, $copyId));
+                $this->renewalCap = \App\Support\LoanWindow::renewalCap($currentDue, $blocked, $usableDue, \App\Support\LibraryCalendar::forDb($this->db), \App\Support\LibraryCalendar::branchOfCopy($this->db, $copyId));
                 return null;
             }
 
@@ -2896,7 +2894,7 @@ class NcipServerPlugin
                     $this->db->rollback();
                     $failureReason = 'overlap';
                     // The loan's own copy is needed by a later loan: name that day.
-                    $this->renewalCap = \App\Support\LoanWindow::renewalCap($currentDue, $blocked, null, \App\Support\LibraryCalendar::forDb($this->db), \App\Support\LibraryCalendar::branchOfCopy($this->db, $copyId));
+                    $this->renewalCap = \App\Support\LoanWindow::renewalCap($currentDue, $blocked, $usableDue, \App\Support\LibraryCalendar::forDb($this->db), \App\Support\LibraryCalendar::branchOfCopy($this->db, $copyId));
                     return null;
                 }
             }
@@ -2906,7 +2904,7 @@ class NcipServerPlugin
             // la nuova scadenza riparte con il proprio ciclo di solleciti.
             $update = $this->db->prepare(
                 'UPDATE prestiti
-                 SET data_scadenza = ?, renewals = ?, pickup_deadline = NULL,
+                 SET data_scadenza = ?, renewals = ?, stato = \'in_corso\', pickup_deadline = NULL,
                      warning_sent = 0, overdue_notification_sent = 0,
                      recall_count = 0, last_recall_at = NULL, updated_at = NOW()
                  WHERE id = ?'

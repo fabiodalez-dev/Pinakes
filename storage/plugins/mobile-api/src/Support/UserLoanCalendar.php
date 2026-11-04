@@ -18,8 +18,8 @@ namespace App\Plugins\MobileApi\Support;
  *    never a name or an e-mail address;
  *  - SEQUENCE = UNIX_TIMESTAMP(updated_at), monotonic per loan, so clients
  *    replace an event after a renewal or a state change;
- *  - DTSTAMP is the loan's last modification, not "now", so the body — and
- *    therefore the ETag — only changes when a loan does (cheap 304 polling).
+ *  - DTSTAMP is the loan's last modification, not "now", so unchanged loans
+ *    and usable calendar dates produce stable output (cheap 304 polling).
  *
  * Lines are CRLF-terminated, TEXT values escaped (\\ ; , newline) and folded at
  * 75 octets on UTF-8 boundaries.
@@ -70,7 +70,7 @@ final class UserLoanCalendar
     {
         $in = "'" . implode("','", self::STATES) . "'";
         $stmt = $this->db->prepare(
-            "SELECT p.id, p.stato, p.data_prestito, p.data_scadenza, p.pickup_deadline,
+            "SELECT p.id, p.stato, p.copia_id, p.data_prestito, p.data_scadenza, p.pickup_deadline,
                     DATE_FORMAT(p.updated_at, '%Y-%m-%d %H:%i:%s') AS updated_at,
                     UNIX_TIMESTAMP(p.updated_at) AS seq, l.titolo
                FROM prestiti p
@@ -80,7 +80,7 @@ final class UserLoanCalendar
                 AND p.stato IN ({$in})
                 AND ((CASE WHEN p.stato = 'da_ritirare' AND p.pickup_deadline IS NOT NULL
                            THEN p.pickup_deadline ELSE p.data_scadenza END) >= ?
-                     OR p.stato = 'in_ritardo')
+                     OR p.stato IN ('in_corso', 'in_ritardo'))
               ORDER BY p.data_prestito ASC, p.id ASC"
         );
         if ($stmt === false) {
@@ -94,6 +94,8 @@ final class UserLoanCalendar
             $rows[] = $r;
         }
         $stmt->close();
+
+        \App\Support\LibraryCalendar::primeCopyBranches($this->db, array_map(static fn (array $r): int => (int) ($r['copia_id'] ?? 0), $rows));
 
         return $rows;
     }
@@ -134,9 +136,13 @@ final class UserLoanCalendar
     private function loanEvent(array $loan, string $today, \DateTimeZone $tz, bool $withAlarm): string
     {
         $state = (string) $loan['stato'];
+        $dates = \App\Support\LibraryCalendar::loanDates($this->db, $loan, $today);
+        if (in_array($state, ['in_corso', 'in_ritardo'], true)) {
+            $state = $dates['is_overdue'] ? 'in_ritardo' : 'in_corso';
+        }
         $end = ($state === 'da_ritirare' && !empty($loan['pickup_deadline']))
             ? (string) $loan['pickup_deadline']
-            : (string) $loan['data_scadenza'];
+            : (string) ($dates['effective_due_at'] ?? $loan['data_scadenza']);
         if ($state === 'in_ritardo') {
             // Still physically out today: never end the event on the missed date.
             $end = max($end, $today);
