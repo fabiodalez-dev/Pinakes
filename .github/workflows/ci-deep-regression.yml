@@ -73,7 +73,8 @@ jobs:
           sudo apt-get update -q
           # php-apcu: the app's page cache must run on its production backend
           # (APCu shared memory) under Apache/mod_php, not the file fallback.
-          sudo apt-get install -y apache2 libapache2-mod-php php-apcu default-mysql-client msmtp-mta
+          # PDF layout assertions need Poppler; without it they silently skip.
+          sudo apt-get install -y apache2 libapache2-mod-php php-apcu default-mysql-client msmtp-mta poppler-utils
           sudo a2enmod rewrite headers env
           php_module="$(find /etc/apache2/mods-available -maxdepth 1 -name 'php*.load' -printf '%f\n' | sed 's/\.load$//' | sort -V | tail -n1)"
           [ -z "${php_module}" ] || sudo a2enmod "${php_module}"
@@ -231,6 +232,10 @@ jobs:
         env:
           RESULT_FILE: test-results/shard-${{ matrix.shard }}.json
         run: node scripts/ci-audit-playwright-results.js "$RESULT_FILE"
+
+      - name: Reject PHP fatal errors in the server log
+        if: always() && steps.deep-regression.outcome != 'skipped'
+        run: bash scripts/ci-check-php-errors.sh /var/log/apache2/pinakes-error.log
 
       - name: Upload browser evidence
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6

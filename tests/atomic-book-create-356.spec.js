@@ -109,6 +109,36 @@ const copieCount = (id) => Number(dbQuery(`SELECT COUNT(*) FROM copie WHERE libr
 const copieCodes = (id) => dbQuery(`SELECT numero_inventario FROM copie WHERE libro_id=${id} ORDER BY id`)
   .split('\n').filter(Boolean);
 
+/** Leave room for the web middleware inside the default 128 MiB budget. */
+function renderDetailWithinMemoryBudget(id) {
+  return JSON.parse(execFileSync('php', ['-d', 'memory_limit=64M', '-r', String.raw`
+    require getcwd() . '/vendor/autoload.php';
+    Dotenv\Dotenv::createImmutable(getcwd())->safeLoad();
+    $db = new mysqli(
+        getenv('E2E_DB_HOST') ?: ($_ENV['DB_HOST'] ?? 'localhost'),
+        getenv('E2E_DB_USER'), getenv('E2E_DB_PASS') ?: '', getenv('E2E_DB_NAME'),
+        (int) (getenv('E2E_DB_PORT') ?: ($_ENV['DB_PORT'] ?? 3306)),
+        getenv('E2E_DB_SOCKET') ?: null
+    );
+    $db->set_charset('utf8mb4');
+    $email = getenv('E2E_ADMIN_EMAIL');
+    $stmt = $db->prepare('SELECT id, nome, cognome, email, tipo_utente, stato, email_verificata FROM utenti WHERE email = ?');
+    $stmt->bind_param('s', $email); $stmt->execute();
+    $_SESSION = ['user' => $stmt->get_result()->fetch_assoc()];
+    $id = (int) $argv[1];
+    $base = getenv('E2E_BASE_URL') ?: 'http://localhost:8081';
+    $_SERVER['HTTP_HOST'] = parse_url($base, PHP_URL_HOST);
+    $_SERVER['REQUEST_URI'] = '/admin/books/' . $id;
+    $request = (new Slim\Psr7\Factory\ServerRequestFactory())->createServerRequest('GET', $base . $_SERVER['REQUEST_URI']);
+    $response = App\Support\ConfigStore::usingConnection($db, static fn () =>
+        (new App\Controllers\LibriController())->show($request, new Slim\Psr7\Response(), $db, $id)
+    );
+    $body = $response->getBody(); $size = $body->getSize();
+    $body->seek(max(0, $size - 100));
+    echo json_encode(['status' => $response->getStatusCode(), 'complete' => str_ends_with(rtrim($body->getContents()), '</html>')]);
+  `, String(id)], { encoding: 'utf8', timeout: 60000, env: process.env }));
+}
+
 async function loginAsAdmin(page) {
   for (let attempt = 0; attempt < 2; attempt++) {
     await page.goto(`${BASE}/accedi`);
@@ -291,6 +321,15 @@ test.describe.serial('atomic book+copies create (#356)', () => {
     expect(id).toBeGreaterThan(0);
     expect(copieCount(id)).toBe(9999);
     expect(Number(dbQuery(`SELECT copie_totali FROM libri WHERE id=${id}`))).toBe(9999);
+    expect(renderDetailWithinMemoryBudget(id)).toEqual({ status: 200, complete: true });
+    // A successful INSERT/redirect is insufficient: rendering all copies used
+    // to exhaust PHP's default 128 MiB limit in the redirected detail page.
+    const detail = await page.request.get(`${BASE}/admin/books/${id}`, { timeout: 60000 });
+    expect(detail.status()).toBe(200);
+    const html = await detail.text();
+    expect(html).toContain(TITLE_CLAMP);
+    expect(html).toContain(dbQuery(`SELECT numero_inventario FROM copie WHERE libro_id=${id} ORDER BY id DESC LIMIT 1`));
+    expect(html.trimEnd().endsWith('</html>')).toBe(true);
   });
 
   test('8) book.save.after fires post-commit: book-club reconciles by ISBN without corrupting the create', async ({ page }) => {

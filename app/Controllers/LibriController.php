@@ -602,20 +602,34 @@ class LibriController
             );
         }
 
-        ob_start();
-        // extract([
-        //     'libro' => $libro,
-        //     'activeLoan' => $activeLoan,
-        //     'bookPath' => $bookPath,
-        //     'loanHistory' => $loanHistory,
-        //     'libraryThingInstalled' => $libraryThingInstalled,
-        // ]);
-        require __DIR__ . '/../Views/libri/scheda_libro.php';
-        $content = ob_get_clean();
-        ob_start();
-        require __DIR__ . '/../Views/layout.php';
-        $html = ob_get_clean();
-        $response->getBody()->write($html);
+        // A book may have thousands of physical copies. Keep both rendering
+        // stages in temporary streams instead of holding full copies of the
+        // view, layout buffer and final HTML alongside the database rows.
+        // HTTP emission still happens after this action returns.
+        $content = (new \Slim\Psr7\Factory\StreamFactory())->createStream();
+        $body = $response->getBody();
+        $bufferLevel = ob_get_level();
+        try {
+            ob_start(static function (string $chunk) use ($content): string {
+                $content->write($chunk);
+                return '';
+            }, 8192);
+            require __DIR__ . '/../Views/libri/scheda_libro.php';
+            ob_end_flush();
+            $content->rewind();
+
+            ob_start(static function (string $chunk) use ($body): string {
+                $body->write($chunk);
+                return '';
+            }, 8192);
+            require __DIR__ . '/../Views/layout.php';
+            ob_end_flush();
+        } finally {
+            while (ob_get_level() > $bufferLevel) {
+                ob_end_clean();
+            }
+            $content->close();
+        }
         return $response;
     }
 

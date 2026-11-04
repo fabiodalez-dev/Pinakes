@@ -16,6 +16,10 @@ Release candidate: published as a GitHub prerelease, offered only to installatio
 - **Concurrent circulation changes keep their commitments.** A calendar save re-reads the current copy and branch after taking the book lock. Reservations made eligible by a return under a per-material limit, or by a payment settling a debt, remain counted when the calendar checks whether a due date can move.
 - **Patron types and accounts save consistently.** Changing the default type, editing it and deleting another type decide from locked rows, so a concurrent default change cannot erase the type's assignments or rules. Creating or editing a reader saves the account and its patron type together: a type removed during the request leaves neither a half-created account nor partially saved account fields.
 
+### Large holdings
+
+- **Book details fit within the default PHP memory limit.** A title with 9,999 physical copies can be opened without exhausting the 128 MiB limit. Rendering uses temporary streams instead of keeping several full HTML documents in memory. The creation regression now checks the complete detail response, and the deep CI gate rejects PHP fatal errors even when browser assertions pass.
+
 ### The 0.9.0 admin on a phone
 
 - **Circulation settings.** The patron types table and the patron type × material rules matrix stack as cards below the `sm` breakpoint, with the same inputs; on desktop their labels no longer break mid-word.
