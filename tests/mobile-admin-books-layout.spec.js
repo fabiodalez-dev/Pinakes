@@ -1,7 +1,7 @@
 // @ts-check
 // The book list, the book page and the book form, opened on a phone (iPhone
 // 13, 390 px): nothing scrolls sideways, the row actions of the list sit inside
-// the table and a long title reads in full, the copies and loan history tables
+// the table and a long title reads in full, the copies, reservations, volumes and loan history tables
 // show the borrower, the copy actions and the due date without scrolling, the
 // editor toolbar shows every button, the remove cross of a name chip can be
 // seen, the chip search field stays in its box, and a book whose cover is gone
@@ -111,6 +111,9 @@ test.describe.serial('book pages on a phone', () => {
     // An active loan on the first copy: borrower, due date and history row.
     F.dbQuery(`UPDATE copie SET stato='prestato' WHERE id=${book.copyIds[0]}`);
     F.dbQuery(`INSERT INTO prestiti (libro_id, copia_id, utente_id, data_prestito, data_scadenza, stato, origine, attivo, note) VALUES (${book.id}, ${book.copyIds[0]}, ${patron.id}, DATE_SUB(CURDATE(), INTERVAL 3 DAY), DATE_ADD(CURDATE(), INTERVAL 27 DAY), 'in_corso', 'diretto', 1, '${TAG} nota')`);
+    // A reservation waiting for the book and the second title as its volume 1: both stacked tables render.
+    F.dbQuery(`INSERT INTO prenotazioni (libro_id, utente_id, data_inizio_richiesta, data_fine_richiesta, data_scadenza_prenotazione, queue_position, stato) VALUES (${book.id}, ${patron.id}, DATE_ADD(CURDATE(), INTERVAL 30 DAY), DATE_ADD(CURDATE(), INTERVAL 44 DAY), DATE_ADD(NOW(), INTERVAL 44 DAY), 1, 'attiva')`);
+    F.dbQuery(`INSERT INTO volumi (opera_id, volume_id, numero_volume) VALUES (${book.id}, ${bareBook.id}, 1)`);
     // A change-log entry with a long unbreakable value (the cover path).
     const adminId = F.dbInt(`SELECT id FROM utenti WHERE email='${process.env.E2E_ADMIN_EMAIL}'`);
     try {
@@ -126,6 +129,7 @@ test.describe.serial('book pages on a phone', () => {
   test.afterAll(async () => {
     try { F.dbQuery(`DELETE FROM log_modifiche WHERE tabella='libri' AND record_id IN (${book.id}, ${bareBook.id})`); } catch { /* */ }
     try { F.dbQuery(`DELETE FROM libri_autori WHERE libro_id=${book.id}`); } catch { /* */ }
+    try { F.dbQuery(`DELETE FROM volumi WHERE opera_id=${book.id}`); } catch { /* */ }
     F.deleteTitles([book?.id, bareBook?.id]);
     try { F.dbQuery(`DELETE FROM autori WHERE id=${authorId}`); } catch { /* */ }
     try { F.dbQuery(`DELETE FROM editori WHERE id=${publisherId}`); } catch { /* */ }
@@ -187,6 +191,16 @@ test.describe.serial('book pages on a phone', () => {
 
     const change = page.locator('#activity-feed .pk-activity-change__value', { hasText: MISSING_COVER }).first();
     await expectOnScreen(change, 'long change-log value');
+
+    // The reservations and volumes tables stack too, each value under its column name.
+    const reservations = page.locator('.card', { has: page.getByRole('heading', { name: /Prenotazioni attive/ }) });
+    const reserver = reservations.locator('tbody tr').first().locator('td').nth(0);
+    await expect(reserver).toHaveAttribute('data-label', /Utente/i);
+    await expectOnScreen(reserver.getByText(patron.email), 'reader of the reservation');
+    const volumes = page.locator('.card', { has: page.getByRole('heading', { name: /Volumi di quest/ }) });
+    const volumeTitle = volumes.locator('tbody tr').first().locator('td').nth(1);
+    await expect(volumeTitle).toHaveAttribute('data-label', /Titolo/i);
+    await expectOnScreen(volumeTitle.getByRole('link'), 'volume title');
   });
 
   test('book form: whole editor toolbar, visible chip cross, field in its box, no empty cover card', async ({ page }) => {

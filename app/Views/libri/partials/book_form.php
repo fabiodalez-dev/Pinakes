@@ -731,7 +731,7 @@ $selectedSeriesType = \App\Support\SeriesLabels::canonical($book['tipo_collana']
                 <?php // A cover whose file is gone shows no empty frame, but keeps "Rimuovi": it is the only way to clear the dead path. ?>
                 <div class="inline-flex flex-col items-start space-y-2" data-current-cover>
                   <div class="relative group">
-                    <img src="<?php echo HtmlHelper::e(url($currentCover)); ?>" alt="Copertina attuale" class="max-h-48 object-contain border border-gray-200 rounded-lg shadow-sm" onerror="this.dataset.error='true'; this.style.display='none'; var box = this.closest('[data-current-cover]'); box.querySelector('[data-cover-caption]').hidden = true; box.querySelector('[data-cover-missing]').hidden = false;" />
+                    <img src="<?php echo htmlspecialchars(url($currentCover), ENT_QUOTES, 'UTF-8'); ?>" alt="Copertina attuale" class="max-h-48 object-contain border border-gray-200 rounded-lg shadow-sm" onerror="this.dataset.error='true'; this.style.display='none'; var box = this.closest('[data-current-cover]'); box.querySelector('[data-cover-caption]').hidden = true; box.querySelector('[data-cover-missing]').hidden = false;" />
                   </div>
                   <div class="flex items-center gap-2">
                     <span class="text-xs text-gray-500" data-cover-caption><?= __("Copertina attuale") ?></span>
