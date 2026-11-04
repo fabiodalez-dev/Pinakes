@@ -728,12 +728,14 @@ $selectedSeriesType = \App\Support\SeriesLabels::canonical($book['tipo_collana']
             <!-- Cover preview area -->
             <div id="cover-preview-container" class="mt-4">
               <?php if (!empty($currentCover)): ?>
-                <div class="inline-flex flex-col items-start space-y-2">
+                <?php // A cover whose file is gone shows no empty frame, but keeps "Rimuovi": it is the only way to clear the dead path. ?>
+                <div class="inline-flex flex-col items-start space-y-2" data-current-cover>
                   <div class="relative group">
-                    <img src="<?php echo HtmlHelper::e(url($currentCover)); ?>" alt="Copertina attuale" class="max-h-48 object-contain border border-gray-200 rounded-lg shadow-sm" onerror="this.dataset.error='true'; this.style.display='none';" />
+                    <img src="<?php echo htmlspecialchars(url($currentCover), ENT_QUOTES, 'UTF-8'); ?>" alt="Copertina attuale" class="max-h-48 object-contain border border-gray-200 rounded-lg shadow-sm" onerror="this.dataset.error='true'; this.style.display='none'; var box = this.closest('[data-current-cover]'); box.querySelector('[data-cover-caption]').hidden = true; box.querySelector('[data-cover-missing]').hidden = false;" />
                   </div>
                   <div class="flex items-center gap-2">
-                    <span class="text-xs text-gray-500"><?= __("Copertina attuale") ?></span>
+                    <span class="text-xs text-gray-500" data-cover-caption><?= __("Copertina attuale") ?></span>
+                    <span class="text-xs text-gray-500" data-cover-missing hidden><?= __("File della copertina non trovato") ?></span>
                     <button type="button" onclick="removeCoverImage()" class="text-xs text-red-600 hover:text-red-800 hover:underline flex items-center gap-1">
                       <i class="fas fa-trash"></i>
                       <?= __('Rimuovi') ?>
@@ -2028,7 +2030,8 @@ function stackChoicesInput(wrapper) {
         input.style.setProperty('flex', '1 0 100%', 'important');
         input.style.setProperty('min-width', '100%', 'important');
         input.style.setProperty('width', '100%', 'important');
-        input.style.setProperty('margin', '6px 8px 2px', 'important');
+        // No side margin: at width 100% it pushed the field out of its box.
+        input.style.setProperty('margin', '6px 0 2px', 'important');
     };
     apply();
     // Re-apply identical values when Choices rewrites the style attribute; setting
@@ -4539,6 +4542,11 @@ function initBookTinyMCE() {
         menubar: false,
         toolbar_mode: 'wrap',
         toolbar_sticky: true,
+        // On a phone TinyMCE switches to its mobile settings, where the
+        // default toolbar scrolls sideways and hid everything after B/I.
+        mobile: {
+            toolbar_mode: 'wrap'
+        },
         plugins: [
             'advlist', 'autolink', 'lists', 'link', 'preview', 'code', 'fullscreen'
         ],
