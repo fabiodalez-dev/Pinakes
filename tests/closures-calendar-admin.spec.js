@@ -26,7 +26,9 @@ test.skip(!ADMIN_EMAIL || !ADMIN_PASS || !DB_USER || !DB_NAME, 'E2E credentials 
 function db(sql) {
   const args = [];
   if (DB_HOST) { args.push('-h', DB_HOST); if (DB_PORT) args.push('-P', DB_PORT); } else if (DB_SOCKET) { args.push('-S', DB_SOCKET); }
-  args.push('-u', DB_USER, DB_NAME, '-N', '-B', '-e', sql);
+  // utf8mb4 on the client too: the accented names of the ICS tests are
+  // compared byte for byte, and a client defaulting to latin1 mangles them.
+  args.push('--default-character-set=utf8mb4', '-u', DB_USER, DB_NAME, '-N', '-B', '-e', sql);
   return execFileSync('mysql', args, { encoding: 'utf-8', timeout: 10000, env: { ...process.env, MYSQL_PWD: DB_PASS } }).trim();
 }
 

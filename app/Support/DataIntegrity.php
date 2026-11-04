@@ -1563,7 +1563,14 @@ class DataIntegrity {
             $updates = [];
 
             // Verifica stato in ritardo
-            if ($loan['stato'] === 'in_corso' && $loan['data_scadenza'] < \App\Support\DateHelper::today()) {
+            // Same rule as the overdue sweep: a due day marked closed later
+            // turns late only after the first open day following it.
+            if ($loan['stato'] === 'in_corso' && \App\Support\LibraryCalendar::isPastDue(
+                $this->db,
+                (string) $loan['data_scadenza'],
+                $loan['copia_id'] !== null ? (int) $loan['copia_id'] : null,
+                \App\Support\DateHelper::today()
+            )) {
                 $updates['stato'] = 'in_ritardo';
                 $result['updated_fields'][] = 'stato -> in_ritardo';
             }
