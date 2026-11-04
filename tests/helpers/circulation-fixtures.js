@@ -113,6 +113,9 @@ async function loginAs(page, email, password) {
   for (let attempt = 0; attempt < 2; attempt++) {
     clearRateLimits();
     await page.goto(`${BASE}/accedi`);
+    // A fresh phone's consent banner can cover the login submit button.
+    const rejectCookies = page.locator('#silktide-wrapper .reject-all');
+    if (await rejectCookies.isVisible()) await rejectCookies.click();
     await page.fill('input[name="email"]', email);
     await page.fill('input[name="password"]', password);
     await page.locator('button[type="submit"]').click();
