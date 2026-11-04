@@ -1571,7 +1571,9 @@ class PrestitiController
             // Ritardo: un rientro oltre la scadenza è 'restituito' + flag (I4/BUG5).
             // Confronto lessicografico Y-m-d sicuro. Significativo solo per 'restituito'.
             $scadenza = (string) ($loan['data_scadenza'] ?? '');
-            $ritardo = ($loan_stato === 'restituito' && $scadenza !== '' && $scadenza < $data_restituzione) ? 1 : 0;
+            // Late by the calendar, as the fine: a due day closed afterwards is
+            // met by a return on the next open day.
+            $ritardo = ($loan_stato === 'restituito' && \App\Support\LibraryCalendar::isPastDue($db, $scadenza, $loan['copia_id'] !== null ? (int) $loan['copia_id'] : null, (string) $data_restituzione)) ? 1 : 0;
 
             // Aggiorna il prestito (state-guard sull'attivo per evitare doppie restituzioni)
             $stmt = $db->prepare("UPDATE prestiti SET stato = ?, data_restituzione = ?, note = ?, sanzione = ?, attivo = 0, restituito_in_ritardo = ? WHERE id = ? AND attivo = 1");
@@ -2307,7 +2309,10 @@ class PrestitiController
         // Calculate proposed new due date for conflict checking
         $currentDueDate = $loan['data_scadenza'];
         $loanCopyId = isset($loan['copia_id']) ? (int) $loan['copia_id'] : null;
-        $proposedNewDueDate = \App\Services\CirculationPolicy::dueDateFor((string) $currentDueDate, $renewDays, $db, $loanCopyId);
+        // The renewal counts from the usable return day: a stored due date on
+        // a day closed afterwards is due on the next open day, as the late check.
+        $usableDueDate = \App\Support\LibraryCalendar::dueDate($db, (string) $currentDueDate, $loanCopyId);
+        $proposedNewDueDate = \App\Services\CirculationPolicy::dueDateFor($usableDueDate, $renewDays, $db, $loanCopyId);
         // Optional shorter renewal: the day before a scheduled loan or a
         // reservation, as the refusal below proposes ("Rinnova fino al D").
         // A real day, after the current due date, never past the standard
@@ -2322,7 +2327,7 @@ class PrestitiController
             $separator = strpos($errorUrl, '?') === false ? '?' : '&';
             return $response->withHeader('Location', url($errorUrl . $separator . 'error=invalid_date_format'))->withStatus(302);
         }
-        if ($requestedDue !== '' && ($requestedDue <= (string) $currentDueDate || $requestedDue > $proposedNewDueDate)) {
+        if ($requestedDue !== '' && ($requestedDue <= $usableDueDate || $requestedDue > $proposedNewDueDate)) {
             $errorUrl = $redirectTo ?? url('/admin/loans');
             $separator = strpos($errorUrl, '?') === false ? '?' : '&';
             return $response->withHeader('Location', url($errorUrl . $separator . 'error=invalid_renewal_date'))->withStatus(302);
@@ -2396,10 +2401,12 @@ class PrestitiController
 
             // Use the locked values for calculations (in case they changed)
             $currentDueDate = $lockedLoan['data_scadenza'];
-            $proposedNewDueDate = \App\Services\CirculationPolicy::dueDateFor((string) $currentDueDate, $renewDays, $db, $lockedLoan['copia_id'] !== null ? (int) $lockedLoan['copia_id'] : null);
+            $lockedCopyId = $lockedLoan['copia_id'] !== null ? (int) $lockedLoan['copia_id'] : null;
+            $usableDueDate = \App\Support\LibraryCalendar::dueDate($db, (string) $currentDueDate, $lockedCopyId);
+            $proposedNewDueDate = \App\Services\CirculationPolicy::dueDateFor($usableDueDate, $renewDays, $db, $lockedCopyId);
             if ($requestedDue !== '') {
                 // Re-bound under the lock: the due date may have moved meanwhile.
-                if ($requestedDue <= (string) $currentDueDate || $requestedDue > $proposedNewDueDate) {
+                if ($requestedDue <= $usableDueDate || $requestedDue > $proposedNewDueDate) {
                     $db->rollback();
                     $errorUrl = $redirectTo ?? url('/admin/loans');
                     $separator = strpos($errorUrl, '?') === false ? '?' : '&';

@@ -1529,7 +1529,7 @@ class LoanApprovalController
             // This is the primary quick-return path — without it late returns keep the
             // flag at 0 and Stats/Recensioni undercount late returners.
             $scadenza = (string) ($loan['data_scadenza'] ?? '');
-            $ritardo = ($scadenza !== '' && $scadenza < $dataRestituzione) ? 1 : 0;
+            $ritardo = \App\Support\LibraryCalendar::isPastDue($db, $scadenza, $copiaId, $dataRestituzione) ? 1 : 0;
 
             // Close the loan
             $stmt = $db->prepare("UPDATE prestiti SET stato = 'restituito', restituito_in_ritardo = ?, data_restituzione = ?, attivo = 0 WHERE id = ? AND attivo = 1");

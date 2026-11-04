@@ -154,8 +154,11 @@ class PrestitiApiController
 
         $stmt->execute();
         $res = $stmt->get_result();
+        $fetched = $res->fetch_all(MYSQLI_ASSOC);
+        // One branch read for the page, not one per loan.
+        \App\Support\LibraryCalendar::primeCopyBranches($db, array_map(static fn (array $r): int => (int) ($r['copia_id'] ?? 0), $fetched));
         $rows = [];
-        while ($r = $res->fetch_assoc()) {
+        foreach ($fetched as $r) {
             $actions = '<a class="text-blue-600" href="'.htmlspecialchars(url('/admin/loans/details/'.(int)$r['id']), ENT_QUOTES, 'UTF-8').'">'.htmlspecialchars(__('Dettagli'), ENT_QUOTES, 'UTF-8').'</a>';
             $actions .= ' | <a class="text-orange-600" href="'.htmlspecialchars(url('/admin/loans/edit/'.(int)$r['id']), ENT_QUOTES, 'UTF-8').'">'.htmlspecialchars(__('Modifica'), ENT_QUOTES, 'UTF-8').'</a>';
             if ((int)$r['attivo'] === 1 && in_array((string) $r['stato'], ['in_corso', 'in_ritardo'], true)) {

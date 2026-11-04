@@ -357,7 +357,10 @@ $cases = [
         SettingsReview25::check($t->closure($t->day(-1), branch: $t->branchA) > 0, 'Closure must save');
         $result = $t->renew($loan);
         SettingsReview25::check(!str_contains($result->getHeaderLine('Location'), 'error='), 'An on-time reader must be allowed to renew: ' . $result->getHeaderLine('Location'));
-        SettingsReview25::eq($t->due($loan), $t->day(13), 'Fourteen-day renewal starts from the stored original due day');
+        // Counted from the usable return day (today), as for a loan whose due
+        // date the calendar save moved: the order of the two changes does not
+        // matter, and a closure longer than the renewal cannot swallow it.
+        SettingsReview25::eq($t->due($loan), $t->day(14), 'Fourteen-day renewal starts from the first open day after the closed due day');
     },
     '03 Mobile feed must not call that on-time reader overdue' => static function (SettingsReview25 $t): void {
         $loan = $t->loan($t->book($t->branchA), $t->day(-1), ['status' => 'in_ritardo']);

@@ -1161,6 +1161,45 @@ final class LibraryCalendar
         return $calendar->copyBranches[$copiaId] = self::queryBranchOfCopy($db, $copiaId);
     }
 
+    /**
+     * Read the branches of many copies in one query (a page of a loan list),
+     * so the per-loan calendar reads that follow hit the cache. Nothing to
+     * read when the calendar has no rules: no date then depends on a branch.
+     * @param list<int> $copiaIds
+     */
+    public static function primeCopyBranches(\mysqli $db, array $copiaIds): void
+    {
+        $calendar = self::forDb($db);
+        if (!$calendar->hasRules()) {
+            return;
+        }
+        $ids = array_values(array_unique(array_filter(
+            array_map('intval', $copiaIds),
+            static fn (int $id): bool => $id > 0 && !array_key_exists($id, $calendar->copyBranches)
+        )));
+        if ($ids === []) {
+            return;
+        }
+        try {
+            $result = $db->query('SELECT id, sede_id FROM copie WHERE id IN (' . implode(',', $ids) . ')');
+            if (!$result instanceof \mysqli_result) {
+                throw new \RuntimeException('copy branches query failed');
+            }
+            $found = [];
+            while (($row = $result->fetch_row()) !== null) {
+                $found[(int) $row[0]] = $row[1] === null ? null : (int) $row[1];
+            }
+            $result->free();
+        } catch (\Throwable $e) {
+            SecureLogger::warning('LibraryCalendar: copy branches not readable: ' . $e->getMessage());
+            throw new \RuntimeException('LibraryCalendar: copy branches not readable', 0, $e);
+        }
+        // A missing copy has no branch, as branchOfCopy() answers for it.
+        foreach ($ids as $id) {
+            $calendar->copyBranches[$id] = $found[$id] ?? null;
+        }
+    }
+
     private static function queryBranchOfCopy(\mysqli $db, int $copiaId): ?int
     {
         try {

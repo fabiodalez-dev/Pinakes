@@ -464,6 +464,10 @@ final class CapacityService
         if ($circulation->anyTotalLoanLimit()) {
             // Per-patron limit (CirculationPolicy; 0 = no limit for that patron).
             $limitSql = $circulation->totalLoanLimitSql('u');
+            // A locking outer read does not lock a nested subquery, which would
+            // still count from the transaction's snapshot: lock it too, in the
+            // syntax MySQL and MariaDB both accept inside a subquery.
+            $countLock = $this->lockingReads ? ' LOCK IN SHARE MODE' : '';
             // Future reservations reserve capacity against overlapping commitments.
             // Once they become promotable, promotion and approval enforce the total
             // active-loan cap (including future scheduled loans). Use the SHARED
@@ -483,7 +487,7 @@ final class CapacityService
                           OR (cap.data_prestito <= $rEnd
                           AND (cap.stato = 'in_ritardo'
                                OR (cap.stato = 'in_corso' AND cap.data_scadenza < ?)
-                               OR cap.data_scadenza >= $rStart)))
+                               OR cap.data_scadenza >= $rStart))){$countLock}
                       ) < {$limitSql})";
             $types .= 'sss';
             $params[] = $today;

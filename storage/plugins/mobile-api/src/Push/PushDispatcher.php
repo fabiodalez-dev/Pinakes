@@ -100,23 +100,33 @@ final class PushDispatcher
         $days = $this->dueSoonDays();
         $events = 0;
 
-        $sql = "SELECT pr.id, pr.utente_id, pr.libro_id, pr.data_scadenza, l.titolo
+        // The stored date only picks the candidates, as the notification feed:
+        // a past due day closed afterwards is due on the next open day.
+        $sql = "SELECT pr.id, pr.utente_id, pr.libro_id, pr.copia_id, pr.data_scadenza, l.titolo
                 FROM prestiti pr
                 JOIN libri l ON l.id = pr.libro_id AND l.deleted_at IS NULL
-                WHERE pr.attivo = 1 AND pr.stato = 'in_corso'
-                  AND pr.data_scadenza >= ?
+                WHERE pr.attivo = 1 AND pr.stato IN ('in_corso', 'in_ritardo')
                   AND pr.data_scadenza <= DATE_ADD(?, INTERVAL ? DAY)";
         $stmt = $this->db->prepare($sql);
         if ($stmt === false) {
             return 0;
         }
-        $stmt->bind_param('ssi', $today, $today, $days);
+        $limit = (new \DateTimeImmutable($today))->modify('+' . $days . ' day')->format('Y-m-d');
+        $stmt->bind_param('si', $today, $days);
         $stmt->execute();
         $res = $stmt->get_result();
         $rows = ($res instanceof \mysqli_result) ? $res->fetch_all(MYSQLI_ASSOC) : [];
         $stmt->close();
 
         foreach ($rows as $r) {
+            $copyId = isset($r['copia_id']) ? (int) $r['copia_id'] : null;
+            if (LibraryCalendar::isPastDue($this->db, (string) $r['data_scadenza'], $copyId, $today)) {
+                continue;
+            }
+            $effectiveDue = LibraryCalendar::dueDate($this->db, (string) $r['data_scadenza'], $copyId);
+            if ($effectiveDue < $today || $effectiveDue > $limit) {
+                continue;
+            }
             $userId = (int) $r['utente_id'];
             $key    = 'loan_due:' . (int) $r['id'] . ':' . (string) $r['data_scadenza'];
             // Gate BEFORE claim so a quiet-hours/pref-off pass doesn't burn the dedup.
@@ -131,9 +141,9 @@ final class PushDispatcher
             $payload = new PushPayload(
                 'loan_due',
                 __('Prestito in scadenza'),
-                sprintf(__('Il prestito di "%s" scade il %s.'), (string) $r['titolo'], (string) $r['data_scadenza']),
+                sprintf(__('Il prestito di "%s" scade il %s.'), (string) $r['titolo'], $effectiveDue),
                 (int) $r['libro_id'],
-                ['loan_id' => (int) $r['id'], 'due_at' => (string) $r['data_scadenza']]
+                ['loan_id' => (int) $r['id'], 'due_at' => (string) $r['data_scadenza'], 'effective_due_at' => $effectiveDue]
             );
             $outcome = $this->deliver($userId, $payload, $counters);
             if ($outcome['sent'] === 0 && $outcome['failed'] > 0) {
@@ -597,7 +607,7 @@ final class PushDispatcher
         return (bool) $this->underCalendarLock(function () use ($userId, $eventKey, $loanId, $dueDate): bool {
             // Same reader too: a loan reassigned since the sweep read it is
             // not announced to the previous borrower.
-            $stmt = $this->db->prepare("SELECT 1 FROM prestiti WHERE id = ? AND utente_id = ? AND attivo = 1 AND stato = 'in_corso' AND data_scadenza = ?");
+            $stmt = $this->db->prepare("SELECT 1 FROM prestiti WHERE id = ? AND utente_id = ? AND attivo = 1 AND stato IN ('in_corso', 'in_ritardo') AND data_scadenza = ?");
             if ($stmt === false) {
                 return false;
             }

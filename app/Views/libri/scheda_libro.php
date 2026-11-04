@@ -380,7 +380,7 @@ unset($workspaceHeader);
               $isLate = !empty($activeLoan['is_overdue']);
               $activeEffectiveDue = $activeLoan['effective_due_at'] ?? $activeLoan['data_scadenza'] ?? '';
             ?>
-            <span class="<?php echo $isLate ? 'text-red-600 font-semibold' : ''; ?>"><?php echo App\Support\HtmlHelper::e(format_date($activeEffectiveDue, false, '/')); ?></span>
+            <span class="<?php echo $isLate ? 'text-red-600 font-semibold' : ''; ?>"><?php echo htmlspecialchars(format_date($activeEffectiveDue, false, '/'), ENT_QUOTES, 'UTF-8'); ?></span>
           </div>
           <div class="flex items-center justify-between">
             <span class="font-medium"><?= __("Rinnovi effettuati") ?></span>
@@ -1902,7 +1902,7 @@ unset($workspaceHeader);
                 $modalEffectiveDue = $activeLoan['effective_due_at'] ?? $activeLoan['data_scadenza'] ?? '';
               ?>
               <div class="text-xs <?php echo $modalLate ? 'text-red-600 font-semibold' : 'text-gray-500'; ?>">
-                <?= __("Scadenza") ?> <?php echo App\Support\HtmlHelper::e(format_date($modalEffectiveDue, false, '/')); ?>
+                <?= __("Scadenza") ?> <?php echo htmlspecialchars(format_date($modalEffectiveDue, false, '/'), ENT_QUOTES, 'UTF-8'); ?>
               </div>
             </div>
           </div>

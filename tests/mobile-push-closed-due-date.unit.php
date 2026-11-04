@@ -70,7 +70,8 @@ try {
     // Two loans due yesterday: one on a copy of the branch closed yesterday
     // (marked after the loan was made), one on a copy of no branch.
     // A third one, already flipped to 'in_ritardo' before the closure was saved.
-    foreach (['closed' => $ids['sede'], 'open' => null, 'late' => $ids['sede']] as $kind => $sede) {
+    // Two more are returned below: one of the closed branch, one of no branch.
+    foreach (['closed' => $ids['sede'], 'open' => null, 'late' => $ids['sede'], 'back' => $ids['sede'], 'backopen' => null] as $kind => $sede) {
         $db->query("INSERT INTO libri (titolo, copie_totali, copie_disponibili, stato, created_at, updated_at) VALUES ('Push {$kind} {$run}', 1, 0, 'prestato', NOW(), NOW())");
         $bookId = (int) $db->insert_id;
         $ids['books'][] = $bookId;
@@ -96,6 +97,24 @@ try {
     $check($claimed($ids['loans']['open']), 'the same loan on an open branch gets the overdue push');
     $check(!$claimed($ids['loans']['late']), 'no overdue push either for a loan already marked late before its due day was closed');
 
+    // The due-soon push follows the same calendar as the feed: the loan whose
+    // due day was closed is due today (first open day) and is announced so,
+    // the loan that is really late is not "due soon".
+    $dueClaimed = static function (int $loanId) use ($db, $ids, $yesterday): bool {
+        $key = $db->real_escape_string("loan_due:{$loanId}:{$yesterday}");
+        $r = $db->query("SELECT COUNT(*) FROM mobile_push_log WHERE user_id={$ids['user']} AND event_key='{$key}'");
+        return $r instanceof mysqli_result && (int) $r->fetch_row()[0] === 1;
+    };
+    $check($dueClaimed($ids['loans']['closed']), 'a due-soon push for the loan whose due day was closed afterwards (due today)');
+    $check(!$dueClaimed($ids['loans']['open']), 'no due-soon push for a loan already past due');
+
+    // A return on the first open day after a closed due day is on time, as the
+    // fine counts it; the same return with every day open is late.
+    $repo = new \App\Models\LoanRepository($db);
+    $flagOf = static fn (int $loanId): string => (string) $db->query("SELECT CONCAT(stato, '|', restituito_in_ritardo) FROM prestiti WHERE id={$loanId}")->fetch_row()[0];
+    $check($repo->close($ids['loans']['back']) && $flagOf($ids['loans']['back']) === 'restituito|0', 'returned on the first open day after a closed due day: not flagged late');
+    $check($repo->close($ids['loans']['backopen']) && $flagOf($ids['loans']['backopen']) === 'restituito|1', 'the same return with every day open is flagged late');
+
     // The claim re-reads the loan under the lock: a loan renewed or returned
     // after the sweep read it gets no overdue push with the stale data.
     $dispatcher = new PushDispatcher($db, new NullProvider());
@@ -116,6 +135,13 @@ try {
     $check(LibraryCalendar::openDaysLate($db, $twoDaysAgo, $openCopy, $today) === 2, 'with every day open the count is the plain number of days (2)');
     $check(LibraryCalendar::openDaysLate($db, $yesterday, $closedCopy, $today) === 0, 'returned on the first open day after a closed due day: 0 days late');
     $check(LibraryCalendar::lateDaysForNotice($db, $yesterday, $closedCopy, $today) === 0, 'a loan not late yet has no days late in a notice');
+
+    // A loan list reads the branches of its page in one query: the primed
+    // answers are the ones a lookup per copy gives, a missing copy included.
+    LibraryCalendar::reset();
+    LibraryCalendar::primeCopyBranches($db, [$closedCopy, $openCopy, $closedCopy, 2147483000]);
+    $check(LibraryCalendar::branchOfCopy($db, $closedCopy) === $ids['sede'] && LibraryCalendar::branchOfCopy($db, $openCopy) === null && LibraryCalendar::branchOfCopy($db, 2147483000) === null, 'primed copy branches match the per-copy lookup');
+    $check(LibraryCalendar::isPastDue($db, $twoDaysAgo, $closedCopy, $today) && LibraryCalendar::openDaysLate($db, $twoDaysAgo, $closedCopy, $today) === 1, 'the calendar reads the primed branch (the closed day is still skipped)');
 
     // Today closed for everyone, the loan due yesterday (open): late today,
     // with no open day counted yet. A notice or a recall says 1 day, not 0.

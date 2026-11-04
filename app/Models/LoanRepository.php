@@ -239,7 +239,7 @@ class LoanRepository
             // mezzanotte gmdate() registrerebbe il giorno sbagliato.
             $today = DateHelper::today();
             $scadenza = (string) ($lockedRow['data_scadenza'] ?? '');
-            $ritardo = ($scadenza !== '' && $scadenza < $today) ? 1 : 0;
+            $ritardo = \App\Support\LibraryCalendar::isPastDue($this->db, $scadenza, $closedCopiaId, $today) ? 1 : 0;
             $stmt = $this->db->prepare('UPDATE prestiti SET attivo=0, data_restituzione=?, stato="restituito", restituito_in_ritardo=? WHERE id=? AND attivo=1');
             $stmt->bind_param('sii', $today, $ritardo, $id);
             if (!$stmt->execute()) {
