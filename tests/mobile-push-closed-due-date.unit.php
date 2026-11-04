@@ -96,6 +96,17 @@ try {
     $check($claimed($ids['loans']['open']), 'the same loan on an open branch gets the overdue push');
     $check(!$claimed($ids['loans']['late']), 'no overdue push either for a loan already marked late before its due day was closed');
 
+    // The claim re-reads the loan under the lock: a loan renewed or returned
+    // after the sweep read it gets no overdue push with the stale data.
+    $dispatcher = new PushDispatcher($db, new NullProvider());
+    $claimIfPastDue = new ReflectionMethod($dispatcher, 'claimIfPastDue');
+    $openLoan = $ids['loans']['open'];
+    $openLoanCopy = (int) $db->query("SELECT copia_id FROM prestiti WHERE id={$openLoan}")->fetch_row()[0];
+    $staleDue = (new DateTimeImmutable($yesterday))->modify('-3 day')->format('Y-m-d');
+    $check($claimIfPastDue->invoke($dispatcher, $ids['user'], "loan_overdue:{$openLoan}:{$staleDue}", $openLoan, $staleDue, $openLoanCopy, $today) === false, 'no overdue push for a due date the loan no longer has (renewed since the sweep read it)');
+    $db->query("UPDATE prestiti SET attivo=0, stato='restituito', data_restituzione='{$today}' WHERE id={$openLoan}");
+    $check($claimIfPastDue->invoke($dispatcher, $ids['user'], "loan_overdue:{$openLoan}:{$yesterday}:returned", $openLoan, $yesterday, $openLoanCopy, $today) === false, 'no overdue push for a loan returned since the sweep read it');
+
     // Notices and recalls say how late the item is in open days, as the fine
     // counts them: due two days ago with yesterday closed is one day late.
     $twoDaysAgo = (new DateTimeImmutable($today))->modify('-2 day')->format('Y-m-d');

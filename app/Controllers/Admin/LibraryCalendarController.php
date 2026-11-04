@@ -326,18 +326,20 @@ class LibraryCalendarController
         if ($guard = $this->guard($response, $db)) {
             return $guard;
         }
-        $row = CustomHolidays::find($db, $id);
-        if ($row === null) {
-            $_SESSION['error_message'] = __('Festività non trovata.');
-            return $this->backToCustom($response);
-        }
-        $active = (int) $row['attiva'] !== 1;
-        $error = $this->commitChange($db, static function () use ($db, $id, $active): ?string {
+        // Read and flipped under the calendar lock: two requests that both
+        // read "off" before either held it would both write "on".
+        $active = null;
+        $error = $this->commitChange($db, static function () use ($db, $id, &$active): ?string {
+            $row = CustomHolidays::find($db, $id);
+            if ($row === null) {
+                return __('Festività non trovata.');
+            }
+            $active = (int) $row['attiva'] !== 1;
             CustomHolidays::setActive($db, $id, $active);
             return null;
         });
-        if ($error !== null) {
-            $_SESSION['error_message'] = $error;
+        if ($error !== null || $active === null) {
+            $_SESSION['error_message'] = $error ?? __('Festività non trovata.');
             return $this->backToCustom($response);
         }
         $_SESSION['success_message'] = $active ? __('Festività riattivata.') : __('Festività sospesa.');
@@ -360,6 +362,11 @@ class LibraryCalendarController
         }
         $savedId = 0;
         $error = $this->commitChange($db, static function () use ($db, $row, $id, &$savedId): ?string {
+            // An edit of a holiday deleted while this request waited for the
+            // lock says so, instead of "updated" for a row that is gone.
+            if ($id !== null && CustomHolidays::find($db, $id) === null) {
+                return __('Festività non trovata.');
+            }
             $savedId = CustomHolidays::save($db, $row, $id);
             return null;
         });

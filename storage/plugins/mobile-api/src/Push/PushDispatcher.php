@@ -182,7 +182,7 @@ final class PushDispatcher
             // under the calendar writes' lock with the calendar read afresh, and
             // claimed there, so a closure saved during this sweep is seen.
             $copyId = $r['copia_id'] !== null ? (int) $r['copia_id'] : null;
-            if (!$this->claimIfPastDue($userId, $key, (string) $r['data_scadenza'], $copyId, $today)) {
+            if (!$this->claimIfPastDue($userId, $key, (int) $r['id'], (string) $r['data_scadenza'], $copyId, $today)) {
                 continue;
             }
             $events++;
@@ -563,16 +563,26 @@ final class PushDispatcher
 
     /**
      * claim() for an overdue push, only while the loan is late by the current
-     * calendar (re-read under the lock every calendar write holds). False when
-     * the loan is not late yet, the event was already claimed, or a calendar
-     * change holds the lock (the next sweep retries).
+     * calendar (re-read under the lock every calendar write holds) and is
+     * still the one the sweep read: active, same reader, same due date, not
+     * returned or renewed since. False when the loan is not late yet or has
+     * changed, the event was already claimed, or a calendar change holds the
+     * lock (the next sweep retries).
      */
-    private function claimIfPastDue(int $userId, string $eventKey, string $dueDate, ?int $copyId, string $today): bool
+    private function claimIfPastDue(int $userId, string $eventKey, int $loanId, string $dueDate, ?int $copyId, string $today): bool
     {
-        return (bool) $this->underCalendarLock(
-            fn (): bool => LibraryCalendar::isPastDue($this->db, $dueDate, $copyId, $today) && $this->claim($userId, $eventKey),
-            false
-        );
+        return (bool) $this->underCalendarLock(function () use ($userId, $eventKey, $loanId, $dueDate, $copyId, $today): bool {
+            $stmt = $this->db->prepare("SELECT 1 FROM prestiti WHERE id = ? AND utente_id = ? AND attivo = 1 AND stato IN ('in_corso', 'in_ritardo') AND data_scadenza = ?");
+            if ($stmt === false) {
+                return false;
+            }
+            $stmt->bind_param('iis', $loanId, $userId, $dueDate);
+            $stmt->execute();
+            $res = $stmt->get_result();
+            $same = $res instanceof \mysqli_result && $res->num_rows === 1;
+            $stmt->close();
+            return $same && LibraryCalendar::isPastDue($this->db, $dueDate, $copyId, $today) && $this->claim($userId, $eventKey);
+        }, false);
     }
 
     /**
@@ -584,11 +594,13 @@ final class PushDispatcher
     private function claimIfDueUnchanged(int $userId, string $eventKey, int $loanId, string $dueDate): bool
     {
         return (bool) $this->underCalendarLock(function () use ($userId, $eventKey, $loanId, $dueDate): bool {
-            $stmt = $this->db->prepare("SELECT 1 FROM prestiti WHERE id = ? AND attivo = 1 AND stato = 'in_corso' AND data_scadenza = ?");
+            // Same reader too: a loan reassigned since the sweep read it is
+            // not announced to the previous borrower.
+            $stmt = $this->db->prepare("SELECT 1 FROM prestiti WHERE id = ? AND utente_id = ? AND attivo = 1 AND stato = 'in_corso' AND data_scadenza = ?");
             if ($stmt === false) {
                 return false;
             }
-            $stmt->bind_param('is', $loanId, $dueDate);
+            $stmt->bind_param('iis', $loanId, $userId, $dueDate);
             $stmt->execute();
             $res = $stmt->get_result();
             $same = $res instanceof \mysqli_result && $res->num_rows === 1;
