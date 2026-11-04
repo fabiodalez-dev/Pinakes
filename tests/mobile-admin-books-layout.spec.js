@@ -294,7 +294,20 @@ test.describe.serial('book pages on a phone', () => {
   test('updates requirements: a value next to a long path keeps each word on one line', async ({ page }) => {
     await F.loginAsAdmin(page);
     await page.goto('/admin/updates', { waitUntil: 'networkidle' });
-    const split = await page.locator('main .space-y-4 > .flex.justify-between > span').evaluateAll((spans) => {
+    const values = page.locator('main .space-y-4 > .flex.justify-between > span');
+    expect(await values.count(), 'requirement rows rendered').toBeGreaterThan(0);
+    // The write-permission rows name the installation path, whose length depends
+    // on the machine: a long one is forced so the row is always squeezed.
+    const squeezed = await page.evaluate(() => {
+      const rows = [...document.querySelectorAll('main .space-y-4 > .flex.justify-between')]
+        .filter((row) => row.querySelector(':scope > span')?.textContent.trim() === 'Scrivibile');
+      for (const row of rows) {
+        row.querySelector('p.font-medium').textContent = '/' + 'a-very-long-installation-path/'.repeat(8);
+      }
+      return rows.length;
+    });
+    expect(squeezed, 'write-permission rows found').toBeGreaterThan(0);
+    const split = await values.evaluateAll((spans) => {
       const out = [];
       for (const span of spans) {
         const node = [...span.childNodes].find((n) => n.nodeType === Node.TEXT_NODE && n.textContent.trim() !== '');
