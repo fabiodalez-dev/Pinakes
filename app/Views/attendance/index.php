@@ -86,7 +86,13 @@ unset($workspaceHeader);
           <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8') ?>">
           <div>
             <label for="codice_tessera" class="form-label"><?= __("Codice tessera") ?></label>
-            <input id="codice_tessera" name="codice_tessera" type="text" maxlength="20" required autofocus class="form-input" placeholder="<?= htmlspecialchars(__('Passa la tessera sul lettore o digita il codice'), ENT_QUOTES, 'UTF-8') ?>" />
+            <div class="flex gap-2">
+              <input id="codice_tessera" name="codice_tessera" type="text" maxlength="20" required autofocus class="form-input" placeholder="<?= htmlspecialchars(__('Passa la tessera sul lettore o digita il codice'), ENT_QUOTES, 'UTF-8') ?>" />
+              <button type="button" id="attendance-card-scan" data-copy-scan data-copy-scan-target="codice_tessera" aria-label="<?= htmlspecialchars(__('Scansiona la tessera con la fotocamera'), ENT_QUOTES, 'UTF-8') ?>"
+                      class="inline-flex items-center gap-2 whitespace-nowrap px-4 py-2 bg-gray-100 text-gray-900 border border-gray-300 rounded-lg hover:bg-gray-200 transition-colors font-medium">
+                <i class="fas fa-camera"></i><span class="hidden sm:inline"><?= __("Scansiona") ?></span>
+              </button>
+            </div>
           </div>
           <?php $branchSelect('sede_scan'); ?>
           <button type="submit" class="btn-primary">
@@ -146,7 +152,7 @@ unset($workspaceHeader);
   </div>
 
   <!-- Period selector -->
-  <div class="flex flex-wrap items-center gap-2 mb-4" role="group" aria-label="<?= htmlspecialchars(__('Periodo'), ENT_QUOTES, 'UTF-8') ?>">
+  <div class="flex flex-wrap items-center gap-2 mb-4 pk-period-group" role="group" aria-label="<?= htmlspecialchars(__('Periodo'), ENT_QUOTES, 'UTF-8') ?>">
     <span class="text-sm text-gray-600"><?= __("Periodo") ?>:</span>
     <?php foreach ($data['periods'] as $p): ?>
       <a href="<?= htmlspecialchars(url('/admin/attendance?days=' . (int) $p), ENT_QUOTES, 'UTF-8') ?>" class="<?= (int) $p === $days ? 'btn-primary' : 'btn-secondary' ?>" <?= (int) $p === $days ? 'aria-current="true"' : '' ?>>
@@ -303,9 +309,20 @@ unset($workspaceHeader);
     </div>
   </div>
 </section>
+<?php include __DIR__ . '/../partials/copy-scanner-i18n.php'; ?>
+<script src="<?= htmlspecialchars(assetUrl('copy-scanner.bundle.js'), ENT_QUOTES, 'UTF-8') ?>" defer></script>
 <script>
 document.addEventListener('DOMContentLoaded', function () {
   const card = document.getElementById('codice_tessera');
   if (card) { card.focus(); }
+  // A card read by the camera registers the entry at once, as a desk reader
+  // does with Enter. The scanner fills the field with a synthetic change
+  // event (isTrusted false); typing, pasting or autofill fire trusted ones
+  // and still wait for "Registra ingresso".
+  if (!card) { return; }
+  card.addEventListener('change', function (event) {
+    if (event.isTrusted || card.value.trim() === '') { return; }
+    card.form.requestSubmit();
+  });
 });
 </script>

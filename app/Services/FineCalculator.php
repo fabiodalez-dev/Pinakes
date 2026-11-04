@@ -38,7 +38,12 @@ final class FineCalculator
         $this->isOpenDay = $isOpenDay;
     }
 
-    /** Open days the item was kept after $dueDate, up to $returnDate ($branchId = the copy's branch). */
+    /**
+     * Open days the item was kept after $dueDate, up to $returnDate ($branchId
+     * = the copy's branch). A due date that is a closed day (one marked closed
+     * after the loan was made) counts from the first open day after it: the
+     * reader could not bring the item back before then.
+     */
     public function daysLate(string $dueDate, string $returnDate, ?int $branchId = null): int
     {
         $due = self::parse($dueDate);
@@ -54,9 +59,15 @@ final class FineCalculator
             return $span;
         }
 
-        $open = 0;
+        // Closed due date: the first open day on or after it is the real one.
         $day = $due;
-        for ($i = 0; $i < $span; $i++) {
+        $skipped = 0;
+        while ($skipped < $span && !($this->isOpenDay)($day->format('Y-m-d'), $branchId)) {
+            $day = $day->modify('+1 day');
+            $skipped++;
+        }
+        $open = 0;
+        for ($i = $skipped; $i < $span; $i++) {
             $day = $day->modify('+1 day');
             if (($this->isOpenDay)($day->format('Y-m-d'), $branchId)) {
                 $open++;

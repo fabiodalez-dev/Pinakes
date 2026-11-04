@@ -243,7 +243,7 @@ unset($workspaceHeader);
           <div class="p-6">
             <div class="border border-gray-200 rounded-lg overflow-hidden">
               <div class="max-h-96 overflow-y-auto">
-                <table class="w-full text-sm" id="inventory-scans">
+                <table class="w-full text-sm pk-stack-table" id="inventory-scans">
                   <thead class="bg-gray-50 border-b border-gray-200 sticky top-0">
                     <tr>
                       <th class="px-4 py-2 text-left font-semibold text-gray-700"><?= __('Esito') ?></th>
@@ -351,7 +351,7 @@ unset($workspaceHeader);
             <?php endif; ?>
             <div class="border border-gray-200 rounded-lg overflow-hidden">
               <div class="max-h-96 overflow-y-auto">
-                <table class="w-full text-sm" id="inventory-report">
+                <table class="w-full text-sm pk-stack-table" id="inventory-report">
                   <thead class="bg-gray-50 border-b border-gray-200 sticky top-0">
                     <tr>
                       <th class="px-4 py-2 text-left font-semibold text-gray-700"><?= __('Esito') ?></th>

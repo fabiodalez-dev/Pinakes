@@ -78,9 +78,9 @@ unset($workspaceHeader);
                                 <div class="flex items-center h-5">
                                     <input type="checkbox" name="servers[]" value="<?= htmlspecialchars((string) $serverKey, ENT_QUOTES, 'UTF-8') ?>" data-server-name="<?= htmlspecialchars((string) $server['name'], ENT_QUOTES, 'UTF-8') ?>" <?= $checked ? 'checked' : '' ?> class="w-4 h-4 text-gray-800 bg-gray-100 border-gray-300 rounded focus:ring-gray-500 focus:ring-2">
                                 </div>
-                                <div class="ml-3 text-sm">
+                                <div class="ml-3 text-sm min-w-0">
                                     <div class="font-medium text-gray-900"><?= htmlspecialchars((string) $server['name'], ENT_QUOTES, 'UTF-8') ?></div>
-                                    <p class="text-gray-500 text-xs mt-1"><?= htmlspecialchars((string) ($server['url'] ?? ''), ENT_QUOTES, 'UTF-8') ?></p>
+                                    <p class="text-gray-500 text-xs mt-1 break-words"><?= htmlspecialchars((string) ($server['url'] ?? ''), ENT_QUOTES, 'UTF-8') ?></p>
                                 </div>
                             </label>
                             <?php endforeach; ?>

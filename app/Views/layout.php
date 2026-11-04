@@ -109,6 +109,13 @@ $htmlLang = substr($currentLocale, 0, 2);
         margin-top: 8px;
       }
     }
+    /* "99+" is wider than the 1.5rem circle: grow into a pill instead of clipping. */
+    #notifications-badge {
+      width: auto;
+      min-width: 1.5rem;
+      padding: 0 0.3rem;
+      font-size: 0.75rem;
+    }
     /* Notifications dropdown: on phones the panel is anchored to the (right-hand)
        bell button, so a near-full-width panel overflowed the right edge and was
        clipped. Pin it to the viewport instead and centre it within the screen.
@@ -1607,7 +1614,9 @@ $htmlLang = substr($currentLocale, 0, 2);
           if (badge) {
             const count = parseInt(data.count || 0, 10);
             if (count > 0) {
-              badge.textContent = String(count);
+              // Three digits do not fit the round badge: 99+ like other apps.
+              badge.textContent = count > 99 ? '99+' : String(count);
+              badge.setAttribute('aria-label', String(count));
               badge.classList.remove('hidden');
             } else {
               badge.classList.add('hidden');
@@ -2097,6 +2106,31 @@ $htmlLang = substr($currentLocale, 0, 2);
   </div>
 </div>
 
+<script>
+// .pk-stack-table (workspace-ui.css): each cell carries its column name as
+// text, shown above the value when the table stacks as cards on a phone. Rows added later
+// by the page (live scans, paged lists) are labelled as they arrive.
+(function () {
+  function label(table) {
+    var heads = Array.prototype.map.call(table.querySelectorAll('thead th'), function (th) { return th.textContent.trim(); });
+    Array.prototype.forEach.call(table.querySelectorAll('tbody > tr'), function (tr) {
+      Array.prototype.forEach.call(tr.children, function (td, i) {
+        if (td.hasAttribute('colspan') || !heads[i] || td.hasAttribute('data-label')) { return; }
+        td.setAttribute('data-label', heads[i]);
+        var name = document.createElement('span');
+        name.className = 'pk-stack-label';
+        name.textContent = heads[i];
+        td.insertBefore(name, td.firstChild);
+      });
+    });
+  }
+  document.querySelectorAll('table.pk-stack-table').forEach(function (table) {
+    label(table);
+    var body = table.querySelector('tbody');
+    if (body && window.MutationObserver) { new MutationObserver(function () { label(table); }).observe(body, { childList: true }); }
+  });
+})();
+</script>
 </body>
 
 </html>

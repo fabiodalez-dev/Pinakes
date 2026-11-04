@@ -59,6 +59,38 @@ test.describe.serial('Rules matrix: total and per-material limits, due date per 
     expect(F.dbInt(`SELECT COUNT(*) FROM regole_prestito WHERE tipologia_id=${studentType}`)).toBe(1);
   });
 
+  test('on a phone the matrix is a stack of cards, nothing scrolls sideways, and a cell saves from there', async ({ browser }) => {
+    const { devices } = require('@playwright/test');
+    const ctx = await browser.newContext({ ...devices['iPhone 13'] });
+    const phone = await ctx.newPage();
+    try {
+      await F.loginAsAdmin(phone);
+      await F.openCirculationTab(phone);
+      const widths = await phone.evaluate(() => [document.documentElement.scrollWidth, window.innerWidth]);
+      expect(widths[0]).toBeLessThanOrEqual(widths[1]);
+      // Every field of the student row is on screen: none clipped by a
+      // horizontally scrolled table.
+      const field = phone.locator(`#rule-${studentType}-altro-grace`);
+      await field.scrollIntoViewIfNeeded();
+      const box = await field.boundingBox();
+      expect(box && box.x >= 0 && box.x + box.width <= widths[1]).toBe(true);
+      expect(box && box.width).toBeGreaterThan(100);
+      // The column header is hidden on a phone: the field names its material.
+      await expect(field).toHaveAccessibleName(`Studente ${RUN} — Altro — Tolleranza`);
+      await field.fill('2');
+      // The page is already on tab=circulation: wait for the save itself.
+      await Promise.all([
+        phone.waitForResponse((r) => r.url().includes('/admin/settings/circulation/rules') && r.request().method() === 'POST', { timeout: 15000 }),
+        phone.locator('[data-testid="circulation-matrix-form"] button[type="submit"]').tap(),
+      ]);
+      await phone.waitForLoadState('load');
+      expect(F.dbQuery(`SELECT giorni_tolleranza FROM regole_prestito WHERE tipologia_id=${studentType} AND tipo_media='altro'`)).toBe('2');
+    } finally {
+      F.dbQuery(`DELETE FROM regole_prestito WHERE tipologia_id=${studentType} AND tipo_media='altro'`);
+      await ctx.close();
+    }
+  });
+
   test('the staff desk lends the first DVD with the student due date (10 days)', async () => {
     const url = await F.staffLoan(admin, student, dvd1);
     expect(url).not.toContain('error=');

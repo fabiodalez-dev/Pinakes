@@ -59,9 +59,15 @@ function addDays(iso, days) {
 }
 const weekdayOf = (iso) => new Date(`${iso}T12:00:00Z`).getUTCDay();
 /** Open days after $due up to and including $ret, for an "is closed" predicate. */
+// Open days kept after the due date, up to the return. A due date that is
+// a closed day (here the weekly closed day can fall on it) counts from the
+// first open day after it: the reader could not return before then
+// (FineCalculator::daysLate()).
 function openLateDays(due, ret, isClosed) {
+  let start = due;
+  while (start < ret && isClosed(start)) start = addDays(start, 1);
   let n = 0;
-  for (let d = addDays(due, 1); d <= ret; d = addDays(d, 1)) if (!isClosed(d)) n++;
+  for (let d = addDays(start, 1); d <= ret; d = addDays(d, 1)) if (!isClosed(d)) n++;
   return n;
 }
 

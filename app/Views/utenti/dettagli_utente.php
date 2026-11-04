@@ -404,7 +404,7 @@ unset($workspaceHeader);
         <h2 class="text-lg font-semibold text-gray-800"><?= __("Storico Prestiti") ?></h2>
     </div>
     <div class="overflow-x-auto">
-        <table class="min-w-full text-sm">
+        <table class="min-w-full text-sm pk-stack-table">
             <thead class="bg-slate-50 text-slate-600">
                 <tr>
                     <th scope="col" class="px-6 py-3 text-left font-medium"><?= __("Libro") ?></th>

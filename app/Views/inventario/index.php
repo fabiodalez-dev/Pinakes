@@ -179,7 +179,7 @@ unset($workspaceHeader);
           <div class="p-6">
             <div class="border border-gray-200 rounded-lg overflow-hidden">
               <div class="overflow-x-auto">
-                <table class="w-full text-sm" id="inventory-sessions">
+                <table class="w-full text-sm pk-stack-table" id="inventory-sessions">
                   <thead class="bg-gray-50 border-b border-gray-200">
                     <tr>
                       <th class="px-4 py-2 text-left font-semibold text-gray-700"><?= __('Nome') ?></th>

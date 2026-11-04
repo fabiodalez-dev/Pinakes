@@ -211,17 +211,17 @@ unset($workspaceHeader);
             <div class="p-6">
                 <div class="space-y-4">
                     <?php foreach ($requirements['requirements'] ?? [] as $req): ?>
-                    <div class="flex items-center justify-between">
-                        <div class="flex items-center gap-3">
-                            <div class="w-8 h-8 <?= $req['met'] ? 'bg-green-100' : 'bg-red-100' ?> rounded-lg flex items-center justify-center">
+                    <div class="flex items-center justify-between gap-3">
+                        <div class="flex items-center gap-3 min-w-0">
+                            <div class="w-8 h-8 shrink-0 <?= $req['met'] ? 'bg-green-100' : 'bg-red-100' ?> rounded-lg flex items-center justify-center">
                                 <i class="fas <?= $req['met'] ? 'fa-check text-green-600' : 'fa-times text-red-600' ?> text-sm"></i>
                             </div>
-                            <div>
-                                <p class="font-medium text-gray-900"><?= HtmlHelper::e($req['name']) ?></p>
-                                <p class="text-xs text-gray-500"><?= __("Richiesto:") ?> <?= HtmlHelper::e($req['required']) ?></p>
+                            <div class="min-w-0">
+                                <p class="font-medium text-gray-900 break-words"><?= HtmlHelper::e($req['name']) ?></p>
+                                <p class="text-xs text-gray-500 break-words"><?= __("Richiesto:") ?> <?= HtmlHelper::e($req['required']) ?></p>
                             </div>
                         </div>
-                        <span class="text-sm <?= $req['met'] ? 'text-gray-600' : 'text-red-600 font-medium' ?>">
+                        <span class="break-words text-right text-sm <?= $req['met'] ? 'text-gray-600' : 'text-red-600 font-medium' ?>">
                             <?= HtmlHelper::e($req['current']) ?>
                         </span>
                     </div>

@@ -145,6 +145,18 @@ body.admin-shell main :is(input[type='checkbox'], input[type='radio']) { accent-
 body.admin-shell main :is(.form-label, label) { color: var(--pk-ink-3); font-size: 13px; }
 body.admin-shell .choices__inner { background: var(--pk-surface) !important; border-color: var(--pk-field-line) !important; border-radius: 10px !important; min-height: 44px; }
 body.admin-shell .choices__list--multiple .choices__item { background: var(--pk-soft) !important; color: var(--pk-ink) !important; border-color: var(--pk-line-2) !important; }
+/* The chips are light, so Choices' white remove cross vanished on them: a dark
+   cross, with a tap area that a finger can find. */
+body.admin-shell .choices:is([data-type*=select-multiple], [data-type*=text]) .choices__list--multiple .choices__item .choices__button {
+  width: 28px; min-width: 28px; height: 28px; margin: 0 -6px 0 8px; padding: 0; border-left: 0; border-radius: 6px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 21 21'%3E%3Cg fill='%2327272a' fill-rule='evenodd'%3E%3Cpath d='M2.592.044l18.364 18.364-2.548 2.548L.044 2.592z'/%3E%3Cpath d='M0 18.364L18.364 0l2.548 2.548L2.548 20.912z'/%3E%3C/g%3E%3C/svg%3E");
+  background-size: 10px; opacity: .7;
+}
+body.admin-shell .choices .choices__list--multiple .choices__item .choices__button:is(:hover, :focus-visible) { opacity: 1; background-color: var(--pk-line-2); }
+/* Dark theme: the chip is dark grey, so the cross is light. */
+.dark body.admin-shell .choices:is([data-type*=select-multiple], [data-type*=text]) .choices__list--multiple .choices__item .choices__button {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 21 21'%3E%3Cg fill='%23f4f4f5' fill-rule='evenodd'%3E%3Cpath d='M2.592.044l18.364 18.364-2.548 2.548L.044 2.592z'/%3E%3Cpath d='M0 18.364L18.364 0l2.548 2.548L2.548 20.912z'/%3E%3C/g%3E%3C/svg%3E");
+}
 body.admin-shell main [aria-pressed='true']:not(.fc *) { background: var(--pk-ink) !important; color: var(--pk-surface) !important; }
 
 /* Only data tables receive table styling; FullCalendar owns its layout tables. */
@@ -366,8 +378,11 @@ body.admin-shell .pk-workspace-header__title { display: block; }
 
 .admin-shell #activity-feed > .card { padding: 0; }
 body.admin-shell .pk-activity-heading h2 > span { color: var(--workspace-accent); }
-.pk-activity-changes { display: grid; gap: 6px; margin-top: 12px; }
-.pk-activity-change { display: flex; gap: 4px 10px; align-items: baseline; font-size: 13px; line-height: 1.55; }
+/* One column that never grows past the entry: a long value (a cover path, a
+   URL) breaks inside it instead of widening the list, which then scrolled
+   sideways on a phone. */
+.pk-activity-changes { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; margin-top: 12px; }
+.pk-activity-change { display: flex; gap: 4px 10px; align-items: baseline; min-width: 0; font-size: 13px; line-height: 1.55; }
 .pk-activity-change__label { flex: 0 0 auto; max-width: 35%; color: var(--pk-muted); font-weight: 400; }
 .pk-activity-change__label::after { content: ':'; }
 .pk-activity-change__value { min-width: 0; margin: 0; color: var(--pk-text); overflow-wrap: anywhere; }
@@ -376,6 +391,8 @@ body.admin-shell .pk-activity-heading h2 > span { color: var(--workspace-accent)
     .pk-activity-change { flex-wrap: wrap; gap: 2px 8px; }
     .pk-activity-change__label { max-width: 100%; }
     #activity-feed nav { flex-wrap: wrap; gap: 8px; }
+    /* the icon column keeps a narrower gap, as the cards around it */
+    #activity-feed [data-activity-type] > .flex { gap: 12px; }
 }
 
 /* Legacy width utilities no longer move a page title relative to its peers. */
@@ -831,4 +848,56 @@ body.admin-shell main .pk-books-mobile-actions .export-btn-mobile { height: 100%
        search controls above the table instead of touching the card's border. */
     body.admin-shell main .dt-container :is(.dt-info, .dt-paging) { padding-inline: 16px; }
     body.admin-shell main .dt-container .dt-paging { padding-bottom: 16px; }
+}
+
+/* Phones: a long option ends with an ellipsis before the select's arrow,
+   never under it (fields are 16px on touch screens, interface-ui.css). */
+@media (max-width: 767px) {
+  select { text-overflow: ellipsis; white-space: nowrap; overflow: hidden; }
+}
+
+/* .pk-stack-table: on phones a wide table becomes a stack of cards, one per
+   row, each value under its column name. The layout script writes that name
+   into every cell as real text (.pk-stack-label, read by screen readers once
+   the header is hidden) and as data-label. Hidden on wider screens, where
+   the header row names the columns. Nothing to scroll sideways. */
+.pk-stack-label { display: none; }
+@media (max-width: 767px) {
+  .pk-stack-table, .pk-stack-table > tbody, .pk-stack-table > tbody > tr, .pk-stack-table > tbody > tr > td { display: block; width: 100%; }
+  .pk-stack-table > thead { display: none; }
+  .pk-stack-table > tbody > tr { padding: 10px 14px; border-bottom: 1px solid var(--pk-line); }
+  /* A row a filter hid (class "hidden") stays hidden as a card too. */
+  .pk-stack-table > tbody > tr.hidden { display: none; }
+  .pk-stack-table > tbody > tr > td { padding: 3px 0 !important; border: 0; white-space: normal !important; text-align: left !important; }
+  .pk-stack-table > tbody > tr > td > .pk-stack-label {
+    display: block; margin-bottom: 1px;
+    font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--pk-muted);
+  }
+  .pk-stack-table > tbody > tr > td:first-child { font-weight: 600; color: var(--pk-ink); }
+  .pk-stack-table > tbody > tr > td[colspan] { text-align: center !important; }
+  /* Icon actions in a card keep their square size instead of stretching across it
+     (admin-ui.css stretches every button of a phone button group, !important). */
+  body.admin-shell main .pk-stack-table .btn-icon { flex: 0 0 44px !important; width: 44px !important; }
+}
+
+/* Period choice (attendance statistics): one row of four on a phone, not the
+   full-width stacked buttons of a form. */
+@media (max-width: 640px) {
+  .pk-period-group { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .pk-period-group > span { grid-column: 1 / -1; }
+  .pk-period-group > :is(.btn-primary, .btn-secondary) { width: auto; padding-left: 4px; padding-right: 4px; white-space: nowrap; font-size: 13px; }
+}
+
+/* A long form on a phone (the circulation rules matrix) keeps its save button
+   on screen instead of four screens below the field just changed. */
+@media (max-width: 767px) {
+  .pk-sticky-save { position: sticky; bottom: 0; z-index: 20; margin: 0 -16px; padding: 12px 16px; background: var(--pk-surface); border-top: 1px solid var(--pk-line); }
+  .pk-sticky-save > button { width: 100%; justify-content: center; }
+}
+
+/* Calendar preview: the previous/next month arrows stay side by side on a
+   phone, not two full-width rows under the month name. */
+@media (max-width: 767px) {
+  body.admin-shell main .pk-month-nav > a { display: inline-flex !important; width: auto !important; flex: 0 0 auto !important; min-width: 48px; min-height: 40px; justify-content: center; }
+  body.admin-shell main .pk-month-nav > form { flex: 1 1 100%; }
 }
