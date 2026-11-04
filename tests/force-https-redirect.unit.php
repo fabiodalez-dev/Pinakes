@@ -28,6 +28,13 @@ $root = dirname(__DIR__);
 
 // ── Child mode: apply one scenario, print the resolved target (or "NULL") ─────
 if (($argv[1] ?? '') === '--child') {
+    // Fresh processes still inherit the developer/CI environment. A scenario
+    // with no canonical host must not silently reuse the parent's configured
+    // host instead of exercising the no-configuration branch.
+    foreach (['APP_CANONICAL_URL', 'APP_TRUSTED_HOSTS'] as $key) {
+        putenv($key);
+        unset($_ENV[$key], $_SERVER[$key]);
+    }
     require $root . '/vendor/autoload.php';
     /** @var array{server?:array<string,string>,env?:array<string,string>} $s */
     $s = json_decode((string) getenv('RT_SCENARIO'), true) ?: [];

@@ -21,6 +21,9 @@ require_once $root . '/storage/plugins/mobile-api/MobileApiPlugin.php';
 
 use App\Plugins\MobileApi\Push\NullProvider;
 use App\Plugins\MobileApi\Push\PushDispatcher;
+use App\Plugins\MobileApi\Push\PushPayload;
+use App\Plugins\MobileApi\Push\PushProvider;
+use App\Plugins\MobileApi\Push\PushResult;
 use App\Support\DateHelper;
 use App\Support\LibraryCalendar;
 
@@ -90,7 +93,20 @@ try {
         return $r instanceof mysqli_result && (int) $r->fetch_row()[0] === 1;
     };
 
-    (new PushDispatcher($db, new NullProvider()))->dispatch();
+    // Exercise delivery too: a dedup claim alone cannot prove which date the
+    // reader receives. This provider never makes a network request.
+    $db->query("INSERT INTO mobile_push_subscriptions (user_id, provider, endpoint) VALUES ({$ids['user']}, 'unifiedpush', 'https://push.example.invalid/{$run}')");
+    $provider = new class implements PushProvider {
+        /** @var list<PushPayload> */
+        public array $payloads = [];
+        public function name(): string { return 'unifiedpush'; }
+        public function send(array $subscription, PushPayload $payload): PushResult
+        {
+            $this->payloads[] = $payload;
+            return PushResult::ok();
+        }
+    };
+    (new PushDispatcher($db, $provider))->dispatch();
 
     $check(LibraryCalendar::isPastDue($db, $yesterday, null, $today), 'a due date of yesterday on an open day is past due');
     $check(!$claimed($ids['loans']['closed']), 'no overdue push for a loan whose due day its branch marked closed afterwards');
@@ -108,6 +124,13 @@ try {
     };
     $check($dueClaimed($ids['loans']['closed'], $today) && !$dueClaimed($ids['loans']['closed'], $yesterday), 'a due-soon push for the loan whose due day was closed afterwards, keyed and dated by the usable day (today)');
     $check(!$dueClaimed($ids['loans']['open'], $today) && !$dueClaimed($ids['loans']['open'], $yesterday), 'no due-soon push for a loan already past due');
+    $closedPayloads = array_values(array_filter($provider->payloads, static fn (PushPayload $p): bool =>
+        $p->type === 'loan_due' && ($p->data['loan_id'] ?? null) === $ids['loans']['closed']));
+    $check(count($closedPayloads) === 1, 'the closed-day loan actually reaches the push provider exactly once');
+    $payload = $closedPayloads[0] ?? null;
+    $check($payload !== null && ($payload->data['effective_due_at'] ?? null) === $today
+        && ($payload->data['due_at'] ?? null) === $yesterday, 'the delivered push carries the usable return day and retains the stored due date');
+    $check($payload !== null && str_contains($payload->body, $today) && !str_contains($payload->body, $yesterday), 'the delivered push text names the first open day, not the closed stored date');
     // Under the calendar lock the usable day is read again: a sweep that saw an
     // older calendar (another usable day) does not claim, the next sweep does.
     $claimDue = new ReflectionMethod(PushDispatcher::class, 'claimIfDueUnchanged');
@@ -187,6 +210,7 @@ try {
         $db->query("DELETE FROM sedi WHERE id={$ids['sede']}");
     }
     if ($ids['user'] > 0) {
+        $db->query("DELETE FROM mobile_push_subscriptions WHERE user_id={$ids['user']}");
         $db->query("DELETE FROM utenti WHERE id={$ids['user']}");
     }
     if ($featureBefore === null) {

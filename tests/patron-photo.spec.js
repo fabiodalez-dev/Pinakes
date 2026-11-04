@@ -54,6 +54,8 @@ async function login(page, email = ADMIN_EMAIL, password = ADMIN_PASS) {
   await page.goto(`${BASE}/accedi`);
   await page.fill('input[name="email"]', email);
   await page.fill('input[name="password"]', password);
+  const rejectCookies = page.locator('#silktide-wrapper .reject-all');
+  if (await rejectCookies.isVisible()) await rejectCookies.click();
   await page.locator('button[type="submit"]').click();
   await page.waitForURL((u) => u.toString().includes('/admin'), { timeout: 15000 });
 }

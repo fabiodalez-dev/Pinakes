@@ -42,6 +42,8 @@ async function loginAsAdmin(page) {
   }
   await page.fill('input[name="email"]', ADMIN_EMAIL);
   await page.fill('input[name="password"]', ADMIN_PASS);
+  const rejectCookies = page.locator('#silktide-wrapper .reject-all');
+  if (await rejectCookies.isVisible()) await rejectCookies.click();
   await page.locator('button[type="submit"]').first().click();
   // The redirect target varies (dashboard, intended page): wait for the
   // password field to go away rather than for one specific navigation.
