@@ -95,15 +95,19 @@ class DashboardStats
                 FROM prestiti p
                 JOIN libri l ON p.libro_id = l.id AND l.deleted_at IS NULL
                 JOIN utenti u ON p.utente_id = u.id
-                WHERE p.stato IN ('in_corso','in_ritardo') AND p.attivo = 1";
-        $res = $this->db->query($sql);
-        if (!$res) {
+                WHERE p.stato IN ('in_corso','in_ritardo') AND p.attivo = 1 AND p.data_scadenza < ?";
+        $stmt = $this->db->prepare($sql);
+        if ($stmt === false) {
             return $rows;
         }
-        // Late by the calendar, whatever the stored flag says: a loan the sweep has
-        // not flagged yet is listed, one flagged before a closure moved its day is not.
+        // The usable day is never before the stored one, so a loan due today or later
+        // cannot be late. Late by the calendar, whatever the stored flag says: a loan the
+        // sweep has not flagged yet is listed, one flagged before a closure moved its day is not.
+        $today = \App\Support\DateHelper::today();
+        $stmt->bind_param('s', $today);
+        $stmt->execute();
         return array_values(array_filter(
-            $this->withLoanDates($res->fetch_all(MYSQLI_ASSOC)),
+            $this->withLoanDates($stmt->get_result()->fetch_all(MYSQLI_ASSOC)),
             static fn (array $row): bool => (bool) $row['is_overdue']
         ));
     }

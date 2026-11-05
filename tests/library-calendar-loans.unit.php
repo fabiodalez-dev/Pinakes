@@ -677,6 +677,11 @@ $sendAll = static function () use ($notifications, $mailLoan): void {
 };
 try {
     $addClosure($mailDue, $mailDue);
+    foreach (['prenotato', 'da_ritirare'] as $scheduledState) {
+        $scheduled = \App\Support\LibraryCalendar::loanDates($db, ['data_scadenza' => $mailDue, 'stato' => $scheduledState, 'attivo' => 1, 'copia_id' => null]);
+        $check($scheduled['effective_due_at'] === $mailNext, "a {$scheduledState} loan on a closed day shows the next open day");
+        $check($scheduled['is_overdue'] === false && $scheduled['due_attention'] === false, "a {$scheduledState} loan is neither late nor due by that day");
+    }
     $sendAll();
     foreach ([['loan_receipt_email', 'data_scadenza'], ['loan_approved', 'data_fine'], ['loan_picked_up', 'data_scadenza']] as [$template, $variable]) {
         $check($sentDate($template, $variable) === $mailDay($mailNext), "e-mail {$template}: {$variable} is the next open day");

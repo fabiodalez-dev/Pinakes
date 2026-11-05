@@ -224,7 +224,10 @@ final class LibraryCalendar
         $due = !empty($loan['data_scadenza']) ? substr((string) $loan['data_scadenza'], 0, 10) : null;
         $holding = (int) ($loan['attivo'] ?? 1) === 1 && in_array($loan['stato'] ?? '', ['in_corso', 'in_ritardo'], true);
         $copyId = isset($loan['copia_id']) ? (int) $loan['copia_id'] : null;
-        $effectiveDue = $holding && $due !== null ? self::dueDate($db, $due, $copyId) : $due;
+        // A scheduled loan whose move was refused also ends on the next open day;
+        // it cannot be late or due yet, so only the date follows the calendar.
+        $scheduled = (int) ($loan['attivo'] ?? 1) === 1 && in_array($loan['stato'] ?? '', ['prenotato', 'da_ritirare'], true);
+        $effectiveDue = ($holding || $scheduled) && $due !== null ? self::dueDate($db, $due, $copyId) : $due;
         return [
             'effective_due_at' => $effectiveDue,
             'is_overdue' => $holding && $due !== null && self::isPastDue($db, $due, $copyId, $today),

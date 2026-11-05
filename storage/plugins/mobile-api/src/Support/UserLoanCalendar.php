@@ -153,7 +153,7 @@ final class UserLoanCalendar
         // replaces an event by SEQUENCE takes the new end.
         $revisionShift = 0;
         $storedDue = substr((string) ($loan['data_scadenza'] ?? ''), 0, 10);
-        if (in_array($state, ['in_corso', 'in_ritardo'], true) && $storedDue !== '' && $end > $storedDue) {
+        if (in_array($state, ['in_corso', 'in_ritardo', 'prenotato'], true) && $storedDue !== '' && $end > $storedDue) {
             $revisionShift = (int) (new \DateTimeImmutable($storedDue))->diff(new \DateTimeImmutable($end))->days;
         }
         $updatedAt = (string) ($loan['updated_at'] ?? '');
