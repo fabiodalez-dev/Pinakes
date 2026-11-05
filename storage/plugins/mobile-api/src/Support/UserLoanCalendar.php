@@ -80,7 +80,7 @@ final class UserLoanCalendar
                 AND p.stato IN ({$in})
                 AND ((CASE WHEN p.stato = 'da_ritirare' AND p.pickup_deadline IS NOT NULL
                            THEN p.pickup_deadline ELSE p.data_scadenza END) >= ?
-                     OR p.stato IN ('in_corso', 'in_ritardo'))
+                     OR p.stato IN ('in_corso', 'in_ritardo', 'prenotato'))
               ORDER BY p.data_prestito ASC, p.id ASC"
         );
         if ($stmt === false) {
@@ -97,7 +97,9 @@ final class UserLoanCalendar
 
         \App\Support\LibraryCalendar::primeCopyBranches($this->db, array_map(static fn (array $r): int => (int) ($r['copia_id'] ?? 0), $rows));
 
-        return $rows;
+        // A booked loan ends on its usable day, which a closure can put after the stored one.
+        return array_values(array_filter($rows, fn (array $r): bool => $r['stato'] !== 'prenotato'
+            || \App\Support\LibraryCalendar::dueDate($this->db, substr((string) $r['data_scadenza'], 0, 10), $r['copia_id'] !== null ? (int) $r['copia_id'] : null) >= $today));
     }
 
     /**

@@ -581,6 +581,13 @@ $cases = [
         $daysMoved = (int) (new DateTimeImmutable((string) $rowDue))->diff(new DateTimeImmutable($t->today))->format('%r%a');
         $personal = $eventOf((new \App\Plugins\MobileApi\Support\UserLoanCalendar($t->db))->generate($t->reader, 'Review'), $loan);
         SettingsReview25::check($daysMoved > 0 && str_contains($personal, 'SEQUENCE:' . ((int) $rowSeq + $daysMoved) . "\r\n"), 'The personal feed gives the moved event a new revision');
+        // A booked loan whose stored end day passed inside the closure still has a usable day.
+        $bookedLoan = $t->loan($t->book($t->branchA), $t->day(-1), ['status' => 'prenotato']);
+        $expiredLoan = $t->loan($t->book($t->branchA), $t->day(-5), ['status' => 'prenotato']);
+        \App\Support\LibraryCalendar::reset();
+        $feed = (new \App\Plugins\MobileApi\Support\UserLoanCalendar($t->db))->generate($t->reader, 'Review');
+        SettingsReview25::check($eventOf($feed, $bookedLoan) !== '', 'The personal feed keeps a booked loan until its usable return day');
+        SettingsReview25::check($eventOf($feed, $expiredLoan) === '', 'The personal feed drops a booked loan whose usable return day has gone by');
     },
     '04 A reader who also missed the first open day really is overdue in the feed' => static function (SettingsReview25 $t): void {
         $loan = $t->loan($t->book($t->branchA), $t->day(-3));
