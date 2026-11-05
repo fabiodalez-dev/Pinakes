@@ -316,13 +316,13 @@ class ReservationsController
         // The longest loan ends on the maximum day, moved forward like every
         // due date when it falls on a closed day (closed days are not loan
         // days); without closures this is start + maximum, as before.
-        if ($endDate > \App\Services\CirculationPolicy::dueDateFor((string) $startDate, $maxDurationDays, $this->db)) {
+        if ($endDate > \App\Support\LibraryCalendar::requestDueDate($this->db, (string) $startDate, $maxDurationDays, (int) $bookId)) {
             $response->getBody()->write(json_encode(['success' => false, 'error' => 'max_duration_exceeded', 'message' => __('Il periodo richiesto supera la durata massima consentita di %d giorni', $maxDurationDays)]));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
         }
         // Closures calendar: a return date on a closed day moves to the next
         // open day (after the duration cap: closed days are not loan days).
-        $endDate = \App\Services\CirculationPolicy::dueDateFor($endDate, 0, $this->db);
+        $endDate = \App\Support\LibraryCalendar::requestDueDate($this->db, (string) $endDate, 0, (int) $bookId);
 
         // Availability decision routes through CapacityService — the single
         // capacity authority — so this web loan-request gate matches the mobile

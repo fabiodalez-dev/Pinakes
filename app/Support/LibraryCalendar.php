@@ -599,6 +599,21 @@ final class LibraryCalendar
         return $calendar->nextOpenDay($ymd, self::requestBranch($db, $bookId));
     }
 
+    /**
+     * Due date of a request for this book starting on $startYmd and lasting
+     * $days: moved past the closures of the same branch requestStartDay() and
+     * the request calendar use, so every return day the page offers is accepted.
+     */
+    public static function requestDueDate(\mysqli $db, string $startYmd, int $days, int $bookId): string
+    {
+        $due = \App\Services\CirculationPolicy::dueDateFor($startYmd, $days);
+        $calendar = self::forDb($db);
+        if (!$calendar->hasRules()) {
+            return $due;
+        }
+        return $calendar->nextOpenDay($due, self::requestBranch($db, $bookId));
+    }
+
     /** The branch of the book's lendable copies when they all sit in one, otherwise null. */
     public static function requestBranch(\mysqli $db, int $bookId): ?int
     {

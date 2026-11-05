@@ -642,6 +642,14 @@ $cases = [
             'A request on a closed day of the only copy\'s branch starts on its next open day (' . $reservation->getStatusCode() . ')'
         );
         SettingsReview25::eq(LibraryCalendar::requestStartDay($t->db, $t->day(5), $noBranchBook['id']), $t->day(5), 'Copies with no branch follow the library as a whole');
+        // The return day the page offers past that branch's closure is the one stored.
+        $endBook = $t->book($t->branchA);
+        (new \App\Controllers\ReservationsController($t->db))->createReservation(
+            $t->request('/api/libro/' . $endBook['id'] . '/reservation', ['start_date' => $t->day(1), 'end_date' => $t->day(5)]),
+            new Response(),
+            ['id' => $endBook['id']]
+        );
+        SettingsReview25::eq((string) $t->scalar("SELECT data_scadenza FROM prestiti WHERE libro_id={$endBook['id']} ORDER BY id DESC LIMIT 1"), $t->day(7), 'A request ending on a closed day of the copies\' branch ends on its next open day');
         $movedBook = $t->book($t->branchA);
         $t->db->query("INSERT INTO prenotazioni (libro_id,utente_id,data_inizio_richiesta,data_fine_richiesta,stato) VALUES ({$movedBook['id']},{$t->reader},'{$t->day(9)}','{$t->day(12)}','attiva')");
         $movedId = (int) $t->db->insert_id;
