@@ -903,9 +903,19 @@ class PrestitiController
         $libroId = (int) $current['libro_id'];
         $newUserId = isset($updateData['utente_id']) ? (int) $updateData['utente_id'] : (int) $current['utente_id'];
         $newPrestito = (string) ($updateData['data_prestito'] ?? $current['data_prestito']);
-        // Closures calendar: a submitted due date on a closed day moves forward.
-        if (isset($updateData['data_scadenza']) && \App\Support\DateHelper::isISODateFormat((string) $updateData['data_scadenza'])) {
-            $updateData['data_scadenza'] = \App\Services\CirculationPolicy::dueDateFor((string) $updateData['data_scadenza'], 0, $db, $current['copia_id'] !== null ? (int) $current['copia_id'] : null);
+        // Closures calendar: a changed due date on a closed day moves forward.
+        // The edit form always submits the field, so the stored value coming
+        // back is no change at all and stays as it is, closed day or not.
+        $submittedScadenza = isset($updateData['data_scadenza']) && \App\Support\DateHelper::isISODateFormat((string) $updateData['data_scadenza'])
+            ? (string) $updateData['data_scadenza']
+            : null;
+        $dueFromSubmitted = static function (array $row) use ($submittedScadenza, $db): string {
+            return $submittedScadenza === substr((string) $row['data_scadenza'], 0, 10)
+                ? (string) $row['data_scadenza']
+                : \App\Services\CirculationPolicy::dueDateFor((string) $submittedScadenza, 0, $db, $row['copia_id'] !== null ? (int) $row['copia_id'] : null);
+        };
+        if ($submittedScadenza !== null) {
+            $updateData['data_scadenza'] = $dueFromSubmitted($current);
         }
         $newScadenza = (string) ($updateData['data_scadenza'] ?? $current['data_scadenza']);
 
@@ -984,6 +994,11 @@ class PrestitiController
             // come fast-fail senza aprire la transazione).
             $newUserId = isset($updateData['utente_id']) ? (int) $updateData['utente_id'] : (int) $locked['utente_id'];
             $newPrestito = (string) ($updateData['data_prestito'] ?? $locked['data_prestito']);
+            // Decided again against the locked row: the date or the copy may have
+            // changed since the first read.
+            if ($submittedScadenza !== null) {
+                $updateData['data_scadenza'] = $dueFromSubmitted($locked);
+            }
             $newScadenza = (string) ($updateData['data_scadenza'] ?? $locked['data_scadenza']);
 
             // A pickup sender owns an immutable recipient snapshot while its
@@ -1768,12 +1783,13 @@ class PrestitiController
         } catch (\Throwable $e) {
             $db->rollback();
             SecureLogger::error(__('Errore elaborazione restituzione'), ['loan_id' => $id, 'error' => $e->getMessage()]);
-            // Deadlock (1213) o lock wait timeout (1205): la transazione è stata
-            // annullata integralmente, ritentare è sicuro e quasi sempre risolve.
+            // Deadlock (1213), lock wait timeout (1205) o riga cambiata dopo lo
+            // snapshot (1020, MariaDB con innodb_snapshot_isolation): la transazione
+            // è stata annullata, ritentare è sicuro e quasi sempre risolve.
             // Un errore dedicato evita il generico "update_failed" che non dice
             // all'operatore che basta ripetere l'operazione.
             $errno = $e instanceof \mysqli_sql_exception ? (int) $e->getCode() : 0;
-            $errorCode = in_array($errno, [1213, 1205], true) ? 'concurrent_retry' : 'update_failed';
+            $errorCode = in_array($errno, [1020, 1213, 1205], true) ? 'concurrent_retry' : 'update_failed';
             if ($redirectTo) {
                 $separator = strpos($redirectTo, '?') === false ? '?' : '&';
                 return $response->withHeader('Location', url($redirectTo . $separator . 'error=' . $errorCode))->withStatus(302);
@@ -2499,10 +2515,12 @@ class PrestitiController
             // non scade un prestito già in corso e rinnovato (F2). Azzera anche i
             // flag di notifica (M5a): la nuova scadenza deve ricevere il suo
             // promemoria e l'eventuale sollecito, altrimenti un prestito rinnovato
-            // dopo il warning non verrebbe mai più avvisato.
+            // dopo il warning non verrebbe mai più avvisato. Arrivano qui solo
+            // prestiti non in ritardo per isPastDue(): un vecchio stato 'in_ritardo'
+            // con la nuova scadenza futura non lo correggerebbe nessun altro.
             $updateStmt = $db->prepare("
                 UPDATE prestiti
-                SET data_scadenza = ?, renewals = ?, pickup_deadline = NULL,
+                SET data_scadenza = ?, renewals = ?, stato = 'in_corso', pickup_deadline = NULL,
                     warning_sent = 0, overdue_notification_sent = 0,
                     recall_count = 0, last_recall_at = NULL
                 WHERE id = ?

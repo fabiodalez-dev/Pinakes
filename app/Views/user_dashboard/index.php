@@ -443,7 +443,7 @@ $profileRoute = route_path('profile');
                 'libro_titolo' => $prestito['titolo_libro'] ?? '',
                 'autore' => ''
               ]);
-              $scadenza = strtotime($prestito['data_scadenza'] ?? '');
+              $scadenza = strtotime($prestito['effective_due_at'] ?? $prestito['data_scadenza'] ?? '');
               // Mezzanotte di "oggi" nel timezone applicativo: con time() (TZ
               // processo) il conteggio dei giorni cambiava a mezzanotte UTC,
               // in disaccordo col cron (updateOverdueLoans usa DateHelper).
@@ -454,8 +454,8 @@ $profileRoute = route_path('profile');
                   $in_scadenza = false;
               } else {
                   $giorni_rimanenti = (int)ceil(($scadenza - $oggi) / 86400);
-                  $scaduto = $giorni_rimanenti < 0;
-                  $in_scadenza = $giorni_rimanenti >= 0 && $giorni_rimanenti <= 3;
+                  $scaduto = !empty($prestito['is_overdue']);
+                  $in_scadenza = !$scaduto && $giorni_rimanenti >= 0 && $giorni_rimanenti <= 3;
               }
               $coverUrl = $prestito['copertina_url'] ?? '';
             ?>

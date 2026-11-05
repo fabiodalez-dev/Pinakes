@@ -59,7 +59,13 @@ class PrestitiApiController
             $params[] = $to;
             $param_types .= 's';
         }
-        if ($statoSpecifico !== '') {
+        if ($statoSpecifico === 'in_corso' || $statoSpecifico === 'in_ritardo') {
+            // Same verdict as the row's is_overdue, not the stored stato a sweep
+            // may not have updated yet.
+            $late = \App\Support\LibraryCalendar::overdueLoanCondition($db, \App\Support\DateHelper::today());
+            $where_prepared .= " AND p.attivo = 1 AND p.stato IN ('in_corso', 'in_ritardo') AND "
+                . ($statoSpecifico === 'in_ritardo' ? "({$late})" : "NOT ({$late})") . ' ';
+        } elseif ($statoSpecifico !== '') {
             $where_prepared .= " AND p.stato = ? ";
             $params[] = $statoSpecifico;
             $param_types .= 's';

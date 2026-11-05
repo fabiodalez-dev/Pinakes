@@ -729,7 +729,7 @@ class ReservationReassignmentService
     {
         // Recupera dati necessari per la notifica
         $stmt = $this->db->prepare("
-            SELECT p.id, p.utente_id, p.libro_id, p.data_prestito, p.data_scadenza,
+            SELECT p.id, p.utente_id, p.libro_id, p.copia_id, p.data_prestito, p.data_scadenza,
                    u.email, u.nome as utente_nome,
                    l.titolo as libro_titolo, l.isbn13, l.isbn10
             FROM prestiti p
@@ -777,7 +777,7 @@ class ReservationReassignmentService
             'libro_autore' => $author['nome'] ?? $this->notificationService->translateInLocale('Autore sconosciuto', $recipientLocale),
             'libro_isbn' => $isbn,
             'data_inizio' => $data['data_prestito'] ? $this->notificationService->formatEmailDate((string) $data['data_prestito'], false, $recipientLocale) : '',
-            'data_fine' => $data['data_scadenza'] ? $this->notificationService->formatEmailDate((string) $data['data_scadenza'], false, $recipientLocale) : '',
+            'data_fine' => $data['data_scadenza'] ? $this->notificationService->formatEmailDate(\App\Support\LibraryCalendar::dueDate($this->db, (string) $data['data_scadenza'], $data['copia_id'] !== null ? (int) $data['copia_id'] : null), false, $recipientLocale) : '',
             'book_url' => absoluteUrl($bookLink),
             'profile_url' => absoluteUrl(RouteTranslator::route('profile'))
         ];

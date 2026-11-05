@@ -113,7 +113,7 @@ unset($workspaceHeader);
                                         </p>
                                         <p class="text-gray-600 dark:text-gray-400 flex items-center">
                                             <i class="fas fa-calendar-times w-4 text-center mr-1 text-red-500"></i>
-                                            <?= __("Scaduto:") ?> <?= format_date($loan['data_scadenza'], false, '/') ?>
+                                            <?= __("Scaduto:") ?> <?= format_date($loan['effective_due_at'] ?? $loan['data_scadenza'], false, '/') ?>
                                         </p>
                                     </div>
                                 </div>
@@ -358,7 +358,8 @@ unset($workspaceHeader);
             <div class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
                 <?php foreach ($activeLoans as $loan): ?>
                     <?php
-                    $daysLeft = (strtotime($loan['data_scadenza']) - strtotime($today)) / 86400;
+                    $activeDue = (string) ($loan['effective_due_at'] ?? $loan['data_scadenza']);
+                    $daysLeft = (int) (new \DateTimeImmutable($today))->diff(new \DateTimeImmutable($activeDue))->format('%r%a');
                     $isExpiringSoon = $daysLeft <= 3 && $daysLeft >= 0;
                     ?>
                     <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border <?= $isExpiringSoon ? 'border-amber-300 dark:border-amber-700' : 'border-gray-200 dark:border-gray-700' ?> overflow-hidden hover:shadow-md transition-shadow">
@@ -386,7 +387,7 @@ unset($workspaceHeader);
                                         </p>
                                         <p class="text-gray-600 dark:text-gray-400 flex items-center">
                                             <i class="fas fa-calendar-check w-4 text-center mr-1 text-green-500"></i>
-                                            <?= __("Scadenza:") ?> <?= format_date($loan['data_scadenza'], false, '/') ?>
+                                            <?= __("Scadenza:") ?> <?= format_date($activeDue, false, '/') ?>
                                         </p>
                                     </div>
                                 </div>

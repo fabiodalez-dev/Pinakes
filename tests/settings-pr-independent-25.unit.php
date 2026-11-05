@@ -411,6 +411,15 @@ $cases = [
             SettingsReview25::eq($t->scalar("SELECT stato FROM prestiti WHERE id={$ncipLoan}"), 'in_corso', 'A successful NCIP renewal clears an obsolete late state');
         }
 
+        // The desk renewal clears an old late flag too: a loan stored as late on
+        // its first usable return day ends up on time with a future due date, and
+        // no later job would correct it.
+        $staleBook = $t->book($t->branchA);
+        $staleLoan = $t->loan($staleBook, $t->day(-1), ['status' => 'in_ritardo']);
+        $staleResult = $t->renew($staleLoan);
+        SettingsReview25::check(!str_contains($staleResult->getHeaderLine('Location'), 'error='), 'A stale late flag does not refuse the renewal: ' . $staleResult->getHeaderLine('Location'));
+        SettingsReview25::eq([$t->due($staleLoan), $t->scalar("SELECT stato FROM prestiti WHERE id={$staleLoan}")], [$t->day(14), 'in_corso'], 'A desk renewal of a not-yet-late loan clears the late flag');
+
         // Refused because another reader's reservation starts tomorrow: the
         // "renew until D" offer counts from the same usable day, so it never
         // proposes today, a date the renewal bound would then refuse.
@@ -501,6 +510,11 @@ $cases = [
             })($view, [$readerLoan]);
             SettingsReview25::check(!str_contains($html, '<div class="alert-overdue"'), 'Reader page must not show a false overdue alert: ' . $view);
         }
+        $_SESSION = ['user' => ['id' => $t->reader, 'tipo_utente' => 'standard', 'stato' => 'attivo']];
+        $home = (string) (new \App\Controllers\UserDashboardController())->index($t->request('/user/dashboard'), new Response(), $t->db)->getBody();
+        $t->asAdmin();
+        SettingsReview25::check(!str_contains($home, 'availability-badge expired') && str_contains($home, 'availability-badge expiring'), 'The reader home calls the loan due, not expired, on its first usable return day');
+        SettingsReview25::check(str_contains($home, __('Scadenza:') . ' ' . format_date($t->today, false, '/')), 'The reader home shows the usable return day');
 
         $closedToday = $t->book($t->branchB);
         $closedTodayLoan = $t->loan($closedToday, $t->today);
@@ -572,6 +586,88 @@ $cases = [
         $staff = (new \App\Plugins\MobileApi\Support\StaffLoanReader($t->db))->loan($loan);
         SettingsReview25::eq([$staff['is_overdue'], $staff['days_overdue']], [true, 1], 'Desk counts the one open late day, excluding the retroactive closure');
         SettingsReview25::check(in_array('recall', $staff['actions'], true) && !in_array('renew', $staff['actions'], true), 'Genuinely overdue native loans offer recall and refuse renewal');
+
+        // Staff tiles, buckets and the web filter split the loans out as each
+        // loan's own is_overdue does: an old late flag on the first usable return
+        // day is active and due today, a loan past due before the sweep is overdue.
+        $t->db->query("INSERT INTO calendario_chiusure (data_inizio,data_fine,descrizione,sede_id,attiva) VALUES ('{$t->day(-1)}','{$t->day(-1)}','Review25 retroactive',{$t->branchB},1)");
+        LibraryCalendar::reset();
+        $stale = $t->loan($t->book($t->branchB), $t->day(-1), ['status' => 'in_ritardo']);
+        $unswept = $t->loan($t->book(), $t->day(-2));
+        $reader = new \App\Plugins\MobileApi\Support\StaffLoanReader($t->db);
+        $tiles = $reader->summary();
+        SettingsReview25::eq([$tiles['active'], $tiles['overdue'], $tiles['due_today']], [1, 2, 1], 'One loan out sits in exactly one of active and overdue, and overdue excludes due today');
+        $bucket = static fn (string $name): array => $reader->loans($name, [], 0, 50)['items'];
+        SettingsReview25::eq(array_map(static fn (array $i): array => [$i['id'], $i['is_overdue']], $bucket('active')), [[$stale, false]], 'The active bucket lists the on-time loan with the old late flag');
+        $late = array_map(static fn (array $i): array => [$i['id'], $i['is_overdue']], $bucket('overdue'));
+        sort($late);
+        $expectedLate = [[$loan, true], [$unswept, true]];
+        sort($expectedLate);
+        SettingsReview25::eq($late, $expectedLate, 'The overdue bucket lists the loans past due, swept or not');
+        $tableIds = static function (string $state) use ($t): array {
+            $request = $t->request('/api/prestiti')->withQueryParams(['stato_specifico' => $state, 'length' => '50']);
+            $body = (string) (new \App\Controllers\PrestitiApiController())->list($request, new Response(), $t->db)->getBody();
+            $ids = array_column(json_decode($body, true, flags: JSON_THROW_ON_ERROR)['data'], 'id');
+            sort($ids);
+            return $ids;
+        };
+        $expectedIds = [$loan, $unswept];
+        sort($expectedIds);
+        SettingsReview25::eq($tableIds('in_ritardo'), $expectedIds, 'The web late filter agrees with the row flags');
+        SettingsReview25::eq($tableIds('in_corso'), [$stale], 'The web in-progress filter agrees with the row flags');
+        SettingsReview25::eq($tableIds('prenotato'), [], 'Any other state still filters on the stored value');
+
+        // The desk page counts open days from the usable day, as the notices do.
+        $desk = (string) (new \App\Controllers\LoanApprovalController())->pendingLoans($t->request('/admin/loans/pending'), new Response(), $t->db)->getBody();
+        SettingsReview25::check(!str_contains($desk, sprintf(__('%d giorni di ritardo'), 3)), 'The desk does not count the closed days as late');
+        SettingsReview25::check(str_contains($desk, sprintf(__('%d giorni di ritardo'), 1)), 'The desk says one day late, as the fine counts it, and never zero for a stored late flag');
+        SettingsReview25::check(str_contains($desk, __('Scaduto:') . ' ' . format_date($t->day(-1), false, '/')), 'The desk names the first usable return day as the missed one');
+
+        // A branch closed for a stretch that started before today: the desk and
+        // the dashboard show the usable day and no "act now" cue before it.
+        $t->db->query("INSERT INTO sedi (nome) VALUES ('Review branch C')");
+        $branchC = (int) $t->db->insert_id;
+        $t->db->query("INSERT INTO calendario_chiusure (data_inizio,data_fine,descrizione,sede_id,attiva) VALUES ('{$t->day(-1)}','{$t->day(2)}','Review25 stretch',{$branchC},1)");
+        LibraryCalendar::reset();
+        $closedBook = $t->book($branchC);
+        $t->loan($closedBook, $t->day(-1));
+        $desk = (string) (new \App\Controllers\LoanApprovalController())->pendingLoans($t->request('/admin/loans/pending'), new Response(), $t->db)->getBody();
+        SettingsReview25::check(str_contains($desk, sprintf(__('Scade tra %d giorni'), 3)), 'The desk warns three days before the usable return day');
+        SettingsReview25::check(str_contains($desk, __('Scadenza:') . ' ' . format_date($t->day(3), false, '/')), 'The desk card shows the usable return day');
+        $dashboardRows = (new \App\Models\DashboardStats($t->db))->activeLoans();
+        $closedRow = array_values(array_filter($dashboardRows, static fn (array $r): bool => (int) $r['libro_id'] === $closedBook['id']))[0] ?? [];
+        SettingsReview25::eq([$closedRow['effective_due_at'] ?? null, $closedRow['due_attention'] ?? null, $closedRow['data_scadenza'] ?? null], [$t->day(3), false, $t->day(-1)], 'The dashboard row carries the usable day, no cue, and the stored date');
+        $dashboard = (string) (new \App\Controllers\DashboardController())->index($t->request('/admin/dashboard'), new Response(), $t->db)->getBody();
+        $closedTitle = (string) $t->scalar("SELECT titolo FROM libri WHERE id={$closedBook['id']}");
+        $dueCell = static fn (string $class, string $ymd): string => '/text-sm ' . $class . '">\s*' . preg_quote(format_date($ymd), '/') . '\s*<\/td>/';
+        SettingsReview25::check(preg_match($dueCell('text-gray-500', $t->day(3)), $dashboard) === 1 && preg_match($dueCell('text-red-600 font-semibold', $t->day(3)), $dashboard) === 0, 'The dashboard table shows the usable day without the red cue');
+        $event = array_values(array_filter((new \App\Models\DashboardStats($t->db))->calendarEvents(), static fn (array $e): bool => $e['title'] === $closedTitle))[0] ?? [];
+        SettingsReview25::eq([$event['end'] ?? null, $event['status'] ?? null], [$t->day(3), 'in_corso'], 'The dashboard calendar ends the loan on its usable day, on time');
+
+        // The book page: an on-time loan is neither red nor flagged in the copies
+        // table on its due day, a cancelled loan is not red in the history, and a
+        // loan really past due still is, in both.
+        $bookPage = static function (array $book) use ($t): string {
+            return (string) (new \App\Controllers\LibriController())->show($t->request('/admin/books/' . $book['id']), new Response(), $t->db, $book['id'])->getBody();
+        };
+        $redDate = static fn (string $ymd): string => '/text-red-600 font-semibold">\s*(<i class="fas fa-calendar-times[^>]*><\/i>\s*)?' . preg_quote(format_date($ymd, false, '/'), '/') . '/';
+        $onTimeBook = $t->book();
+        $t->loan($onTimeBook, $t->today);
+        $t->db->query("INSERT INTO prestiti (libro_id,copia_id,utente_id,data_prestito,data_scadenza,stato,origine,attivo) VALUES ({$onTimeBook['id']},{$onTimeBook['copies'][0]},{$t->secondReader},'{$t->day(-60)}','{$t->day(-40)}','annullato','diretto',0)");
+        $page = $bookPage($onTimeBook);
+        SettingsReview25::check(preg_match($redDate($t->today), $page) === 0, 'A loan due today is not red in the copies table or the history');
+        SettingsReview25::check(preg_match($redDate($t->day(-40)), $page) === 0, 'A cancelled loan is not red in the history');
+        SettingsReview25::eq(array_map(static fn (array $c): array => [$c['effective_due_at'], $c['is_overdue']], (new \App\Models\CopyRepository($t->db))->getByBookId($onTimeBook['id'])), [[$t->today, false]], 'The copy row carries the calendar facts of its loan');
+        $page = $bookPage($closedBook);
+        SettingsReview25::check(str_contains($page, format_date($t->day(3), false, '/')) && preg_match($redDate($t->day(-1)), $page) === 0, 'A closed due day shows the usable day and no red');
+        $lateBook = $t->book();
+        $t->loan($lateBook, $t->day(-5));
+        SettingsReview25::eq(preg_match_all($redDate($t->day(-5)), $bookPage($lateBook)), 3, 'A loan really past due is red in the panel, the copies table and the history');
+
+        // With the module off the same split is the plain date comparison.
+        $t->saveLoans(['feature_closures_calendar' => '0']);
+        $plain = (new \App\Plugins\MobileApi\Support\StaffLoanReader($t->db))->summary();
+        SettingsReview25::eq([$plain['active'], $plain['overdue'], $plain['due_today']], [1, 5, 1], 'No calendar: overdue means a due date before today, whatever the stored flag');
     },
     '05 A branch closure shifts its loan while a second branch keeps its date' => static function (SettingsReview25 $t): void {
         $due = $t->day(8);
@@ -599,6 +695,42 @@ $cases = [
         $t->loan($b, $t->day(10), ['start' => $t->day(7), 'reader' => $t->secondReader, 'status' => 'prenotato']);
         SettingsReview25::check($t->closure($due, branch: $t->branchA) > 0, 'Conflicting extension must not discard the closure');
         SettingsReview25::eq([$t->due($loan), $t->events($b['id'])], [$due, 0], 'Per-copy promise wins even when title-wide capacity is two');
+
+        // Saving the edit form changes nothing about a date the calendar left in
+        // place: the form submits the stored date back, closed day or not.
+        $edit = static function (int $id, string $dueDate) use ($t): string {
+            $row = $t->db->query("SELECT utente_id, data_prestito FROM prestiti WHERE id={$id}")->fetch_assoc();
+            return (new PrestitiController())->update($t->request('/admin/loans/update/' . $id, [
+                'utente_id' => (string) $row['utente_id'], 'data_prestito' => (string) $row['data_prestito'], 'data_scadenza' => $dueDate,
+            ]), new Response(), $t->db, $id)->getHeaderLine('Location');
+        };
+        $t->db->query("UPDATE prestiti SET warning_sent=1, recall_count=2 WHERE id={$loan}");
+        $sentState = "SELECT CONCAT(warning_sent,'|',recall_count) FROM prestiti WHERE id={$loan}";
+        $saved = $edit($loan, $due);
+        SettingsReview25::check(!str_contains($saved, 'error='), 'An unchanged date on a blocked loan saves: ' . $saved);
+        SettingsReview25::eq([$t->due($loan), $t->scalar($sentState)], [$due, '1|2'], 'The date and the reminder state stay as they were');
+
+        // An overdue loan whose past due day was closed afterwards: its other
+        // fields stay editable, and its date does not move.
+        $pastBook = $t->book($t->branchA);
+        $pastLoan = $t->loan($pastBook, $t->day(-3), ['status' => 'in_ritardo']);
+        $t->db->query("INSERT INTO calendario_chiusure (data_inizio,data_fine,descrizione,sede_id,attiva) VALUES ('{$t->day(-3)}','{$t->day(-3)}','Review25 past',{$t->branchA},1)");
+        LibraryCalendar::reset();
+        $saved = $edit($pastLoan, $t->day(-3));
+        SettingsReview25::check(!str_contains($saved, 'error='), 'An unchanged past date on a closed day saves: ' . $saved);
+        SettingsReview25::eq($t->due($pastLoan), $t->day(-3), 'The past date stays as stored');
+
+        // A date actually typed still follows the calendar, and a stale form
+        // submitting the closed day the calendar already moved past is no change.
+        $freeLoan = $t->loan($t->book($t->branchA), $t->day(20));
+        $t->db->query("INSERT INTO calendario_chiusure (data_inizio,data_fine,descrizione,sede_id,attiva) VALUES ('{$t->day(25)}','{$t->day(25)}','Review25 typed',{$t->branchA},1)");
+        LibraryCalendar::reset();
+        $saved = $edit($freeLoan, $t->day(25));
+        SettingsReview25::check(!str_contains($saved, 'error='), 'A typed closed day saves: ' . $saved);
+        SettingsReview25::eq($t->due($freeLoan), $t->day(26), 'A typed closed day moves to the next open day');
+        $t->db->query("UPDATE prestiti SET warning_sent=1 WHERE id={$freeLoan}");
+        $edit($freeLoan, $t->day(25));
+        SettingsReview25::eq([$t->due($freeLoan), (int) $t->scalar("SELECT warning_sent FROM prestiti WHERE id={$freeLoan}")], [$t->day(26), 1], 'A stale form naming that closed day changes nothing');
     },
     '07 Capacity promised only on the final added day still blocks the whole extension' => static function (SettingsReview25 $t): void {
         $b = $t->book($t->branchA); $due = $t->day(5); $last = $t->day(8);
@@ -721,6 +853,35 @@ $cases = [
         // Six days after Jan 10, two closed days, two deducted grace days: 2 × 75 cents.
         SettingsReview25::eq($ledger->chargeLateReturn($loan, $t->operator), 150, 'Persisted return must charge two billable open days');
         SettingsReview25::eq($ledger->balanceCents($t->reader), 150, 'The reader ledger must contain the same amount');
+
+        // The fine e-mail states the day the count starts from: due on a day closed
+        // afterwards, returned five open days after the first open one.
+        $t->set('loans', \App\Services\FineParameters::SETTING_FINE_EMAIL, '1');
+        $finedLoan = $t->loan($t->book($t->branchB), '2026-01-10', ['start' => '2026-01-01', 'status' => 'restituito', 'returned' => '2026-01-16']);
+        $t->closure('2026-01-10', branch: $t->branchB);
+        SettingsReview25::check(PatronLedger::forDb($t->db)->chargeLateReturn($finedLoan, $t->operator) > 0, 'The late return is charged');
+        $fakeEmail = new class extends \App\Support\EmailService {
+            public array $sent = [];
+            public function __construct() {}
+            public function sendTemplate(string $to, string $templateName, array $variables = [], ?string $locale = null, array $attachments = []): bool
+            {
+                $this->sent[] = ['template' => $templateName, 'variables' => $variables];
+                return true;
+            }
+        };
+        $notifications = new \App\Support\NotificationService($t->db);
+        (new ReflectionProperty($notifications, 'emailService'))->setValue($notifications, $fakeEmail);
+        $reachable = new ReflectionProperty(\App\Support\Mailer::class, 'smtpReachable');
+        $reachableBefore = $reachable->getValue();
+        $reachable->setValue(null, true);
+        try {
+            SettingsReview25::check($notifications->sendFineChargedNotification($finedLoan), 'The fine e-mail goes out');
+        } finally {
+            $reachable->setValue(null, $reachableBefore);
+        }
+        $fineVars = array_values(array_filter($fakeEmail->sent, static fn (array $m): bool => $m['template'] === 'fine_charged'))[0]['variables'] ?? [];
+        SettingsReview25::eq([$fineVars['data_scadenza'] ?? null, $fineVars['giorni_ritardo'] ?? null], ['11-01-2026', '5'], 'The fine e-mail names the first open day beside the open days counted from it');
+        SettingsReview25::eq($t->due($finedLoan), '2026-01-10', 'The stored date of a returned loan does not change');
     },
     '21 An excessive fine rejects the whole loan-settings form before changing durations' => static function (SettingsReview25 $t): void {
         // A syntactically valid amount just above the form's 9,999.99 limit.

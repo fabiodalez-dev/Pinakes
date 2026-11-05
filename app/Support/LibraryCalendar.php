@@ -233,6 +233,51 @@ final class LibraryCalendar
     }
 
     /**
+     * Ids of the loans out that are late on $today by isPastDue(), whatever
+     * their stored stato says. Reads prestiti only: a caller that lists or
+     * counts titles keeps its own join with libri.
+     *
+     * @return list<int>
+     */
+    public static function overdueLoanIds(\mysqli $db, string $today): array
+    {
+        $stmt = $db->prepare(
+            "SELECT id, data_scadenza, copia_id FROM prestiti
+             WHERE attivo = 1 AND stato IN ('in_corso', 'in_ritardo') AND data_scadenza < ?"
+        );
+        if ($stmt === false) {
+            throw new \RuntimeException('LibraryCalendar: overdue loans query not prepared');
+        }
+        $stmt->bind_param('s', $today);
+        $stmt->execute();
+        $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+        $stmt->close();
+        self::primeCopyBranches($db, array_map(static fn (array $r): int => (int) ($r['copia_id'] ?? 0), $rows));
+        $ids = [];
+        foreach ($rows as $row) {
+            if (self::isPastDue($db, (string) $row['data_scadenza'], $row['copia_id'] !== null ? (int) $row['copia_id'] : null, $today)) {
+                $ids[] = (int) $row['id'];
+            }
+        }
+        return $ids;
+    }
+
+    /**
+     * SQL condition, for a row of prestiti already restricted to loans out, that
+     * holds when the loan is late by isPastDue(). With no calendar rules that is
+     * the plain date comparison, served by the data_scadenza indexes; with rules
+     * it is the id list of overdueLoanIds(). Contains no bound parameter.
+     */
+    public static function overdueLoanCondition(\mysqli $db, string $today, string $alias = 'p'): string
+    {
+        if (!self::forDb($db)->hasRules()) {
+            return "{$alias}.data_scadenza < '" . $db->real_escape_string($today) . "'";
+        }
+        $ids = self::overdueLoanIds($db, $today);
+        return $ids === [] ? '1 = 0' : "{$alias}.id IN (" . implode(',', $ids) . ')';
+    }
+
+    /**
      * After a calendar change: an active loan whose due date (today or later)
      * now falls on a closed day of the copy's branch is due on the next open
      * day instead, as if it had been lent after the change: the reader never
@@ -365,10 +410,13 @@ final class LibraryCalendar
                     } catch (\Throwable) {
                     }
                 }
-                $lockConflict = $e instanceof \mysqli_sql_exception && in_array($e->getCode(), [1205, 1213], true);
-                // Deadlock / lock wait timeout inside a caller's transaction:
-                // MySQL rolled it back (or will), and it must not commit as if
-                // the move had worked.
+                $lockConflict = $e instanceof \mysqli_sql_exception && in_array($e->getCode(), [1020, 1205, 1213], true);
+                // Deadlock, lock wait timeout or, on MariaDB with
+                // innodb_snapshot_isolation, a row changed since the snapshot
+                // (1020) inside a caller's transaction: the server rolled it
+                // back (or will), and it must not commit as if the move had
+                // worked. Carrying on would give each remaining loan its own
+                // committed transaction, moved for a closure no longer saved.
                 if ($lockConflict && !$ownTransaction) {
                     throw $e;
                 }

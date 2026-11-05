@@ -622,5 +622,93 @@ $check($ok === null && $err === __('Chiusura non trovata.'), 'race: an update wh
 $clearClosures();
 $_SESSION = [];
 
+// ── E-mails quote the usable return day ───────────────────────────────────
+// A stored due date on a closed day, as a move the book could not take leaves
+// it: every message about the loan names the next open day, the row stays as
+// it is, and with the closure gone the text is the stored date again.
+$mailDue = $openFrom($shift($today, 45), 1);
+$mailNext = $shift($mailDue, 1);
+$db->query("INSERT INTO utenti (codice_tessera, nome, cognome, email, password, stato, tipo_utente) VALUES ('{$tag}-mail', 'Mail', 'Reader', '{$tag}@example.invalid', 'x', 'attivo', 'standard')");
+$mailUser = (int) $db->insert_id;
+$db->query("INSERT INTO libri (titolo, copie_totali, copie_disponibili, stato) VALUES ('{$tag} mail', 1, 0, 'prestato')");
+$mailBook = (int) $db->insert_id;
+$db->query("INSERT INTO copie (libro_id, numero_inventario, stato) VALUES ({$mailBook}, '{$tag}-mail', 'prestato')");
+$mailCopy = (int) $db->insert_id;
+$db->query("INSERT INTO prestiti (libro_id, copia_id, utente_id, data_prestito, data_scadenza, stato, origine, attivo) VALUES ({$mailBook}, {$mailCopy}, {$mailUser}, '{$today}', '{$mailDue}', 'in_corso', 'diretto', 1)");
+$mailLoan = (int) $db->insert_id;
+$mailbox = new class extends \App\Support\EmailService {
+    /** @var list<array{template: string, variables: array<string, mixed>}> */
+    public array $sent = [];
+    public function __construct()
+    {
+    }
+    public function sendTemplate(string $to, string $templateName, array $variables = [], ?string $locale = null, array $attachments = []): bool
+    {
+        $this->sent[] = ['template' => $templateName, 'variables' => $variables];
+        return true;
+    }
+};
+$notifications = new \App\Support\NotificationService($db);
+(new ReflectionProperty($notifications, 'emailService'))->setValue($notifications, $mailbox);
+$reachable = new ReflectionProperty(\App\Support\Mailer::class, 'smtpReachable');
+$reachableBefore = $reachable->getValue();
+$reachable->setValue(null, true);
+$pdfFields = new class ($db) extends \App\Support\LoanPdfGenerator {
+    /** @var array<string, mixed> */
+    public array $fields = [];
+    protected function renderSection(\TCPDF $pdf, string $title, array $fields): void
+    {
+        $this->fields += $fields;
+    }
+};
+$sentDate = static function (string $template, string $variable) use ($mailbox): ?string {
+    foreach (array_reverse($mailbox->sent) as $mail) {
+        if ($mail['template'] === $template) {
+            return (string) ($mail['variables'][$variable] ?? '');
+        }
+    }
+    return null;
+};
+$mailDay = static fn (string $ymd): string => $notifications->formatEmailDate($ymd, false, $notifications->resolveRecipientLocale("{$tag}@example.invalid"));
+$sendAll = static function () use ($notifications, $mailLoan): void {
+    $notifications->sendLoanReceiptEmail($mailLoan);
+    $notifications->sendLoanApprovedNotification($mailLoan);
+    $notifications->sendLoanPickedUpNotification($mailLoan);
+};
+try {
+    $addClosure($mailDue, $mailDue);
+    $sendAll();
+    foreach ([['loan_receipt_email', 'data_scadenza'], ['loan_approved', 'data_fine'], ['loan_picked_up', 'data_scadenza']] as [$template, $variable]) {
+        $check($sentDate($template, $variable) === $mailDay($mailNext), "e-mail {$template}: {$variable} is the next open day");
+    }
+    $pdfFields->generate($mailLoan);
+    $check(($pdfFields->fields[__('Data Scadenza:')] ?? null) === format_date($mailNext, false, '/'), 'the receipt PDF attached to that e-mail shows the same day');
+    $check((string) $db->query("SELECT data_scadenza FROM prestiti WHERE id = {$mailLoan}")->fetch_row()[0] === $mailDue, 'quoting the usable day leaves the stored due date alone');
+    // A reader moved to another copy hears the same day.
+    $db->query("UPDATE prestiti SET stato = 'da_ritirare' WHERE id = {$mailLoan}");
+    $reassignment = new \App\Services\ReservationReassignmentService($db);
+    (new ReflectionProperty($reassignment, 'notificationService'))->setValue($reassignment, $notifications);
+    (new ReflectionMethod($reassignment, 'notifyUserCopyAvailable'))->invoke($reassignment, $mailLoan);
+    $check($sentDate('reservation_awaiting_approval', 'data_fine') === $mailDay($mailNext), 'e-mail reservation_awaiting_approval: data_fine is the next open day');
+    $notifications->sendPickupReadyNotification($mailLoan);
+    $check($sentDate('loan_pickup_ready', 'data_fine') === $mailDay($mailNext), 'e-mail loan_pickup_ready: data_fine is the next open day');
+    $db->query("UPDATE prestiti SET stato = 'in_corso' WHERE id = {$mailLoan}");
+
+    $clearClosures();
+    $mailbox->sent = [];
+    $sendAll();
+    foreach ([['loan_receipt_email', 'data_scadenza'], ['loan_approved', 'data_fine'], ['loan_picked_up', 'data_scadenza']] as [$template, $variable]) {
+        $check($sentDate($template, $variable) === $mailDay($mailDue), "e-mail {$template}: with no closure {$variable} is the stored date");
+    }
+} finally {
+    $reachable->setValue(null, $reachableBefore);
+    $clearClosures();
+    $db->query("DELETE FROM email_delivery_outbox WHERE recipient_email = '{$tag}@example.invalid'");
+    $db->query("DELETE FROM prestiti WHERE id = {$mailLoan}");
+    $db->query("DELETE FROM copie WHERE id = {$mailCopy}");
+    $db->query("DELETE FROM libri WHERE id = {$mailBook}");
+    $db->query("DELETE FROM utenti WHERE id = {$mailUser}");
+}
+
 echo ($failed === 0 ? 'SUCCESS' : 'FAILURE') . " {$passed} passed, {$failed} failed\n";
 exit($failed === 0 ? 0 : 1);

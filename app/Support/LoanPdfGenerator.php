@@ -176,7 +176,7 @@ class LoanPdfGenerator
         $this->renderSection($pdf, __('Informazioni Prestito'), [
             __('ID Prestito:') => $loan['id'],
             __('Data Prestito:') => format_date($loan['data_prestito'], false, '/'),
-            __('Data Scadenza:') => format_date($loan['data_scadenza'], false, '/'),
+            __('Data Scadenza:') => format_date($loan['effective_due_at'] ?? $loan['data_scadenza'], false, '/'),
             __('Stato:') => $this->translateStatus($loan['stato']),
         ]);
 

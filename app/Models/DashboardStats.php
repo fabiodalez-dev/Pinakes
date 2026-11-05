@@ -85,12 +85,7 @@ class DashboardStats
                 JOIN utenti u ON p.utente_id = u.id
                 WHERE p.stato IN ('in_corso','in_ritardo') AND p.attivo = 1";
         $res = $this->db->query($sql);
-        if ($res) {
-            while ($row = $res->fetch_assoc()) {
-                $rows[] = $row;
-            }
-        }
-        return $rows;
+        return $res ? $this->withLoanDates($res->fetch_all(MYSQLI_ASSOC)) : $rows;
     }
 
     public function overdueLoans(): array
@@ -102,12 +97,21 @@ class DashboardStats
                 JOIN utenti u ON p.utente_id = u.id
                 WHERE p.stato='in_ritardo' AND p.attivo = 1";
         $res = $this->db->query($sql);
-        if ($res) {
-            while ($row = $res->fetch_assoc()) {
-                $rows[] = $row;
-            }
-        }
-        return $rows;
+        return $res ? $this->withLoanDates($res->fetch_all(MYSQLI_ASSOC)) : $rows;
+    }
+
+    /**
+     * Adds the usable return day and the calendar flags to loan rows, with one
+     * branch read for the whole list. The rows stay the ones the caller selected.
+     *
+     * @param list<array<string, mixed>> $rows rows carrying copia_id, stato, attivo, data_scadenza
+     * @return list<array<string, mixed>>
+     */
+    private function withLoanDates(array $rows): array
+    {
+        \App\Support\LibraryCalendar::primeCopyBranches($this->db, array_map(static fn (array $r): int => (int) ($r['copia_id'] ?? 0), $rows));
+        $today = \App\Support\DateHelper::today();
+        return array_map(fn (array $r): array => $r + \App\Support\LibraryCalendar::loanDates($this->db, $r, $today), $rows);
     }
 
     public function pendingLoans(int $limit = 4): array
@@ -225,7 +229,7 @@ class DashboardStats
 
         // Fetch active/scheduled loans (in_corso, prenotato, in_ritardo, pendente)
         // Include pendente loans with attivo=0 (waiting for admin approval)
-        $loanSql = "SELECT p.id, p.stato, p.data_prestito, p.data_scadenza,
+        $loanSql = "SELECT p.id, p.copia_id, p.attivo, p.stato, p.data_prestito, p.data_scadenza,
                            l.titolo, CONCAT(u.nome, ' ', u.cognome) AS utente_nome,
                            'prestito' AS tipo
                     FROM prestiti p
@@ -241,18 +245,20 @@ class DashboardStats
         $stmt = $this->db->prepare($loanSql);
         $stmt->bind_param('sss', $today, $today, $sixMonthsLater);
         $stmt->execute();
-        $res = $stmt->get_result();
-        while ($row = $res->fetch_assoc()) {
-            $isOpenEnded = $row['stato'] === 'in_ritardo'
-                || ($row['stato'] === 'in_corso' && (string) $row['data_scadenza'] < $today);
+        foreach ($this->withLoanDates($stmt->get_result()->fetch_all(MYSQLI_ASSOC)) as $row) {
+            // The calendar states lateness and the end day as the exported feed
+            // does: a loan out ends on its usable return day, or stays open
+            // through today once that day has gone by.
+            if (in_array($row['stato'], ['in_corso', 'in_ritardo'], true) && (int) $row['attivo'] === 1) {
+                $row['stato'] = $row['is_overdue'] ? 'in_ritardo' : 'in_corso';
+            }
+            $loanEnd = (string) ($row['effective_due_at'] ?? $row['data_scadenza']);
             $events[] = [
                 'id' => 'loan_' . $row['id'],
                 'title' => $row['titolo'],
                 'user' => $row['utente_nome'],
                 'start' => $row['data_prestito'],
-                'end' => $isOpenEnded
-                    ? max((string) $row['data_scadenza'], $today)
-                    : $row['data_scadenza'],
+                'end' => $row['stato'] === 'in_ritardo' ? max($loanEnd, $today) : $loanEnd,
                 'type' => 'prestito',
                 'status' => $row['stato']
             ];

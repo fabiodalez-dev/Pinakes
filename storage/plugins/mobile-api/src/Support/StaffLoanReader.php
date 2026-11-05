@@ -13,7 +13,9 @@ use mysqli;
  *
  * The list queries mirror the five desk lists of
  * LoanApprovalController::pendingLoans() (pending, ready for pickup,
- * scheduled, active, overdue) plus the history; the joined `libri` row always
+ * scheduled, active, overdue) plus the history, except that active and overdue
+ * split the loans out by LibraryCalendar::isPastDue(), the verdict each item
+ * reports as is_overdue, not by the stored stato; the joined `libri` row always
  * carries `deleted_at IS NULL`. Writes never happen here: every mutation is
  * delegated to the core controllers, and this class only reloads the row
  * afterwards so the API answers with the resource as it now is.
@@ -22,6 +24,7 @@ final class StaffLoanReader
 {
     public const BUCKETS = ['pending', 'pickup', 'scheduled', 'active', 'overdue', 'history', 'all'];
     public const RESERVATION_STATES = ['attiva', 'completata', 'annullata', 'all'];
+    private const LOAN_OUT_SQL = "p.attivo = 1 AND p.stato IN ('in_corso', 'in_ritardo')";
 
     private ?\App\Services\CirculationPolicy $circulation = null;
 
@@ -88,11 +91,11 @@ final class StaffLoanReader
                 $order = 'p.data_prestito ASC, p.id ASC';
                 break;
             case 'active':
-                $where[] = "p.stato = 'in_corso' AND p.attivo = 1";
+                $where[] = self::LOAN_OUT_SQL . ' AND NOT (' . \App\Support\LibraryCalendar::overdueLoanCondition($this->db, $today) . ')';
                 $order = 'p.data_scadenza ASC, p.id ASC';
                 break;
             case 'overdue':
-                $where[] = "p.stato = 'in_ritardo' AND p.attivo = 1";
+                $where[] = self::LOAN_OUT_SQL . ' AND (' . \App\Support\LibraryCalendar::overdueLoanCondition($this->db, $today) . ')';
                 $order = 'p.data_scadenza ASC, p.id ASC';
                 break;
             case 'history':
@@ -215,13 +218,14 @@ final class StaffLoanReader
 
         $settings = new \App\Models\SettingsRepository($this->db);
         $defaults = $this->circulation()->defaults();
+        $late = \App\Support\LibraryCalendar::overdueLoanCondition($this->db, $today);
 
         return [
             'pending'        => $count("p.stato = 'pendente'"),
             'pickup_ready'   => $count("p.attivo = 1 AND (p.stato = 'da_ritirare' OR (p.stato = 'prenotato' AND p.data_prestito <= ?))", 's', [$today]),
             'scheduled'      => $count("p.stato = 'prenotato' AND p.data_prestito > ? AND p.attivo = 1", 's', [$today]),
-            'active'         => $count("p.stato = 'in_corso' AND p.attivo = 1"),
-            'overdue'        => $count("p.stato = 'in_ritardo' AND p.attivo = 1"),
+            'active'         => $count(self::LOAN_OUT_SQL . " AND NOT ({$late})"),
+            'overdue'        => $count(self::LOAN_OUT_SQL . " AND ({$late})"),
             'reservations'   => (int) ($this->scalar(
                 "SELECT COUNT(*) FROM prenotazioni r JOIN libri l ON l.id = r.libro_id AND l.deleted_at IS NULL WHERE r.stato = 'attiva'",
                 '',

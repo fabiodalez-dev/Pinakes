@@ -467,6 +467,8 @@ class LibriController
             $loanHistoryQuery = "
                 SELECT
                     p.id,
+                    p.copia_id,
+                    p.attivo,
                     p.data_prestito,
                     p.data_scadenza,
                     p.data_restituzione,
@@ -488,11 +490,14 @@ class LibriController
             $stmt = $db->prepare($loanHistoryQuery);
             $stmt->bind_param('i', $id);
             $stmt->execute();
-            $result = $stmt->get_result();
-            while ($row = $result->fetch_assoc()) {
-                $loanHistory[] = $row;
-            }
+            $historyRows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
             $stmt->close();
+            // One branch read for the page, not one per loan.
+            \App\Support\LibraryCalendar::primeCopyBranches($db, array_map(static fn (array $r): int => (int) ($r['copia_id'] ?? 0), $historyRows));
+            $historyToday = \App\Support\DateHelper::today();
+            foreach ($historyRows as $row) {
+                $loanHistory[] = $row + \App\Support\LibraryCalendar::loanDates($db, $row, $historyToday);
+            }
         }
 
         // Active reservations for this book (admin/staff only - contains PII)

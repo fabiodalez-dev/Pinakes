@@ -284,9 +284,12 @@ final class CirculationPolicy
     public function countActiveLoansForMedia(int $userId, string $media, ?int $excludeLoanId = null, bool $lockingReads = false): int
     {
         // CI-SOFT-DELETE-EXEMPT: a loan on a title archived after checkout is still out and still counts against the limit.
-        $sql = 'SELECT COUNT(*) FROM prestiti p JOIN libri l ON l.id = p.libro_id
+        // The material test stays in a nested subquery: an outer locking read
+        // does not lock its rows, so a calendar writer holding one book's lock
+        // takes no lock on the other books this patron has out.
+        $sql = 'SELECT COUNT(*) FROM prestiti p
                 WHERE p.utente_id = ? AND p.attivo = 1 AND p.stato IN (' . self::ACTIVE_LOAN_STATES_SQL . ')
-                  AND l.tipo_media = ?';
+                  AND EXISTS (SELECT 1 FROM libri l WHERE l.id = p.libro_id AND l.tipo_media = ?)';
         if ($excludeLoanId !== null) {
             $sql .= ' AND p.id <> ?';
         }

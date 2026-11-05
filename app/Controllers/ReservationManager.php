@@ -790,7 +790,8 @@ class ReservationManager
                 'libro_autore' => $book['autore'] ?: $notificationService->translateInLocale('Autore non specificato', $recipientLocale),
                 'libro_isbn' => $book['isbn'] ?: 'N/A',
                 'data_inizio' => $notificationService->formatEmailDate((string) $reservation['data_inizio_richiesta'], false, $recipientLocale),
-                'data_fine' => $notificationService->formatEmailDate((string) $reservation['data_fine_richiesta'], false, $recipientLocale),
+                // The day createLoanFromReservation() stores: a closed end day moves to the next open day.
+                'data_fine' => $notificationService->formatEmailDate(\App\Services\CirculationPolicy::dueDateFor((string) $reservation['data_fine_richiesta'], 0, $this->db), false, $recipientLocale),
                 'book_url' => absoluteUrl($bookLink),
                 'profile_url' => absoluteUrl(RouteTranslator::route('profile'))
             ];

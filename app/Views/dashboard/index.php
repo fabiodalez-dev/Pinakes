@@ -512,7 +512,7 @@ unset($workspaceHeader);
                       </span>
                       <span class="flex items-center text-red-600 font-medium">
                         <i class="fas fa-calendar-times w-4 mr-2 text-red-500"></i>
-                        <?= __("Scaduto il:") ?> <?= $p['data_scadenza'] ? format_date($p['data_scadenza']) : ''; ?>
+                        <?= __("Scaduto il:") ?> <?= $p['data_scadenza'] ? format_date($p['effective_due_at'] ?? $p['data_scadenza']) : ''; ?>
                       </span>
                     </div>
                   </div>
@@ -659,21 +659,18 @@ unset($workspaceHeader);
                     <?php echo $p['data_prestito'] ? format_date($p['data_prestito']) : ''; ?>
                   </td>
                   <?php
-                    // Red-highlight the due date when it is today or past — the "act
+                    // Red-highlight the due date when its usable day is today or past — the "act
                     // now" cue Nikola asked for, matching the Physical Copies list.
                     // The date turning red is a visibility signal; it does NOT mean the
                     // loan is formally late (a loan due today is still on time).
-                    $dueSoonOrOverdue = !empty($p['data_scadenza'])
-                        && (string)$p['data_scadenza'] <= $applicationToday
-                        && (int)($p['attivo'] ?? 0) === 1
-                        && in_array($p['stato'] ?? '', ['in_corso', 'in_ritardo'], true);
+                    $dueSoonOrOverdue = !empty($p['due_attention']);
                     // The status badge reflects the REAL loan state (in_ritardo is set
                     // by the maintenance overdue-updater), so a due-today loan still
                     // reads "In corso" while a genuinely late one reads "In Ritardo".
                     $isLate = ($p['stato'] ?? '') === 'in_ritardo';
                   ?>
                   <td class="px-6 py-4 whitespace-nowrap text-sm <?= $dueSoonOrOverdue ? 'text-red-600 font-semibold' : 'text-gray-500' ?>">
-                    <?php echo $p['data_scadenza'] ? format_date($p['data_scadenza']) : ''; ?>
+                    <?php echo $p['data_scadenza'] ? format_date($p['effective_due_at'] ?? $p['data_scadenza']) : ''; ?>
                   </td>
                   <td class="px-6 py-4 whitespace-nowrap">
                     <?php if ($isLate): ?>

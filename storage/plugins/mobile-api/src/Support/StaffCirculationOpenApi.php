@@ -85,13 +85,13 @@ final class StaffCirculationOpenApi
 
         return [
             '/staff/circulation/summary' => ['get' => O::op($t, 'staffCirculationSummary', 'Desk counters and loan settings (Cache-Control: no-store)', [
-                '200' => O::ok('Counters.', O::ref('CirculationSummary')),
+                '200' => O::ok('Counters; active and overdue split the loans out by is_overdue, not by the raw status.', O::ref('CirculationSummary')),
             ])],
             '/staff/loans' => [
                 'get' => O::op($t, 'staffLoans', 'Loans by desk bucket', [
                     '200' => O::ok('Page of loans; meta = {count, limit, next_cursor, has_more, total_count}.', O::listOf('StaffLoan')),
                 ] + O::invalid(), ['parameters' => array_merge([
-                    O::query('bucket', 'string', 'pending|pickup|scheduled|active|overdue|history|all (default all).'),
+                    O::query('bucket', 'string', 'pending|pickup|scheduled|active|overdue|history|all (default all). active and overdue split the loans out by is_overdue, not by the raw status.'),
                     O::query('q', 'string', 'Title, user name / email / card, or copy code.'),
                     O::query('user_id', 'integer', 'Only this user.'),
                     O::query('book_id', 'integer', 'Only this title.'),

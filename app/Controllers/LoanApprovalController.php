@@ -101,8 +101,7 @@ class LoanApprovalController
                    CONCAT(u.nome, ' ', u.cognome) as utente_nome, u.email,
                    p.data_prestito as data_richiesta_inizio,
                    p.data_scadenza as data_richiesta_fine,
-                   c.numero_inventario as copia_inventario,
-                   DATEDIFF(?, p.data_scadenza) as giorni_ritardo
+                   c.numero_inventario as copia_inventario
             FROM prestiti p
             JOIN libri l ON p.libro_id = l.id AND l.deleted_at IS NULL
             JOIN utenti u ON p.utente_id = u.id
@@ -110,10 +109,22 @@ class LoanApprovalController
             WHERE p.stato = 'in_ritardo' AND p.attivo = 1
             ORDER BY p.data_scadenza ASC
         ");
-        $overdueStmt->bind_param('s', $today);
         $overdueStmt->execute();
         $overdueLoans = $overdueStmt->get_result()->fetch_all(MYSQLI_ASSOC);
         $overdueStmt->close();
+
+        // The two lists read the usable return day and the open-day late count,
+        // as the notices and the fine do. One branch read for the page. These
+        // rows are stored as in_ritardo, so the count shown is at least 1.
+        \App\Support\LibraryCalendar::primeCopyBranches($db, array_map(static fn (array $r): int => (int) ($r['copia_id'] ?? 0), array_merge($activeLoans, $overdueLoans)));
+        foreach ($activeLoans as $i => $loan) {
+            $activeLoans[$i] = $loan + \App\Support\LibraryCalendar::loanDates($db, $loan, $today);
+        }
+        foreach ($overdueLoans as $i => $loan) {
+            $copyId = $loan['copia_id'] !== null ? (int) $loan['copia_id'] : null;
+            $overdueLoans[$i] = $loan + \App\Support\LibraryCalendar::loanDates($db, $loan, $today);
+            $overdueLoans[$i]['giorni_ritardo'] = max(1, \App\Support\LibraryCalendar::lateDaysForNotice($db, (string) $loan['data_scadenza'], $copyId, $today));
+        }
 
         // Get active reservations
         $reservationsStmt = $db->prepare("

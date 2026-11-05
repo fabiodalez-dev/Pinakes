@@ -1170,12 +1170,10 @@ unset($workspaceHeader);
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                   <?php if (!empty($copia['data_scadenza'])): ?>
                     <?php
-                    $scadenza = new DateTime($copia['data_scadenza']);
-                    $oggi = new DateTime();
-                    $isScaduto = $scadenza < $oggi;
+                    $isScaduto = !empty($copia['is_overdue']);
                     ?>
                     <span class="<?php echo $isScaduto ? 'text-red-600 font-semibold' : ''; ?>">
-                      <?= App\Support\HtmlHelper::e(format_date($copia['data_scadenza'], false, '/')) ?>
+                      <?= App\Support\HtmlHelper::e(format_date($copia['effective_due_at'] ?? $copia['data_scadenza'], false, '/')) ?>
                       <?php if ($isScaduto): ?>
                         <i class="fas fa-exclamation-triangle ml-1"></i>
                       <?php endif; ?>
@@ -1384,11 +1382,11 @@ unset($workspaceHeader);
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm">
                   <?php
-                    $isOverdue = strtotime($loan['data_scadenza']) < strtotime(date('Y-m-d')) && $loan['stato'] !== 'restituito';
+                    $isOverdue = !empty($loan['is_overdue']);
                   ?>
                   <span class="<?php echo $isOverdue ? 'text-red-600 font-semibold' : 'text-gray-900'; ?>">
                     <i class="fas fa-calendar-times text-gray-400 mr-1"></i>
-                    <?php echo App\Support\HtmlHelper::e(format_date($loan['data_scadenza'], false, '/')); ?>
+                    <?php echo App\Support\HtmlHelper::e(format_date($loan['effective_due_at'] ?? $loan['data_scadenza'], false, '/')); ?>
                   </span>
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">

@@ -117,6 +117,20 @@ class NotificationService {
     }
 
     /**
+     * The return day a notice quotes for a loan row: the first open day on or
+     * after its stored data_scadenza, in the calendar of the copy's branch. The
+     * stored column stays what claims, reverts and late-day counts compare; with
+     * no calendar rules this is the stored date.
+     *
+     * @param array<string, mixed> $loan a row carrying data_scadenza and, when the loan has a copy, copia_id
+     */
+    private function usableDueDate(array $loan): string
+    {
+        $copyId = !empty($loan['copia_id']) ? (int) $loan['copia_id'] : null;
+        return LibraryCalendar::dueDate($this->db, substr((string) ($loan['data_scadenza'] ?? ''), 0, 10), $copyId);
+    }
+
+    /**
      * Format date for email templates.
      *
      * @param string $dateString Date string parseable by strtotime
@@ -559,7 +573,7 @@ class NotificationService {
             // Send email to admins — dates formatted per admin locale.
             $emailSent = $this->sendToAdmins('loan_request_notification', $variables, [
                 'data_inizio' => [$loan['data_prestito'], false],
-                'data_fine' => [$loan['data_scadenza'], false],
+                'data_fine' => [$this->usableDueDate($loan), false],
                 'data_richiesta' => [$loan['created_at'], true],
             ]);
 
@@ -570,7 +584,7 @@ class NotificationService {
                 $loan['libro_titolo'],
                 $loan['utente_nome'],
                 format_date($loan['data_prestito'], false, '/'),
-                format_date($loan['data_scadenza'], false, '/')
+                format_date($this->usableDueDate($loan), false, '/')
             );
             $notificationLink = '/admin/loans';
 
@@ -798,6 +812,7 @@ class NotificationService {
                     // The e-mail and the in-app notice say the count of the
                     // calendar as it is now, under the lock.
                     $loan['giorni_ritardo'] = LibraryCalendar::lateDaysForNotice($this->db, (string) $loan['data_scadenza'], $copyId, $today);
+                    $loan['effective_due_at'] = $this->usableDueDate($loan);
                     // ATOMIC: mark the notice sent BEFORE the e-mail; only an
                     // affected row proceeds. The state guard (M3) keeps a loan
                     // returned meanwhile out, and re-asserting data_scadenza
@@ -835,7 +850,7 @@ class NotificationService {
                 $variables = [
                     'utente_nome' => $loan['utente_nome'],
                     'libro_titolo' => $loan['libro_titolo'],
-                    'data_scadenza' => $this->formatEmailDate($loan['data_scadenza'], false, $this->resolveRecipientLocale((string) $loan['utente_email'])),
+                    'data_scadenza' => $this->formatEmailDate($loan['effective_due_at'], false, $this->resolveRecipientLocale((string) $loan['utente_email'])),
                     'giorni_ritardo' => $loan['giorni_ritardo']
                 ];
 
@@ -1071,7 +1086,7 @@ class NotificationService {
                         'utente_nome' => $loan['utente_nome'],
                         'libro_titolo' => $loan['libro_titolo'],
                         'data_inizio' => $this->formatEmailDate((string) $loan['data_prestito'], false, $recipientLocale),
-                        'data_fine' => $this->formatEmailDate((string) $loan['data_scadenza'], false, $recipientLocale),
+                        'data_fine' => $this->formatEmailDate($this->usableDueDate($loan), false, $recipientLocale),
                         'giorni_ritiro' => $this->effectivePickupDays((string) $loan['data_prestito'], $deadline, !empty($loan['copia_id']) ? (int) $loan['copia_id'] : null),
                         'giorni_rimasti' => $daysLeft === 0 ? $todayLabels[$recipientLocale] : (string) $daysLeft,
                         'scadenza_ritiro' => $formattedDeadline,
@@ -1408,9 +1423,10 @@ class NotificationService {
     /**
      * Shared claim-then-send for one recall (automatic and manual paths).
      * Expects a row carrying id, data_scadenza, recall_count, last_recall_at,
-     * libro_titolo, utente_nome, utente_email, giorni_ritardo. Returns true iff
-     * the recall email actually went out; on failure the claim is reverted so a
-     * later run can retry.
+     * libro_titolo, utente_nome, utente_email, giorni_ritardo, and copia_id when
+     * the loan has one (it selects the branch calendar of the date in the e-mail).
+     * Returns true iff the recall email actually went out; on failure the claim
+     * is reverted so a later run can retry.
      *
      * @param ?callable(): (int|false) $stillDue re-checked under the calendar
      *        lock right before the claim: the days late by the calendar as it
@@ -1433,6 +1449,7 @@ class NotificationService {
                 }
                 $loan['giorni_ritardo'] = $days;
             }
+            $loan['effective_due_at'] = $this->usableDueDate($loan);
             $updateStmt = $this->db->prepare("UPDATE prestiti SET recall_count = recall_count + 1, last_recall_at = ? WHERE id = ? AND data_scadenza = ? AND recall_count = ? AND attivo = 1 AND stato IN ('in_corso', 'in_ritardo')");
             $updateStmt->bind_param('sisi', $now, $loan['id'], $loan['data_scadenza'], $expectedCount);
             $updateStmt->execute();
@@ -1460,7 +1477,7 @@ class NotificationService {
         $variables = [
             'utente_nome' => $loan['utente_nome'],
             'libro_titolo' => $loan['libro_titolo'],
-            'data_scadenza' => $this->formatEmailDate($loan['data_scadenza'], false, $this->resolveRecipientLocale((string) $loan['utente_email'])),
+            'data_scadenza' => $this->formatEmailDate($loan['effective_due_at'], false, $this->resolveRecipientLocale((string) $loan['utente_email'])),
             'giorni_ritardo' => $loan['giorni_ritardo'],
             'numero_sollecito' => $recallNumber,
         ];
@@ -1548,7 +1565,7 @@ class NotificationService {
                 'utente_nome' => (string) ($loan['utente'] ?? ''),
                 'libro_titolo' => (string) ($loan['libro'] ?? ''),
                 'data_prestito' => $this->formatEmailDate((string) ($loan['data_prestito'] ?? ''), false, $recipientLocale),
-                'data_scadenza' => $this->formatEmailDate((string) ($loan['data_scadenza'] ?? ''), false, $recipientLocale),
+                'data_scadenza' => $this->formatEmailDate((string) ($loan['effective_due_at'] ?? $loan['data_scadenza'] ?? ''), false, $recipientLocale),
             ];
             $attachment = [
                 'content' => $pdfContent,
@@ -1582,7 +1599,7 @@ class NotificationService {
             // the admin alert for the SAME overdue loan must be too — an archived
             // title's outstanding loan is exactly the case staff must chase.
             $stmt = $this->db->prepare("
-                SELECT p.id, p.data_scadenza, p.data_prestito, l.titolo AS libro_titolo,
+                SELECT p.id, p.copia_id, p.data_scadenza, p.data_prestito, l.titolo AS libro_titolo,
                        CONCAT(u.nome, ' ', u.cognome) AS utente_nome, u.email AS utente_email
                 FROM prestiti p
                 JOIN libri l ON p.libro_id = l.id
@@ -1611,7 +1628,7 @@ class NotificationService {
             // leggeva solo il PHP hardcoded (GAP-4). Le date sono formattate per la
             // lingua di ogni admin.
             $this->sendToAdmins('loan_overdue_admin', $variables, [
-                'data_scadenza' => [$loan['data_scadenza'], false],
+                'data_scadenza' => [$this->usableDueDate($loan), false],
                 'data_prestito' => [$loan['data_prestito'], false],
             ]);
 
@@ -2054,7 +2071,7 @@ class NotificationService {
                 'utente_nome' => $loan['utente_nome'],
                 'libro_titolo' => $loan['libro_titolo'] ?? $this->translateInLocale('Non disponibile', $recipientLocale),
                 'data_prestito' => $this->formatEmailDate($pickupDate, false, $recipientLocale),
-                'data_scadenza' => $this->formatEmailDate($loan['data_scadenza'], false, $recipientLocale),
+                'data_scadenza' => $this->formatEmailDate($this->usableDueDate($loan), false, $recipientLocale),
             ];
 
             return $this->sendWithRetry($loan['utente_email'], 'loan_picked_up', $variables);
@@ -2102,7 +2119,7 @@ class NotificationService {
                 'utente_nome' => $loan['utente_nome'],
                 'libro_titolo' => $loan['libro_titolo'],
                 'data_inizio' => $this->formatEmailDate($loan['data_prestito'], false, $recipientLocale),
-                'data_fine' => $this->formatEmailDate($loan['data_scadenza'], false, $recipientLocale),
+                'data_fine' => $this->formatEmailDate($this->usableDueDate($loan), false, $recipientLocale),
                 'giorni_prestito' => $days,
                 // A loan starting later gets its pickup deadline only on the start
                 // day; say now which one it will be and how many days that is.
@@ -2110,7 +2127,7 @@ class NotificationService {
                 'scadenza_ritiro' => $this->formatEmailDate($this->expectedPickupDeadline((string) $loan['data_prestito'], (string) $loan['data_scadenza'], !empty($loan['copia_id']) ? (int) $loan['copia_id'] : null), false, $recipientLocale),
                 'pickup_deadline' => $this->formatEmailDate($this->expectedPickupDeadline((string) $loan['data_prestito'], (string) $loan['data_scadenza'], !empty($loan['copia_id']) ? (int) $loan['copia_id'] : null), false, $recipientLocale),
                 'pickup_instructions' => $this->translateInLocale('Recati in biblioteca durante gli orari di apertura per ritirare il libro.', $recipientLocale),
-                'sezione_calendario' => $this->buildCalendarSection((int)$loan['id'], (string)$loan['libro_titolo'], (string)$loan['data_prestito'], (string)$loan['data_scadenza'], $recipientLocale)
+                'sezione_calendario' => $this->buildCalendarSection((int)$loan['id'], (string)$loan['libro_titolo'], (string)$loan['data_prestito'], $this->usableDueDate($loan), $recipientLocale)
             ];
 
             return $this->sendWithRetry($loan['utente_email'], 'loan_approved', $variables);
@@ -2287,7 +2304,7 @@ class NotificationService {
                 'utente_nome' => $loan['utente_nome'],
                 'libro_titolo' => $loan['libro_titolo'],
                 'data_inizio' => $this->formatEmailDate($loan['data_prestito'], false, $recipientLocale),
-                'data_fine' => $this->formatEmailDate($loan['data_scadenza'], false, $recipientLocale),
+                'data_fine' => $this->formatEmailDate($this->usableDueDate($loan), false, $recipientLocale),
                 'giorni_prestito' => $days,
                 'giorni_ritiro' => $this->effectivePickupDays((string) $loan['data_prestito'], $loan['pickup_deadline'] ? (string) $loan['pickup_deadline'] : null, !empty($loan['copia_id']) ? (int) $loan['copia_id'] : null),
                 'scadenza_ritiro' => $loan['pickup_deadline'] ? $this->formatEmailDate($loan['pickup_deadline'], false, $recipientLocale) : '',
@@ -2296,7 +2313,7 @@ class NotificationService {
                 // resolves as well as the canonical {{scadenza_ritiro}}.
                 'pickup_deadline' => $loan['pickup_deadline'] ? $this->formatEmailDate($loan['pickup_deadline'], false, $recipientLocale) : '',
                 'pickup_instructions' => $this->translateInLocale('Recati in biblioteca durante gli orari di apertura per ritirare il libro.', $recipientLocale),
-                'sezione_calendario' => $this->buildCalendarSection((int)$loan['id'], (string)$loan['libro_titolo'], (string)$loan['data_prestito'], (string)$loan['data_scadenza'], $recipientLocale)
+                'sezione_calendario' => $this->buildCalendarSection((int)$loan['id'], (string)$loan['libro_titolo'], (string)$loan['data_prestito'], $this->usableDueDate($loan), $recipientLocale)
             ];
 
             $emailSent = $this->sendWithRetry($loan['utente_email'], 'loan_pickup_ready', $variables);
@@ -2656,7 +2673,7 @@ class NotificationService {
                 return false;
             }
             $stmt = $this->db->prepare("
-                SELECT p.utente_id, p.data_scadenza, p.data_restituzione,
+                SELECT p.utente_id, p.copia_id, p.data_scadenza, p.data_restituzione,
                        l.titolo AS libro_titolo,
                        CONCAT(u.nome, ' ', u.cognome) AS utente_nome,
                        u.email AS utente_email
@@ -2675,12 +2692,11 @@ class NotificationService {
             }
             $email = (string) $loan['utente_email'];
             $locale = $this->resolveRecipientLocale($email);
-            $due = (string) $loan['data_scadenza'];
             $returned = (string) ($loan['data_restituzione'] ?: DateHelper::today());
             $variables = [
                 'utente_nome' => $loan['utente_nome'],
                 'libro_titolo' => $loan['libro_titolo'],
-                'data_scadenza' => $this->formatEmailDate($due, false, $locale),
+                'data_scadenza' => $this->formatEmailDate($this->usableDueDate($loan), false, $locale),
                 'data_restituzione' => $this->formatEmailDate($returned, false, $locale),
                 'giorni_ritardo' => (string) $ledger->lateFineDays($loanId),
                 'multa' => \App\Services\FineParameters::format($fineCents, $locale),

@@ -388,6 +388,101 @@ $noLongerDue = $makeLoan(daysOverdue: 12);
 $sent = $claimRecall->invoke($service, $rowOf($noLongerDue), 1, 0, static fn (): int|false => false);
 $check($sent === false && $outcomeOf() === 'not_due' && $recallCountOf($noLongerDue)['count'] === 0, 'C3 loan no longer late by the calendar at claim time → "not_due", no UPDATE, counter untouched');
 
+// ── D. The late e-mails quote the usable return day ─────────────────────────
+// A past due day closed afterwards is never moved: the row keeps it, while the
+// overdue notice, the recall and the staff alert name the first open day after
+// it, the day their late-day count starts from. The stored date stays the claim
+// guard, so the claims below go through and the row does not change.
+$featureRow = $db->query("SELECT setting_value FROM system_settings WHERE category='features' AND setting_key='closures_calendar'")->fetch_row();
+$weekdaysRow = $db->query("SELECT setting_value FROM system_settings WHERE category='loans' AND setting_key='closed_weekdays'")->fetch_row();
+$db->query("INSERT INTO system_settings (category, setting_key, setting_value) VALUES ('features','closures_calendar','1') ON DUPLICATE KEY UPDATE setting_value='1'");
+$db->query("INSERT INTO system_settings (category, setting_key, setting_value) VALUES ('loans','closed_weekdays','') ON DUPLICATE KEY UPDATE setting_value=''");
+$closedLoan = $makeLoan(daysOverdue: 20, overdueSent: 0);
+$closedUser = (int) $db->query('SELECT utente_id FROM prestiti WHERE id = ' . (int) $closedLoan)->fetch_row()[0];
+$closedEmail = (string) $db->query("SELECT email FROM utenti WHERE id = {$closedUser}")->fetch_row()[0];
+$storedDue = (string) $db->query('SELECT data_scadenza FROM prestiti WHERE id = ' . (int) $closedLoan)->fetch_row()[0];
+$usableDue = (new DateTimeImmutable($storedDue))->modify('+2 days')->format('Y-m-d');
+$closureTag = $titlePrefix . '_closure';
+$closureEnd = (new DateTimeImmutable($storedDue))->modify('+1 day')->format('Y-m-d');
+$adminCard = $cardPrefix . 'A';
+$adminEmail = 'admin' . $run . $emailDomain;
+$db->query("INSERT INTO calendario_chiusure (data_inizio, data_fine, descrizione) VALUES ('{$storedDue}', '{$closureEnd}', '{$closureTag}')");
+$db->query("INSERT INTO utenti (codice_tessera, nome, cognome, email, password, tipo_utente, stato) VALUES ('{$adminCard}', 'Recall', 'Admin', '{$adminEmail}', '', 'admin', 'attivo')");
+\App\Support\LibraryCalendar::reset();
+$mailbox = new class extends \App\Support\EmailService {
+    /** @var list<array{to: string, template: string, variables: array<string, mixed>}> */
+    public array $sent = [];
+    public function __construct()
+    {
+    }
+    public function sendTemplate(string $to, string $templateName, array $variables = [], ?string $locale = null, array $attachments = []): bool
+    {
+        $this->sent[] = ['to' => $to, 'template' => $templateName, 'variables' => $variables];
+        return true;
+    }
+};
+$mailService = new NotificationService($db);
+(new ReflectionProperty($mailService, 'emailService'))->setValue($mailService, $mailbox);
+$reachable = new ReflectionProperty(\App\Support\Mailer::class, 'smtpReachable');
+$reachableBefore = $reachable->getValue();
+$reachable->setValue(null, true);
+$mailTo = static function (string $to, string $template) use ($mailbox): ?array {
+    foreach ($mailbox->sent as $mail) {
+        if ($mail['to'] === $to && $mail['template'] === $template) {
+            return $mail['variables'];
+        }
+    }
+    return null;
+};
+$dayFor = static fn (string $to, string $ymd): string => $mailService->formatEmailDate($ymd, false, $mailService->resolveRecipientLocale($to));
+// The sweep walks every overdue loan in the database, not only this file's fixtures.
+$sweptBefore = $db->query("SELECT id, stato, overdue_notification_sent FROM prestiti WHERE attivo = 1 AND stato IN ('in_corso','in_ritardo')")->fetch_all(MYSQLI_NUM);
+try {
+    $mailService->sendOverdueLoanNotifications();
+    $overdueMail = $mailTo($closedEmail, 'loan_overdue_notification');
+    $check(($overdueMail['data_scadenza'] ?? null) === $dayFor($closedEmail, $usableDue), 'D1 the overdue e-mail names the first open day after the closed due day');
+    $check((int) ($overdueMail['giorni_ritardo'] ?? 0) === 18, 'D2 and counts the open days from that day');
+    $adminMail = $mailTo($adminEmail, 'loan_overdue_admin');
+    $check(($adminMail['data_scadenza'] ?? null) === $dayFor($adminEmail, $usableDue), 'D3 the staff alert names the same day');
+    $claimedRow = $db->query('SELECT overdue_notification_sent, data_scadenza FROM prestiti WHERE id = ' . (int) $closedLoan)->fetch_row();
+    $check((int) $claimedRow[0] === 1 && (string) $claimedRow[1] === $storedDue, 'D4 the claim matched the stored date, which stays as it was');
+
+    $db->query('UPDATE prestiti SET last_recall_at = NULL, recall_count = 0 WHERE id = ' . (int) $closedLoan);
+    $recalled = $mailService->sendManualRecall($closedLoan, 1, 0);
+    $recallMail = $mailTo($closedEmail, 'loan_recall_notification');
+    $check($recalled['success'] === true && ($recallMail['data_scadenza'] ?? null) === $dayFor($closedEmail, $usableDue), 'D5 the recall names the first open day after the closed due day');
+    $claimedRow = $db->query('SELECT recall_count, data_scadenza FROM prestiti WHERE id = ' . (int) $closedLoan)->fetch_row();
+    $check((int) $claimedRow[0] === 1 && (string) $claimedRow[1] === $storedDue, 'D6 the recall claim matched the stored date, which stays as it was');
+
+    // No closure on the day: the same e-mail quotes the stored date.
+    $plainLoan = $makeLoan(daysOverdue: 20 + 5);
+    $plainEmail = (string) $db->query('SELECT u.email FROM prestiti p JOIN utenti u ON u.id = p.utente_id WHERE p.id = ' . (int) $plainLoan)->fetch_row()[0];
+    $plainDue = (string) $db->query('SELECT data_scadenza FROM prestiti WHERE id = ' . (int) $plainLoan)->fetch_row()[0];
+    $mailService->sendManualRecall($plainLoan, 1, 0);
+    $check(($mailTo($plainEmail, 'loan_recall_notification')['data_scadenza'] ?? null) === $dayFor($plainEmail, $plainDue), 'D7 a due day that stayed open is quoted as stored');
+} finally {
+    $reachable->setValue(null, $reachableBefore);
+    $restoreSwept = $db->prepare('UPDATE prestiti SET stato = ?, overdue_notification_sent = ? WHERE id = ? AND id NOT IN (?, ?)');
+    foreach ($sweptBefore as [$sweptId, $sweptState, $sweptSent]) {
+        $restoreSwept->bind_param('siiii', $sweptState, $sweptSent, $sweptId, $closedLoan, $closedLoan);
+        $restoreSwept->execute();
+    }
+    $restoreSwept->close();
+    $db->query("DELETE FROM calendario_chiusure WHERE descrizione = '{$closureTag}'");
+    $db->query("DELETE FROM email_delivery_outbox WHERE recipient_email LIKE '%{$emailDomain}'");
+    if ($featureRow === null) {
+        $db->query("DELETE FROM system_settings WHERE category='features' AND setting_key='closures_calendar'");
+    } else {
+        $db->query("UPDATE system_settings SET setting_value='" . $db->real_escape_string((string) $featureRow[0]) . "' WHERE category='features' AND setting_key='closures_calendar'");
+    }
+    if ($weekdaysRow === null) {
+        $db->query("DELETE FROM system_settings WHERE category='loans' AND setting_key='closed_weekdays'");
+    } else {
+        $db->query("UPDATE system_settings SET setting_value='" . $db->real_escape_string((string) $weekdaysRow[0]) . "' WHERE category='loans' AND setting_key='closed_weekdays'");
+    }
+    \App\Support\LibraryCalendar::reset();
+}
+
 // ── E. sendLoanReceiptEmail() guards ────────────────────────────────────────
 $e = $service->sendLoanReceiptEmail(2000000001);
 $check($e['success'] === false, 'E1 receipt email for an unknown loan → failure');
