@@ -284,6 +284,9 @@ class ReservationManager
                 // deadline; selecting them without normalising the start would
                 // still make isDateRangeAvailable() reject them forever.
                 $nextReservation['data_inizio_richiesta'] = $startDate;
+                // Capacity is checked on the day the loan will end, which a
+                // closure can put after the requested one (an open day stays as it is).
+                $endDate = \App\Support\LibraryCalendar::requestDueDate($this->db, (string) $endDate, 0, $bookId);
                 $nextReservation['data_fine_richiesta'] = $endDate;
 
                 // #157: pass the promoted reservation's queue_position so the
@@ -461,7 +464,7 @@ class ReservationManager
         $bookId = (int) $reservation['libro_id'];
         $startDate = $reservation['data_inizio_richiesta'];
         // Closures calendar: the loan's due date moves to the next open day.
-        $endDate = \App\Services\CirculationPolicy::dueDateFor((string) $reservation['data_fine_richiesta'], 0, $this->db);
+        $endDate = \App\Support\LibraryCalendar::requestDueDate($this->db, (string) $reservation['data_fine_richiesta'], 0, $bookId);
 
         // Always create as 'pendente' (attivo=0) - requires admin confirmation of physical pickup
         // Origin is 'prenotazione' to distinguish from manual requests
@@ -712,6 +715,11 @@ class ReservationManager
         return $max;
     }
 
+    protected function notificationService(): \App\Support\NotificationService
+    {
+        return new \App\Support\NotificationService($this->db);
+    }
+
     /**
      * Send notification email when reservation book becomes available
      *
@@ -779,7 +787,7 @@ class ReservationManager
             // #360 parity: formatta le date nella lingua del DESTINATARIO come
             // tutta la pipeline email (warning/overdue/solleciti), non nel
             // locale di installazione.
-            $notificationService = new \App\Support\NotificationService($this->db);
+            $notificationService = $this->notificationService();
             $recipientLocale = $notificationService->resolveRecipientLocale((string) $reservation['email']);
 
             $variables = [
@@ -790,7 +798,8 @@ class ReservationManager
                 'libro_autore' => $book['autore'] ?: $notificationService->translateInLocale('Autore non specificato', $recipientLocale),
                 'libro_isbn' => $book['isbn'] ?: 'N/A',
                 'data_inizio' => $notificationService->formatEmailDate((string) $reservation['data_inizio_richiesta'], false, $recipientLocale),
-                'data_fine' => $notificationService->formatEmailDate((string) $reservation['data_fine_richiesta'], false, $recipientLocale),
+                // The day createLoanFromReservation() stores: a closed end day moves to the next open day.
+                'data_fine' => $notificationService->formatEmailDate(\App\Support\LibraryCalendar::requestDueDate($this->db, (string) $reservation['data_fine_richiesta'], 0, (int) $reservation['libro_id']), false, $recipientLocale),
                 'book_url' => absoluteUrl($bookLink),
                 'profile_url' => absoluteUrl(RouteTranslator::route('profile'))
             ];

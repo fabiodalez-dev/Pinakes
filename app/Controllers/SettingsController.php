@@ -1694,7 +1694,7 @@ class SettingsController
     }
 
     /**
-     * @return array{loan_duration_days: int, pickup_expiry_days: int, pickup_reminder_days: int, card_expiry_warning_days: int, max_renewals: int, max_active_loans_per_user: int, max_loan_duration_days: int, auto_approve_requests: bool, allow_multiple_loans_same_book: bool, recall_auto_enabled: bool, recall_interval_days: int, recall_max_count: int, app_timezone: string, daily_fine: string, fine_grace_mode: string, card_renewal_base: string, fine_grace_days: int, fine_max_per_loan: string, debt_block_threshold: string, fine_charged_email: bool, currency: string, fines_enabled: bool, closures_calendar_enabled: bool, circulation_rules_enabled: bool}
+     * @return array{loan_duration_days: int, pickup_expiry_days: int, pickup_reminder_days: int, card_expiry_warning_days: int, max_renewals: int, max_active_loans_per_user: int, max_loan_duration_days: int, auto_approve_requests: bool, allow_multiple_loans_same_book: bool, same_day_handover_after_closure: bool, recall_auto_enabled: bool, recall_interval_days: int, recall_max_count: int, app_timezone: string, daily_fine: string, fine_grace_mode: string, card_renewal_base: string, fine_grace_days: int, fine_max_per_loan: string, debt_block_threshold: string, fine_charged_email: bool, currency: string, fines_enabled: bool, closures_calendar_enabled: bool, circulation_rules_enabled: bool}
      */
     public function resolveLoansSettings(SettingsRepository $repository): array
     {
@@ -1709,6 +1709,7 @@ class SettingsController
             'max_loan_duration_days'   => (int) ($repository->get('loans', 'max_loan_duration_days', '90') ?? 90),
             'auto_approve_requests'    => $repository->autoApproveLoanRequests(),
             'allow_multiple_loans_same_book' => $repository->allowsMultipleLoansSameBook(),
+            'same_day_handover_after_closure' => $repository->allowsSameDayHandover(),
             // #360: automatic recall (sollecito) schedule for overdue loans.
             'recall_auto_enabled'      => (string) ($repository->get('loans', 'recall_auto_enabled', '0') ?? '0') === '1',
             'recall_interval_days'     => (int) ($repository->get('loans', 'recall_interval_days', '7') ?? 7),
@@ -1783,6 +1784,9 @@ class SettingsController
         $autoApprove      = isset($data['auto_approve_requests'])
             && is_scalar($data['auto_approve_requests'])
             && (string) $data['auto_approve_requests'] === '1';
+        $sameDayHandover = isset($data['same_day_handover_after_closure'])
+            && is_scalar($data['same_day_handover_after_closure'])
+            && (string) $data['same_day_handover_after_closure'] === '1';
         $allowMultipleLoansSameBook = isset($data['allow_multiple_loans_same_book'])
             && is_scalar($data['allow_multiple_loans_same_book'])
             && (string) $data['allow_multiple_loans_same_book'] === '1';
@@ -1803,6 +1807,7 @@ class SettingsController
         $repository->set('loans', 'max_loan_duration_days', (string) $maxLoanDuration);
         $repository->set('loans', 'auto_approve_requests', $autoApprove ? '1' : '0');
         $repository->set('loans', 'allow_multiple_loans_same_book', $allowMultipleLoansSameBook ? '1' : '0');
+        $repository->set('loans', 'same_day_handover_after_closure', $sameDayHandover ? '1' : '0');
         $repository->set('loans', 'recall_auto_enabled', $recallEnabled ? '1' : '0');
         $repository->set('loans', 'recall_interval_days', (string) $recallInterval);
         $repository->set('loans', 'recall_max_count', (string) $recallMaxCount);
@@ -1844,6 +1849,11 @@ class SettingsController
             // next open day, as when the calendar itself is saved.
             if (\App\Support\Features::enabled('closures_calendar') !== $calendarWasOn) {
                 \App\Support\LibraryCalendar::reset();
+                try {
+                    \App\Support\LibraryCalendar::bumpRevision($db);
+                } catch (\Throwable $e) {
+                    \App\Support\SecureLogger::warning('Calendar: revision not recorded: ' . $e->getMessage());
+                }
                 if (!\App\Support\LibraryCalendar::extendDueDatesAfterSave($db)) {
                     $_SESSION['error_message'] = __('Il calendario è salvato, ma alcune scadenze dei prestiti non sono state ancora spostate: lo farà la prossima manutenzione automatica.');
                 }

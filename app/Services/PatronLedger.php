@@ -158,10 +158,15 @@ final class PatronLedger
         self::$schemaReady = null;
     }
 
-    /** SQL expression for a patron's balance; $userIdExpr is a fixed column reference. */
-    public static function balanceSql(string $userIdExpr): string
+    /**
+     * SQL expression for a patron's balance; $userIdExpr is a fixed column
+     * reference. Capacity writers use a current read so a payment committed
+     * after their initial snapshot can re-enable the reader's reservation.
+     */
+    public static function balanceSql(string $userIdExpr, bool $lockingReads = false): string
     {
-        return "(SELECT COALESCE(SUM(ml.importo), 0) FROM movimenti_lettore ml WHERE ml.utente_id = {$userIdExpr})";
+        $lock = $lockingReads ? ' LOCK IN SHARE MODE' : '';
+        return "(SELECT COALESCE(SUM(ml.importo), 0) FROM movimenti_lettore ml WHERE ml.utente_id = {$userIdExpr}{$lock})";
     }
 
     /**
@@ -187,10 +192,11 @@ final class PatronLedger
      * charge, so adding it gives the balance the patron will have once the
      * conversion completes. $userIdExpr is a fixed column reference.
      */
-    public static function pendingLegacyPenaltiesSql(string $userIdExpr): string
+    public static function pendingLegacyPenaltiesSql(string $userIdExpr, bool $lockingReads = false): string
     {
+        $lock = $lockingReads ? ' LOCK IN SHARE MODE' : '';
         return "(SELECT COALESCE(SUM(lp.sanzione), 0) FROM prestiti lp WHERE lp.utente_id = {$userIdExpr} AND lp.sanzione > 0"
-            . " AND NOT EXISTS (SELECT 1 FROM movimenti_lettore lm WHERE lm.chiave_idempotenza = CONCAT('penalty:', lp.id)))";
+            . " AND NOT EXISTS (SELECT 1 FROM movimenti_lettore lm WHERE lm.chiave_idempotenza = CONCAT('penalty:', lp.id){$lock}){$lock})";
     }
 
     /**
@@ -200,12 +206,12 @@ final class PatronLedger
      * patron over the threshold until maintenance finishes it. Once the
      * marker is set this is balanceSql() and costs nothing more.
      */
-    public static function debtBalanceSql(string $userIdExpr, mysqli $db): string
+    public static function debtBalanceSql(string $userIdExpr, mysqli $db, bool $lockingReads = false): string
     {
         if (!self::legacyPenaltiesPending($db)) {
-            return self::balanceSql($userIdExpr);
+            return self::balanceSql($userIdExpr, $lockingReads);
         }
-        return '(' . self::balanceSql($userIdExpr) . ' + ' . self::pendingLegacyPenaltiesSql($userIdExpr) . ')';
+        return '(' . self::balanceSql($userIdExpr, $lockingReads) . ' + ' . self::pendingLegacyPenaltiesSql($userIdExpr, $lockingReads) . ')';
     }
 
     /** PHP twin of debtBalanceSql() for one patron. */

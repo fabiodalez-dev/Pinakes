@@ -22,9 +22,9 @@ $loansView = (string)file_get_contents($root . '/app/Views/prestiti/index.php');
 $dashboardView = (string)file_get_contents($root . '/app/Views/dashboard/index.php');
 
 $check(
-    str_contains($notifications, 'p.data_scadenza BETWEEN ? AND DATE_ADD(?, INTERVAL ? DAY)')
-        && str_contains($notifications, "bind_param('sssi', \$today, \$today, \$today, \$daysBeforeWarning)"),
-    'expiration warnings include due-today loans through the configured horizon'
+    str_contains($notifications, 'p.data_scadenza <= DATE_ADD(?, INTERVAL ? DAY)')
+        && str_contains($notifications, '$effectiveDue < $today || $effectiveDue > $warningLimit'),
+    'expiration warnings select broadly and enforce the usable-date warning horizon'
 );
 $check(
     str_contains($notifications, 'scade oggi') && str_contains($notifications, '$daysRemaining === 0'),
@@ -39,9 +39,10 @@ $check(
 );
 $check(
     str_contains($loansView, 'DateHelper::today()')
-        && str_contains($loansView, 'data <= applicationToday')
+        && str_contains($loansView, 'row.due_attention === true')
+        && str_contains($api, 'LibraryCalendar::loanDates($db, $r)')
         && !str_contains($loansView, "strtotime(date('Y-m-d'))"),
-    'loan list highlighting uses the application date in PHP and JavaScript'
+    'loan list highlighting consumes the server calendar instead of a browser date comparison'
 );
 $check(
     str_contains($dashboardView, 'DateHelper::today()')

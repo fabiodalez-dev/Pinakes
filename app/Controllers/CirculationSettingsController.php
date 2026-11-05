@@ -261,6 +261,15 @@ class CirculationSettingsController
         }
         try {
             $db->begin_transaction();
+            $locked = $this->lockType($db, $id);
+            if ($locked === null) {
+                $db->rollback();
+                $_SESSION['error_message'] = __('Tipologia lettore non trovata.');
+                return $response->withHeader('Location', url(self::TAB_URL))->withStatus(302);
+            }
+            if ((int) $locked['predefinita'] === 1) {
+                $fields['attiva'] = 1;
+            }
             $this->update($db, 'tipologie_lettore', $fields, $id);
             if (!empty($data['predefinita'])) {
                 $this->setDefaultTx($db, $id);
@@ -289,6 +298,17 @@ class CirculationSettingsController
         } else {
             try {
                 $db->begin_transaction();
+                // The initial form read may precede another administrator's
+                // set-default transaction. Decide before touching readers or
+                // rules, from the same locked row setDefaultTx() uses.
+                $locked = $this->lockType($db, $id);
+                if ($locked === null || (int) $locked['predefinita'] === 1) {
+                    $db->rollback();
+                    $_SESSION['error_message'] = $locked === null
+                        ? __('Tipologia lettore non trovata.')
+                        : __('La tipologia predefinita non può essere eliminata: scegli prima un\'altra predefinita.');
+                    return $response->withHeader('Location', url(self::TAB_URL))->withStatus(302);
+                }
                 // Patrons of the removed type fall back to the default one
                 // (the FK is ON DELETE SET NULL; done explicitly for clarity).
                 $stmt = $db->prepare('UPDATE utenti SET tipologia_id = NULL WHERE tipologia_id = ?');
@@ -603,11 +623,27 @@ class CirculationSettingsController
     /** Exactly one default type: clear the flag everywhere, then set it (inside the caller's transaction). */
     private function setDefaultTx(mysqli $db, int $id): void
     {
+        // A target deleted after the page read must not clear the old default.
+        // Lock before either write so deletion and default selection serialize.
+        if ($this->lockType($db, $id) === null) {
+            throw new \RuntimeException('Patron type no longer exists.');
+        }
         $db->query('UPDATE tipologie_lettore SET predefinita = 0 WHERE predefinita = 1');
         $stmt = $db->prepare('UPDATE tipologie_lettore SET predefinita = 1, attiva = 1 WHERE id = ?');
         $stmt->bind_param('i', $id);
         $stmt->execute();
         $stmt->close();
+    }
+
+    /** Current patron type inside the caller's transaction. @return array<string, mixed>|null */
+    private function lockType(mysqli $db, int $id): ?array
+    {
+        $stmt = $db->prepare('SELECT * FROM tipologie_lettore WHERE id = ? FOR UPDATE');
+        $stmt->bind_param('i', $id);
+        $stmt->execute();
+        $row = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        return $row ?: null;
     }
 
     /** @param array<string, int|string|null> $fields */

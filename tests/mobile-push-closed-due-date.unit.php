@@ -21,6 +21,9 @@ require_once $root . '/storage/plugins/mobile-api/MobileApiPlugin.php';
 
 use App\Plugins\MobileApi\Push\NullProvider;
 use App\Plugins\MobileApi\Push\PushDispatcher;
+use App\Plugins\MobileApi\Push\PushPayload;
+use App\Plugins\MobileApi\Push\PushProvider;
+use App\Plugins\MobileApi\Push\PushResult;
 use App\Support\DateHelper;
 use App\Support\LibraryCalendar;
 
@@ -70,7 +73,8 @@ try {
     // Two loans due yesterday: one on a copy of the branch closed yesterday
     // (marked after the loan was made), one on a copy of no branch.
     // A third one, already flipped to 'in_ritardo' before the closure was saved.
-    foreach (['closed' => $ids['sede'], 'open' => null, 'late' => $ids['sede']] as $kind => $sede) {
+    // Two more are returned below: one of the closed branch, one of no branch.
+    foreach (['closed' => $ids['sede'], 'open' => null, 'late' => $ids['sede'], 'back' => $ids['sede'], 'backopen' => null] as $kind => $sede) {
         $db->query("INSERT INTO libri (titolo, copie_totali, copie_disponibili, stato, created_at, updated_at) VALUES ('Push {$kind} {$run}', 1, 0, 'prestato', NOW(), NOW())");
         $bookId = (int) $db->insert_id;
         $ids['books'][] = $bookId;
@@ -89,12 +93,57 @@ try {
         return $r instanceof mysqli_result && (int) $r->fetch_row()[0] === 1;
     };
 
-    (new PushDispatcher($db, new NullProvider()))->dispatch();
+    // Exercise delivery too: a dedup claim alone cannot prove which date the
+    // reader receives. This provider never makes a network request.
+    $db->query("INSERT INTO mobile_push_subscriptions (user_id, provider, endpoint) VALUES ({$ids['user']}, 'unifiedpush', 'https://push.example.invalid/{$run}')");
+    $provider = new class implements PushProvider {
+        /** @var list<PushPayload> */
+        public array $payloads = [];
+        public function name(): string { return 'unifiedpush'; }
+        public function send(array $subscription, PushPayload $payload): PushResult
+        {
+            $this->payloads[] = $payload;
+            return PushResult::ok();
+        }
+    };
+    (new PushDispatcher($db, $provider))->dispatch();
 
     $check(LibraryCalendar::isPastDue($db, $yesterday, null, $today), 'a due date of yesterday on an open day is past due');
     $check(!$claimed($ids['loans']['closed']), 'no overdue push for a loan whose due day its branch marked closed afterwards');
     $check($claimed($ids['loans']['open']), 'the same loan on an open branch gets the overdue push');
     $check(!$claimed($ids['loans']['late']), 'no overdue push either for a loan already marked late before its due day was closed');
+
+    // The due-soon push follows the same calendar as the feed: the loan whose
+    // due day was closed is due today (first open day) and is announced so,
+    // the loan that is really late is not "due soon".
+    // Keyed by the usable day (today), the day the push names.
+    $dueClaimed = static function (int $loanId, string $day) use ($db, $ids): bool {
+        $key = $db->real_escape_string("loan_due:{$loanId}:{$day}");
+        $r = $db->query("SELECT COUNT(*) FROM mobile_push_log WHERE user_id={$ids['user']} AND event_key='{$key}'");
+        return $r instanceof mysqli_result && (int) $r->fetch_row()[0] === 1;
+    };
+    $check($dueClaimed($ids['loans']['closed'], $today) && !$dueClaimed($ids['loans']['closed'], $yesterday), 'a due-soon push for the loan whose due day was closed afterwards, keyed and dated by the usable day (today)');
+    $check(!$dueClaimed($ids['loans']['open'], $today) && !$dueClaimed($ids['loans']['open'], $yesterday), 'no due-soon push for a loan already past due');
+    $closedPayloads = array_values(array_filter($provider->payloads, static fn (PushPayload $p): bool =>
+        $p->type === 'loan_due' && ($p->data['loan_id'] ?? null) === $ids['loans']['closed']));
+    $check(count($closedPayloads) === 1, 'the closed-day loan actually reaches the push provider exactly once');
+    $payload = $closedPayloads[0] ?? null;
+    $check($payload !== null && ($payload->data['effective_due_at'] ?? null) === $today
+        && ($payload->data['due_at'] ?? null) === $yesterday, 'the delivered push carries the usable return day and retains the stored due date');
+    $check($payload !== null && str_contains($payload->body, $today) && !str_contains($payload->body, $yesterday), 'the delivered push text names the first open day, not the closed stored date');
+    // Under the calendar lock the usable day is read again: a sweep that saw an
+    // older calendar (another usable day) does not claim, the next sweep does.
+    $claimDue = new ReflectionMethod(PushDispatcher::class, 'claimIfDueUnchanged');
+    $lateCopy = (int) $db->query("SELECT copia_id FROM prestiti WHERE id={$ids['loans']['late']}")->fetch_row()[0];
+    $check($claimDue->invoke(new PushDispatcher($db, new NullProvider()), $ids['user'], "loan_due:{$ids['loans']['late']}:stale", $ids['loans']['late'], $yesterday, $lateCopy, $yesterday) === false, 'no due-soon claim when the usable day changed since the sweep read the calendar');
+    $check($claimDue->invoke(new PushDispatcher($db, new NullProvider()), $ids['user'], "loan_due:{$ids['loans']['late']}:current", $ids['loans']['late'], $yesterday, $lateCopy, $today) === true, 'the same claim with the usable day the calendar gives goes through');
+
+    // A return on the first open day after a closed due day is on time, as the
+    // fine counts it; the same return with every day open is late.
+    $repo = new \App\Models\LoanRepository($db);
+    $flagOf = static fn (int $loanId): string => (string) $db->query("SELECT CONCAT(stato, '|', restituito_in_ritardo) FROM prestiti WHERE id={$loanId}")->fetch_row()[0];
+    $check($repo->close($ids['loans']['back']) && $flagOf($ids['loans']['back']) === 'restituito|0', 'returned on the first open day after a closed due day: not flagged late');
+    $check($repo->close($ids['loans']['backopen']) && $flagOf($ids['loans']['backopen']) === 'restituito|1', 'the same return with every day open is flagged late');
 
     // The claim re-reads the loan under the lock: a loan renewed or returned
     // after the sweep read it gets no overdue push with the stale data.
@@ -116,6 +165,13 @@ try {
     $check(LibraryCalendar::openDaysLate($db, $twoDaysAgo, $openCopy, $today) === 2, 'with every day open the count is the plain number of days (2)');
     $check(LibraryCalendar::openDaysLate($db, $yesterday, $closedCopy, $today) === 0, 'returned on the first open day after a closed due day: 0 days late');
     $check(LibraryCalendar::lateDaysForNotice($db, $yesterday, $closedCopy, $today) === 0, 'a loan not late yet has no days late in a notice');
+
+    // A loan list reads the branches of its page in one query: the primed
+    // answers are the ones a lookup per copy gives, a missing copy included.
+    LibraryCalendar::reset();
+    LibraryCalendar::primeCopyBranches($db, [$closedCopy, $openCopy, $closedCopy, 2147483000]);
+    $check(LibraryCalendar::branchOfCopy($db, $closedCopy) === $ids['sede'] && LibraryCalendar::branchOfCopy($db, $openCopy) === null && LibraryCalendar::branchOfCopy($db, 2147483000) === null, 'primed copy branches match the per-copy lookup');
+    $check(LibraryCalendar::isPastDue($db, $twoDaysAgo, $closedCopy, $today) && LibraryCalendar::openDaysLate($db, $twoDaysAgo, $closedCopy, $today) === 1, 'the calendar reads the primed branch (the closed day is still skipped)');
 
     // Today closed for everyone, the loan due yesterday (open): late today,
     // with no open day counted yet. A notice or a recall says 1 day, not 0.
@@ -154,6 +210,7 @@ try {
         $db->query("DELETE FROM sedi WHERE id={$ids['sede']}");
     }
     if ($ids['user'] > 0) {
+        $db->query("DELETE FROM mobile_push_subscriptions WHERE user_id={$ids['user']}");
         $db->query("DELETE FROM utenti WHERE id={$ids['user']}");
     }
     if ($featureBefore === null) {

@@ -39,6 +39,7 @@ final class LibrarySettingsController
         'recall_max_count' => [1, 50],
         'auto_approve_requests' => null,
         'allow_multiple_loans_same_book' => null,
+        'same_day_handover_after_closure' => null,
         'recall_auto_enabled' => null,
         'app_timezone' => null,
     ];

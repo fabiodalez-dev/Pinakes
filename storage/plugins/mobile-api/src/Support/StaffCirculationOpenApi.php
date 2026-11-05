@@ -85,13 +85,13 @@ final class StaffCirculationOpenApi
 
         return [
             '/staff/circulation/summary' => ['get' => O::op($t, 'staffCirculationSummary', 'Desk counters and loan settings (Cache-Control: no-store)', [
-                '200' => O::ok('Counters.', O::ref('CirculationSummary')),
+                '200' => O::ok('Counters; active and overdue split the loans out by is_overdue, not by the raw status.', O::ref('CirculationSummary')),
             ])],
             '/staff/loans' => [
                 'get' => O::op($t, 'staffLoans', 'Loans by desk bucket', [
                     '200' => O::ok('Page of loans; meta = {count, limit, next_cursor, has_more, total_count}.', O::listOf('StaffLoan')),
                 ] + O::invalid(), ['parameters' => array_merge([
-                    O::query('bucket', 'string', 'pending|pickup|scheduled|active|overdue|history|all (default all).'),
+                    O::query('bucket', 'string', 'pending|pickup|scheduled|active|overdue|history|all (default all). active and overdue split the loans out by is_overdue, not by the raw status.'),
                     O::query('q', 'string', 'Title, user name / email / card, or copy code.'),
                     O::query('user_id', 'integer', 'Only this user.'),
                     O::query('book_id', 'integer', 'Only this title.'),
@@ -230,6 +230,8 @@ final class StaffCirculationOpenApi
                 'user' => $person,
                 'processed_by' => ['oneOf' => [['type' => 'null'], O::object(['id' => $i, 'name' => $s])]],
                 'requested_at' => $nd, 'loaned_at' => $nd, 'due_at' => $nd, 'pickup_deadline' => $nd, 'returned_at' => $nd,
+                'effective_due_at' => $nd,
+                'is_overdue' => ['type' => 'boolean', 'description' => 'Lateness in the library timezone and copy branch calendar; authoritative over a stale raw status.'],
                 'returned_late' => $b, 'days_overdue' => $i, 'renewals' => $i, 'max_renewals' => $i,
                 'penalty' => O::nullable('number'), 'notes' => $ns, 'recall_count' => $i, 'last_recall_at' => $ns,
                 'created_at' => $ns, 'updated_at' => $ns,

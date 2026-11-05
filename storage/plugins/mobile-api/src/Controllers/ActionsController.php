@@ -96,7 +96,7 @@ final class ActionsController
             // Active loans (scheduled / to-pickup / in-progress / overdue).
             // CI-SOFT-DELETE-EXEMPT: an ACTIVE loan on an archived title must stay visible — the user still holds the copy and receives overdue recalls for it (M3). LEFT JOIN + COALESCE keep the row (with its real title, still present on soft-deleted rows) even if the book row ever vanished.
             $sql = "SELECT pr.id, pr.libro_id, pr.data_prestito, pr.data_scadenza, pr.data_restituzione,
-                           pr.stato, pr.renewals, pr.created_at,
+                           pr.stato, pr.copia_id, pr.renewals, pr.created_at,
                            COALESCE(l.titolo, '') AS titolo, l.copertina_url
                     FROM prestiti pr
                     LEFT JOIN libri l ON l.id = pr.libro_id
@@ -979,32 +979,41 @@ final class ActionsController
             $dueSoonLimit = date('Y-m-d', strtotime($today . " +{$dueSoonDays} days"));
 
             // Loans due soon (active, in-progress, not yet overdue).
-            $sql = "SELECT pr.id, pr.libro_id, pr.data_scadenza, l.titolo
+            $sql = "SELECT pr.id, pr.libro_id, pr.copia_id, pr.data_scadenza, l.titolo
                     FROM prestiti pr
                     JOIN libri l ON l.id = pr.libro_id AND l.deleted_at IS NULL
-                    WHERE pr.utente_id = ? AND pr.attivo = 1 AND pr.stato = 'in_corso'
-                      AND pr.data_scadenza >= ? AND pr.data_scadenza <= ?
+                    WHERE pr.utente_id = ? AND pr.attivo = 1 AND pr.stato IN ('in_corso', 'in_ritardo')
+                      AND pr.data_scadenza <= ?
                     ORDER BY pr.data_scadenza ASC";
             $stmt = $this->db->prepare($sql);
             if ($stmt !== false) {
-                $stmt->bind_param('iss', $userId, $today, $dueSoonLimit);
+                $stmt->bind_param('is', $userId, $dueSoonLimit);
                 $stmt->execute();
                 $res = $stmt->get_result();
                 while ($res !== false && ($r = $res->fetch_assoc()) !== null) {
+                    $copyId = isset($r['copia_id']) ? (int) $r['copia_id'] : null;
+                    if (\App\Support\LibraryCalendar::isPastDue($this->db, (string) $r['data_scadenza'], $copyId, $today)) {
+                        continue;
+                    }
+                    $effectiveDue = \App\Support\LibraryCalendar::dueDate($this->db, (string) $r['data_scadenza'], $copyId);
+                    if ($effectiveDue > $dueSoonLimit) {
+                        continue;
+                    }
                     $items[] = $this->notif(
                         'loan_due',
                         'loan:' . (int) $r['id'],
                         __('Prestito in scadenza'),
-                        sprintf(__('Il prestito di "%s" scade il %s.'), (string) $r['titolo'], (string) $r['data_scadenza']),
+                        sprintf(__('Il prestito di "%s" scade il %s.'), (string) $r['titolo'], $effectiveDue),
                         (int) $r['libro_id'],
-                        (string) $r['data_scadenza']
+                        $effectiveDue
                     );
                 }
                 $stmt->close();
             }
 
-            // Overdue loans.
-            $sql = "SELECT pr.id, pr.libro_id, pr.data_scadenza, l.titolo
+            // The date filter is only a candidate set: branch closures may
+            // have made a past stored due date usable on the next open day.
+            $sql = "SELECT pr.id, pr.libro_id, pr.copia_id, pr.data_scadenza, l.titolo
                     FROM prestiti pr
                     JOIN libri l ON l.id = pr.libro_id AND l.deleted_at IS NULL
                     WHERE pr.utente_id = ? AND pr.attivo = 1
@@ -1016,13 +1025,18 @@ final class ActionsController
                 $stmt->execute();
                 $res = $stmt->get_result();
                 while ($res !== false && ($r = $res->fetch_assoc()) !== null) {
+                    $copyId = isset($r['copia_id']) ? (int) $r['copia_id'] : null;
+                    if (!\App\Support\LibraryCalendar::isPastDue($this->db, (string) $r['data_scadenza'], $copyId, $today)) {
+                        continue;
+                    }
+                    $effectiveDue = \App\Support\LibraryCalendar::dueDate($this->db, (string) $r['data_scadenza'], $copyId);
                     $items[] = $this->notif(
                         'loan_overdue',
                         'overdue:' . (int) $r['id'],
                         __('Prestito scaduto'),
-                        sprintf(__('Il prestito di "%s" è scaduto il %s.'), (string) $r['titolo'], (string) $r['data_scadenza']),
+                        sprintf(__('Il prestito di "%s" è scaduto il %s.'), (string) $r['titolo'], $effectiveDue),
                         (int) $r['libro_id'],
-                        (string) $r['data_scadenza']
+                        $effectiveDue
                     );
                 }
                 $stmt->close();
@@ -1177,6 +1191,7 @@ final class ActionsController
     {
         $status = (string) ($r['stato'] ?? '');
         $dueAt = $this->nullableString($r['data_scadenza'] ?? null);
+        $dates = \App\Support\LibraryCalendar::loanDates($this->db, $r);
 
         return [
             'id'           => (int) $r['id'],
@@ -1196,12 +1211,15 @@ final class ActionsController
             'requested_at' => !empty($r['created_at']) ? substr((string) $r['created_at'], 0, 10) : null,
             'loaned_at'    => $this->nullableString($r['data_prestito'] ?? null),
             'due_at'       => $dueAt,
+            // Keep the stored date for history/editing. Clients display the
+            // usable return day and do not infer lateness from device time.
+            'effective_due_at' => $dates['effective_due_at'],
+            'is_overdue'   => $dates['is_overdue'],
             // Server-authoritative visibility cue: the Android device may be in a
             // different timezone from the library, so it must not derive "today"
-            // from LocalDate.now(). The badge still uses the raw status above.
-            'due_attention' => $dueAt !== null
-                && in_array($status, ['in_corso', 'in_ritardo'], true)
-                && $dueAt <= DateHelper::today(),
+            // from LocalDate.now(). Clients can also reconcile the status badge
+            // with is_overdue when the persisted status has not caught up yet.
+            'due_attention' => $dates['due_attention'],
             'returned_at'  => $this->nullableString($r['data_restituzione'] ?? null),
             'renewals'     => isset($r['renewals']) ? (int) $r['renewals'] : null,
             // Additive since 1.4.4: drives the native cancel affordance. The

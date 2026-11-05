@@ -119,7 +119,7 @@ assertContainsText(
     'canonical next-availability intervals must retain legacy NULL-start reservations'
 );
 assertContainsText("AND p.attivo = 1", $notificationService, 'Automatic loan notifications must ignore closed rows');
-assertContainsText("AND attivo = 1 AND stato = 'in_corso'", $notificationService, 'Expiration-warning claim must revalidate the loan lifecycle');
+assertContainsText("AND attivo = 1 AND stato IN ('in_corso', 'in_ritardo')", $notificationService, 'Expiration-warning claim must revalidate the outstanding-loan lifecycle');
 
 $reservationManager = readFileOrFail($root . '/app/Controllers/ReservationManager.php');
 assertContainsText(

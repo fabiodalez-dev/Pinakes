@@ -63,7 +63,8 @@ async function inspectLabel(page, urlPath) {
   expect(resp.headers()['content-type']).toContain('application/pdf');
   const file = path.join(os.tmpdir(), `label-${RUN}-${Math.random().toString(36).slice(2)}.pdf`);
   fs.writeFileSync(file, await resp.body());
-  const text = execFileSync('pdftotext', ['-layout', file, '-'], { encoding: 'utf-8' });
+  // A visible subtitle may wrap to another line within a valid label size.
+  const text = execFileSync('pdftotext', ['-layout', file, '-'], { encoding: 'utf-8' }).replace(/\s+/g, ' ').trim();
   const info = execFileSync('pdfinfo', [file], { encoding: 'utf-8' });
   fs.unlinkSync(file);
   const m = info.match(/Page size:\s*([\d.]+)\s*x\s*([\d.]+)\s*pts/i);
@@ -162,7 +163,9 @@ test.describe.serial('Copy-label PDF content (#238)', () => {
     await page.goto(`${BASE}/admin/books/${bookId}`);
     const copyRows = page.locator('a[href*="copy-labels-pdf?copy_id="]').locator('xpath=ancestor::tr');
     await expect(copyRows).toHaveCount(2);
-    const inventoryCodes = await copyRows.locator('td:first-child').allTextContents();
+    // The responsive table also contains a real "Inventario" field label.
+    // Compare the code itself, preserving the C2-before-C10 ordering check.
+    const inventoryCodes = await copyRows.locator('td:first-child > div.text-sm').allTextContents();
     expect(inventoryCodes.map((code) => code.trim())).toEqual([CODE_A, CODE_B]);
 
     // Single copy A.

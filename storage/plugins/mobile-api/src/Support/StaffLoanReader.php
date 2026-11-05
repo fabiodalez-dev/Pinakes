@@ -13,7 +13,9 @@ use mysqli;
  *
  * The list queries mirror the five desk lists of
  * LoanApprovalController::pendingLoans() (pending, ready for pickup,
- * scheduled, active, overdue) plus the history; the joined `libri` row always
+ * scheduled, active, overdue) plus the history, except that active and overdue
+ * split the loans out by LibraryCalendar::isPastDue(), the verdict each item
+ * reports as is_overdue, not by the stored stato; the joined `libri` row always
  * carries `deleted_at IS NULL`. Writes never happen here: every mutation is
  * delegated to the core controllers, and this class only reloads the row
  * afterwards so the API answers with the resource as it now is.
@@ -22,6 +24,7 @@ final class StaffLoanReader
 {
     public const BUCKETS = ['pending', 'pickup', 'scheduled', 'active', 'overdue', 'history', 'all'];
     public const RESERVATION_STATES = ['attiva', 'completata', 'annullata', 'all'];
+    private const LOAN_OUT_SQL = "p.attivo = 1 AND p.stato IN ('in_corso', 'in_ritardo')";
 
     private ?\App\Services\CirculationPolicy $circulation = null;
 
@@ -88,11 +91,11 @@ final class StaffLoanReader
                 $order = 'p.data_prestito ASC, p.id ASC';
                 break;
             case 'active':
-                $where[] = "p.stato = 'in_corso' AND p.attivo = 1";
+                $where[] = self::LOAN_OUT_SQL . ' AND NOT (' . \App\Support\LibraryCalendar::overdueLoanCondition($this->db, $today) . ')';
                 $order = 'p.data_scadenza ASC, p.id ASC';
                 break;
             case 'overdue':
-                $where[] = "p.stato = 'in_ritardo' AND p.attivo = 1";
+                $where[] = self::LOAN_OUT_SQL . ' AND (' . \App\Support\LibraryCalendar::overdueLoanCondition($this->db, $today) . ')';
                 $order = 'p.data_scadenza ASC, p.id ASC';
                 break;
             case 'history':
@@ -215,19 +218,20 @@ final class StaffLoanReader
 
         $settings = new \App\Models\SettingsRepository($this->db);
         $defaults = $this->circulation()->defaults();
+        $late = \App\Support\LibraryCalendar::overdueLoanCondition($this->db, $today);
 
         return [
             'pending'        => $count("p.stato = 'pendente'"),
             'pickup_ready'   => $count("p.attivo = 1 AND (p.stato = 'da_ritirare' OR (p.stato = 'prenotato' AND p.data_prestito <= ?))", 's', [$today]),
             'scheduled'      => $count("p.stato = 'prenotato' AND p.data_prestito > ? AND p.attivo = 1", 's', [$today]),
-            'active'         => $count("p.stato = 'in_corso' AND p.attivo = 1"),
-            'overdue'        => $count("p.stato = 'in_ritardo' AND p.attivo = 1"),
+            'active'         => $count(self::LOAN_OUT_SQL . " AND NOT ({$late})"),
+            'overdue'        => $count(self::LOAN_OUT_SQL . " AND ({$late})"),
             'reservations'   => (int) ($this->scalar(
                 "SELECT COUNT(*) FROM prenotazioni r JOIN libri l ON l.id = r.libro_id AND l.deleted_at IS NULL WHERE r.stato = 'attiva'",
                 '',
                 []
             ) ?? 0),
-            'due_today'      => $count("p.attivo = 1 AND p.stato IN ('in_corso','in_ritardo') AND p.data_scadenza = ?", 's', [$today]),
+            'due_today'      => $this->dueTodayCount($today),
             'returned_today' => $count('p.data_restituzione = ?', 's', [$today]),
             'today'          => $today,
             'settings'       => [
@@ -238,6 +242,39 @@ final class StaffLoanReader
                 'allow_multiple_loans_same_book' => $settings->allowsMultipleLoansSameBook(),
             ],
         ];
+    }
+
+    /** Count usable return days, including nominal dates blocked from moving. */
+    private function dueTodayCount(string $today): int
+    {
+        $calendar = \App\Support\LibraryCalendar::forDb($this->db);
+        if (!$calendar->hasRules()) {
+            return (int) ($this->scalar(
+                "SELECT COUNT(*) FROM prestiti p
+                   JOIN libri l ON l.id = p.libro_id AND l.deleted_at IS NULL
+                  WHERE p.attivo = 1 AND p.stato IN ('in_corso','in_ritardo') AND p.data_scadenza = ?",
+                's',
+                [$today]
+            ) ?? 0);
+        }
+        $rows = $this->all(
+            "SELECT p.data_scadenza, c.sede_id
+               FROM prestiti p
+               JOIN libri l ON l.id = p.libro_id AND l.deleted_at IS NULL
+               LEFT JOIN copie c ON c.id = p.copia_id
+              WHERE p.attivo = 1 AND p.stato IN ('in_corso','in_ritardo')
+                AND p.data_scadenza <= ?",
+            's',
+            [$today]
+        );
+        $due = 0;
+        foreach ($rows as $row) {
+            $branch = $row['sede_id'] !== null ? (int) $row['sede_id'] : null;
+            if ($calendar->nextOpenDay((string) $row['data_scadenza'], $branch) === $today) {
+                $due++;
+            }
+        }
+        return $due;
     }
 
     /** The global renewal limit (no patron context). */
@@ -491,10 +528,11 @@ final class StaffLoanReader
         $today = DateHelper::today();
         $status = (string) ($r['stato'] ?? '');
         $due = self::date($r['data_scadenza'] ?? null);
-        $daysOverdue = 0;
-        if ($due !== null && in_array($status, ['in_corso', 'in_ritardo'], true) && (int) ($r['attivo'] ?? 0) === 1 && $due < $today) {
-            $daysOverdue = (int) ((new \DateTimeImmutable($due))->diff(new \DateTimeImmutable($today))->days ?: 0);
-        }
+        $holding = in_array($status, ['in_corso', 'in_ritardo'], true) && (int) ($r['attivo'] ?? 0) === 1;
+        $copyId = isset($r['copia_id']) ? (int) $r['copia_id'] : null;
+        $dates = \App\Support\LibraryCalendar::loanDates($this->db, $r, $today);
+        $isOverdue = $dates['is_overdue'];
+        $daysOverdue = $isOverdue ? \App\Support\LibraryCalendar::lateDaysForNotice($this->db, $due, $copyId, $today) : 0;
         $penalty = $r['sanzione'] ?? null;
         $maxRenewals = $this->maxRenewalsFor($r);
         $processedBy = isset($r['processed_by'], $r['pb_nome'])
@@ -528,6 +566,8 @@ final class StaffLoanReader
             'requested_at'    => self::date($r['created_at'] ?? null),
             'loaned_at'       => self::date($r['data_prestito'] ?? null),
             'due_at'          => $due,
+            'effective_due_at' => $dates['effective_due_at'],
+            'is_overdue'      => $isOverdue,
             'pickup_deadline' => self::date($r['pickup_deadline'] ?? null),
             'returned_at'     => self::date($r['data_restituzione'] ?? null),
             'returned_late'   => (int) ($r['restituito_in_ritardo'] ?? 0) === 1,
@@ -540,7 +580,7 @@ final class StaffLoanReader
             'last_recall_at'  => self::str($r['last_recall_at'] ?? null),
             'created_at'      => self::str($r['created_at'] ?? null),
             'updated_at'      => self::str($r['updated_at'] ?? null),
-            'actions'         => CirculationOutcome::actionsFor($r, $maxRenewals, $today),
+            'actions'         => CirculationOutcome::actionsFor($r, $maxRenewals, $today, $holding ? $isOverdue : null),
         ];
     }
 

@@ -414,6 +414,26 @@ test.describe.serial('Closures added after the loan', () => {
     expect(loanRow(loanId).split('|')[0]).toBe('in_corso');
     // The notice already sent stays recorded: no second overdue e-mail later.
     expect(db(`SELECT overdue_notification_sent FROM prestiti WHERE id=${loanId}`)).toBe('1');
+    const bookId = F.dbInt(`SELECT libro_id FROM prestiti WHERE id=${loanId}`);
+    await page.goto(`${F.BASE}/admin/books/${bookId}`);
+    await expect(page.locator(`form[action$="/admin/loans/renew/${loanId}"] button[type="submit"]`)).toBeVisible();
+    await expect(page.getByText('Non rinnovabile: prestito in ritardo', { exact: true })).toHaveCount(0);
+
+    // The renewal counts from the usable return day (today), not from the
+    // closed stored date: it ends where a loan due today on an open day ends.
+    const control = pastLoan(title('reconcile-control'), today);
+    const renewInUi = async (id) => {
+      const book = F.dbInt(`SELECT libro_id FROM prestiti WHERE id=${id}`);
+      await page.goto(`${F.BASE}/admin/books/${book}`);
+      await page.locator(`form[action$="/admin/loans/renew/${id}"] button[type="submit"]`).click();
+      await page.locator('.swal2-confirm').click();
+      await page.waitForLoadState('networkidle');
+      expect(db(`SELECT renewals FROM prestiti WHERE id=${id}`)).toBe('1');
+      return loanRow(id).split('|')[1];
+    };
+    const controlDue = await renewInUi(control);
+    expect(controlDue > today).toBe(true);
+    expect(await renewInUi(loanId)).toBe(controlDue);
   });
 
   test('Past 2: the overdue sweep waits for the first open day after a due day closed afterwards', async () => {

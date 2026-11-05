@@ -1,5 +1,5 @@
 <?php
-/** @var string $content */
+/** @var string|\Psr\Http\Message\StreamInterface $content */
 // Expects $content
 
 use App\Support\Branding;
@@ -919,7 +919,15 @@ $htmlLang = substr($currentLocale, 0, 2);
             <?php endif; ?>
           </div>
         <?php endif; ?>
-        <?php echo $content; ?>
+        <?php
+        if ($content instanceof \Psr\Http\Message\StreamInterface) {
+            while (!$content->eof()) {
+                echo $content->read(8192);
+            }
+        } else {
+            echo $content;
+        }
+        ?>
         </div>
       </main>
     </div>

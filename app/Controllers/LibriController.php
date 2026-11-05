@@ -467,6 +467,8 @@ class LibriController
             $loanHistoryQuery = "
                 SELECT
                     p.id,
+                    p.copia_id,
+                    p.attivo,
                     p.data_prestito,
                     p.data_scadenza,
                     p.data_restituzione,
@@ -488,11 +490,14 @@ class LibriController
             $stmt = $db->prepare($loanHistoryQuery);
             $stmt->bind_param('i', $id);
             $stmt->execute();
-            $result = $stmt->get_result();
-            while ($row = $result->fetch_assoc()) {
-                $loanHistory[] = $row;
-            }
+            $historyRows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
             $stmt->close();
+            // One branch read for the page, not one per loan.
+            \App\Support\LibraryCalendar::primeCopyBranches($db, array_map(static fn (array $r): int => (int) ($r['copia_id'] ?? 0), $historyRows));
+            $historyToday = \App\Support\DateHelper::today();
+            foreach ($historyRows as $row) {
+                $loanHistory[] = $row + \App\Support\LibraryCalendar::loanDates($db, $row, $historyToday);
+            }
         }
 
         // Active reservations for this book (admin/staff only - contains PII)
@@ -602,20 +607,34 @@ class LibriController
             );
         }
 
-        ob_start();
-        // extract([
-        //     'libro' => $libro,
-        //     'activeLoan' => $activeLoan,
-        //     'bookPath' => $bookPath,
-        //     'loanHistory' => $loanHistory,
-        //     'libraryThingInstalled' => $libraryThingInstalled,
-        // ]);
-        require __DIR__ . '/../Views/libri/scheda_libro.php';
-        $content = ob_get_clean();
-        ob_start();
-        require __DIR__ . '/../Views/layout.php';
-        $html = ob_get_clean();
-        $response->getBody()->write($html);
+        // A book may have thousands of physical copies. Keep both rendering
+        // stages in temporary streams instead of holding full copies of the
+        // view, layout buffer and final HTML alongside the database rows.
+        // HTTP emission still happens after this action returns.
+        $content = (new \Slim\Psr7\Factory\StreamFactory())->createStream();
+        $body = $response->getBody();
+        $bufferLevel = ob_get_level();
+        try {
+            ob_start(static function (string $chunk) use ($content): string {
+                $content->write($chunk);
+                return '';
+            }, 8192);
+            require __DIR__ . '/../Views/libri/scheda_libro.php';
+            ob_end_flush();
+            $content->rewind();
+
+            ob_start(static function (string $chunk) use ($body): string {
+                $body->write($chunk);
+                return '';
+            }, 8192);
+            require __DIR__ . '/../Views/layout.php';
+            ob_end_flush();
+        } finally {
+            while (ob_get_level() > $bufferLevel) {
+                ob_end_clean();
+            }
+            $content->close();
+        }
         return $response;
     }
 

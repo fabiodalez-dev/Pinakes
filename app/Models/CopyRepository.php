@@ -73,6 +73,8 @@ class CopyRepository
                 'utente_nome' => null,
                 'utente_cognome' => null,
                 'utente_email' => null,
+                'effective_due_at' => null,
+                'is_overdue' => false,
             ];
             $copie[] = $row;
         }
@@ -84,7 +86,10 @@ class CopyRepository
         foreach ($copie as $index => $copy) {
             $copyIndexes[(int) $copy['id']] = $index;
         }
-        foreach ($this->getScheduleByBookId($bookId) as $commitment) {
+        $schedule = $this->getScheduleByBookId($bookId);
+        \App\Support\LibraryCalendar::primeCopyBranches($this->db, array_map(static fn (array $c): int => (int) $c['id'], $schedule));
+        $today = \App\Support\DateHelper::today();
+        foreach ($schedule as $commitment) {
             $copyId = (int) $commitment['id'];
             if (!isset($copyIndexes[$copyId])) {
                 continue;
@@ -96,6 +101,14 @@ class CopyRepository
             foreach (['prestito_id', 'utente_id', 'data_prestito', 'data_scadenza', 'prestito_stato', 'utente_nome', 'utente_cognome', 'utente_email'] as $field) {
                 $copie[$index][$field] = $commitment[$field];
             }
+            $dates = \App\Support\LibraryCalendar::loanDates($this->db, [
+                'data_scadenza' => $commitment['data_scadenza'],
+                'stato' => $commitment['prestito_stato'],
+                'attivo' => $commitment['attivo'],
+                'copia_id' => $copyId,
+            ], $today);
+            $copie[$index]['effective_due_at'] = $dates['effective_due_at'];
+            $copie[$index]['is_overdue'] = $dates['is_overdue'];
         }
 
         return $copie;
@@ -111,7 +124,7 @@ class CopyRepository
         $stmt = $this->db->prepare("
             SELECT c.id, c.numero_inventario,
                    p.id AS prestito_id, p.utente_id, p.data_prestito,
-                   p.data_scadenza, p.stato AS prestito_stato,
+                   p.data_scadenza, p.stato AS prestito_stato, p.attivo,
                    u.nome AS utente_nome, u.cognome AS utente_cognome,
                    u.email AS utente_email
             FROM copie c

@@ -112,7 +112,14 @@ function deleteTypes(prefix) {
 async function loginAs(page, email, password) {
   for (let attempt = 0; attempt < 2; attempt++) {
     clearRateLimits();
+    // A plugin-setup helper may already have signed this context in. /accedi
+    // then redirects to the dashboard and has no form to fill. Start a fresh
+    // session for the requested identity (also when switching reader/admin).
+    await page.context().clearCookies();
     await page.goto(`${BASE}/accedi`);
+    // A fresh phone's consent banner can cover the login submit button.
+    const rejectCookies = page.locator('#silktide-wrapper .reject-all');
+    await rejectCookies.click({ timeout: 1500 }).catch(() => {});
     await page.fill('input[name="email"]', email);
     await page.fill('input[name="password"]', password);
     await page.locator('button[type="submit"]').click();

@@ -63,6 +63,8 @@ final class LibraryCalendar
     /** @var array<int, self> per-connection cache, keyed by spl_object_id */
     private static array $instances = [];
 
+    private const REVISION_STEP = 3660;
+
     /** @var array<int, ?int> branchOfCopy() memo: copy id => sede_id (null when none) */
     private array $copyBranches = [];
 
@@ -212,6 +214,75 @@ final class LibraryCalendar
     }
 
     /**
+     * Calendar facts shared by web lists and native clients. The persisted
+     * date remains available for history and editing; only an outstanding
+     * physical loan receives a later usable return day.
+     * @param array<string, mixed> $loan
+     * @return array{effective_due_at: ?string, is_overdue: bool, due_attention: bool}
+     */
+    public static function loanDates(\mysqli $db, array $loan, ?string $today = null): array
+    {
+        $today ??= DateHelper::today();
+        $due = !empty($loan['data_scadenza']) ? substr((string) $loan['data_scadenza'], 0, 10) : null;
+        $holding = (int) ($loan['attivo'] ?? 1) === 1 && in_array($loan['stato'] ?? '', ['in_corso', 'in_ritardo'], true);
+        $copyId = isset($loan['copia_id']) ? (int) $loan['copia_id'] : null;
+        // A scheduled loan whose move was refused also ends on the next open day;
+        // it cannot be late or due yet, so only the date follows the calendar.
+        $scheduled = (int) ($loan['attivo'] ?? 1) === 1 && in_array($loan['stato'] ?? '', ['prenotato', 'da_ritirare'], true);
+        $effectiveDue = ($holding || $scheduled) && $due !== null ? self::dueDate($db, $due, $copyId) : $due;
+        return [
+            'effective_due_at' => $effectiveDue,
+            'is_overdue' => $holding && $due !== null && self::isPastDue($db, $due, $copyId, $today),
+            'due_attention' => $holding && $effectiveDue !== null && $effectiveDue <= $today,
+        ];
+    }
+
+    /**
+     * Ids of the loans out that are late on $today by isPastDue(), whatever
+     * their stored stato says. Reads prestiti only: a caller that lists or
+     * counts titles keeps its own join with libri.
+     *
+     * @return list<int>
+     */
+    public static function overdueLoanIds(\mysqli $db, string $today): array
+    {
+        $stmt = $db->prepare(
+            "SELECT id, data_scadenza, copia_id FROM prestiti
+             WHERE attivo = 1 AND stato IN ('in_corso', 'in_ritardo') AND data_scadenza < ?"
+        );
+        if ($stmt === false) {
+            throw new \RuntimeException('LibraryCalendar: overdue loans query not prepared');
+        }
+        $stmt->bind_param('s', $today);
+        $stmt->execute();
+        $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+        $stmt->close();
+        self::primeCopyBranches($db, array_map(static fn (array $r): int => (int) ($r['copia_id'] ?? 0), $rows));
+        $ids = [];
+        foreach ($rows as $row) {
+            if (self::isPastDue($db, (string) $row['data_scadenza'], $row['copia_id'] !== null ? (int) $row['copia_id'] : null, $today)) {
+                $ids[] = (int) $row['id'];
+            }
+        }
+        return $ids;
+    }
+
+    /**
+     * SQL condition, for a row of prestiti already restricted to loans out, that
+     * holds when the loan is late by isPastDue(). With no calendar rules that is
+     * the plain date comparison, served by the data_scadenza indexes; with rules
+     * it is the id list of overdueLoanIds(). Contains no bound parameter.
+     */
+    public static function overdueLoanCondition(\mysqli $db, string $today, string $alias = 'p'): string
+    {
+        if (!self::forDb($db)->hasRules()) {
+            return "{$alias}.data_scadenza < '" . $db->real_escape_string($today) . "'";
+        }
+        $ids = self::overdueLoanIds($db, $today);
+        return $ids === [] ? '1 = 0' : "{$alias}.id IN (" . implode(',', $ids) . ')';
+    }
+
+    /**
      * After a calendar change: an active loan whose due date (today or later)
      * now falls on a closed day of the copy's branch is due on the next open
      * day instead, as if it had been lent after the change: the reader never
@@ -260,7 +331,7 @@ final class LibraryCalendar
         $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
         $stmt->close();
 
-        $capacity = new \App\Services\CapacityService($db);
+        $capacity = new \App\Services\CapacityService($db, lockingReads: true);
         $moved = 0;
         $notMoved = 0;
         foreach ($rows as $row) {
@@ -292,6 +363,34 @@ final class LibraryCalendar
                 $lockBook->execute();
                 $lockBook->get_result();
                 $lockBook->close();
+                // The copy of a scheduled loan can be replaced while this
+                // save waits for the book lock (e.g. the original was lost).
+                // Re-read the loan and its current branch with a current read;
+                // applying the scan's branch would move an open-day deadline.
+                $lockLoan = $db->prepare(
+                    "SELECT p.data_scadenza, c.sede_id
+                     FROM prestiti p LEFT JOIN copie c ON c.id = p.copia_id
+                     WHERE p.id = ? AND p.libro_id = ? AND p.attivo = 1
+                       AND p.stato IN ('in_corso', 'da_ritirare', 'prenotato')
+                       AND p.data_scadenza >= ? FOR UPDATE"
+                );
+                $lockLoan->bind_param('iis', $id, $bookId, $today);
+                $lockLoan->execute();
+                $current = $lockLoan->get_result()->fetch_assoc();
+                $lockLoan->close();
+                if ($current === null) {
+                    if ($ownTransaction) { $db->commit(); }
+                    continue;
+                }
+                $due = substr((string) $current['data_scadenza'], 0, 10);
+                $next = $calendar->nextOpenDay($due, $current['sede_id'] !== null ? (int) $current['sede_id'] : null);
+                if (!DateHelper::isISODateFormat($due) || $next <= $due) {
+                    if ($ownTransaction) { $db->commit(); }
+                    continue;
+                }
+                // The calendar scan may already have opened an older MVCC
+                // snapshot. Locking capacity reads see the operator who held
+                // this book lock before us, including copyless reservations.
                 if ($capacity->hasFreeCapacity($bookId, self::shift($due, 1), $next, excludePrestitoId: $id)) {
                     $before = ActivityLog::loadLoanSnapshot($db, $id);
                     $update = $db->prepare(
@@ -316,10 +415,13 @@ final class LibraryCalendar
                     } catch (\Throwable) {
                     }
                 }
-                $lockConflict = $e instanceof \mysqli_sql_exception && in_array($e->getCode(), [1205, 1213], true);
-                // Deadlock / lock wait timeout inside a caller's transaction:
-                // MySQL rolled it back (or will), and it must not commit as if
-                // the move had worked.
+                $lockConflict = $e instanceof \mysqli_sql_exception && in_array($e->getCode(), [1020, 1205, 1213], true);
+                // Deadlock, lock wait timeout or, on MariaDB with
+                // innodb_snapshot_isolation, a row changed since the snapshot
+                // (1020) inside a caller's transaction: the server rolled it
+                // back (or will), and it must not commit as if the move had
+                // worked. Carrying on would give each remaining loan its own
+                // committed transaction, moved for a closure no longer saved.
                 if ($lockConflict && !$ownTransaction) {
                     throw $e;
                 }
@@ -384,7 +486,7 @@ final class LibraryCalendar
     private static function reconcileOverdue(\mysqli $db, string $today, ?int $operatorId): void
     {
         $stmt = $db->prepare(
-            "SELECT id, data_scadenza, copia_id FROM prestiti
+            "SELECT id, libro_id, data_scadenza, copia_id FROM prestiti
              WHERE attivo = 1 AND stato = 'in_ritardo' AND data_scadenza IS NOT NULL AND data_scadenza < ?"
         );
         if ($stmt === false) {
@@ -400,17 +502,131 @@ final class LibraryCalendar
                 continue;
             }
             $id = (int) $row['id'];
-            $before = ActivityLog::loadLoanSnapshot($db, $id);
-            $update = $db->prepare("UPDATE prestiti SET stato = 'in_corso' WHERE id = ? AND attivo = 1 AND stato = 'in_ritardo' AND data_scadenza = ?");
             $due = (string) $row['data_scadenza'];
-            $update->bind_param('is', $id, $due);
-            $update->execute();
-            $changed = $update->affected_rows > 0;
-            $update->close();
-            if ($changed) {
-                ActivityLog::recordLoanEvent($db, $id, 'loan.updated', $before, 'aggiornamento', 'calendar', $operatorId);
-            }
+            self::withBookLock($db, (int) $row['libro_id'], static function () use ($db, $id, $due, $operatorId): void {
+                $before = ActivityLog::loadLoanSnapshot($db, $id);
+                $update = $db->prepare("UPDATE prestiti SET stato = 'in_corso' WHERE id = ? AND attivo = 1 AND stato = 'in_ritardo' AND data_scadenza = ?");
+                $update->bind_param('is', $id, $due);
+                $update->execute();
+                $changed = $update->affected_rows > 0;
+                $update->close();
+                if ($changed) {
+                    ActivityLog::recordLoanEvent($db, $id, 'loan.updated', $before, 'aggiornamento', 'calendar', $operatorId);
+                }
+            });
         }
+    }
+
+    /**
+     * Runs a change to a loan with its book row locked first, the order desk
+     * operations use. A caller's transaction keeps the lock until it commits;
+     * without one the change gets its own.
+     */
+    private static function withBookLock(\mysqli $db, int $bookId, callable $change): void
+    {
+        $ownTransaction = !DbAtomic::inTransaction($db);
+        if ($ownTransaction) {
+            $db->begin_transaction();
+        }
+        try {
+            // CI-SOFT-DELETE-EXEMPT: a lock, not a read for display; an active
+            // loan may belong to an archived book and its row is locked all the same.
+            // @include-soft-deleted (tests/code-quality.spec.js, check 5).
+            $lock = $db->prepare('SELECT id FROM libri WHERE id = ? FOR UPDATE');
+            $lock->bind_param('i', $bookId);
+            $lock->execute();
+            $lock->get_result();
+            $lock->close();
+            $change();
+            if ($ownTransaction) {
+                $db->commit();
+            }
+        } catch (\Throwable $e) {
+            if ($ownTransaction) {
+                $db->rollback();
+            }
+            throw $e;
+        }
+    }
+
+    /**
+     * Records that the calendar's rules changed. The personal feed adds this to
+     * SEQUENCE, so it keeps rising when a change brings an event's end back: each
+     * step is larger than the days a closure can have added to that end.
+     */
+    public static function bumpRevision(\mysqli $db): void
+    {
+        $step = self::REVISION_STEP;
+        $db->query(
+            "INSERT INTO system_settings (category, setting_key, setting_value) VALUES ('library_calendar', 'revision', '{$step}')
+             ON DUPLICATE KEY UPDATE setting_value = CAST(setting_value AS UNSIGNED) + {$step}"
+        );
+    }
+
+    /** Last bumpRevision() value, 0 when the calendar has never changed. */
+    public static function revision(\mysqli $db): int
+    {
+        $result = $db->query("SELECT setting_value FROM system_settings WHERE category = 'library_calendar' AND setting_key = 'revision'");
+        $row = $result instanceof \mysqli_result ? $result->fetch_row() : null;
+        return $row !== null ? (int) $row[0] : 0;
+    }
+
+    /**
+     * Last day a loan with this stored due date keeps its book: the usable
+     * return day the reader is told, or the day before it when the library hands
+     * the book over on that day itself. Both capacity and the request calendar read it.
+     */
+    public static function holdingEnd(\mysqli $db, string $storedDue, ?int $copiaId): string
+    {
+        $usable = self::dueDate($db, $storedDue, $copiaId);
+        if ($usable > $storedDue && (new \App\Models\SettingsRepository($db))->allowsSameDayHandover()) {
+            return (new \DateTimeImmutable($usable))->modify('-1 day')->format('Y-m-d');
+        }
+        return $usable;
+    }
+
+    /**
+     * The next open day a request for this book can start on: its copies'
+     * branch when they all sit in one, otherwise the library as a whole, since
+     * no copy is bound yet.
+     */
+    public static function requestStartDay(\mysqli $db, string $ymd, int $bookId): string
+    {
+        $calendar = self::forDb($db);
+        if (!$calendar->hasRules()) {
+            return $ymd;
+        }
+        return $calendar->nextOpenDay($ymd, self::requestBranch($db, $bookId));
+    }
+
+    /**
+     * Due date of a request for this book starting on $startYmd and lasting
+     * $days: moved past the closures of the same branch requestStartDay() and
+     * the request calendar use, so every return day the page offers is accepted.
+     */
+    public static function requestDueDate(\mysqli $db, string $startYmd, int $days, int $bookId): string
+    {
+        $due = \App\Services\CirculationPolicy::dueDateFor($startYmd, $days);
+        $calendar = self::forDb($db);
+        if (!$calendar->hasRules()) {
+            return $due;
+        }
+        return $calendar->nextOpenDay($due, self::requestBranch($db, $bookId));
+    }
+
+    /** The branch of the book's lendable copies when they all sit in one, otherwise null. */
+    public static function requestBranch(\mysqli $db, int $bookId): ?int
+    {
+        $lendable = (new \App\Services\CirculationPolicy($db))->lendableCopySql('');
+        $stmt = $db->prepare(
+            "SELECT DISTINCT sede_id FROM copie
+             WHERE libro_id = ? AND stato NOT IN ('perso','danneggiato','manutenzione','in_restauro','in_trasferimento') AND {$lendable}"
+        );
+        $stmt->bind_param('i', $bookId);
+        $stmt->execute();
+        $branches = $stmt->get_result()->fetch_all(MYSQLI_NUM);
+        $stmt->close();
+        return count($branches) === 1 && $branches[0][0] !== null ? (int) $branches[0][0] : null;
     }
 
     /**
@@ -484,7 +700,7 @@ final class LibraryCalendar
         }
         $today = DateHelper::today();
         $result = $db->query(
-            "SELECT p.id, p.pickup_deadline, p.data_scadenza, c.sede_id
+            "SELECT p.id, p.libro_id, p.pickup_deadline, p.data_scadenza, c.sede_id
              FROM prestiti p
              LEFT JOIN copie c ON c.id = p.copia_id
              WHERE p.stato = 'da_ritirare' AND p.attivo = 1 AND p.pickup_deadline IS NOT NULL"
@@ -496,10 +712,6 @@ final class LibraryCalendar
         $result->free();
 
         $moved = 0;
-        $stmt = $db->prepare(
-            "UPDATE prestiti SET pickup_deadline = ?
-             WHERE id = ? AND stato = 'da_ritirare' AND attivo = 1 AND pickup_deadline = ?"
-        );
         foreach ($rows as $row) {
             $deadline = substr((string) $row['pickup_deadline'], 0, 10);
             $next = $calendar->nextOpenDay($deadline, $row['sede_id'] !== null ? (int) $row['sede_id'] : null);
@@ -511,11 +723,17 @@ final class LibraryCalendar
                 continue;
             }
             $id = (int) $row['id'];
-            $stmt->bind_param('sis', $next, $id, $deadline);
-            $stmt->execute();
-            $moved += max(0, $stmt->affected_rows);
+            self::withBookLock($db, (int) $row['libro_id'], static function () use ($db, $next, $id, $deadline, &$moved): void {
+                $stmt = $db->prepare(
+                    "UPDATE prestiti SET pickup_deadline = ?
+                     WHERE id = ? AND stato = 'da_ritirare' AND attivo = 1 AND pickup_deadline = ?"
+                );
+                $stmt->bind_param('sis', $next, $id, $deadline);
+                $stmt->execute();
+                $moved += max(0, $stmt->affected_rows);
+                $stmt->close();
+            });
         }
-        $stmt->close();
         return $moved;
     }
 
@@ -1135,6 +1353,45 @@ final class LibraryCalendar
             return $calendar->copyBranches[$copiaId];
         }
         return $calendar->copyBranches[$copiaId] = self::queryBranchOfCopy($db, $copiaId);
+    }
+
+    /**
+     * Read the branches of many copies in one query (a page of a loan list),
+     * so the per-loan calendar reads that follow hit the cache. Nothing to
+     * read when the calendar has no rules: no date then depends on a branch.
+     * @param list<int> $copiaIds
+     */
+    public static function primeCopyBranches(\mysqli $db, array $copiaIds): void
+    {
+        $calendar = self::forDb($db);
+        if (!$calendar->hasRules()) {
+            return;
+        }
+        $ids = array_values(array_unique(array_filter(
+            array_map('intval', $copiaIds),
+            static fn (int $id): bool => $id > 0 && !array_key_exists($id, $calendar->copyBranches)
+        )));
+        if ($ids === []) {
+            return;
+        }
+        try {
+            $result = $db->query('SELECT id, sede_id FROM copie WHERE id IN (' . implode(',', $ids) . ')');
+            if (!$result instanceof \mysqli_result) {
+                throw new \RuntimeException('copy branches query failed');
+            }
+            $found = [];
+            while (($row = $result->fetch_row()) !== null) {
+                $found[(int) $row[0]] = $row[1] === null ? null : (int) $row[1];
+            }
+            $result->free();
+        } catch (\Throwable $e) {
+            SecureLogger::warning('LibraryCalendar: copy branches not readable: ' . $e->getMessage());
+            throw new \RuntimeException('LibraryCalendar: copy branches not readable', 0, $e);
+        }
+        // A missing copy has no branch, as branchOfCopy() answers for it.
+        foreach ($ids as $id) {
+            $calendar->copyBranches[$id] = $found[$id] ?? null;
+        }
     }
 
     private static function queryBranchOfCopy(\mysqli $db, int $copiaId): ?int

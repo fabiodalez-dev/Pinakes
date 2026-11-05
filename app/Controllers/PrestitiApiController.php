@@ -59,7 +59,13 @@ class PrestitiApiController
             $params[] = $to;
             $param_types .= 's';
         }
-        if ($statoSpecifico !== '') {
+        if ($statoSpecifico === 'in_corso' || $statoSpecifico === 'in_ritardo') {
+            // Same verdict as the row's is_overdue, not the stored stato a sweep
+            // may not have updated yet.
+            $late = \App\Support\LibraryCalendar::overdueLoanCondition($db, \App\Support\DateHelper::today());
+            $where_prepared .= " AND p.attivo = 1 AND p.stato IN ('in_corso', 'in_ritardo') AND "
+                . ($statoSpecifico === 'in_ritardo' ? "({$late})" : "NOT ({$late})") . ' ';
+        } elseif ($statoSpecifico !== '') {
             $where_prepared .= " AND p.stato = ? ";
             $params[] = $statoSpecifico;
             $param_types .= 's';
@@ -138,7 +144,7 @@ class PrestitiApiController
         $param_types .= 'ii';
 
         $sql_prepared = "SELECT p.id, l.titolo AS libro, CONCAT(u.nome,' ',u.cognome) AS utente,
-                       p.data_prestito, p.data_scadenza, p.data_restituzione, p.attivo, p.stato,
+                       p.copia_id, p.data_prestito, p.data_scadenza, p.data_restituzione, p.attivo, p.stato,
                        CONCAT(staff.nome,' ',staff.cognome) AS processed_by
                 $base $where_prepared
                 ORDER BY $orderColumn $orderDir LIMIT ?, ?";
@@ -154,14 +160,17 @@ class PrestitiApiController
 
         $stmt->execute();
         $res = $stmt->get_result();
+        $fetched = $res->fetch_all(MYSQLI_ASSOC);
+        // One branch read for the page, not one per loan.
+        \App\Support\LibraryCalendar::primeCopyBranches($db, array_map(static fn (array $r): int => (int) ($r['copia_id'] ?? 0), $fetched));
         $rows = [];
-        while ($r = $res->fetch_assoc()) {
+        foreach ($fetched as $r) {
             $actions = '<a class="text-blue-600" href="'.htmlspecialchars(url('/admin/loans/details/'.(int)$r['id']), ENT_QUOTES, 'UTF-8').'">'.htmlspecialchars(__('Dettagli'), ENT_QUOTES, 'UTF-8').'</a>';
             $actions .= ' | <a class="text-orange-600" href="'.htmlspecialchars(url('/admin/loans/edit/'.(int)$r['id']), ENT_QUOTES, 'UTF-8').'">'.htmlspecialchars(__('Modifica'), ENT_QUOTES, 'UTF-8').'</a>';
             if ((int)$r['attivo'] === 1 && in_array((string) $r['stato'], ['in_corso', 'in_ritardo'], true)) {
                 $actions .= ' | <a class="text-green-600" href="'.htmlspecialchars(url('/admin/loans/returned/'.(int)$r['id']), ENT_QUOTES, 'UTF-8').'">'.htmlspecialchars(__('Restituito'), ENT_QUOTES, 'UTF-8').'</a>';
             }
-            $rows[] = [
+            $rows[] = \App\Support\LibraryCalendar::loanDates($db, $r) + [
                 'id' => (int)$r['id'],
                 'libro' => $r['libro'] ?? '',
                 'utente' => $r['utente'] ?? '',

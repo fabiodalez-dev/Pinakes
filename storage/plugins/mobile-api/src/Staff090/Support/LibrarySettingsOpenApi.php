@@ -122,6 +122,7 @@ final class LibrarySettingsOpenApi
             'card_expiry_warning_days' => self::int('0 = off.'), 'max_renewals' => self::int('0 = no renewals.'),
             'max_active_loans_per_user' => self::int('0 = unlimited.'), 'max_loan_duration_days' => self::int(),
             'auto_approve_requests' => self::bool(), 'allow_multiple_loans_same_book' => self::bool(),
+            'same_day_handover_after_closure' => self::bool('A reader can start on the first open day after a closed due day.'),
             'recall_auto_enabled' => self::bool(), 'recall_interval_days' => self::int(), 'recall_max_count' => self::int(),
             'app_timezone' => self::str('IANA identifier.'),
             'daily_fine_cents' => self::cents('Daily fine (admin only).'),

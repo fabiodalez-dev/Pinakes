@@ -81,8 +81,9 @@ class ReservationsController
             if ($loanStatus === 'da_ritirare') {
                 // Block the full loan period: the copy is committed to this user
                 // even though they haven't picked it up yet
-                $endDateLoan = $loan['data_scadenza']
-                    ?? (new DateTime($startDateLoan))->add(new DateInterval('P7D'))->format('Y-m-d');
+                $endDateLoan = $loan['data_scadenza'] !== null
+                    ? $this->holdingEnd($loan)
+                    : (new DateTime($startDateLoan))->add(new DateInterval('P7D'))->format('Y-m-d');
             } elseif (
                 empty($loan['data_restituzione'])
                 && (
@@ -99,7 +100,8 @@ class ReservationsController
                 $endDateLoan = '9999-12-31';
             } else {
                 // For other states: data_restituzione > data_scadenza > null
-                $endDateLoan = $loan['data_restituzione'] ?? $loan['data_scadenza'] ?? null;
+                $endDateLoan = $loan['data_restituzione']
+                    ?? ($loanStatus !== 'pendente' && !empty($loan['data_scadenza']) ? $this->holdingEnd($loan) : ($loan['data_scadenza'] ?? null));
             }
 
             // Fallback: if still no end date, use start date (single day block)
@@ -293,7 +295,7 @@ class ReservationsController
         // A start day the library is closed moves to the next open day, as the
         // request calendar proposes it (a crafted request cannot start on a
         // closure); identical without closures.
-        $startDate = \App\Support\LibraryCalendar::forDb($this->db)->nextOpenDay($startDate);
+        $startDate = \App\Support\LibraryCalendar::requestStartDay($this->db, $startDate, $bookId);
 
         if ($endDate && $endDate < $startDate) {
             $response->getBody()->write(json_encode(['success' => false, 'error' => 'invalid_range', 'message' => __('La data di fine non può precedere la data di inizio')]));
@@ -314,13 +316,13 @@ class ReservationsController
         // The longest loan ends on the maximum day, moved forward like every
         // due date when it falls on a closed day (closed days are not loan
         // days); without closures this is start + maximum, as before.
-        if ($endDate > \App\Services\CirculationPolicy::dueDateFor((string) $startDate, $maxDurationDays, $this->db)) {
+        if ($endDate > \App\Support\LibraryCalendar::requestDueDate($this->db, (string) $startDate, $maxDurationDays, (int) $bookId)) {
             $response->getBody()->write(json_encode(['success' => false, 'error' => 'max_duration_exceeded', 'message' => __('Il periodo richiesto supera la durata massima consentita di %d giorni', $maxDurationDays)]));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
         }
         // Closures calendar: a return date on a closed day moves to the next
         // open day (after the duration cap: closed days are not loan days).
-        $endDate = \App\Services\CirculationPolicy::dueDateFor($endDate, 0, $this->db);
+        $endDate = \App\Support\LibraryCalendar::requestDueDate($this->db, (string) $endDate, 0, (int) $bookId);
 
         // Availability decision routes through CapacityService — the single
         // capacity authority — so this web loan-request gate matches the mobile
@@ -768,6 +770,13 @@ class ReservationsController
         return null;
     }
 
+    /** @param array<string, mixed> $loan */
+    private function holdingEnd(array $loan): string
+    {
+        $copyId = !empty($loan['copia_id']) ? (int) $loan['copia_id'] : null;
+        return \App\Support\LibraryCalendar::holdingEnd($this->db, substr((string) $loan['data_scadenza'], 0, 10), $copyId);
+    }
+
     /**
      * Per-day availability payload for a book, or NULL when the book does not
      * exist or is soft-deleted. Every caller must 404 on null: without this
@@ -847,7 +856,11 @@ class ReservationsController
             $days = $closedHorizon + 1;
         }
         $closedDates = \App\Support\LibraryCalendar::forDb($this->db)
-            ->closedDatesBetween($from, \App\Support\LibraryCalendar::shift($from, $closedHorizon));
+            ->closedDatesBetween(
+                $from,
+                \App\Support\LibraryCalendar::shift($from, $closedHorizon),
+                \App\Support\LibraryCalendar::requestBranch($this->db, (int) $bookId)
+            );
         return $this->calculateAvailability($currentLoans, $existingReservations, $totalCopies, $startDate, $days, $excludeUserId) + [
             'loan_duration_days' => $policy->requestDurationDays(),
             'max_loan_duration_days' => $policy->maxRequestDays,

@@ -82,7 +82,7 @@ unset($workspaceHeader);
           </div>
           <div>
             <span class="font-semibold text-gray-600"><?= __("Data Scadenza:") ?></span>
-            <span class="text-gray-800"><?= format_date($prestito['data_scadenza'] ?? '', false, '/'); ?></span>
+            <span class="text-gray-800"><?= format_date($prestito['effective_due_at'] ?? $prestito['data_scadenza'] ?? '', false, '/'); ?></span>
           </div>
           <div>
             <span class="font-semibold text-gray-600"><?= __("Data Restituzione:") ?></span>
@@ -194,8 +194,7 @@ unset($workspaceHeader);
         $isRecallable = $hasUserEmail
             && (int) ($prestito['attivo'] ?? 0) === 1
             && in_array((string) ($prestito['stato'] ?? ''), ['in_corso', 'in_ritardo'], true)
-            && (string) ($prestito['data_scadenza'] ?? '') !== ''
-            && (string) $prestito['data_scadenza'] < \App\Support\DateHelper::today();
+            && !empty($prestito['is_overdue']);
       ?>
       <?php if ($hasUserEmail): ?>
         <button type="button" id="email-receipt-btn" data-loan-id="<?= (int)$prestito['id']; ?>"

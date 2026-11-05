@@ -903,9 +903,19 @@ class PrestitiController
         $libroId = (int) $current['libro_id'];
         $newUserId = isset($updateData['utente_id']) ? (int) $updateData['utente_id'] : (int) $current['utente_id'];
         $newPrestito = (string) ($updateData['data_prestito'] ?? $current['data_prestito']);
-        // Closures calendar: a submitted due date on a closed day moves forward.
-        if (isset($updateData['data_scadenza']) && \App\Support\DateHelper::isISODateFormat((string) $updateData['data_scadenza'])) {
-            $updateData['data_scadenza'] = \App\Services\CirculationPolicy::dueDateFor((string) $updateData['data_scadenza'], 0, $db, $current['copia_id'] !== null ? (int) $current['copia_id'] : null);
+        // Closures calendar: a changed due date on a closed day moves forward.
+        // The edit form always submits the field, so the stored value coming
+        // back is no change at all and stays as it is, closed day or not.
+        $submittedScadenza = isset($updateData['data_scadenza']) && \App\Support\DateHelper::isISODateFormat((string) $updateData['data_scadenza'])
+            ? (string) $updateData['data_scadenza']
+            : null;
+        $dueFromSubmitted = static function (array $row) use ($submittedScadenza, $db): string {
+            return $submittedScadenza === substr((string) $row['data_scadenza'], 0, 10)
+                ? (string) $row['data_scadenza']
+                : \App\Services\CirculationPolicy::dueDateFor((string) $submittedScadenza, 0, $db, $row['copia_id'] !== null ? (int) $row['copia_id'] : null);
+        };
+        if ($submittedScadenza !== null) {
+            $updateData['data_scadenza'] = $dueFromSubmitted($current);
         }
         $newScadenza = (string) ($updateData['data_scadenza'] ?? $current['data_scadenza']);
 
@@ -984,6 +994,11 @@ class PrestitiController
             // come fast-fail senza aprire la transazione).
             $newUserId = isset($updateData['utente_id']) ? (int) $updateData['utente_id'] : (int) $locked['utente_id'];
             $newPrestito = (string) ($updateData['data_prestito'] ?? $locked['data_prestito']);
+            // Decided again against the locked row: the date or the copy may have
+            // changed since the first read.
+            if ($submittedScadenza !== null) {
+                $updateData['data_scadenza'] = $dueFromSubmitted($locked);
+            }
             $newScadenza = (string) ($updateData['data_scadenza'] ?? $locked['data_scadenza']);
 
             // A pickup sender owns an immutable recipient snapshot while its
@@ -1571,7 +1586,9 @@ class PrestitiController
             // Ritardo: un rientro oltre la scadenza è 'restituito' + flag (I4/BUG5).
             // Confronto lessicografico Y-m-d sicuro. Significativo solo per 'restituito'.
             $scadenza = (string) ($loan['data_scadenza'] ?? '');
-            $ritardo = ($loan_stato === 'restituito' && $scadenza !== '' && $scadenza < $data_restituzione) ? 1 : 0;
+            // Late by the calendar, as the fine: a due day closed afterwards is
+            // met by a return on the next open day.
+            $ritardo = ($loan_stato === 'restituito' && \App\Support\LibraryCalendar::isPastDue($db, $scadenza, $loan['copia_id'] !== null ? (int) $loan['copia_id'] : null, (string) $data_restituzione)) ? 1 : 0;
 
             // Aggiorna il prestito (state-guard sull'attivo per evitare doppie restituzioni)
             $stmt = $db->prepare("UPDATE prestiti SET stato = ?, data_restituzione = ?, note = ?, sanzione = ?, attivo = 0, restituito_in_ritardo = ? WHERE id = ? AND attivo = 1");
@@ -1766,12 +1783,13 @@ class PrestitiController
         } catch (\Throwable $e) {
             $db->rollback();
             SecureLogger::error(__('Errore elaborazione restituzione'), ['loan_id' => $id, 'error' => $e->getMessage()]);
-            // Deadlock (1213) o lock wait timeout (1205): la transazione è stata
-            // annullata integralmente, ritentare è sicuro e quasi sempre risolve.
+            // Deadlock (1213), lock wait timeout (1205) o riga cambiata dopo lo
+            // snapshot (1020, MariaDB con innodb_snapshot_isolation): la transazione
+            // è stata annullata, ritentare è sicuro e quasi sempre risolve.
             // Un errore dedicato evita il generico "update_failed" che non dice
             // all'operatore che basta ripetere l'operazione.
             $errno = $e instanceof \mysqli_sql_exception ? (int) $e->getCode() : 0;
-            $errorCode = in_array($errno, [1213, 1205], true) ? 'concurrent_retry' : 'update_failed';
+            $errorCode = in_array($errno, [1020, 1213, 1205], true) ? 'concurrent_retry' : 'update_failed';
             if ($redirectTo) {
                 $separator = strpos($redirectTo, '?') === false ? '?' : '&';
                 return $response->withHeader('Location', url($redirectTo . $separator . 'error=' . $errorCode))->withStatus(302);
@@ -1867,6 +1885,7 @@ class PrestitiController
         $prestito = $result->fetch_assoc();
         $stmt->close();
 
+        $prestito += \App\Support\LibraryCalendar::loanDates($db, $prestito);
         // Plan §7: fine accruing on an open overdue loan (shown, written only at
         // return) and the late fine already charged on a closed one.
         $ledger = \App\Services\PatronLedger::forDb($db);
@@ -2171,8 +2190,18 @@ class PrestitiController
         // in the future and clears the "Overdue" status — instead of staying
         // overdue when N is smaller than the overdue gap. A loan not yet due keeps
         // extending from its due date.
+        // The due date counts as its usable return day, as for a single renewal:
+        // a stored date on a day closed afterwards is due on the next open day.
+        // The capacity window below still starts after the stored date (wider).
+        $usableDue = $dueDate;
+        if ($db !== null) {
+            $usable = \DateTimeImmutable::createFromFormat('!Y-m-d', \App\Support\LibraryCalendar::dueDate($db, $dueDate->format('Y-m-d'), $loan['copia_id'] !== null ? (int) $loan['copia_id'] : null));
+            if ($usable !== false && $usable > $dueDate) {
+                $usableDue = $usable;
+            }
+        }
         $todayDate = \DateTimeImmutable::createFromFormat('!Y-m-d', $today);
-        $base = ($todayDate !== false && $todayDate > $dueDate) ? $todayDate : $dueDate;
+        $base = ($todayDate !== false && $todayDate > $usableDue) ? $todayDate : $usableDue;
         // With the connection, a new due date on a closed day moves forward.
         $newDueDate = \App\Services\CirculationPolicy::dueDateFor($base->format('Y-m-d'), $days, $db, $loan['copia_id'] !== null ? (int) $loan['copia_id'] : null);
 
@@ -2256,15 +2285,12 @@ class PrestitiController
             return $response->withHeader('Location', url($errorUrl . $separator . 'error=loan_not_active'))->withStatus(302);
         }
 
-        // Check if loan is overdue — by STATE or by DATE (#366 residual): a loan
-        // whose data_scadenza is already past but that the maintenance sweep has
-        // not yet flipped to 'in_ritardo' is just as overdue. Renewing it would
-        // compute the new due date from the stale past date AND reset
-        // warning_sent/overdue_notification_sent, re-arming a duplicate overdue
-        // email. Same refusal, same error code.
+        // A due day closed after lending remains usable on its next open day,
+        // as in the overdue sweep and fines. Check both before and under the
+        // loan lock so renewal and the calendar agree on who is actually late.
         $todayApp = \App\Support\DateHelper::today();
-        $isLate = ($loan['stato'] === 'in_ritardo')
-            || ($loan['stato'] === 'in_corso' && (string) $loan['data_scadenza'] < $todayApp);
+        $isLate = in_array($loan['stato'], ['in_corso', 'in_ritardo'], true)
+            && \App\Support\LibraryCalendar::isPastDue($db, (string) $loan['data_scadenza'], isset($loan['copia_id']) ? (int) $loan['copia_id'] : null, $todayApp);
         if ($isLate) {
             $errorUrl = $redirectTo ?? url('/admin/loans');
             $separator = strpos($errorUrl, '?') === false ? '?' : '&';
@@ -2309,7 +2335,10 @@ class PrestitiController
         // Calculate proposed new due date for conflict checking
         $currentDueDate = $loan['data_scadenza'];
         $loanCopyId = isset($loan['copia_id']) ? (int) $loan['copia_id'] : null;
-        $proposedNewDueDate = \App\Services\CirculationPolicy::dueDateFor((string) $currentDueDate, $renewDays, $db, $loanCopyId);
+        // The renewal counts from the usable return day: a stored due date on
+        // a day closed afterwards is due on the next open day, as the late check.
+        $usableDueDate = \App\Support\LibraryCalendar::dueDate($db, (string) $currentDueDate, $loanCopyId);
+        $proposedNewDueDate = \App\Services\CirculationPolicy::dueDateFor($usableDueDate, $renewDays, $db, $loanCopyId);
         // Optional shorter renewal: the day before a scheduled loan or a
         // reservation, as the refusal below proposes ("Rinnova fino al D").
         // A real day, after the current due date, never past the standard
@@ -2324,7 +2353,7 @@ class PrestitiController
             $separator = strpos($errorUrl, '?') === false ? '?' : '&';
             return $response->withHeader('Location', url($errorUrl . $separator . 'error=invalid_date_format'))->withStatus(302);
         }
-        if ($requestedDue !== '' && ($requestedDue <= (string) $currentDueDate || $requestedDue > $proposedNewDueDate)) {
+        if ($requestedDue !== '' && ($requestedDue <= $usableDueDate || $requestedDue > $proposedNewDueDate)) {
             $errorUrl = $redirectTo ?? url('/admin/loans');
             $separator = strpos($errorUrl, '?') === false ? '?' : '&';
             return $response->withHeader('Location', url($errorUrl . $separator . 'error=invalid_renewal_date'))->withStatus(302);
@@ -2372,9 +2401,8 @@ class PrestitiController
                 $separator = strpos($errorUrl, '?') === false ? '?' : '&';
                 return $response->withHeader('Location', url($errorUrl . $separator . 'error=loan_not_active'))->withStatus(302);
             }
-            // State- OR date-based overdue, same predicate as the pre-lock check.
-            if ($lockedLoan['stato'] === 'in_ritardo'
-                || ($lockedLoan['stato'] === 'in_corso' && (string) $lockedLoan['data_scadenza'] < $todayApp)) {
+            if (in_array($lockedLoan['stato'], ['in_corso', 'in_ritardo'], true)
+                && \App\Support\LibraryCalendar::isPastDue($db, (string) $lockedLoan['data_scadenza'], isset($lockedLoan['copia_id']) ? (int) $lockedLoan['copia_id'] : null, $todayApp)) {
                 $db->rollback();
                 $errorUrl = $redirectTo ?? url('/admin/loans');
                 $separator = strpos($errorUrl, '?') === false ? '?' : '&';
@@ -2399,10 +2427,12 @@ class PrestitiController
 
             // Use the locked values for calculations (in case they changed)
             $currentDueDate = $lockedLoan['data_scadenza'];
-            $proposedNewDueDate = \App\Services\CirculationPolicy::dueDateFor((string) $currentDueDate, $renewDays, $db, $lockedLoan['copia_id'] !== null ? (int) $lockedLoan['copia_id'] : null);
+            $lockedCopyId = $lockedLoan['copia_id'] !== null ? (int) $lockedLoan['copia_id'] : null;
+            $usableDueDate = \App\Support\LibraryCalendar::dueDate($db, (string) $currentDueDate, $lockedCopyId);
+            $proposedNewDueDate = \App\Services\CirculationPolicy::dueDateFor($usableDueDate, $renewDays, $db, $lockedCopyId);
             if ($requestedDue !== '') {
                 // Re-bound under the lock: the due date may have moved meanwhile.
-                if ($requestedDue <= (string) $currentDueDate || $requestedDue > $proposedNewDueDate) {
+                if ($requestedDue <= $usableDueDate || $requestedDue > $proposedNewDueDate) {
                     $db->rollback();
                     $errorUrl = $redirectTo ?? url('/admin/loans');
                     $separator = strpos($errorUrl, '?') === false ? '?' : '&';
@@ -2430,9 +2460,11 @@ class PrestitiController
             $capacity = new \App\Services\CapacityService($db);
             // A refusal names the longest renewal still possible (LoanWindow),
             // and which loan it is about, so the page can offer "renew until D".
-            $explainRefusal = static function (array $blocked) use ($id, $currentDueDate, $db, $copiaId): string {
+            // The offered "renew until D" counts from the usable return day, the
+            // same base the renewal bound above accepts.
+            $explainRefusal = static function (array $blocked) use ($id, $currentDueDate, $usableDueDate, $db, $copiaId): string {
                 return http_build_query(['error' => 'extension_conflicts', 'loan_id' => $id]
-                    + \App\Support\LoanWindow::renewalRedirectParams((string) $currentDueDate, $blocked, null, \App\Support\LibraryCalendar::forDb($db), \App\Support\LibraryCalendar::branchOfCopy($db, $copiaId)));
+                    + \App\Support\LoanWindow::renewalRedirectParams((string) $currentDueDate, $blocked, $usableDueDate, \App\Support\LibraryCalendar::forDb($db), \App\Support\LibraryCalendar::branchOfCopy($db, $copiaId)));
             };
             if (!$capacity->hasFreeCapacity($libroId, $extensionStart, $extensionEnd, excludePrestitoId: $id)) {
                 $blocked = $capacity->renewalConflictDates($libroId, $id, $copiaId, (string) $currentDueDate, $extensionEnd);
@@ -2483,10 +2515,12 @@ class PrestitiController
             // non scade un prestito già in corso e rinnovato (F2). Azzera anche i
             // flag di notifica (M5a): la nuova scadenza deve ricevere il suo
             // promemoria e l'eventuale sollecito, altrimenti un prestito rinnovato
-            // dopo il warning non verrebbe mai più avvisato.
+            // dopo il warning non verrebbe mai più avvisato. Arrivano qui solo
+            // prestiti non in ritardo per isPastDue(): un vecchio stato 'in_ritardo'
+            // con la nuova scadenza futura non lo correggerebbe nessun altro.
             $updateStmt = $db->prepare("
                 UPDATE prestiti
-                SET data_scadenza = ?, renewals = ?, pickup_deadline = NULL,
+                SET data_scadenza = ?, renewals = ?, stato = 'in_corso', pickup_deadline = NULL,
                     warning_sent = 0, overdue_notification_sent = 0,
                     recall_count = 0, last_recall_at = NULL
                 WHERE id = ?

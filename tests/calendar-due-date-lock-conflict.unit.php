@@ -88,6 +88,109 @@ try {
     $complete = LibraryCalendar::extendDueDatesAfterSave($db);
     $check($complete === true, 'with the lock gone the next run completes');
     $check($dueOf() === $nextDay, 'and moves the due date to the next open day');
+
+    // Bringing back a late flag and moving a pickup day also take the book row
+    // first, as desk operations do, so they wait for it instead of inverting the order.
+    $yesterday = (new DateTimeImmutable($today))->modify('-1 day')->format('Y-m-d');
+    $db->query("INSERT INTO calendario_chiusure (data_inizio, data_fine, descrizione, sede_id, attiva) VALUES ('{$yesterday}', '{$yesterday}', 'Lock conflict {$run} b', {$ids['sede']}, 1)");
+    $lateClosure = (int) $db->insert_id;
+    $db->query("INSERT INTO copie (libro_id, numero_inventario, stato, sede_id, created_at) VALUES ({$ids['book']}, 'LCK-{$run}-b', 'prestato', {$ids['sede']}, NOW())");
+    $lateCopy = (int) $db->insert_id;
+    $start = (new DateTimeImmutable($today))->modify('-10 day')->format('Y-m-d');
+    $db->query("INSERT INTO prestiti (libro_id, copia_id, utente_id, data_prestito, data_scadenza, stato, origine, attivo) VALUES ({$ids['book']}, {$lateCopy}, {$ids['user']}, '{$start}', '{$yesterday}', 'in_ritardo', 'diretto', 1)");
+    $lateLoan = (int) $db->insert_id;
+    $db->query("INSERT INTO copie (libro_id, numero_inventario, stato, sede_id, created_at) VALUES ({$ids['book']}, 'LCK-{$run}-c', 'prenotato', {$ids['sede']}, NOW())");
+    $pickupCopy = (int) $db->insert_id;
+    $pickupEnd = (new DateTimeImmutable($today))->modify('+20 day')->format('Y-m-d');
+    $db->query("INSERT INTO prestiti (libro_id, copia_id, utente_id, data_prestito, data_scadenza, pickup_deadline, stato, origine, attivo) VALUES ({$ids['book']}, {$pickupCopy}, {$ids['user']}, '{$today}', '{$pickupEnd}', '{$due}', 'da_ritirare', 'diretto', 1)");
+    $pickupLoan = (int) $db->insert_id;
+    LibraryCalendar::reset();
+    $stateOf = static fn (): string => (string) $db->query("SELECT stato FROM prestiti WHERE id={$lateLoan}")->fetch_row()[0];
+    $pickupOf = static fn (): string => (string) $db->query("SELECT pickup_deadline FROM prestiti WHERE id={$pickupLoan}")->fetch_row()[0];
+    $other->begin_transaction();
+    $other->query("SELECT id FROM libri WHERE id={$ids['book']} FOR UPDATE")->fetch_all();
+    $check(LibraryCalendar::extendDueDatesAfterSave($db) === false, 'bringing back a late flag waits for a book row another transaction holds');
+    $check($stateOf() === 'in_ritardo', 'and leaves the loan as it was');
+    try {
+        LibraryCalendar::extendPickupDeadlines($db);
+        $pickupError = 0;
+    } catch (\mysqli_sql_exception $e) {
+        $pickupError = $e->getCode();
+    }
+    $check($pickupError === 1205 && substr($pickupOf(), 0, 10) === $due, 'moving a pickup day waits for it too (' . $pickupError . ')');
+    $other->rollback();
+    $check(LibraryCalendar::extendDueDatesAfterSave($db) === true && $stateOf() === 'in_corso', 'with the lock gone the late flag comes back');
+    LibraryCalendar::extendPickupDeadlines($db);
+    $check(substr($pickupOf(), 0, 10) === $nextDay, 'and the pickup day moves');
+    $db->query("DELETE FROM prestiti WHERE id IN ({$lateLoan}, {$pickupLoan})");
+    $db->query("DELETE FROM copie WHERE id IN ({$lateCopy}, {$pickupCopy})");
+    $db->query("DELETE FROM calendario_chiusure WHERE id={$lateClosure}");
+    LibraryCalendar::reset();
+
+    // A calendar writer's count of a patron's loans of one material reads the
+    // loans as they are now, and leaves the book rows of those loans alone: a
+    // desk operation holding such a book must not make it wait.
+    $policy = new \App\Services\CirculationPolicy($db);
+    $db->query("UPDATE libri SET tipo_media='libro' WHERE id={$ids['book']}");
+    $other->begin_transaction();
+    $other->query("SELECT id FROM libri WHERE id={$ids['book']} FOR UPDATE")->fetch_all();
+    try {
+        $held = $policy->countActiveLoansForMedia($ids['user'], 'libro', null, true);
+    } catch (\mysqli_sql_exception $e) {
+        $held = 'lock error ' . $e->getCode();
+    }
+    $other->rollback();
+    $check($held === 1, 'the locking count does not wait for a book row another transaction holds (' . $held . ')');
+    $check($policy->countActiveLoansForMedia($ids['user'], 'dvd', null, true) === 0, 'the count still tells materials apart');
+    $check($policy->countActiveLoansForMedia($ids['user'], 'libro', $ids['loan'], true) === 0, 'and still leaves out the excluded loan');
+
+    $db->query("UPDATE libri SET deleted_at=NOW() WHERE id={$ids['book']}");
+    $check($policy->countActiveLoansForMedia($ids['user'], 'libro', null, true) === 1, 'a loan on an archived title still counts');
+    $db->query("UPDATE libri SET deleted_at=NULL WHERE id={$ids['book']}");
+
+    // A return committed after the writer's snapshot lowers the locking count;
+    // a plain read in that transaction keeps seeing the snapshot.
+    $db->begin_transaction();
+    $snapshot = $policy->countActiveLoansForMedia($ids['user'], 'libro');
+    $other->query("UPDATE prestiti SET attivo=0, stato='restituito', data_restituzione='{$today}' WHERE id={$ids['loan']}");
+    $stale = $policy->countActiveLoansForMedia($ids['user'], 'libro');
+    try {
+        $current = $policy->countActiveLoansForMedia($ids['user'], 'libro', null, true);
+    } catch (\mysqli_sql_exception $e) {
+        // MariaDB with innodb_snapshot_isolation refuses a locking read of a row
+        // changed since the snapshot (1020) and rolls the transaction back, so no
+        // writer can act on the old count; elsewhere the locking read returns the
+        // current one.
+        $current = $e->getCode() === 1020 ? 0 : throw $e;
+    }
+    $db->rollback();
+    $check($snapshot === 1 && $stale === 1 && $current === 0, 'a return committed after the snapshot is seen by the locking count only');
+
+    // MariaDB with snapshot isolation aborts the whole transaction on a row changed
+    // since the snapshot. Inside a calendar save that must stop the run: going on
+    // would commit moves for a closure the abort has just removed.
+    $isolation = $db->query("SHOW VARIABLES LIKE 'innodb_snapshot_isolation'")->fetch_row();
+    if ($isolation !== null && strcasecmp((string) $isolation[1], 'ON') === 0) {
+        $db->query("UPDATE prestiti SET attivo=1, stato='in_corso', data_restituzione=NULL WHERE id={$ids['loan']}");
+        $currentDue = $dueOf();
+        $db->query("UPDATE calendario_chiusure SET data_inizio='{$currentDue}', data_fine='{$currentDue}' WHERE id={$ids['closure']}");
+        LibraryCalendar::reset();
+        $db->begin_transaction();
+        $db->query("SELECT COUNT(*) FROM prestiti WHERE id={$ids['loan']}")->fetch_all();
+        $other->query("UPDATE prestiti SET data_prestito = DATE_SUB(data_prestito, INTERVAL 1 DAY) WHERE id={$ids['loan']}");
+        $raised = null;
+        try {
+            LibraryCalendar::extendDueDates($db);
+        } catch (\Throwable $e) {
+            $raised = $e->getCode();
+        }
+        $db->rollback();
+        LibraryCalendar::reset();
+        $check($raised === 1020, 'a snapshot conflict inside a calendar save stops the run (' . var_export($raised, true) . ')');
+        $check($dueOf() === $currentDue, 'and the loan keeps its date');
+    } else {
+        echo "  --  snapshot conflict case applies to MariaDB with innodb_snapshot_isolation only\n";
+    }
 } finally {
     try {
         $other->rollback();

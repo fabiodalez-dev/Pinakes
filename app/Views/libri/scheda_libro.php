@@ -376,8 +376,11 @@ unset($workspaceHeader);
           </div>
           <div class="flex items-center justify-between">
             <span class="font-medium"><?= __("Scadenza") ?></span>
-            <?php $isLate = strtotime($activeLoan['data_scadenza'] ?? '1970-01-01') < strtotime(date('Y-m-d')); ?>
-            <span class="<?php echo $isLate ? 'text-red-600 font-semibold' : ''; ?>"><?php echo App\Support\HtmlHelper::e(format_date($activeLoan['data_scadenza'] ?? '', false, '/')); ?></span>
+            <?php
+              $isLate = !empty($activeLoan['is_overdue']);
+              $activeEffectiveDue = $activeLoan['effective_due_at'] ?? $activeLoan['data_scadenza'] ?? '';
+            ?>
+            <span class="<?php echo $isLate ? 'text-red-600 font-semibold' : ''; ?>"><?php echo htmlspecialchars(format_date($activeEffectiveDue, false, '/'), ENT_QUOTES, 'UTF-8'); ?></span>
           </div>
           <div class="flex items-center justify-between">
             <span class="font-medium"><?= __("Rinnovi effettuati") ?></span>
@@ -1095,7 +1098,7 @@ unset($workspaceHeader);
                           $effectiveStatus = 'prenotato';
                           $effectiveLabel = __('Prenotato');
                           $effectiveClass = 'bg-purple-100 text-purple-800';
-                      } elseif ($loanStatus === 'in_ritardo') {
+                      } elseif (!empty($copia['is_overdue'])) {
                           $effectiveStatus = 'in_ritardo';
                           $effectiveLabel = __('In ritardo');
                           $effectiveClass = 'bg-red-100 text-red-800';
@@ -1167,12 +1170,10 @@ unset($workspaceHeader);
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                   <?php if (!empty($copia['data_scadenza'])): ?>
                     <?php
-                    $scadenza = new DateTime($copia['data_scadenza']);
-                    $oggi = new DateTime();
-                    $isScaduto = $scadenza < $oggi;
+                    $isScaduto = !empty($copia['is_overdue']);
                     ?>
                     <span class="<?php echo $isScaduto ? 'text-red-600 font-semibold' : ''; ?>">
-                      <?= App\Support\HtmlHelper::e(format_date($copia['data_scadenza'], false, '/')) ?>
+                      <?= htmlspecialchars(format_date($copia['effective_due_at'] ?? $copia['data_scadenza'], false, '/'), ENT_QUOTES, 'UTF-8') ?>
                       <?php if ($isScaduto): ?>
                         <i class="fas fa-exclamation-triangle ml-1"></i>
                       <?php endif; ?>
@@ -1381,11 +1382,11 @@ unset($workspaceHeader);
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm">
                   <?php
-                    $isOverdue = strtotime($loan['data_scadenza']) < strtotime(date('Y-m-d')) && $loan['stato'] !== 'restituito';
+                    $isOverdue = !empty($loan['is_overdue']);
                   ?>
                   <span class="<?php echo $isOverdue ? 'text-red-600 font-semibold' : 'text-gray-900'; ?>">
                     <i class="fas fa-calendar-times text-gray-400 mr-1"></i>
-                    <?php echo App\Support\HtmlHelper::e(format_date($loan['data_scadenza'], false, '/')); ?>
+                    <?php echo htmlspecialchars(format_date($loan['effective_due_at'] ?? $loan['data_scadenza'], false, '/'), ENT_QUOTES, 'UTF-8'); ?>
                   </span>
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
@@ -1894,9 +1895,12 @@ unset($workspaceHeader);
             <div>
               <div class="text-xs text-gray-500 uppercase"><?= __("Prestito") ?></div>
               <div class="font-medium"><?= __("Dal") ?> <?php echo App\Support\HtmlHelper::e(format_date($activeLoan['data_prestito'] ?? '', false, '/')); ?></div>
-              <?php $modalLate = strtotime($activeLoan['data_scadenza'] ?? '1970-01-01') < strtotime(date('Y-m-d')); ?>
+              <?php
+                $modalLate = !empty($activeLoan['is_overdue']);
+                $modalEffectiveDue = $activeLoan['effective_due_at'] ?? $activeLoan['data_scadenza'] ?? '';
+              ?>
               <div class="text-xs <?php echo $modalLate ? 'text-red-600 font-semibold' : 'text-gray-500'; ?>">
-                <?= __("Scadenza") ?> <?php echo App\Support\HtmlHelper::e(format_date($activeLoan['data_scadenza'] ?? '', false, '/')); ?>
+                <?= __("Scadenza") ?> <?php echo htmlspecialchars(format_date($modalEffectiveDue, false, '/'), ENT_QUOTES, 'UTF-8'); ?>
               </div>
             </div>
           </div>

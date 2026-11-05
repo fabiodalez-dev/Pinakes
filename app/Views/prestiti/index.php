@@ -413,9 +413,7 @@ unset($workspaceHeader);
                             <?php $ssrExtendable = (int)($prestito['attivo'] ?? 0) === 1 && in_array((string)($prestito['stato'] ?? ''), ['in_corso', 'in_ritardo'], true); ?>
                             <?php // #360: quick recall only for a loan already past its due date
                                   // (strict <, matching sendManualRecall's giorni_ritardo >= 1).
-                                  $ssrRecallable = $ssrExtendable
-                                      && (string)($prestito['data_scadenza'] ?? '') !== ''
-                                      && (string)$prestito['data_scadenza'] < $applicationToday; ?>
+                                  $ssrRecallable = $ssrExtendable && !empty($prestito['is_overdue']); ?>
                             <tr class="hover:bg-slate-50 transition-colors">
                                 <td class="px-4 py-4 text-center align-middle">
                                     <?php if ($ssrExtendable): ?><input type="checkbox" class="loan-select w-4 h-4 rounded border-gray-300 cursor-pointer" data-id="<?= (int)$prestito['id'] ?>"><?php endif; ?>
@@ -432,14 +430,11 @@ unset($workspaceHeader);
                                     <?= format_date($prestito['data_prestito'], false, '/') ?>
                                 </td>
                                 <?php
-                                    $isDueNowOrOverdue = !empty($prestito['data_scadenza'])
-                                        && (string)$prestito['data_scadenza'] <= $applicationToday
-                                        && (int)($prestito['attivo'] ?? 0) === 1
-                                        && in_array($prestito['stato'] ?? '', ['in_corso', 'in_ritardo'], true);
+                                    $isDueNowOrOverdue = !empty($prestito['due_attention']);
                                 ?>
                                 <td class="px-6 py-4 whitespace-nowrap">
                                     <span class="<?= $isDueNowOrOverdue ? 'text-red-600 font-semibold' : 'text-gray-700' ?>">
-                                        <?= format_date($prestito['data_scadenza'], false, '/') ?>
+                                        <?= format_date($prestito['effective_due_at'] ?? $prestito['data_scadenza'], false, '/') ?>
                                     </span>
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-center">
@@ -605,6 +600,7 @@ document.addEventListener('DOMContentLoaded', function() {
             {
                 data: 'data_scadenza',
                 render: function(data, type, row) {
+                    data = row.effective_due_at || data;
                     if (!data) {
                         return `<span class="text-gray-400">${window.__('N/D')}</span>`;
                     }
@@ -612,8 +608,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     // loan (in_corso/in_ritardo) whose due date is today or past.
                     // Compare against the application's configured timezone, not
                     // the browser or PHP process timezone.
-                    const isDueNowOrOverdue = data <= applicationToday && Number(row.attivo) === 1 &&
-                        (row.stato === 'in_corso' || row.stato === 'in_ritardo');
+                    const isDueNowOrOverdue = row.due_attention === true;
                     const cls = isDueNowOrOverdue ? 'text-red-600 font-semibold' : 'text-gray-700';
                     return `<span class="${cls}">${formatDateLocale(data)}</span>`;
                 }
@@ -624,7 +619,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 render: function(data, type, row) {
                     // Badge dalla mappa canonica PHP (loan-status-badge.php):
                     // stessa fonte del rendering SSR, nessuna mappa duplicata in JS.
-                    return loanStatusBadges[data] || loanStatusUnknownBadge;
+                    const shown = (data === 'in_corso' || data === 'in_ritardo')
+                        ? (row.is_overdue === true ? 'in_ritardo' : 'in_corso')
+                        : data;
+                    return loanStatusBadges[shown] || loanStatusUnknownBadge;
                 }
             },
             {
@@ -664,7 +662,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         // #360: quick recall only for a loan already past its due date
                         // (strict <, matching sendManualRecall's giorni_ritardo >= 1) —
                         // same condition as the SSR row above.
-                        if (row.data_scadenza && row.data_scadenza < applicationToday) {
+                        if (row.is_overdue === true) {
                             actions += `<button type="button" class="btn-icon btn-secondary loan-recall-btn p-2 text-amber-600 hover:bg-amber-100 rounded-full transition-colors" data-loan-id="${safeId}" title="${window.__('Invia Sollecito')}" aria-label="${window.__('Invia Sollecito')}">
                                 <i class="fas fa-bullhorn w-4 h-4"></i>
                             </button>`;

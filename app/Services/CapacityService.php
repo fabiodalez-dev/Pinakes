@@ -43,7 +43,12 @@ final class CapacityService
     /** Circulation rules, resolved once per instance (the settings rows are cached there). */
     private ?CirculationPolicy $circulation = null;
 
-    public function __construct(private mysqli $db) {}
+    /**
+     * $lockingReads is for writers holding the book row in a transaction.
+     * Current reads must see commitments confirmed after an earlier calendar
+     * read established a REPEATABLE READ snapshot on the same connection.
+     */
+    public function __construct(private mysqli $db, private bool $lockingReads = false) {}
 
     /**
      * Lendable physical copies of a book (the capacity ceiling). If the book has
@@ -54,7 +59,8 @@ final class CapacityService
      */
     public function totalCopies(int $libroId): int
     {
-        $stmt = $this->db->prepare("SELECT COUNT(*) AS total FROM copie WHERE libro_id = ?");
+        $lock = $this->lockingReads ? ' FOR UPDATE' : '';
+        $stmt = $this->db->prepare("SELECT COUNT(*) AS total FROM copie WHERE libro_id = ?" . $lock);
         $stmt->bind_param('i', $libroId);
         $stmt->execute();
         $copyRows = (int) ($stmt->get_result()->fetch_assoc()['total'] ?? 0);
@@ -65,7 +71,7 @@ final class CapacityService
                 "SELECT COUNT(*) AS total FROM copie
                  WHERE libro_id = ?
                    AND stato NOT IN ('perso','danneggiato','manutenzione','in_restauro','in_trasferimento')
-                   AND " . ($this->circulation ??= new CirculationPolicy($this->db))->lendableCopySql('') . ""
+                   AND " . ($this->circulation ??= new CirculationPolicy($this->db))->lendableCopySql('') . $lock
             );
             $stmt->bind_param('i', $libroId);
             $stmt->execute();
@@ -75,7 +81,7 @@ final class CapacityService
         }
 
         // No per-copy rows: legacy fallback to libri.copie_totali (NULL → 1, 0 → 0).
-        $stmt = $this->db->prepare("SELECT IFNULL(copie_totali, 1) AS total FROM libri WHERE id = ? AND deleted_at IS NULL");
+        $stmt = $this->db->prepare("SELECT IFNULL(copie_totali, 1) AS total FROM libri WHERE id = ? AND deleted_at IS NULL" . $lock);
         $stmt->bind_param('i', $libroId);
         $stmt->execute();
         $row = $stmt->get_result()->fetch_assoc();
@@ -401,7 +407,9 @@ final class CapacityService
                        LEAST(CASE
                            WHEN {$openEnded} THEN ?
                            ELSE p.data_scadenza
-                       END, ?) AS e
+                       END, ?) AS e,
+                       IF(p.attivo = 1, p.data_scadenza, NULL) AS stored_due,
+                       p.copia_id AS stored_copy
                 FROM prestiti p
                 WHERE p.libro_id = ?
                   AND p.data_prestito <= ?
@@ -409,7 +417,11 @@ final class CapacityService
                   AND ( (p.attivo = 1 AND p.stato IN ('prenotato','da_ritirare','in_corso','in_ritardo'))
                         OR (p.attivo = 0 AND p.stato = 'pendente' AND p.copia_id IS NOT NULL) )";
         $types = 'ssssisss';
-        $params = [$start, $today, $end, $end, $libroId, $end, $today, $start];
+        // A loan whose stored day is closed ends on the next open day, which the
+        // reader is told, even when the move was refused and the row kept its
+        // date. With a calendar, a stored day before the window can still reach it.
+        $hasCalendar = \App\Support\LibraryCalendar::forDb($this->db)->hasRules();
+        $params = [$start, $today, $end, $end, $libroId, $end, $today, $hasCalendar ? '1000-01-01' : $start];
         if ($excludePrestitoId !== null) {
             $sql .= ' AND p.id <> ?';
             $types .= 'i';
@@ -420,7 +432,7 @@ final class CapacityService
             $types .= 'i';
             $params[] = $excludeUserId;
         }
-        return $this->fetchIntervals($sql, $types, $params);
+        return $this->fetchIntervals($sql, $types, $params, $end);
     }
 
     /**
@@ -449,7 +461,7 @@ final class CapacityService
                 JOIN utenti u ON u.id = r.utente_id
                 WHERE r.libro_id = ?
                   AND r.stato = 'attiva'
-                  AND " . \App\Support\LoanEligibility::eligibleUserWhere('u', $this->db) . "
+                  AND " . \App\Support\LoanEligibility::eligibleUserWhere('u', $this->db, $this->lockingReads) . "
                   AND $rStart IS NOT NULL
                   AND $rStart <= ?
                   AND $rEnd >= ?";
@@ -458,6 +470,10 @@ final class CapacityService
         if ($circulation->anyTotalLoanLimit()) {
             // Per-patron limit (CirculationPolicy; 0 = no limit for that patron).
             $limitSql = $circulation->totalLoanLimitSql('u');
+            // A locking outer read does not lock a nested subquery, which would
+            // still count from the transaction's snapshot: lock it too, in the
+            // syntax MySQL and MariaDB both accept inside a subquery.
+            $countLock = $this->lockingReads ? ' LOCK IN SHARE MODE' : '';
             // Future reservations reserve capacity against overlapping commitments.
             // Once they become promotable, promotion and approval enforce the total
             // active-loan cap (including future scheduled loans). Use the SHARED
@@ -477,7 +493,7 @@ final class CapacityService
                           OR (cap.data_prestito <= $rEnd
                           AND (cap.stato = 'in_ritardo'
                                OR (cap.stato = 'in_corso' AND cap.data_scadenza < ?)
-                               OR cap.data_scadenza >= $rStart)))
+                               OR cap.data_scadenza >= $rStart))){$countLock}
                       ) < {$limitSql})";
             $types .= 'sss';
             $params[] = $today;
@@ -487,7 +503,7 @@ final class CapacityService
         // Same pause as queue promotion for the per-material rules: a
         // promotable reservation of a patron the matrix refuses for this
         // title does not hold capacity (ReservationManager skips it too).
-        $materialRefused = $circulation->materialRefusedReservationUserIds($libroId);
+        $materialRefused = $circulation->materialRefusedReservationUserIds($libroId, $this->lockingReads);
         if ($materialRefused !== []) {
             $sql .= ' AND NOT (r.utente_id IN (' . implode(',', array_map('intval', $materialRefused)) . ')
                       AND ' . \App\Support\LoanEligibility::promotableReservationWhere('r') . ')';
@@ -523,8 +539,11 @@ final class CapacityService
      * @param list<int|string> $params
      * @return list<array{0:string,1:string}>
      */
-    private function fetchIntervals(string $sql, string $types, array $params): array
+    private function fetchIntervals(string $sql, string $types, array $params, ?string $windowEnd = null): array
     {
+        if ($this->lockingReads) {
+            $sql .= ' FOR UPDATE';
+        }
         $stmt = $this->db->prepare($sql);
         $refs = [$types];
         foreach ($params as $k => $v) {
@@ -537,6 +556,11 @@ final class CapacityService
         while ($row = $res->fetch_assoc()) {
             $s = (string) $row['s'];
             $e = (string) $row['e'];
+            $storedDue = (string) ($row['stored_due'] ?? '');
+            if ($windowEnd !== null && $storedDue !== '' && $e === $storedDue) {
+                $copyId = $row['stored_copy'] !== null ? (int) $row['stored_copy'] : null;
+                $e = min(\App\Support\LibraryCalendar::holdingEnd($this->db, $storedDue, $copyId), $windowEnd);
+            }
             if ($s !== '' && $e !== '' && $s <= $e) {
                 $out[] = [$s, $e];
             }

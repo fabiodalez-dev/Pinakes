@@ -163,7 +163,7 @@ class LoanEligibility
      * for the 0.9.0 tables (code ships before its migration runs): without
      * the ledger table the fragment carries no debt predicate at all.
      */
-    public static function eligibleUserWhere(string $alias, \mysqli $db): string
+    public static function eligibleUserWhere(string $alias, \mysqli $db, bool $lockingReads = false): string
     {
         return "(
                     {$alias}.stato = 'attivo'
@@ -172,7 +172,7 @@ class LoanEligibility
                         OR {$alias}.data_scadenza_tessera IS NULL
                         OR {$alias}.data_scadenza_tessera >= ?
                     )
-                    AND " . self::debtBlockSql($alias, $db) . "
+                    AND " . self::debtBlockSql($alias, $db, $lockingReads) . "
                 )";
     }
 
@@ -190,7 +190,7 @@ class LoanEligibility
      * penalty backfill is pending the unconverted prestiti.sanzione amounts
      * count too (PatronLedger::debtBalanceSql()).
      */
-    public static function debtBlockSql(string $alias, \mysqli $db): string
+    public static function debtBlockSql(string $alias, \mysqli $db, bool $lockingReads = false): string
     {
         if (!\App\Services\PatronLedger::activeOrFail($db) || !Features::enabled('debt_block')) {
             return '1 = 1';
@@ -198,7 +198,7 @@ class LoanEligibility
         $threshold = self::debtThresholdSql($alias, $db);
         return "(
                         COALESCE({$threshold}, 0) <= 0
-                        OR " . \App\Services\PatronLedger::debtBalanceSql($alias . '.id', $db) . " <= {$threshold}
+                        OR " . \App\Services\PatronLedger::debtBalanceSql($alias . '.id', $db, $lockingReads) . " <= {$threshold}
                     )";
     }
 

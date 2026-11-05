@@ -77,7 +77,7 @@ class LoanApprovalController
         $scheduledLoans = $scheduledStmt->get_result()->fetch_all(MYSQLI_ASSOC);
         $scheduledStmt->close();
 
-        // Get active loans (in_corso)
+        // Get the loans that are out, split below by is_overdue
         $activeStmt = $db->prepare("
             SELECT p.*, l.titolo, l.copertina_url,
                    CONCAT(u.nome, ' ', u.cognome) as utente_nome, u.email,
@@ -88,32 +88,30 @@ class LoanApprovalController
             JOIN libri l ON p.libro_id = l.id AND l.deleted_at IS NULL
             JOIN utenti u ON p.utente_id = u.id
             LEFT JOIN copie c ON p.copia_id = c.id
-            WHERE p.stato = 'in_corso' AND p.attivo = 1
+            WHERE p.stato IN ('in_corso', 'in_ritardo') AND p.attivo = 1
             ORDER BY p.data_scadenza ASC
         ");
         $activeStmt->execute();
         $activeLoans = $activeStmt->get_result()->fetch_all(MYSQLI_ASSOC);
         $activeStmt->close();
 
-        // Get overdue loans (in_ritardo)
-        $overdueStmt = $db->prepare("
-            SELECT p.*, l.titolo, l.copertina_url,
-                   CONCAT(u.nome, ' ', u.cognome) as utente_nome, u.email,
-                   p.data_prestito as data_richiesta_inizio,
-                   p.data_scadenza as data_richiesta_fine,
-                   c.numero_inventario as copia_inventario,
-                   DATEDIFF(?, p.data_scadenza) as giorni_ritardo
-            FROM prestiti p
-            JOIN libri l ON p.libro_id = l.id AND l.deleted_at IS NULL
-            JOIN utenti u ON p.utente_id = u.id
-            LEFT JOIN copie c ON p.copia_id = c.id
-            WHERE p.stato = 'in_ritardo' AND p.attivo = 1
-            ORDER BY p.data_scadenza ASC
-        ");
-        $overdueStmt->bind_param('s', $today);
-        $overdueStmt->execute();
-        $overdueLoans = $overdueStmt->get_result()->fetch_all(MYSQLI_ASSOC);
-        $overdueStmt->close();
+        // A loan out sits in one list, by what is_overdue says whatever a sweep
+        // has stored so far. Both read the usable return day, and the late one the
+        // open-day late count, as the notices and the fine do. One branch read for the page.
+        \App\Support\LibraryCalendar::primeCopyBranches($db, array_map(static fn (array $r): int => (int) ($r['copia_id'] ?? 0), $activeLoans));
+        $loansOut = $activeLoans;
+        $activeLoans = [];
+        $overdueLoans = [];
+        foreach ($loansOut as $loan) {
+            $copyId = $loan['copia_id'] !== null ? (int) $loan['copia_id'] : null;
+            $dated = $loan + \App\Support\LibraryCalendar::loanDates($db, $loan, $today);
+            if ($dated['is_overdue']) {
+                $dated['giorni_ritardo'] = max(1, \App\Support\LibraryCalendar::lateDaysForNotice($db, (string) $loan['data_scadenza'], $copyId, $today));
+                $overdueLoans[] = $dated;
+            } else {
+                $activeLoans[] = $dated;
+            }
+        }
 
         // Get active reservations
         $reservationsStmt = $db->prepare("
@@ -1529,7 +1527,7 @@ class LoanApprovalController
             // This is the primary quick-return path — without it late returns keep the
             // flag at 0 and Stats/Recensioni undercount late returners.
             $scadenza = (string) ($loan['data_scadenza'] ?? '');
-            $ritardo = ($scadenza !== '' && $scadenza < $dataRestituzione) ? 1 : 0;
+            $ritardo = \App\Support\LibraryCalendar::isPastDue($db, $scadenza, $copiaId, $dataRestituzione) ? 1 : 0;
 
             // Close the loan
             $stmt = $db->prepare("UPDATE prestiti SET stato = 'restituito', restituito_in_ritardo = ?, data_restituzione = ?, attivo = 0 WHERE id = ? AND attivo = 1");

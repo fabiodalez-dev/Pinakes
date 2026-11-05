@@ -16,10 +16,11 @@ namespace App\Plugins\MobileApi\Support;
  *
  *  - no personal data: the description holds the title and the state only,
  *    never a name or an e-mail address;
- *  - SEQUENCE = UNIX_TIMESTAMP(updated_at), monotonic per loan, so clients
- *    replace an event after a renewal or a state change;
- *  - DTSTAMP is the loan's last modification, not "now", so the body — and
- *    therefore the ETag — only changes when a loan does (cheap 304 polling).
+ *  - SEQUENCE = UNIX_TIMESTAMP(updated_at), plus the calendar's revision and
+ *    the days the end moved past the stored date, so clients replace an event
+ *    after a renewal, a state change or a calendar change;
+ *  - DTSTAMP is the loan's last modification, not "now", so unchanged loans
+ *    and usable calendar dates produce stable output (cheap 304 polling).
  *
  * Lines are CRLF-terminated, TEXT values escaped (\\ ; , newline) and folded at
  * 75 octets on UTF-8 boundaries.
@@ -28,6 +29,8 @@ final class UserLoanCalendar
 {
     /** Loan states shown in the feed (approved and still relevant). */
     public const STATES = ['in_corso', 'da_ritirare', 'prenotato', 'in_ritardo'];
+
+    private ?int $calendarRevision = null;
 
     public function __construct(private \mysqli $db)
     {
@@ -70,7 +73,7 @@ final class UserLoanCalendar
     {
         $in = "'" . implode("','", self::STATES) . "'";
         $stmt = $this->db->prepare(
-            "SELECT p.id, p.stato, p.data_prestito, p.data_scadenza, p.pickup_deadline,
+            "SELECT p.id, p.stato, p.copia_id, p.data_prestito, p.data_scadenza, p.pickup_deadline,
                     DATE_FORMAT(p.updated_at, '%Y-%m-%d %H:%i:%s') AS updated_at,
                     UNIX_TIMESTAMP(p.updated_at) AS seq, l.titolo
                FROM prestiti p
@@ -80,7 +83,7 @@ final class UserLoanCalendar
                 AND p.stato IN ({$in})
                 AND ((CASE WHEN p.stato = 'da_ritirare' AND p.pickup_deadline IS NOT NULL
                            THEN p.pickup_deadline ELSE p.data_scadenza END) >= ?
-                     OR p.stato = 'in_ritardo')
+                     OR p.stato IN ('in_corso', 'in_ritardo', 'prenotato'))
               ORDER BY p.data_prestito ASC, p.id ASC"
         );
         if ($stmt === false) {
@@ -95,7 +98,11 @@ final class UserLoanCalendar
         }
         $stmt->close();
 
-        return $rows;
+        \App\Support\LibraryCalendar::primeCopyBranches($this->db, array_map(static fn (array $r): int => (int) ($r['copia_id'] ?? 0), $rows));
+
+        // A booked loan ends on its usable day, which a closure can put after the stored one.
+        return array_values(array_filter($rows, fn (array $r): bool => $r['stato'] !== 'prenotato'
+            || \App\Support\LibraryCalendar::dueDate($this->db, substr((string) $r['data_scadenza'], 0, 10), $r['copia_id'] !== null ? (int) $r['copia_id'] : null) >= $today));
     }
 
     /**
@@ -134,12 +141,33 @@ final class UserLoanCalendar
     private function loanEvent(array $loan, string $today, \DateTimeZone $tz, bool $withAlarm): string
     {
         $state = (string) $loan['stato'];
+        $dates = \App\Support\LibraryCalendar::loanDates($this->db, $loan, $today);
+        if (in_array($state, ['in_corso', 'in_ritardo'], true)) {
+            $state = $dates['is_overdue'] ? 'in_ritardo' : 'in_corso';
+        }
         $end = ($state === 'da_ritirare' && !empty($loan['pickup_deadline']))
             ? (string) $loan['pickup_deadline']
-            : (string) $loan['data_scadenza'];
+            : (string) ($dates['effective_due_at'] ?? $loan['data_scadenza']);
         if ($state === 'in_ritardo') {
             // Still physically out today: never end the event on the missed date.
             $end = max($end, $today);
+        }
+        // A closure can move the end day without touching the row (a move refused
+        // for capacity), and a late loan's end follows today. The revision moves
+        // with it, one step per day past the stored date, so a client that
+        // replaces an event by SEQUENCE takes the new end.
+        $revisionShift = 0;
+        $storedDue = substr((string) ($loan['data_scadenza'] ?? ''), 0, 10);
+        if (in_array($state, ['in_corso', 'in_ritardo', 'prenotato'], true) && $storedDue !== '' && $end > $storedDue) {
+            $revisionShift = (int) (new \DateTimeImmutable($storedDue))->diff(new \DateTimeImmutable($end))->days;
+        }
+        $updatedAt = (string) ($loan['updated_at'] ?? '');
+        // Removing a closure lowers the shift: the calendar's revision rose by
+        // more, so SEQUENCE and DTSTAMP do not go back.
+        $this->calendarRevision ??= \App\Support\LibraryCalendar::revision($this->db);
+        $revisionShift += $this->calendarRevision;
+        if ($revisionShift > 0 && $updatedAt !== '') {
+            $updatedAt = (new \DateTimeImmutable($updatedAt))->modify("+{$revisionShift} seconds")->format('Y-m-d H:i:s');
         }
 
         $title = (string) $loan['titolo'];
@@ -169,8 +197,8 @@ final class UserLoanCalendar
             $end,
             $summary,
             $description,
-            (string) ($loan['updated_at'] ?? ''),
-            (int) ($loan['seq'] ?? 0),
+            $updatedAt,
+            (int) ($loan['seq'] ?? 0) + $revisionShift,
             $tz,
             $alarm
         );

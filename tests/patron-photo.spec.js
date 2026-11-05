@@ -54,6 +54,8 @@ async function login(page, email = ADMIN_EMAIL, password = ADMIN_PASS) {
   await page.goto(`${BASE}/accedi`);
   await page.fill('input[name="email"]', email);
   await page.fill('input[name="password"]', password);
+  const rejectCookies = page.locator('#silktide-wrapper .reject-all');
+  await rejectCookies.click({ timeout: 1500 }).catch(() => {});
   await page.locator('button[type="submit"]').click();
   await page.waitForURL((u) => u.toString().includes('/admin'), { timeout: 15000 });
 }
@@ -337,7 +339,9 @@ test.describe.serial('Patron photo (phase 7)', () => {
     const images = list.trim().split('\n').slice(2).filter((l) => /\bimage\b/.test(l));
     expect(images.length).toBeGreaterThanOrEqual(1);
     expect(text).toContain(code);
-    expect(text).not.toContain('FW'); // initials placeholder replaced by the photo
+    // Initials placeholder replaced by the photo. The surname and the card code carry
+    // this run's random id, which can contain the same two letters.
+    expect(text.split(RUN).join('')).not.toContain('FW');
   });
 
   test('"Carica foto" replaces the photo with a picked file and refuses a non-image', async ({ page }) => {

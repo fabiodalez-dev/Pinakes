@@ -281,14 +281,23 @@ final class CirculationPolicy
     }
 
     /** Open loans of $userId on titles of material $media (same states as countActiveLoans()). */
-    public function countActiveLoansForMedia(int $userId, string $media, ?int $excludeLoanId = null): int
+    public function countActiveLoansForMedia(int $userId, string $media, ?int $excludeLoanId = null, bool $lockingReads = false): int
     {
         // CI-SOFT-DELETE-EXEMPT: a loan on a title archived after checkout is still out and still counts against the limit.
-        $sql = 'SELECT COUNT(*) FROM prestiti p JOIN libri l ON l.id = p.libro_id
+        // The material test stays in a nested subquery: an outer locking read
+        // does not lock its rows, so a calendar writer holding one book's lock
+        // takes no lock on the other books this patron has out.
+        $sql = 'SELECT COUNT(*) FROM prestiti p
                 WHERE p.utente_id = ? AND p.attivo = 1 AND p.stato IN (' . self::ACTIVE_LOAN_STATES_SQL . ')
-                  AND l.tipo_media = ?';
+                  AND EXISTS (SELECT 1 FROM libri l WHERE l.id = p.libro_id AND l.tipo_media = ?)';
         if ($excludeLoanId !== null) {
             $sql .= ' AND p.id <> ?';
+        }
+        // Calendar writers may already have a REPEATABLE READ snapshot from
+        // their initial scan. A return committed since then makes a paused
+        // reservation eligible again and must be included in capacity now.
+        if ($lockingReads) {
+            $sql .= ' LOCK IN SHARE MODE';
         }
         $stmt = $this->db->prepare($sql);
         if ($excludeLoanId !== null) {
@@ -337,13 +346,13 @@ final class CirculationPolicy
      *
      * @return list<int>
      */
-    public function materialRefusedReservationUserIds(int $libroId): array
+    public function materialRefusedReservationUserIds(int $libroId, bool $lockingReads = false): array
     {
         if ($this->rules() === []) {
             return [];
         }
         $media = $this->mediaOf($libroId);
-        $stmt = $this->db->prepare("SELECT DISTINCT utente_id FROM prenotazioni WHERE libro_id = ? AND stato = 'attiva'");
+        $stmt = $this->db->prepare("SELECT DISTINCT utente_id FROM prenotazioni WHERE libro_id = ? AND stato = 'attiva'" . ($lockingReads ? ' FOR UPDATE' : ''));
         $stmt->bind_param('i', $libroId);
         $stmt->execute();
         $result = $stmt->get_result();
@@ -358,7 +367,7 @@ final class CirculationPolicy
             $policy = $this->forType($this->patronTypeOf($userId), $media);
             if (!$policy->loanable
                 || ($policy->maxActiveForMedia > 0 && $media !== self::ALL_MEDIA
-                    && $this->countActiveLoansForMedia($userId, $media) >= $policy->maxActiveForMedia)) {
+                    && $this->countActiveLoansForMedia($userId, $media, lockingReads: $lockingReads) >= $policy->maxActiveForMedia)) {
                 $refused[] = $userId;
             }
         }

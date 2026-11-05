@@ -82,7 +82,7 @@ class UserDashboardController
             
             // Get user active loans with book titles
             $stmt = $db->prepare("
-                SELECT p.id, p.libro_id, p.data_scadenza,
+                SELECT p.id, p.libro_id, p.copia_id, p.data_scadenza, p.stato,
                        l.titolo AS titolo_libro, l.copertina_url
                 FROM prestiti p
                 JOIN libri l ON p.libro_id = l.id
@@ -94,7 +94,7 @@ class UserDashboardController
             $stmt->execute();
             $res = $stmt->get_result();
             while ($row = $res->fetch_assoc()) {
-                $prestitiAttivi[] = $row;
+                $prestitiAttivi[] = $row + \App\Support\LibraryCalendar::loanDates($db, $row);
             }
             $stmt->close();
             
@@ -153,7 +153,7 @@ class UserDashboardController
 
             // Active loans
             $stmt = $db->prepare("
-                SELECT pr.id, pr.libro_id, pr.data_prestito, pr.data_scadenza, pr.stato,
+                SELECT pr.id, pr.libro_id, pr.copia_id, pr.data_prestito, pr.data_scadenza, pr.stato,
                        l.titolo, l.copertina_url,
                        EXISTS(SELECT 1 FROM recensioni r WHERE r.libro_id = pr.libro_id AND r.utente_id = ?) AS has_review
                 FROM prestiti pr
@@ -165,7 +165,7 @@ class UserDashboardController
             $stmt->execute();
             $result = $stmt->get_result();
             while ($row = $result->fetch_assoc()) {
-                $activePrestiti[] = $row;
+                $activePrestiti[] = $row + \App\Support\LibraryCalendar::loanDates($db, $row);
             }
             $stmt->close();
 
