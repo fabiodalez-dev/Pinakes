@@ -608,6 +608,12 @@ $cases = [
             return (bool) ($days['by_date'][$day]['available'] ?? false);
         };
         SettingsReview25::eq([$dayIsFree($t->day(7)), $dayIsFree($t->day(8))], [false, true], 'The request calendar shows the same days as book capacity');
+        $closedOffered = static function (array $book) use ($t): bool {
+            $data = (new \App\Controllers\ReservationsController($t->db))->getBookAvailabilityData($book['id'], $t->today, 30);
+            return in_array($t->day(5), (array) ($data['closed_dates'] ?? []), true);
+        };
+        SettingsReview25::check($closedOffered($closedBook), 'The request calendar marks a closed day of the branch holding the book\'s copies');
+        SettingsReview25::check(!$closedOffered($t->book()), 'A closed day of one branch stays open for copies with no branch');
         $t->saveLoans(['same_day_handover_after_closure' => '1']);
         SettingsReview25::check((new SettingsRepository($t->db))->allowsSameDayHandover(), 'The loans form saves the same-day handover choice');
         $handover = new \App\Services\CapacityService($t->db);

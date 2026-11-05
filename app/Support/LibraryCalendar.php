@@ -596,6 +596,12 @@ final class LibraryCalendar
         if (!$calendar->hasRules()) {
             return $ymd;
         }
+        return $calendar->nextOpenDay($ymd, self::requestBranch($db, $bookId));
+    }
+
+    /** The branch of the book's lendable copies when they all sit in one, otherwise null. */
+    public static function requestBranch(\mysqli $db, int $bookId): ?int
+    {
         $lendable = (new \App\Services\CirculationPolicy($db))->lendableCopySql('');
         $stmt = $db->prepare(
             "SELECT DISTINCT sede_id FROM copie
@@ -605,8 +611,7 @@ final class LibraryCalendar
         $stmt->execute();
         $branches = $stmt->get_result()->fetch_all(MYSQLI_NUM);
         $stmt->close();
-        $branch = count($branches) === 1 && $branches[0][0] !== null ? (int) $branches[0][0] : null;
-        return $calendar->nextOpenDay($ymd, $branch);
+        return count($branches) === 1 && $branches[0][0] !== null ? (int) $branches[0][0] : null;
     }
 
     /**

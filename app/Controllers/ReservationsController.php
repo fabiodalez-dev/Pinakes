@@ -856,7 +856,11 @@ class ReservationsController
             $days = $closedHorizon + 1;
         }
         $closedDates = \App\Support\LibraryCalendar::forDb($this->db)
-            ->closedDatesBetween($from, \App\Support\LibraryCalendar::shift($from, $closedHorizon));
+            ->closedDatesBetween(
+                $from,
+                \App\Support\LibraryCalendar::shift($from, $closedHorizon),
+                \App\Support\LibraryCalendar::requestBranch($this->db, (int) $bookId)
+            );
         return $this->calculateAvailability($currentLoans, $existingReservations, $totalCopies, $startDate, $days, $excludeUserId) + [
             'loan_duration_days' => $policy->requestDurationDays(),
             'max_loan_duration_days' => $policy->maxRequestDays,
