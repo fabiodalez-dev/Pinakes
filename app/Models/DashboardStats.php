@@ -95,9 +95,17 @@ class DashboardStats
                 FROM prestiti p
                 JOIN libri l ON p.libro_id = l.id AND l.deleted_at IS NULL
                 JOIN utenti u ON p.utente_id = u.id
-                WHERE p.stato='in_ritardo' AND p.attivo = 1";
+                WHERE p.stato IN ('in_corso','in_ritardo') AND p.attivo = 1";
         $res = $this->db->query($sql);
-        return $res ? $this->withLoanDates($res->fetch_all(MYSQLI_ASSOC)) : $rows;
+        if (!$res) {
+            return $rows;
+        }
+        // Late by the calendar, whatever the stored flag says: a loan the sweep has
+        // not flagged yet is listed, one flagged before a closure moved its day is not.
+        return array_values(array_filter(
+            $this->withLoanDates($res->fetch_all(MYSQLI_ASSOC)),
+            static fn (array $row): bool => (bool) $row['is_overdue']
+        ));
     }
 
     /**

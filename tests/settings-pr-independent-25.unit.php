@@ -575,6 +575,12 @@ $cases = [
             SettingsReview25::check($event !== '' && str_contains($event, $expectedEnd), "The {$surface} includes the loan through its usable return day");
             SettingsReview25::check(!str_contains($event, '⚠️'), "The {$surface} does not call an on-time loan overdue");
         }
+        // The closure moved the event's end without touching the row, so a client
+        // that replaces an event by its SEQUENCE must see a new revision.
+        [$rowSeq, $rowDue] = $t->db->query("SELECT UNIX_TIMESTAMP(updated_at), data_scadenza FROM prestiti WHERE id={$loan}")->fetch_row();
+        $daysMoved = (int) (new DateTimeImmutable((string) $rowDue))->diff(new DateTimeImmutable($t->today))->format('%r%a');
+        $personal = $eventOf((new \App\Plugins\MobileApi\Support\UserLoanCalendar($t->db))->generate($t->reader, 'Review'), $loan);
+        SettingsReview25::check($daysMoved > 0 && str_contains($personal, 'SEQUENCE:' . ((int) $rowSeq + $daysMoved) . "\r\n"), 'The personal feed gives the moved event a new revision');
     },
     '04 A reader who also missed the first open day really is overdue in the feed' => static function (SettingsReview25 $t): void {
         $loan = $t->loan($t->book($t->branchA), $t->day(-3));
@@ -644,6 +650,15 @@ $cases = [
         $event = array_values(array_filter((new \App\Models\DashboardStats($t->db))->calendarEvents(), static fn (array $e): bool => $e['title'] === $closedTitle))[0] ?? [];
         SettingsReview25::eq([$event['end'] ?? null, $event['status'] ?? null], [$t->day(3), 'in_corso'], 'The dashboard calendar ends the loan on its usable day, on time');
 
+        // The dashboard's overdue list follows the calendar, not the stored flag.
+        $overdueIds = static fn (): array => array_map('intval', array_column((new \App\Models\DashboardStats($t->db))->overdueLoans(), 'id'));
+        $staleLoan = $t->loan($t->book(), $t->day(0));
+        $t->db->query("UPDATE prestiti SET stato='in_ritardo' WHERE id={$staleLoan}");
+        $unsweptLoan = $t->loan($t->book(), $t->day(-5));
+        SettingsReview25::check(!in_array($staleLoan, $overdueIds(), true), 'A loan flagged late but on time is not in the dashboard overdue list');
+        SettingsReview25::check(in_array($unsweptLoan, $overdueIds(), true), 'A late loan the sweep has not flagged yet is in the dashboard overdue list');
+        $t->db->query("UPDATE prestiti SET attivo=0, stato='restituito', data_restituzione='{$t->day(0)}' WHERE id IN ({$staleLoan}, {$unsweptLoan})");
+
         // The book page: an on-time loan is neither red nor flagged in the copies
         // table on its due day, a cancelled loan is not red in the history, and a
         // loan really past due still is, in both.
@@ -651,6 +666,16 @@ $cases = [
             return (string) (new \App\Controllers\LibriController())->show($t->request('/admin/books/' . $book['id']), new Response(), $t->db, $book['id'])->getBody();
         };
         $redDate = static fn (string $ymd): string => '/text-red-600 font-semibold">\s*(<i class="fas fa-calendar-times[^>]*><\/i>\s*)?' . preg_quote(format_date($ymd, false, '/'), '/') . '/';
+        $staleBook = $t->book();
+        $staleBookLoan = $t->loan($staleBook, $t->day(0));
+        $t->db->query("UPDATE prestiti SET stato='in_ritardo' WHERE id={$staleBookLoan}");
+        $lateBadge = '/text-red-800[^>]*>\s*(<i[^>]*><\/i>\s*)?' . preg_quote(__('In ritardo'), '/') . '/';
+        SettingsReview25::check(preg_match($lateBadge, $bookPage($staleBook)) === 0, 'The copy badge does not call an on-time loan late on the stored flag');
+        $t->db->query("UPDATE prestiti SET stato='in_corso' WHERE id={$staleBookLoan}");
+        $unsweptBook = $t->book();
+        $unsweptBookLoan = $t->loan($unsweptBook, $t->day(-5));
+        SettingsReview25::check(preg_match($lateBadge, $bookPage($unsweptBook)) === 1, 'The copy badge calls a late loan late before the sweep flags it');
+        $t->db->query("UPDATE prestiti SET attivo=0, stato='restituito', data_restituzione='{$t->day(0)}' WHERE id IN ({$staleBookLoan}, {$unsweptBookLoan})");
         $onTimeBook = $t->book();
         $t->loan($onTimeBook, $t->today);
         $t->db->query("INSERT INTO prestiti (libro_id,copia_id,utente_id,data_prestito,data_scadenza,stato,origine,attivo) VALUES ({$onTimeBook['id']},{$onTimeBook['copies'][0]},{$t->secondReader},'{$t->day(-60)}','{$t->day(-40)}','annullato','diretto',0)");

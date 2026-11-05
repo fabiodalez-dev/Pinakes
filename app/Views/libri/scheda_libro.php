@@ -1098,7 +1098,7 @@ unset($workspaceHeader);
                           $effectiveStatus = 'prenotato';
                           $effectiveLabel = __('Prenotato');
                           $effectiveClass = 'bg-purple-100 text-purple-800';
-                      } elseif ($loanStatus === 'in_ritardo') {
+                      } elseif (!empty($copia['is_overdue'])) {
                           $effectiveStatus = 'in_ritardo';
                           $effectiveLabel = __('In ritardo');
                           $effectiveClass = 'bg-red-100 text-red-800';
@@ -1173,7 +1173,7 @@ unset($workspaceHeader);
                     $isScaduto = !empty($copia['is_overdue']);
                     ?>
                     <span class="<?php echo $isScaduto ? 'text-red-600 font-semibold' : ''; ?>">
-                      <?= App\Support\HtmlHelper::e(format_date($copia['effective_due_at'] ?? $copia['data_scadenza'], false, '/')) ?>
+                      <?= htmlspecialchars(format_date($copia['effective_due_at'] ?? $copia['data_scadenza'], false, '/'), ENT_QUOTES, 'UTF-8') ?>
                       <?php if ($isScaduto): ?>
                         <i class="fas fa-exclamation-triangle ml-1"></i>
                       <?php endif; ?>
@@ -1386,7 +1386,7 @@ unset($workspaceHeader);
                   ?>
                   <span class="<?php echo $isOverdue ? 'text-red-600 font-semibold' : 'text-gray-900'; ?>">
                     <i class="fas fa-calendar-times text-gray-400 mr-1"></i>
-                    <?php echo App\Support\HtmlHelper::e(format_date($loan['effective_due_at'] ?? $loan['data_scadenza'], false, '/')); ?>
+                    <?php echo htmlspecialchars(format_date($loan['effective_due_at'] ?? $loan['data_scadenza'], false, '/'), ENT_QUOTES, 'UTF-8'); ?>
                   </span>
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">

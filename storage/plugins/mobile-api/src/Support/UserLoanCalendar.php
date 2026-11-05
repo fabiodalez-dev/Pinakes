@@ -147,6 +147,19 @@ final class UserLoanCalendar
             // Still physically out today: never end the event on the missed date.
             $end = max($end, $today);
         }
+        // A closure can move the end day without touching the row (a move refused
+        // for capacity), and a late loan's end follows today. The revision moves
+        // with it, one step per day past the stored date, so a client that
+        // replaces an event by SEQUENCE takes the new end.
+        $revisionShift = 0;
+        $storedDue = substr((string) ($loan['data_scadenza'] ?? ''), 0, 10);
+        if (in_array($state, ['in_corso', 'in_ritardo'], true) && $storedDue !== '' && $end > $storedDue) {
+            $revisionShift = (int) (new \DateTimeImmutable($storedDue))->diff(new \DateTimeImmutable($end))->days;
+        }
+        $updatedAt = (string) ($loan['updated_at'] ?? '');
+        if ($revisionShift > 0 && $updatedAt !== '') {
+            $updatedAt = (new \DateTimeImmutable($updatedAt))->modify("+{$revisionShift} seconds")->format('Y-m-d H:i:s');
+        }
 
         $title = (string) $loan['titolo'];
         $summary = match ($state) {
@@ -175,8 +188,8 @@ final class UserLoanCalendar
             $end,
             $summary,
             $description,
-            (string) ($loan['updated_at'] ?? ''),
-            (int) ($loan['seq'] ?? 0),
+            $updatedAt,
+            (int) ($loan['seq'] ?? 0) + $revisionShift,
             $tz,
             $alarm
         );

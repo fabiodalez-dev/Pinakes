@@ -119,7 +119,7 @@ async function loginAs(page, email, password) {
     await page.goto(`${BASE}/accedi`);
     // A fresh phone's consent banner can cover the login submit button.
     const rejectCookies = page.locator('#silktide-wrapper .reject-all');
-    if (await rejectCookies.isVisible()) await rejectCookies.click();
+    await rejectCookies.click({ timeout: 1500 }).catch(() => {});
     await page.fill('input[name="email"]', email);
     await page.fill('input[name="password"]', password);
     await page.locator('button[type="submit"]').click();
