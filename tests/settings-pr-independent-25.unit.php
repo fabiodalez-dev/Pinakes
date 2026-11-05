@@ -656,6 +656,14 @@ $cases = [
         (new \App\Controllers\UserActionsController())->changeReservationDate($t->request('/reservations/change', ['reservation_id' => (string) $movedId, 'desired_date' => $t->day(5)]), new Response(), $t->db);
         SettingsReview25::eq((string) $t->scalar("SELECT data_inizio_richiesta FROM prenotazioni WHERE id={$movedId}"), $t->day(7), 'Moving a reservation onto a closed day of its branch starts it on the next open day');
 
+        // A reservation turned into a loan is checked on the day that loan ends:
+        // its requested end falls in the closure, and another reader's begins on the usable day.
+        $promoBook = $t->book($t->branchA);
+        $t->db->query("INSERT INTO prenotazioni (libro_id,utente_id,data_inizio_richiesta,data_fine_richiesta,stato,queue_position) VALUES ({$promoBook['id']},{$t->secondReader},'{$t->day(7)}','{$t->day(10)}','attiva',1)");
+        $t->db->query("INSERT INTO prenotazioni (libro_id,utente_id,data_inizio_richiesta,data_fine_richiesta,stato,queue_position) VALUES ({$promoBook['id']},{$t->reader},'{$t->today}','{$t->day(5)}','attiva',2)");
+        (new \App\Controllers\ReservationManager($t->db))->processBookAvailability($promoBook['id']);
+        SettingsReview25::eq((int) $t->scalar("SELECT COUNT(*) FROM prestiti WHERE libro_id={$promoBook['id']}"), 0, 'A reservation whose loan would run into the next reader\'s days is not turned into a loan');
+
         // Taking the closure away brings the end back, and SEQUENCE still rises.
         $t->asAdmin();
         $sequenceOf = static fn (string $event): int => preg_match('/^SEQUENCE:(\d+)/m', $event, $m) === 1 ? (int) $m[1] : 0;

@@ -284,6 +284,9 @@ class ReservationManager
                 // deadline; selecting them without normalising the start would
                 // still make isDateRangeAvailable() reject them forever.
                 $nextReservation['data_inizio_richiesta'] = $startDate;
+                // Capacity is checked on the day the loan will end, which a
+                // closure can put after the requested one (an open day stays as it is).
+                $endDate = \App\Support\LibraryCalendar::requestDueDate($this->db, (string) $endDate, 0, $bookId);
                 $nextReservation['data_fine_richiesta'] = $endDate;
 
                 // #157: pass the promoted reservation's queue_position so the
