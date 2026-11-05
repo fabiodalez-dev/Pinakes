@@ -43,7 +43,7 @@ function freeBookId() {
 async function openLoanPopup(page, bookId) {
   await page.goto(`${BASE}/accedi`);
   const rejectCookies = page.locator('#silktide-wrapper .reject-all');
-  if (await rejectCookies.isVisible()) await rejectCookies.click();
+  await rejectCookies.click({ timeout: 1500 }).catch(() => {});
   await page.fill('input[name="email"]', ADMIN_EMAIL);
   await page.fill('input[name="password"]', ADMIN_PASS);
   await page.locator('button[type="submit"]').click();
