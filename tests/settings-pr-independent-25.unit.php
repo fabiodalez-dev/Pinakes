@@ -603,6 +603,11 @@ $cases = [
             $capacity->occupiedCount($closedBook['id'], $t->day(7), $t->day(7)),
             $capacity->occupiedCount($closedBook['id'], $t->day(8), $t->day(8)),
         ], [1, 1, 0], 'Book capacity holds a loan through the usable day the reader is told, and frees it after');
+        $dayIsFree = static function (string $day) use ($t, $closedBook): bool {
+            $days = (new \App\Controllers\ReservationsController($t->db))->getBookAvailabilityData($closedBook['id'], $t->today, 30);
+            return (bool) ($days['by_date'][$day]['available'] ?? false);
+        };
+        SettingsReview25::eq([$dayIsFree($t->day(7)), $dayIsFree($t->day(8))], [false, true], 'The request calendar shows the same days as book capacity');
         $t->saveLoans(['same_day_handover_after_closure' => '1']);
         SettingsReview25::check((new SettingsRepository($t->db))->allowsSameDayHandover(), 'The loans form saves the same-day handover choice');
         $handover = new \App\Services\CapacityService($t->db);
@@ -611,6 +616,7 @@ $cases = [
             $handover->occupiedCount($closedBook['id'], $t->day(6), $t->day(6)),
             $handover->occupiedCount($closedBook['id'], $t->day(7), $t->day(7)),
         ], [1, 1, 0], 'With same-day handover on, a reader can start on that open day itself');
+        SettingsReview25::check($dayIsFree($t->day(7)), 'The request calendar offers that open day too');
         $t->saveLoans();
         SettingsReview25::check(!(new SettingsRepository($t->db))->allowsSameDayHandover(), 'The loans form turns it off again');
         \App\Support\LibraryCalendar::reset();
@@ -667,6 +673,9 @@ $cases = [
         // The desk's late list and the status it shows read the same verdict.
         $deskPage = (string) (new \App\Controllers\LoanApprovalController())->pendingLoans($t->request('/admin/loans/pending'), new Response(), $t->db)->getBody();
         SettingsReview25::eq(substr_count($deskPage, 'giorni di ritardo'), 2, 'The desk late list holds the two loans is_overdue calls late, not the old late flag on its usable day');
+        foreach (['late' => $loan, 'stale flag' => $stale, 'unswept' => $unswept] as $label => $listed) {
+            SettingsReview25::eq(substr_count($deskPage, "/admin/loans/edit/{$listed}\""), 1, "The desk page lists the {$label} loan exactly once");
+        }
         $reader = new \App\Plugins\MobileApi\Support\StaffLoanReader($t->db);
         $tiles = $reader->summary();
         SettingsReview25::eq([$tiles['active'], $tiles['overdue'], $tiles['due_today']], [1, 2, 1], 'One loan out sits in exactly one of active and overdue, and overdue excludes due today');

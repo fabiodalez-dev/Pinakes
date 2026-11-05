@@ -81,8 +81,9 @@ class ReservationsController
             if ($loanStatus === 'da_ritirare') {
                 // Block the full loan period: the copy is committed to this user
                 // even though they haven't picked it up yet
-                $endDateLoan = $loan['data_scadenza']
-                    ?? (new DateTime($startDateLoan))->add(new DateInterval('P7D'))->format('Y-m-d');
+                $endDateLoan = $loan['data_scadenza'] !== null
+                    ? $this->holdingEnd($loan)
+                    : (new DateTime($startDateLoan))->add(new DateInterval('P7D'))->format('Y-m-d');
             } elseif (
                 empty($loan['data_restituzione'])
                 && (
@@ -99,7 +100,8 @@ class ReservationsController
                 $endDateLoan = '9999-12-31';
             } else {
                 // For other states: data_restituzione > data_scadenza > null
-                $endDateLoan = $loan['data_restituzione'] ?? $loan['data_scadenza'] ?? null;
+                $endDateLoan = $loan['data_restituzione']
+                    ?? ($loanStatus !== 'pendente' && !empty($loan['data_scadenza']) ? $this->holdingEnd($loan) : ($loan['data_scadenza'] ?? null));
             }
 
             // Fallback: if still no end date, use start date (single day block)
@@ -766,6 +768,13 @@ class ReservationsController
         }
 
         return null;
+    }
+
+    /** @param array<string, mixed> $loan */
+    private function holdingEnd(array $loan): string
+    {
+        $copyId = !empty($loan['copia_id']) ? (int) $loan['copia_id'] : null;
+        return \App\Support\LibraryCalendar::holdingEnd($this->db, substr((string) $loan['data_scadenza'], 0, 10), $copyId);
     }
 
     /**

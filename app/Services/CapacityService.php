@@ -50,8 +50,6 @@ final class CapacityService
      */
     public function __construct(private mysqli $db, private bool $lockingReads = false) {}
 
-    private ?bool $sameDayHandover = null;
-
     /**
      * Lendable physical copies of a book (the capacity ceiling). If the book has
      * per-copy rows, count the lendable ones; otherwise fall back to the legacy
@@ -536,11 +534,6 @@ final class CapacityService
         return $this->fetchIntervals($sql, $types, $params);
     }
 
-    private function sameDayHandover(): bool
-    {
-        return $this->sameDayHandover ??= (new \App\Models\SettingsRepository($this->db))->allowsSameDayHandover();
-    }
-
     /**
      * @param string $types
      * @param list<int|string> $params
@@ -566,12 +559,7 @@ final class CapacityService
             $storedDue = (string) ($row['stored_due'] ?? '');
             if ($windowEnd !== null && $storedDue !== '' && $e === $storedDue) {
                 $copyId = $row['stored_copy'] !== null ? (int) $row['stored_copy'] : null;
-                $usable = \App\Support\LibraryCalendar::dueDate($this->db, $storedDue, $copyId);
-                // The library's choice: a reader can start on that open day itself.
-                if ($usable > $storedDue && $this->sameDayHandover()) {
-                    $usable = (new \DateTimeImmutable($usable))->modify('-1 day')->format('Y-m-d');
-                }
-                $e = min($usable, $windowEnd);
+                $e = min(\App\Support\LibraryCalendar::holdingEnd($this->db, $storedDue, $copyId), $windowEnd);
             }
             if ($s !== '' && $e !== '' && $s <= $e) {
                 $out[] = [$s, $e];

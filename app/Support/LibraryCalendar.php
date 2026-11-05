@@ -572,6 +572,20 @@ final class LibraryCalendar
     }
 
     /**
+     * Last day a loan with this stored due date keeps its book: the usable
+     * return day the reader is told, or the day before it when the library hands
+     * the book over on that day itself. Both capacity and the request calendar read it.
+     */
+    public static function holdingEnd(\mysqli $db, string $storedDue, ?int $copiaId): string
+    {
+        $usable = self::dueDate($db, $storedDue, $copiaId);
+        if ($usable > $storedDue && (new \App\Models\SettingsRepository($db))->allowsSameDayHandover()) {
+            return (new \DateTimeImmutable($usable))->modify('-1 day')->format('Y-m-d');
+        }
+        return $usable;
+    }
+
+    /**
      * The next open day a request for this book can start on: its copies'
      * branch when they all sit in one, otherwise the library as a whole, since
      * no copy is bound yet.
