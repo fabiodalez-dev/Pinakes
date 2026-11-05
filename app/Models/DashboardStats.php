@@ -246,19 +246,15 @@ class DashboardStats
         $stmt->bind_param('sss', $today, $today, $sixMonthsLater);
         $stmt->execute();
         foreach ($this->withLoanDates($stmt->get_result()->fetch_all(MYSQLI_ASSOC)) as $row) {
-            // The calendar states lateness and the end day as the exported feed
-            // does: a loan out ends on its usable return day, or stays open
-            // through today once that day has gone by.
-            if (in_array($row['stato'], ['in_corso', 'in_ritardo'], true) && (int) $row['attivo'] === 1) {
-                $row['stato'] = $row['is_overdue'] ? 'in_ritardo' : 'in_corso';
-            }
+            // A loan out ends on its usable return day, or stays open through
+            // today once that day has gone by. The status stays the stored one.
             $loanEnd = (string) ($row['effective_due_at'] ?? $row['data_scadenza']);
             $events[] = [
                 'id' => 'loan_' . $row['id'],
                 'title' => $row['titolo'],
                 'user' => $row['utente_nome'],
                 'start' => $row['data_prestito'],
-                'end' => $row['stato'] === 'in_ritardo' ? max($loanEnd, $today) : $loanEnd,
+                'end' => $row['is_overdue'] ? max($loanEnd, $today) : $loanEnd,
                 'type' => 'prestito',
                 'status' => $row['stato']
             ];
