@@ -16,8 +16,9 @@ namespace App\Plugins\MobileApi\Support;
  *
  *  - no personal data: the description holds the title and the state only,
  *    never a name or an e-mail address;
- *  - SEQUENCE = UNIX_TIMESTAMP(updated_at), monotonic per loan, so clients
- *    replace an event after a renewal or a state change;
+ *  - SEQUENCE = UNIX_TIMESTAMP(updated_at), plus the calendar's revision and
+ *    the days the end moved past the stored date, so clients replace an event
+ *    after a renewal, a state change or a calendar change;
  *  - DTSTAMP is the loan's last modification, not "now", so unchanged loans
  *    and usable calendar dates produce stable output (cheap 304 polling).
  *
@@ -28,6 +29,8 @@ final class UserLoanCalendar
 {
     /** Loan states shown in the feed (approved and still relevant). */
     public const STATES = ['in_corso', 'da_ritirare', 'prenotato', 'in_ritardo'];
+
+    private ?int $calendarRevision = null;
 
     public function __construct(private \mysqli $db)
     {
@@ -159,6 +162,10 @@ final class UserLoanCalendar
             $revisionShift = (int) (new \DateTimeImmutable($storedDue))->diff(new \DateTimeImmutable($end))->days;
         }
         $updatedAt = (string) ($loan['updated_at'] ?? '');
+        // Removing a closure lowers the shift: the calendar's revision rose by
+        // more, so SEQUENCE and DTSTAMP do not go back.
+        $this->calendarRevision ??= \App\Support\LibraryCalendar::revision($this->db);
+        $revisionShift += $this->calendarRevision;
         if ($revisionShift > 0 && $updatedAt !== '') {
             $updatedAt = (new \DateTimeImmutable($updatedAt))->modify("+{$revisionShift} seconds")->format('Y-m-d H:i:s');
         }

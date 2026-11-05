@@ -171,6 +171,24 @@
           <?= __("Gestisci il calendario chiusure") ?>
         </a>
         <?php endif; ?>
+        <div class="flex items-center justify-between gap-4">
+          <div>
+            <span id="same_day_handover_after_closure_label" class="text-sm font-semibold text-gray-900"><?= __("Consegna nello stesso giorno dopo una chiusura") ?></span>
+            <p id="same_day_handover_after_closure_desc" class="text-xs text-gray-600 mt-1"><?= __("Quando un prestito scade in un giorno di chiusura, il libro torna il primo giorno di apertura. Se attivo, un altro lettore può riceverlo quello stesso giorno; se disattivo, il libro resta occupato per tutto quel giorno.") ?></p>
+          </div>
+          <label class="relative inline-flex items-center cursor-pointer shrink-0">
+            <input type="checkbox"
+                   id="same_day_handover_after_closure"
+                   name="same_day_handover_after_closure"
+                   value="1"
+                   aria-labelledby="same_day_handover_after_closure_label"
+                   aria-describedby="same_day_handover_after_closure_desc"
+                   <?php echo !empty($loansSettings['same_day_handover_after_closure']) ? 'checked' : ''; ?>
+                   class="toggle-checkbox sr-only">
+            <div class="toggle-bg w-11 h-6 bg-gray-200 rounded-full transition-colors"></div>
+            <div class="toggle-dot absolute top-[2px] left-[2px] bg-white border border-gray-300 rounded-full h-5 w-5 transition-transform"></div>
+          </label>
+        </div>
       </div>
     </div>
 

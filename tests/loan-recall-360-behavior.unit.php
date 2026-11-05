@@ -441,7 +441,7 @@ try {
     $mailService->sendOverdueLoanNotifications();
     $overdueMail = $mailTo($closedEmail, 'loan_overdue_notification');
     $check(($overdueMail['data_scadenza'] ?? null) === $dayFor($closedEmail, $usableDue), 'D1 the overdue e-mail names the first open day after the closed due day');
-    $check((int) ($overdueMail['giorni_ritardo'] ?? 0) === 18, 'D2 and counts the open days from that day');
+    $check((int) ($overdueMail['giorni_ritardo'] ?? 0) === \App\Support\LibraryCalendar::forDb($db)->openDaysBetween($usableDue, \App\Support\DateHelper::today()), 'D2 and counts the open days from that day');
     $adminMail = $mailTo($adminEmail, 'loan_overdue_admin');
     $check(($adminMail['data_scadenza'] ?? null) === $dayFor($adminEmail, $usableDue), 'D3 the staff alert names the same day');
     $claimedRow = $db->query('SELECT overdue_notification_sent, data_scadenza FROM prestiti WHERE id = ' . (int) $closedLoan)->fetch_row();
@@ -453,6 +453,29 @@ try {
     $check($recalled['success'] === true && ($recallMail['data_scadenza'] ?? null) === $dayFor($closedEmail, $usableDue), 'D5 the recall names the first open day after the closed due day');
     $claimedRow = $db->query('SELECT recall_count, data_scadenza FROM prestiti WHERE id = ' . (int) $closedLoan)->fetch_row();
     $check((int) $claimedRow[0] === 1 && (string) $claimedRow[1] === $storedDue, 'D6 the recall claim matched the stored date, which stays as it was');
+
+    // The e-mail for a reservation whose book became available quotes the usable end day.
+    $reservationBook = $makeBook();
+    $reservationStart = (new DateTimeImmutable($storedDue))->modify('-10 days')->format('Y-m-d');
+    $db->query("INSERT INTO prenotazioni (libro_id, utente_id, data_inizio_richiesta, data_fine_richiesta, stato, notifica_inviata) VALUES ({$reservationBook}, {$closedUser}, '{$reservationStart}', '{$storedDue}', 'attiva', 0)");
+    $reservationId = (int) $db->insert_id;
+    $reservationManager = new class ($db, $mailService) extends \App\Controllers\ReservationManager {
+        public function __construct(mysqli $db, private \App\Support\NotificationService $fake)
+        {
+            parent::__construct($db);
+        }
+        protected function notificationService(): \App\Support\NotificationService
+        {
+            return $this->fake;
+        }
+    };
+    (new ReflectionMethod(\App\Controllers\ReservationManager::class, 'sendReservationNotification'))->invoke($reservationManager, [
+        'id' => $reservationId, 'libro_id' => $reservationBook, 'email' => $closedEmail, 'nome' => 'Recall', 'cognome' => 'Reader',
+        'data_inizio_richiesta' => $reservationStart, 'data_fine_richiesta' => $storedDue,
+    ]);
+    $awaitingMail = $mailTo($closedEmail, 'reservation_awaiting_approval');
+    $db->query("DELETE FROM prenotazioni WHERE id = {$reservationId}");
+    $check(($awaitingMail['data_fine'] ?? null) === $dayFor($closedEmail, $usableDue), 'D5b the reservation e-mail names the first open day after a closed end day');
 
     // No closure on the day: the same e-mail quotes the stored date.
     $plainLoan = $makeLoan(daysOverdue: 20 + 5);

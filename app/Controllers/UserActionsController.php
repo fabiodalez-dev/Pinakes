@@ -560,8 +560,6 @@ class UserActionsController
         }
 
         $uid = (int) $user['id'];
-        // A closed start day moves to the next open day (see reserve()).
-        $date = \App\Support\LibraryCalendar::forDb($db)->nextOpenDay($date);
         $startDate = $date;
 
         $db->begin_transaction();
@@ -582,6 +580,9 @@ class UserActionsController
             }
 
             $libroId = (int) $reservation['libro_id'];
+            // A closed start day moves to the next open day (see reserve()).
+            $date = \App\Support\LibraryCalendar::requestStartDay($db, $date, $libroId);
+            $startDate = $date;
             $loanDays = (new \App\Services\CirculationPolicy($db))->forLoan($uid, $libroId)->requestDurationDays();
             $endDate = \App\Services\CirculationPolicy::dueDateFor($date, $loanDays, $db);
 
@@ -721,7 +722,7 @@ class UserActionsController
         // library runs in a local zone, so a raw date('Y-m-d') near midnight
         // would date the request to the wrong day.
         // A day the library is closed starts on the next open day instead.
-        $data_prestito = \App\Support\LibraryCalendar::forDb($db)->nextOpenDay(\App\Support\DateHelper::today());
+        $data_prestito = \App\Support\LibraryCalendar::requestStartDay($db, \App\Support\DateHelper::today(), $libroId);
         $circulation = new \App\Services\CirculationPolicy($db);
         $loanPolicy = $circulation->forLoan($utenteId, $libroId);
         $data_scadenza = \App\Services\CirculationPolicy::dueDateFor($data_prestito, $loanPolicy->requestDurationDays(), $db);
@@ -991,7 +992,7 @@ class UserActionsController
         // Calculate date range for availability check. A start day the library
         // is closed moves to the next open day, as the request calendar
         // proposes it; identical without closures.
-        $start = \App\Support\LibraryCalendar::forDb($db)->nextOpenDay(($desired !== '') ? $desired : $today);
+        $start = \App\Support\LibraryCalendar::requestStartDay($db, ($desired !== '') ? $desired : $today, $libroId);
         $reservePolicy = (new \App\Services\CirculationPolicy($db))->forLoan($utenteId, $libroId);
         $end = \App\Services\CirculationPolicy::dueDateFor($start, $reservePolicy->requestDurationDays(), $db);
         // Optional return date (Mobile API 1.8.2), bounded as in loan().

@@ -235,6 +235,7 @@ Imposti le regole globali dei prestiti (categoria setting `loans`):
 | `max_renewals` | Numero massimo di rinnovi (0 = illimitato) | 3 | 0 … 100 |
 | `max_active_loans_per_user` | Massimo prestiti attivi per utente (0 = illimitato) | 0 | 0 … 1000 |
 | `allow_multiple_loans_same_book` | Consente allo stesso utente più prestiti attivi dello stesso libro su copie fisiche distinte | 0 (disattivato) | Toggle 0 / 1 |
+| `same_day_handover_after_closure` | Quando un prestito scade in un giorno di chiusura, un altro lettore può ricevere il libro già il primo giorno di apertura | 0 (disattivato) | Toggle 0 / 1 |
 
 > **Importante**: il server **ricalcola e blocca (clamp)** ogni valore entro i limiti indicati a prescindere dagli attributi `min`/`max` del form (che sono solo indicativi). Un POST manipolato non può quindi impostare durate o rinnovi assurdi.
 
@@ -491,6 +492,7 @@ Categorie effettivamente usate dal `SettingsController` (chiave `category`):
 ('loans', 'max_renewals', '3'),
 ('loans', 'max_active_loans_per_user', '0'), -- 0 = illimitato
 ('loans', 'allow_multiple_loans_same_book', '0'), -- 0 = comportamento standard, 1 = copie distinte
+('loans', 'same_day_handover_after_closure', '0'), -- 0 = occupato per il primo giorno di apertura, 1 = consegna quel giorno
 ('advanced', 'days_before_expiry_warning', '3'),
 ('advanced', 'session_lifetime', '180'),     -- minuti
 ('advanced', 'force_https', '0'),

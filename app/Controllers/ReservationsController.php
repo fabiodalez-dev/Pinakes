@@ -293,7 +293,7 @@ class ReservationsController
         // A start day the library is closed moves to the next open day, as the
         // request calendar proposes it (a crafted request cannot start on a
         // closure); identical without closures.
-        $startDate = \App\Support\LibraryCalendar::forDb($this->db)->nextOpenDay($startDate);
+        $startDate = \App\Support\LibraryCalendar::requestStartDay($this->db, $startDate, $bookId);
 
         if ($endDate && $endDate < $startDate) {
             $response->getBody()->write(json_encode(['success' => false, 'error' => 'invalid_range', 'message' => __('La data di fine non può precedere la data di inizio')]));

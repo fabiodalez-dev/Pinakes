@@ -619,7 +619,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 render: function(data, type, row) {
                     // Badge dalla mappa canonica PHP (loan-status-badge.php):
                     // stessa fonte del rendering SSR, nessuna mappa duplicata in JS.
-                    return loanStatusBadges[data] || loanStatusUnknownBadge;
+                    const shown = (data === 'in_corso' || data === 'in_ritardo')
+                        ? (row.is_overdue === true ? 'in_ritardo' : 'in_corso')
+                        : data;
+                    return loanStatusBadges[shown] || loanStatusUnknownBadge;
                 }
             },
             {

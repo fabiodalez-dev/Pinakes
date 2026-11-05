@@ -108,6 +108,15 @@ class SettingsRepository
     }
 
     /**
+     * Whether a loan due on a closed day frees its book on the next open day
+     * itself, for a reader who starts that day, or only after it.
+     */
+    public function allowsSameDayHandover(): bool
+    {
+        return ($this->get('loans', 'same_day_handover_after_closure', '0') ?? '0') === '1';
+    }
+
+    /**
      * Configured default loan duration (global rule, no patron context).
      *
      * @deprecated read the rules from \App\Services\CirculationPolicy (forLoan()/defaults()).

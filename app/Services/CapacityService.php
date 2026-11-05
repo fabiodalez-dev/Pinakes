@@ -50,6 +50,8 @@ final class CapacityService
      */
     public function __construct(private mysqli $db, private bool $lockingReads = false) {}
 
+    private ?bool $sameDayHandover = null;
+
     /**
      * Lendable physical copies of a book (the capacity ceiling). If the book has
      * per-copy rows, count the lendable ones; otherwise fall back to the legacy
@@ -407,7 +409,9 @@ final class CapacityService
                        LEAST(CASE
                            WHEN {$openEnded} THEN ?
                            ELSE p.data_scadenza
-                       END, ?) AS e
+                       END, ?) AS e,
+                       IF(p.attivo = 1, p.data_scadenza, NULL) AS stored_due,
+                       p.copia_id AS stored_copy
                 FROM prestiti p
                 WHERE p.libro_id = ?
                   AND p.data_prestito <= ?
@@ -415,7 +419,11 @@ final class CapacityService
                   AND ( (p.attivo = 1 AND p.stato IN ('prenotato','da_ritirare','in_corso','in_ritardo'))
                         OR (p.attivo = 0 AND p.stato = 'pendente' AND p.copia_id IS NOT NULL) )";
         $types = 'ssssisss';
-        $params = [$start, $today, $end, $end, $libroId, $end, $today, $start];
+        // A loan whose stored day is closed ends on the next open day, which the
+        // reader is told, even when the move was refused and the row kept its
+        // date. With a calendar, a stored day before the window can still reach it.
+        $hasCalendar = \App\Support\LibraryCalendar::forDb($this->db)->hasRules();
+        $params = [$start, $today, $end, $end, $libroId, $end, $today, $hasCalendar ? '1000-01-01' : $start];
         if ($excludePrestitoId !== null) {
             $sql .= ' AND p.id <> ?';
             $types .= 'i';
@@ -426,7 +434,7 @@ final class CapacityService
             $types .= 'i';
             $params[] = $excludeUserId;
         }
-        return $this->fetchIntervals($sql, $types, $params);
+        return $this->fetchIntervals($sql, $types, $params, $end);
     }
 
     /**
@@ -528,12 +536,17 @@ final class CapacityService
         return $this->fetchIntervals($sql, $types, $params);
     }
 
+    private function sameDayHandover(): bool
+    {
+        return $this->sameDayHandover ??= (new \App\Models\SettingsRepository($this->db))->allowsSameDayHandover();
+    }
+
     /**
      * @param string $types
      * @param list<int|string> $params
      * @return list<array{0:string,1:string}>
      */
-    private function fetchIntervals(string $sql, string $types, array $params): array
+    private function fetchIntervals(string $sql, string $types, array $params, ?string $windowEnd = null): array
     {
         if ($this->lockingReads) {
             $sql .= ' FOR UPDATE';
@@ -550,6 +563,16 @@ final class CapacityService
         while ($row = $res->fetch_assoc()) {
             $s = (string) $row['s'];
             $e = (string) $row['e'];
+            $storedDue = (string) ($row['stored_due'] ?? '');
+            if ($windowEnd !== null && $storedDue !== '' && $e === $storedDue) {
+                $copyId = $row['stored_copy'] !== null ? (int) $row['stored_copy'] : null;
+                $usable = \App\Support\LibraryCalendar::dueDate($this->db, $storedDue, $copyId);
+                // The library's choice: a reader can start on that open day itself.
+                if ($usable > $storedDue && $this->sameDayHandover()) {
+                    $usable = (new \DateTimeImmutable($usable))->modify('-1 day')->format('Y-m-d');
+                }
+                $e = min($usable, $windowEnd);
+            }
             if ($s !== '' && $e !== '' && $s <= $e) {
                 $out[] = [$s, $e];
             }

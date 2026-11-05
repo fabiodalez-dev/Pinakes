@@ -712,6 +712,11 @@ class ReservationManager
         return $max;
     }
 
+    protected function notificationService(): \App\Support\NotificationService
+    {
+        return new \App\Support\NotificationService($this->db);
+    }
+
     /**
      * Send notification email when reservation book becomes available
      *
@@ -779,7 +784,7 @@ class ReservationManager
             // #360 parity: formatta le date nella lingua del DESTINATARIO come
             // tutta la pipeline email (warning/overdue/solleciti), non nel
             // locale di installazione.
-            $notificationService = new \App\Support\NotificationService($this->db);
+            $notificationService = $this->notificationService();
             $recipientLocale = $notificationService->resolveRecipientLocale((string) $reservation['email']);
 
             $variables = [

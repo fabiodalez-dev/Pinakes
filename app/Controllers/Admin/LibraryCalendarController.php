@@ -625,6 +625,7 @@ class LibraryCalendarController
                     LibraryCalendar::reset();
                     LibraryCalendar::extendDueDates($db);
                     LibraryCalendar::extendPickupDeadlines($db);
+                    LibraryCalendar::bumpRevision($db);
                     $db->commit();
                     return null;
                 }

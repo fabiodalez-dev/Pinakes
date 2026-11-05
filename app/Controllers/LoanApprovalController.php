@@ -106,25 +106,31 @@ class LoanApprovalController
             JOIN libri l ON p.libro_id = l.id AND l.deleted_at IS NULL
             JOIN utenti u ON p.utente_id = u.id
             LEFT JOIN copie c ON p.copia_id = c.id
-            WHERE p.stato = 'in_ritardo' AND p.attivo = 1
+            WHERE p.stato IN ('in_corso', 'in_ritardo') AND p.attivo = 1 AND p.data_scadenza < ?
             ORDER BY p.data_scadenza ASC
         ");
+        $overdueStmt->bind_param('s', $today);
         $overdueStmt->execute();
         $overdueLoans = $overdueStmt->get_result()->fetch_all(MYSQLI_ASSOC);
         $overdueStmt->close();
 
         // The two lists read the usable return day and the open-day late count,
-        // as the notices and the fine do. One branch read for the page. These
-        // rows are stored as in_ritardo, so the count shown is at least 1.
+        // as the notices and the fine do. One branch read for the page. The late
+        // list is what is_overdue says, whatever a sweep has stored so far.
         \App\Support\LibraryCalendar::primeCopyBranches($db, array_map(static fn (array $r): int => (int) ($r['copia_id'] ?? 0), array_merge($activeLoans, $overdueLoans)));
         foreach ($activeLoans as $i => $loan) {
             $activeLoans[$i] = $loan + \App\Support\LibraryCalendar::loanDates($db, $loan, $today);
         }
-        foreach ($overdueLoans as $i => $loan) {
+        $lateLoans = [];
+        foreach ($overdueLoans as $loan) {
             $copyId = $loan['copia_id'] !== null ? (int) $loan['copia_id'] : null;
-            $overdueLoans[$i] = $loan + \App\Support\LibraryCalendar::loanDates($db, $loan, $today);
-            $overdueLoans[$i]['giorni_ritardo'] = max(1, \App\Support\LibraryCalendar::lateDaysForNotice($db, (string) $loan['data_scadenza'], $copyId, $today));
+            $late = $loan + \App\Support\LibraryCalendar::loanDates($db, $loan, $today);
+            if ($late['is_overdue']) {
+                $late['giorni_ritardo'] = max(1, \App\Support\LibraryCalendar::lateDaysForNotice($db, (string) $loan['data_scadenza'], $copyId, $today));
+                $lateLoans[] = $late;
+            }
         }
+        $overdueLoans = $lateLoans;
 
         // Get active reservations
         $reservationsStmt = $db->prepare("

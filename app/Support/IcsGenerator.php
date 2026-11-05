@@ -214,7 +214,7 @@ class IcsGenerator
                               THEN p.pickup_deadline
                               ELSE p.data_scadenza
                            END) >= ?
-                          OR p.stato IN ('in_corso', 'in_ritardo')
+                          OR p.stato IN ('in_corso', 'in_ritardo', 'prenotato')
                       )
                     ORDER BY p.data_prestito ASC";
         $stmt = $this->db->prepare($loanSql);
@@ -230,6 +230,10 @@ class IcsGenerator
         LibraryCalendar::primeCopyBranches($this->db, array_map(static fn (array $r): int => (int) ($r['copia_id'] ?? 0), $loans));
         foreach ($loans as $row) {
             $dates = LibraryCalendar::loanDates($this->db, $row, $today);
+            // A booked loan ends on its usable day, which a closure can put after the stored one.
+            if ($row['stato'] === 'prenotato' && (string) ($dates['effective_due_at'] ?? $row['data_scadenza']) < $today) {
+                continue;
+            }
             if (in_array($row['stato'], ['in_corso', 'in_ritardo'], true)) {
                 $row['stato'] = $dates['is_overdue'] ? 'in_ritardo' : 'in_corso';
             }

@@ -63,6 +63,8 @@ final class LibraryCalendar
     /** @var array<int, self> per-connection cache, keyed by spl_object_id */
     private static array $instances = [];
 
+    private const REVISION_STEP = 3660;
+
     /** @var array<int, ?int> branchOfCopy() memo: copy id => sede_id (null when none) */
     private array $copyBranches = [];
 
@@ -484,7 +486,7 @@ final class LibraryCalendar
     private static function reconcileOverdue(\mysqli $db, string $today, ?int $operatorId): void
     {
         $stmt = $db->prepare(
-            "SELECT id, data_scadenza, copia_id FROM prestiti
+            "SELECT id, libro_id, data_scadenza, copia_id FROM prestiti
              WHERE attivo = 1 AND stato = 'in_ritardo' AND data_scadenza IS NOT NULL AND data_scadenza < ?"
         );
         if ($stmt === false) {
@@ -500,17 +502,97 @@ final class LibraryCalendar
                 continue;
             }
             $id = (int) $row['id'];
-            $before = ActivityLog::loadLoanSnapshot($db, $id);
-            $update = $db->prepare("UPDATE prestiti SET stato = 'in_corso' WHERE id = ? AND attivo = 1 AND stato = 'in_ritardo' AND data_scadenza = ?");
             $due = (string) $row['data_scadenza'];
-            $update->bind_param('is', $id, $due);
-            $update->execute();
-            $changed = $update->affected_rows > 0;
-            $update->close();
-            if ($changed) {
-                ActivityLog::recordLoanEvent($db, $id, 'loan.updated', $before, 'aggiornamento', 'calendar', $operatorId);
-            }
+            self::withBookLock($db, (int) $row['libro_id'], static function () use ($db, $id, $due, $operatorId): void {
+                $before = ActivityLog::loadLoanSnapshot($db, $id);
+                $update = $db->prepare("UPDATE prestiti SET stato = 'in_corso' WHERE id = ? AND attivo = 1 AND stato = 'in_ritardo' AND data_scadenza = ?");
+                $update->bind_param('is', $id, $due);
+                $update->execute();
+                $changed = $update->affected_rows > 0;
+                $update->close();
+                if ($changed) {
+                    ActivityLog::recordLoanEvent($db, $id, 'loan.updated', $before, 'aggiornamento', 'calendar', $operatorId);
+                }
+            });
         }
+    }
+
+    /**
+     * Runs a change to a loan with its book row locked first, the order desk
+     * operations use. A caller's transaction keeps the lock until it commits;
+     * without one the change gets its own.
+     */
+    private static function withBookLock(\mysqli $db, int $bookId, callable $change): void
+    {
+        $ownTransaction = !DbAtomic::inTransaction($db);
+        if ($ownTransaction) {
+            $db->begin_transaction();
+        }
+        try {
+            // CI-SOFT-DELETE-EXEMPT: a lock, not a read for display; an active
+            // loan may belong to an archived book and its row is locked all the same.
+            // @include-soft-deleted (tests/code-quality.spec.js, check 5).
+            $lock = $db->prepare('SELECT id FROM libri WHERE id = ? FOR UPDATE');
+            $lock->bind_param('i', $bookId);
+            $lock->execute();
+            $lock->get_result();
+            $lock->close();
+            $change();
+            if ($ownTransaction) {
+                $db->commit();
+            }
+        } catch (\Throwable $e) {
+            if ($ownTransaction) {
+                $db->rollback();
+            }
+            throw $e;
+        }
+    }
+
+    /**
+     * Records that the calendar's rules changed. The personal feed adds this to
+     * SEQUENCE, so it keeps rising when a change brings an event's end back: each
+     * step is larger than the days a closure can have added to that end.
+     */
+    public static function bumpRevision(\mysqli $db): void
+    {
+        $step = self::REVISION_STEP;
+        $db->query(
+            "INSERT INTO system_settings (category, setting_key, setting_value) VALUES ('library_calendar', 'revision', '{$step}')
+             ON DUPLICATE KEY UPDATE setting_value = CAST(setting_value AS UNSIGNED) + {$step}"
+        );
+    }
+
+    /** Last bumpRevision() value, 0 when the calendar has never changed. */
+    public static function revision(\mysqli $db): int
+    {
+        $result = $db->query("SELECT setting_value FROM system_settings WHERE category = 'library_calendar' AND setting_key = 'revision'");
+        $row = $result instanceof \mysqli_result ? $result->fetch_row() : null;
+        return $row !== null ? (int) $row[0] : 0;
+    }
+
+    /**
+     * The next open day a request for this book can start on: its copies'
+     * branch when they all sit in one, otherwise the library as a whole, since
+     * no copy is bound yet.
+     */
+    public static function requestStartDay(\mysqli $db, string $ymd, int $bookId): string
+    {
+        $calendar = self::forDb($db);
+        if (!$calendar->hasRules()) {
+            return $ymd;
+        }
+        $lendable = (new \App\Services\CirculationPolicy($db))->lendableCopySql('');
+        $stmt = $db->prepare(
+            "SELECT DISTINCT sede_id FROM copie
+             WHERE libro_id = ? AND stato NOT IN ('perso','danneggiato','manutenzione','in_restauro','in_trasferimento') AND {$lendable}"
+        );
+        $stmt->bind_param('i', $bookId);
+        $stmt->execute();
+        $branches = $stmt->get_result()->fetch_all(MYSQLI_NUM);
+        $stmt->close();
+        $branch = count($branches) === 1 && $branches[0][0] !== null ? (int) $branches[0][0] : null;
+        return $calendar->nextOpenDay($ymd, $branch);
     }
 
     /**
@@ -584,7 +666,7 @@ final class LibraryCalendar
         }
         $today = DateHelper::today();
         $result = $db->query(
-            "SELECT p.id, p.pickup_deadline, p.data_scadenza, c.sede_id
+            "SELECT p.id, p.libro_id, p.pickup_deadline, p.data_scadenza, c.sede_id
              FROM prestiti p
              LEFT JOIN copie c ON c.id = p.copia_id
              WHERE p.stato = 'da_ritirare' AND p.attivo = 1 AND p.pickup_deadline IS NOT NULL"
@@ -596,10 +678,6 @@ final class LibraryCalendar
         $result->free();
 
         $moved = 0;
-        $stmt = $db->prepare(
-            "UPDATE prestiti SET pickup_deadline = ?
-             WHERE id = ? AND stato = 'da_ritirare' AND attivo = 1 AND pickup_deadline = ?"
-        );
         foreach ($rows as $row) {
             $deadline = substr((string) $row['pickup_deadline'], 0, 10);
             $next = $calendar->nextOpenDay($deadline, $row['sede_id'] !== null ? (int) $row['sede_id'] : null);
@@ -611,11 +689,17 @@ final class LibraryCalendar
                 continue;
             }
             $id = (int) $row['id'];
-            $stmt->bind_param('sis', $next, $id, $deadline);
-            $stmt->execute();
-            $moved += max(0, $stmt->affected_rows);
+            self::withBookLock($db, (int) $row['libro_id'], static function () use ($db, $next, $id, $deadline, &$moved): void {
+                $stmt = $db->prepare(
+                    "UPDATE prestiti SET pickup_deadline = ?
+                     WHERE id = ? AND stato = 'da_ritirare' AND attivo = 1 AND pickup_deadline = ?"
+                );
+                $stmt->bind_param('sis', $next, $id, $deadline);
+                $stmt->execute();
+                $moved += max(0, $stmt->affected_rows);
+                $stmt->close();
+            });
         }
-        $stmt->close();
         return $moved;
     }
 

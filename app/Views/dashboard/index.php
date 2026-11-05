@@ -664,10 +664,10 @@ unset($workspaceHeader);
                     // The date turning red is a visibility signal; it does NOT mean the
                     // loan is formally late (a loan due today is still on time).
                     $dueSoonOrOverdue = !empty($p['due_attention']);
-                    // The status badge reflects the REAL loan state (in_ritardo is set
-                    // by the maintenance overdue-updater), so a due-today loan still
-                    // reads "In corso" while a genuinely late one reads "In Ritardo".
-                    $isLate = ($p['stato'] ?? '') === 'in_ritardo';
+                    // The status badge follows is_overdue, not the stored state a sweep
+                    // may not have updated yet, so a due-today loan still reads
+                    // "In corso" while a genuinely late one reads "In Ritardo".
+                    $isLate = !empty($p['is_overdue']);
                   ?>
                   <td class="px-6 py-4 whitespace-nowrap text-sm <?= $dueSoonOrOverdue ? 'text-red-600 font-semibold' : 'text-gray-500' ?>">
                     <?php echo $p['data_scadenza'] ? format_date($p['effective_due_at'] ?? $p['data_scadenza']) : ''; ?>

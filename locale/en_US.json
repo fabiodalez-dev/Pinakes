@@ -7075,6 +7075,8 @@
   "Più copie dello stesso titolo": "Multiple copies of the same title",
   "Consenti allo stesso utente di avere più prestiti attivi dello stesso libro, purché ogni prestito sia associato a una copia fisica distinta.": "Allow the same user to have multiple active loans for the same book, provided each loan is associated with a distinct physical copy.",
   "Consenti più prestiti dello stesso titolo solo su copie fisiche distinte": "Allow multiple loans of the same title only for distinct physical copies",
+  "Consegna nello stesso giorno dopo una chiusura": "Same-day handover after a closure",
+  "Quando un prestito scade in un giorno di chiusura, il libro torna il primo giorno di apertura. Se attivo, un altro lettore può riceverlo quello stesso giorno; se disattivo, il libro resta occupato per tutto quel giorno.": "When a loan is due on a closed day, the book comes back on the first open day. When on, another reader can receive it that same day; when off, the book stays taken for that whole day.",
   "Ogni prestito deve essere associato a una copia fisica distinta; richieste in attesa e prenotazioni restano singole per utente e libro.": "Each loan must be associated with a distinct physical copy; pending requests and reservations remain limited to one per user and book.",
   "Richieste in attesa e prenotazioni restano uniche per utente e libro. Ogni copia conta nel limite dei prestiti attivi.": "Pending requests and reservations remain unique per user and book. Each copy counts toward the active loan limit.",
   "Modalità prestiti multipli attiva: il libro resta selezionato; scansiona la copia successiva per continuare.": "Multiple-loan mode is active: the book remains selected; scan the next copy to continue.",

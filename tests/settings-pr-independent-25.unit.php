@@ -580,7 +580,7 @@ $cases = [
         [$rowSeq, $rowDue] = $t->db->query("SELECT UNIX_TIMESTAMP(updated_at), data_scadenza FROM prestiti WHERE id={$loan}")->fetch_row();
         $daysMoved = (int) (new DateTimeImmutable((string) $rowDue))->diff(new DateTimeImmutable($t->today))->format('%r%a');
         $personal = $eventOf((new \App\Plugins\MobileApi\Support\UserLoanCalendar($t->db))->generate($t->reader, 'Review'), $loan);
-        SettingsReview25::check($daysMoved > 0 && str_contains($personal, 'SEQUENCE:' . ((int) $rowSeq + $daysMoved) . "\r\n"), 'The personal feed gives the moved event a new revision');
+        SettingsReview25::check($daysMoved > 0 && str_contains($personal, 'SEQUENCE:' . ((int) $rowSeq + LibraryCalendar::revision($t->db) + $daysMoved) . "\r\n"), 'The personal feed gives the moved event a new revision');
         // A booked loan whose stored end day passed inside the closure still has a usable day.
         $bookedLoan = $t->loan($t->book($t->branchA), $t->day(-1), ['status' => 'prenotato']);
         $expiredLoan = $t->loan($t->book($t->branchA), $t->day(-5), ['status' => 'prenotato']);
@@ -588,6 +588,63 @@ $cases = [
         $feed = (new \App\Plugins\MobileApi\Support\UserLoanCalendar($t->db))->generate($t->reader, 'Review');
         SettingsReview25::check($eventOf($feed, $bookedLoan) !== '', 'The personal feed keeps a booked loan until its usable return day');
         SettingsReview25::check($eventOf($feed, $expiredLoan) === '', 'The personal feed drops a booked loan whose usable return day has gone by');
+        $libraryFeed = (new \App\Support\IcsGenerator($t->db))->generate();
+        SettingsReview25::check(str_contains($eventOf($libraryFeed, $bookedLoan), $expectedEnd), 'The library feed keeps a booked loan through its usable return day');
+        SettingsReview25::check($eventOf($libraryFeed, $expiredLoan) === '', 'The library feed drops a booked loan whose usable return day has gone by');
+
+        // A loan whose stored day is closed holds the book through its usable day.
+        $closedBook = $t->book($t->branchA);
+        $closureId = $t->closure($t->day(5), $t->day(6), $t->branchA);
+        \App\Support\LibraryCalendar::reset();
+        $heldLoan = $t->loan($closedBook, $t->day(5), ['start' => $t->day(-2)]);
+        $capacity = new \App\Services\CapacityService($t->db);
+        SettingsReview25::eq([
+            $capacity->occupiedCount($closedBook['id'], $t->day(6), $t->day(6)),
+            $capacity->occupiedCount($closedBook['id'], $t->day(7), $t->day(7)),
+            $capacity->occupiedCount($closedBook['id'], $t->day(8), $t->day(8)),
+        ], [1, 1, 0], 'Book capacity holds a loan through the usable day the reader is told, and frees it after');
+        $t->saveLoans(['same_day_handover_after_closure' => '1']);
+        SettingsReview25::check((new SettingsRepository($t->db))->allowsSameDayHandover(), 'The loans form saves the same-day handover choice');
+        $handover = new \App\Services\CapacityService($t->db);
+        SettingsReview25::eq([
+            $handover->occupiedCount($closedBook['id'], $t->day(5), $t->day(5)),
+            $handover->occupiedCount($closedBook['id'], $t->day(6), $t->day(6)),
+            $handover->occupiedCount($closedBook['id'], $t->day(7), $t->day(7)),
+        ], [1, 1, 0], 'With same-day handover on, a reader can start on that open day itself');
+        $t->saveLoans();
+        SettingsReview25::check(!(new SettingsRepository($t->db))->allowsSameDayHandover(), 'The loans form turns it off again');
+        \App\Support\LibraryCalendar::reset();
+
+        // A request starts on an open day of the branch that holds the book's copies.
+        $branchBook = $t->book($t->branchA);
+        $noBranchBook = $t->book();
+        $_SESSION['user'] = ['id' => $t->reader];
+        $reservation = (new \App\Controllers\ReservationsController($t->db))->createReservation(
+            $t->request('/api/libro/' . $branchBook['id'] . '/reservation', ['start_date' => $t->day(5)]),
+            new Response(),
+            ['id' => $branchBook['id']]
+        );
+        SettingsReview25::eq(
+            (string) $t->scalar("SELECT data_prestito FROM prestiti WHERE libro_id={$branchBook['id']} ORDER BY id DESC LIMIT 1"),
+            $t->day(7),
+            'A request on a closed day of the only copy\'s branch starts on its next open day (' . $reservation->getStatusCode() . ')'
+        );
+        SettingsReview25::eq(LibraryCalendar::requestStartDay($t->db, $t->day(5), $noBranchBook['id']), $t->day(5), 'Copies with no branch follow the library as a whole');
+        $movedBook = $t->book($t->branchA);
+        $t->db->query("INSERT INTO prenotazioni (libro_id,utente_id,data_inizio_richiesta,data_fine_richiesta,stato) VALUES ({$movedBook['id']},{$t->reader},'{$t->day(9)}','{$t->day(12)}','attiva')");
+        $movedId = (int) $t->db->insert_id;
+        (new \App\Controllers\UserActionsController())->changeReservationDate($t->request('/reservations/change', ['reservation_id' => (string) $movedId, 'desired_date' => $t->day(5)]), new Response(), $t->db);
+        SettingsReview25::eq((string) $t->scalar("SELECT data_inizio_richiesta FROM prenotazioni WHERE id={$movedId}"), $t->day(7), 'Moving a reservation onto a closed day of its branch starts it on the next open day');
+
+        // Taking the closure away brings the end back, and SEQUENCE still rises.
+        $t->asAdmin();
+        $sequenceOf = static fn (string $event): int => preg_match('/^SEQUENCE:(\d+)/m', $event, $m) === 1 ? (int) $m[1] : 0;
+        $before = $eventOf((new \App\Plugins\MobileApi\Support\UserLoanCalendar($t->db))->generate($t->reader, 'Review'), $heldLoan);
+        (new LibraryCalendarController())->delete($t->request('/admin/calendar/closures/' . $closureId), new Response(), $t->db, $closureId);
+        \App\Support\LibraryCalendar::reset();
+        $after = $eventOf((new \App\Plugins\MobileApi\Support\UserLoanCalendar($t->db))->generate($t->reader, 'Review'), $heldLoan);
+        SettingsReview25::check(str_contains($before, 'DTEND;VALUE=DATE:' . (new DateTimeImmutable($t->day(8)))->format('Ymd')) && str_contains($after, 'DTEND;VALUE=DATE:' . (new DateTimeImmutable($t->day(6)))->format('Ymd')), 'The personal feed\'s end follows the closure both ways');
+        SettingsReview25::check($sequenceOf($before) > 0 && $sequenceOf($after) > $sequenceOf($before), 'SEQUENCE rises when removing a closure brings the end back');
     },
     '04 A reader who also missed the first open day really is overdue in the feed' => static function (SettingsReview25 $t): void {
         $loan = $t->loan($t->book($t->branchA), $t->day(-3));
@@ -607,6 +664,9 @@ $cases = [
         LibraryCalendar::reset();
         $stale = $t->loan($t->book($t->branchB), $t->day(-1), ['status' => 'in_ritardo']);
         $unswept = $t->loan($t->book(), $t->day(-2));
+        // The desk's late list and the status it shows read the same verdict.
+        $deskPage = (string) (new \App\Controllers\LoanApprovalController())->pendingLoans($t->request('/admin/loans/pending'), new Response(), $t->db)->getBody();
+        SettingsReview25::eq(substr_count($deskPage, 'giorni di ritardo'), 2, 'The desk late list holds the two loans is_overdue calls late, not the old late flag on its usable day');
         $reader = new \App\Plugins\MobileApi\Support\StaffLoanReader($t->db);
         $tiles = $reader->summary();
         SettingsReview25::eq([$tiles['active'], $tiles['overdue'], $tiles['due_today']], [1, 2, 1], 'One loan out sits in exactly one of active and overdue, and overdue excludes due today');

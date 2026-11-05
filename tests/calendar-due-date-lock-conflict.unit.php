@@ -89,6 +89,44 @@ try {
     $check($complete === true, 'with the lock gone the next run completes');
     $check($dueOf() === $nextDay, 'and moves the due date to the next open day');
 
+    // Bringing back a late flag and moving a pickup day also take the book row
+    // first, as desk operations do, so they wait for it instead of inverting the order.
+    $yesterday = (new DateTimeImmutable($today))->modify('-1 day')->format('Y-m-d');
+    $db->query("INSERT INTO calendario_chiusure (data_inizio, data_fine, descrizione, sede_id, attiva) VALUES ('{$yesterday}', '{$yesterday}', 'Lock conflict {$run} b', {$ids['sede']}, 1)");
+    $lateClosure = (int) $db->insert_id;
+    $db->query("INSERT INTO copie (libro_id, numero_inventario, stato, sede_id, created_at) VALUES ({$ids['book']}, 'LCK-{$run}-b', 'prestato', {$ids['sede']}, NOW())");
+    $lateCopy = (int) $db->insert_id;
+    $start = (new DateTimeImmutable($today))->modify('-10 day')->format('Y-m-d');
+    $db->query("INSERT INTO prestiti (libro_id, copia_id, utente_id, data_prestito, data_scadenza, stato, origine, attivo) VALUES ({$ids['book']}, {$lateCopy}, {$ids['user']}, '{$start}', '{$yesterday}', 'in_ritardo', 'diretto', 1)");
+    $lateLoan = (int) $db->insert_id;
+    $db->query("INSERT INTO copie (libro_id, numero_inventario, stato, sede_id, created_at) VALUES ({$ids['book']}, 'LCK-{$run}-c', 'prenotato', {$ids['sede']}, NOW())");
+    $pickupCopy = (int) $db->insert_id;
+    $pickupEnd = (new DateTimeImmutable($today))->modify('+20 day')->format('Y-m-d');
+    $db->query("INSERT INTO prestiti (libro_id, copia_id, utente_id, data_prestito, data_scadenza, pickup_deadline, stato, origine, attivo) VALUES ({$ids['book']}, {$pickupCopy}, {$ids['user']}, '{$today}', '{$pickupEnd}', '{$due}', 'da_ritirare', 'diretto', 1)");
+    $pickupLoan = (int) $db->insert_id;
+    LibraryCalendar::reset();
+    $stateOf = static fn (): string => (string) $db->query("SELECT stato FROM prestiti WHERE id={$lateLoan}")->fetch_row()[0];
+    $pickupOf = static fn (): string => (string) $db->query("SELECT pickup_deadline FROM prestiti WHERE id={$pickupLoan}")->fetch_row()[0];
+    $other->begin_transaction();
+    $other->query("SELECT id FROM libri WHERE id={$ids['book']} FOR UPDATE")->fetch_all();
+    $check(LibraryCalendar::extendDueDatesAfterSave($db) === false, 'bringing back a late flag waits for a book row another transaction holds');
+    $check($stateOf() === 'in_ritardo', 'and leaves the loan as it was');
+    try {
+        LibraryCalendar::extendPickupDeadlines($db);
+        $pickupError = 0;
+    } catch (\mysqli_sql_exception $e) {
+        $pickupError = $e->getCode();
+    }
+    $check($pickupError === 1205 && substr($pickupOf(), 0, 10) === $due, 'moving a pickup day waits for it too (' . $pickupError . ')');
+    $other->rollback();
+    $check(LibraryCalendar::extendDueDatesAfterSave($db) === true && $stateOf() === 'in_corso', 'with the lock gone the late flag comes back');
+    LibraryCalendar::extendPickupDeadlines($db);
+    $check(substr($pickupOf(), 0, 10) === $nextDay, 'and the pickup day moves');
+    $db->query("DELETE FROM prestiti WHERE id IN ({$lateLoan}, {$pickupLoan})");
+    $db->query("DELETE FROM copie WHERE id IN ({$lateCopy}, {$pickupCopy})");
+    $db->query("DELETE FROM calendario_chiusure WHERE id={$lateClosure}");
+    LibraryCalendar::reset();
+
     // A calendar writer's count of a patron's loans of one material reads the
     // loans as they are now, and leaves the book rows of those loans alone: a
     // desk operation holding such a book must not make it wait.
