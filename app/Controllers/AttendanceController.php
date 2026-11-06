@@ -60,10 +60,15 @@ class AttendanceController
         $body = (array) $request->getParsedBody();
         $repo = new AttendanceRepository($db);
         $card = is_string($body['codice_tessera'] ?? null) ? $body['codice_tessera'] : '';
+        // A member picked from the name search arrives as utente_id, and the
+        // field then holds the label, not a code: the id wins over the card.
+        $pickedId = filter_var($body['utente_id'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
         try {
-            $member = $repo->findMemberByCard($card);
+            $member = $pickedId !== false ? $repo->findMemberById($pickedId) : $repo->findMemberByCard($card);
             if ($member === null) {
-                $_SESSION['error_message'] = __('Tessera non riconosciuta. Controlla il codice o registra la visita come ospite.');
+                $_SESSION['error_message'] = $pickedId !== false
+                    ? __('Utente non trovato')
+                    : __('Tessera non riconosciuta. Controlla il codice o registra la visita come ospite.');
                 return $this->back($response);
             }
             $repo->recordMember($member['id'], $this->rememberBranch($repo, $body));

@@ -8630,7 +8630,6 @@
   "Ospiti": "Gäste",
   "P. IVA": "USt-IdNr.",
   "Partita IVA": "Umsatzsteuer-Identifikationsnummer",
-  "Passa la tessera sul lettore o digita il codice": "Karte scannen oder Code eingeben",
   "Presenza dell'ospite registrata.": "Gastbesuch erfasst.",
   "Presenza registrata per %s, ma la tessera non è attiva.": "Besuch für %s erfasst, aber die Karte ist nicht aktiv.",
   "Presenze": "Besuche",
@@ -9322,5 +9321,7 @@
   "L'esito di questa importazione non è stato salvato: controlla il catalogo prima di importare di nuovo, con una nuova chiave.": "Das Ergebnis dieses Imports wurde nicht gespeichert: Prüfe den Katalog, bevor du erneut importierst, mit einem neuen Schlüssel.",
   "Impossibile salvare l'avanzamento dell'importazione: la riga non è stata contata, riprova.": "Der Importfortschritt konnte nicht gespeichert werden: Die Zeile wurde nicht gezählt, versuche es erneut.",
   "Utente importato, ma l'invito potrebbe essere già stato inviato: se non è arrivato, invialo di nuovo dalla scheda dell'utente.": "Benutzer importiert, aber die Einladung wurde möglicherweise bereits gesendet: Falls sie nicht angekommen ist, sende sie erneut aus dem Benutzerdatensatz.",
-  "Questa ricerca ha raggiunto il numero massimo di importazioni: ripeti la ricerca per continuare.": "Diese Suche hat die maximale Anzahl an Importen erreicht: Bitte erneut suchen, um fortzufahren."
+  "Questa ricerca ha raggiunto il numero massimo di importazioni: ripeti la ricerca per continuare.": "Diese Suche hat die maximale Anzahl an Importen erreicht: Bitte erneut suchen, um fortzufahren.",
+  "Tessera o nome del socio": "Ausweis oder Name des Mitglieds",
+  "Passa la tessera, digita il codice o cerca il socio per nome": "Ausweis scannen, Code eingeben oder das Mitglied nach Namen suchen"
 }

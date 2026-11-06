@@ -8630,7 +8630,6 @@
   "Ospiti": "Invités",
   "P. IVA": "N° TVA",
   "Partita IVA": "Numéro de TVA",
-  "Passa la tessera sul lettore o digita il codice": "Passez la carte sur le lecteur ou saisissez le code",
   "Presenza dell'ospite registrata.": "Visite de l’invité enregistrée.",
   "Presenza registrata per %s, ma la tessera non è attiva.": "Visite enregistrée pour %s, mais la carte n’est pas active.",
   "Presenze": "Visites",
@@ -9322,5 +9321,7 @@
   "L'esito di questa importazione non è stato salvato: controlla il catalogo prima di importare di nuovo, con una nuova chiave.": "Le résultat de cette importation n'a pas été enregistré : vérifiez le catalogue avant d'importer à nouveau, avec une nouvelle clé.",
   "Impossibile salvare l'avanzamento dell'importazione: la riga non è stata contata, riprova.": "La progression de l'importation n'a pas pu être enregistrée : la ligne n'a pas été comptée, réessayez.",
   "Utente importato, ma l'invito potrebbe essere già stato inviato: se non è arrivato, invialo di nuovo dalla scheda dell'utente.": "Utilisateur importé, mais l'invitation a peut-être déjà été envoyée : si elle n'est pas arrivée, renvoyez-la depuis la fiche de l'utilisateur.",
-  "Questa ricerca ha raggiunto il numero massimo di importazioni: ripeti la ricerca per continuare.": "Cette recherche a atteint le nombre maximal d'importations : relancez la recherche pour continuer."
+  "Questa ricerca ha raggiunto il numero massimo di importazioni: ripeti la ricerca per continuare.": "Cette recherche a atteint le nombre maximal d'importations : relancez la recherche pour continuer.",
+  "Tessera o nome del socio": "Carte ou nom du membre",
+  "Passa la tessera, digita il codice o cerca il socio per nome": "Passez la carte, saisissez son code ou cherchez le membre par son nom"
 }

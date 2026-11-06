@@ -85,9 +85,14 @@ unset($workspaceHeader);
         <form method="post" action="<?= htmlspecialchars(url('/admin/attendance/scan'), ENT_QUOTES, 'UTF-8') ?>" id="attendance-scan-form" class="space-y-4" autocomplete="off">
           <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8') ?>">
           <div>
-            <label for="codice_tessera" class="form-label"><?= __("Codice tessera") ?></label>
+            <label for="codice_tessera" class="form-label"><?= __("Tessera o nome del socio") ?></label>
             <div class="flex gap-2">
-              <input id="codice_tessera" name="codice_tessera" type="text" maxlength="20" required autofocus class="form-input" placeholder="<?= htmlspecialchars(__('Passa la tessera sul lettore o digita il codice'), ENT_QUOTES, 'UTF-8') ?>" />
+              <div class="relative flex-1">
+                <input id="codice_tessera" name="codice_tessera" type="text" maxlength="150" required autofocus class="form-input" placeholder="<?= htmlspecialchars(__('Passa la tessera, digita il codice o cerca il socio per nome'), ENT_QUOTES, 'UTF-8') ?>"
+                       role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="attendance-member-suggest" />
+                <div id="attendance-member-suggest" class="suggestions-box" role="listbox" aria-label="<?= htmlspecialchars(__('Tessera o nome del socio'), ENT_QUOTES, 'UTF-8') ?>"></div>
+              </div>
+              <input type="hidden" name="utente_id" id="attendance-member-id" value="" />
               <button type="button" id="attendance-card-scan" data-copy-scan data-copy-scan-target="codice_tessera" aria-label="<?= htmlspecialchars(__('Scansiona la tessera con la fotocamera'), ENT_QUOTES, 'UTF-8') ?>"
                       class="inline-flex items-center gap-2 whitespace-nowrap px-4 py-2 bg-gray-100 text-gray-900 border border-gray-300 rounded-lg hover:bg-gray-200 transition-colors font-medium">
                 <i class="fas fa-camera"></i><span class="hidden sm:inline"><?= __("Scansiona") ?></span>
@@ -309,12 +314,191 @@ unset($workspaceHeader);
     </div>
   </div>
 </section>
+<style>
+  .suggestions-box {
+    position: absolute;
+    background: white;
+    border: 1px solid #e2e8f0;
+    z-index: 50;
+    width: 100%;
+    max-height: 250px;
+    overflow-y: auto;
+    border-radius: 0.5rem;
+    display: none;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  }
+  .suggestion-item {
+    padding: 0.75rem 1rem;
+    cursor: pointer;
+    border-bottom: 1px solid #f1f5f9;
+  }
+  .suggestion-item:last-child {
+    border-bottom: none;
+  }
+  .suggestion-item:hover {
+    background-color: #f8fafc;
+  }
+  .suggestion-item.selected {
+    background-color: #f1f5f9;
+  }
+</style>
 <?php include __DIR__ . '/../partials/copy-scanner-i18n.php'; ?>
 <script src="<?= htmlspecialchars(assetUrl('copy-scanner.bundle.js'), ENT_QUOTES, 'UTF-8') ?>" defer></script>
 <script>
 document.addEventListener('DOMContentLoaded', function () {
   const card = document.getElementById('codice_tessera');
   if (card) { card.focus(); }
+  // Name search: the same borrower search as the loan form. Picking a member
+  // fills utente_id and the operator confirms with "Registra ingresso". Enter
+  // picks a suggestion only when one is highlighted with the arrows, so a
+  // desk reader that types the code and sends Enter is never captured.
+  (function () {
+    const suggest = document.getElementById('attendance-member-suggest');
+    const picked = document.getElementById('attendance-member-id');
+    if (!card || !suggest || !picked) { return; }
+    const endpoint = <?= json_encode(url('/api/search/utenti'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+    const noResults = <?= json_encode(__('Nessun risultato'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+    const searchFailed = <?= json_encode(__('Ricerca non disponibile. Riprova.'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+    let timer = null;
+    let request = null;
+    let active = -1;
+
+    function items() { return Array.prototype.slice.call(suggest.querySelectorAll('.suggestion-item[data-id]')); }
+    // Every way out of a search goes through here, so a timer or an answer
+    // still on its way cannot reopen a list the operator has already left.
+    function cancel() {
+      clearTimeout(timer);
+      if (request) { request.abort(); request = null; }
+    }
+    function hide() {
+      suggest.style.display = 'none';
+      suggest.innerHTML = '';
+      active = -1;
+      card.setAttribute('aria-expanded', 'false');
+      card.removeAttribute('aria-activedescendant');
+    }
+    function open() {
+      suggest.style.display = 'block';
+      card.setAttribute('aria-expanded', 'true');
+      card.removeAttribute('aria-activedescendant');
+      active = -1;
+    }
+    function highlight(index) {
+      const list = items();
+      list.forEach(function (el, i) { el.classList.toggle('selected', i === index); el.setAttribute('aria-selected', i === index ? 'true' : 'false'); });
+      active = index;
+      if (list[index]) {
+        card.setAttribute('aria-activedescendant', list[index].id);
+        list[index].scrollIntoView({ block: 'nearest' });
+      } else {
+        card.removeAttribute('aria-activedescendant');
+      }
+    }
+    function choose(el) {
+      cancel();
+      picked.value = el.getAttribute('data-id') || '';
+      card.value = el.textContent.trim();
+      hide();
+      // The focus stays in the field, with its text selected: Enter there
+      // confirms the pick, and a card swiped by the next reader replaces the
+      // name, which drops the pick and sends that card, instead of reaching
+      // a focused button that would confirm the previous member.
+      card.focus();
+      card.select();
+    }
+    // A line that cannot be picked: no match, or a search that did not run.
+    function notice(text) {
+      suggest.innerHTML = '';
+      const el = document.createElement('div');
+      el.className = 'suggestion-item';
+      el.setAttribute('role', 'option');
+      el.setAttribute('aria-disabled', 'true');
+      el.style.color = '#6b7280';
+      el.style.cursor = 'default';
+      el.textContent = text;
+      suggest.appendChild(el);
+      open();
+    }
+    function show(rows) {
+      if (rows.length === 0) { notice(noResults); return; }
+      suggest.innerHTML = '';
+      rows.forEach(function (row) {
+        const id = parseInt(row.id, 10);
+        if (isNaN(id)) { return; }
+        const el = document.createElement('div');
+        el.className = 'suggestion-item';
+        el.id = 'attendance-member-option-' + id;
+        el.setAttribute('role', 'option');
+        el.setAttribute('aria-selected', 'false');
+        el.setAttribute('data-id', String(id));
+        el.textContent = String(row.label || '');
+        suggest.appendChild(el);
+      });
+      open();
+    }
+
+    card.addEventListener('input', function () {
+      picked.value = '';
+      // The list on screen answers the previous text: it goes at once, so
+      // neither a click nor the Enter a reader sends right after the new code
+      // can pick a member the field no longer names.
+      hide();
+      const query = card.value.trim();
+      cancel();
+      if (query.length < 2) { return; }
+      timer = setTimeout(function () {
+        request = new AbortController();
+        fetch(endpoint + '?q=' + encodeURIComponent(query), { signal: request.signal, credentials: 'same-origin', headers: { 'Accept': 'application/json' } })
+          .then(function (r) { if (!r.ok) { throw new Error('search ' + r.status); } return r.json(); })
+          .then(function (data) {
+            if (!Array.isArray(data)) { throw new Error('search answer'); }
+            // A late answer for text the operator has since changed is dropped.
+            if (card.value.trim() !== query) { return; }
+            show(data);
+          })
+          .catch(function (err) {
+            // "Nobody matches" and "the search failed" are not the same news.
+            if (err && err.name !== 'AbortError' && card.value.trim() === query) { notice(searchFailed); }
+          });
+      }, 300);
+    });
+    card.addEventListener('keydown', function (event) {
+      const list = items();
+      if (event.key === 'ArrowDown' && list.length > 0) {
+        event.preventDefault();
+        highlight(active + 1 >= list.length ? 0 : active + 1);
+      } else if (event.key === 'ArrowUp' && list.length > 0) {
+        event.preventDefault();
+        highlight(active <= 0 ? list.length - 1 : active - 1);
+      } else if (event.key === 'Enter') {
+        if (active >= 0 && list[active]) {
+          event.preventDefault();
+          choose(list[active]);
+        } else {
+          cancel();
+          hide();
+        }
+      } else if (event.key === 'Escape') {
+        cancel();
+        hide();
+      }
+    });
+    card.addEventListener('blur', function () {
+      cancel();
+      hide();
+    });
+    suggest.addEventListener('mousedown', function (event) {
+      // Always, not only on an option: pressing the list or its scrollbar must
+      // not take the focus away, or the blur above would close it.
+      event.preventDefault();
+      const el = event.target.closest('.suggestion-item[data-id]');
+      if (el) { choose(el); }
+    });
+    // iOS Safari keeps the focus on a tap outside the field, so no blur there.
+    document.addEventListener('click', function (event) {
+      if (event.target !== card && !suggest.contains(event.target)) { cancel(); hide(); }
+    });
+  })();
   // A card read by the camera registers the entry at once, as a desk reader
   // does with Enter. The scanner fills the field with a synthetic change
   // event (isTrusted false); typing, pasting or autofill fire trusted ones
