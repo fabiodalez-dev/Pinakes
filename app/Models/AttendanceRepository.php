@@ -57,9 +57,35 @@ class AttendanceRepository
         $stmt->execute();
         $row = $stmt->get_result()->fetch_assoc();
         $stmt->close();
-        if (!$row) {
+        return $row ? self::member($row) : null;
+    }
+
+    /**
+     * The member picked by name in the desk search, for a reader who forgot
+     * the card. Same reach as findMemberByCard().
+     *
+     * @return array{id:int, nome:string, cognome:string, stato:string}|null
+     */
+    public function findMemberById(int $userId): ?array
+    {
+        if ($userId <= 0) {
             return null;
         }
+        $scope = Permissions::accountScopeSql('', Permissions::SCOPE_BORROWER);
+        $stmt = $this->db->prepare('SELECT id, nome, cognome, stato FROM utenti WHERE id = ?' . $scope . ' LIMIT 1');
+        $stmt->bind_param('i', $userId);
+        $stmt->execute();
+        $row = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        return $row ? self::member($row) : null;
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     * @return array{id:int, nome:string, cognome:string, stato:string}
+     */
+    private static function member(array $row): array
+    {
         return [
             'id' => (int) $row['id'],
             'nome' => (string) $row['nome'],

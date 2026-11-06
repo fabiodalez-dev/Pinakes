@@ -42,6 +42,18 @@ final class Review25Db extends mysqli
 {
     public ?Closure $beforeBookLock = null;
     public ?Closure $beforeCalendarLock = null;
+    /** @var list<string> statements containing one of these fail as a refused grant would */
+    public array $refuse = [];
+
+    public function query(string $query, int $result_mode = MYSQLI_STORE_RESULT): mysqli_result|bool
+    {
+        foreach ($this->refuse as $fragment) {
+            if (str_contains($query, $fragment)) {
+                throw new mysqli_sql_exception('ALTER command denied (test)', 1142);
+            }
+        }
+        return parent::query($query, $result_mode);
+    }
 
     public function prepare(string $query): mysqli_stmt|false
     {
@@ -146,6 +158,7 @@ final class SettingsReview25
     public function reset(): void
     {
         $this->db->beforeBookLock = $this->db->beforeCalendarLock = null;
+        $this->db->refuse = [];
         foreach ([$this->db, $this->other] as $connection) {
             $connection->rollback();
             $connection->query('DO RELEASE_ALL_LOCKS()');
@@ -1064,6 +1077,12 @@ $cases = [
         SettingsReview25::eq($t->due($loan), $t->day(16), 'The holiday must still affect due dates after both toggles');
     },
 ];
+
+// Included by another suite for its harness (SettingsReview25): the 25
+// scenarios run only when this file is the script itself.
+if (realpath((string) ($_SERVER['SCRIPT_FILENAME'] ?? '')) !== __FILE__) {
+    return;
+}
 
 $suite = null; $passed = 0; $failed = 0; $savedSession = $_SESSION ?? [];
 try {

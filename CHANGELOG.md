@@ -2,6 +2,26 @@
 
 Full version-by-version history for Pinakes. The README shows only the last three releases; everything older lives here.
 
+## [0.9.0]
+
+First stable release of the 0.9.0 cycle. It contains everything in 0.9.0-rc.1, rc.2 and rc.3 below, plus the changes listed here. Upgrading from 0.8.9 runs two additive migrations, `migrate_0.9.0-rc.1.sql` and `migrate_0.9.0.sql`; upgrading from 0.9.0-rc.3 runs only the second. The optional modules follow the upgrade defaults described under rc.1 (Feature toggles).
+
+### Visitor log
+
+- **The card field also finds a member by name.** A reader who forgot the card can be found by name, surname, e-mail, phone or card, with the borrower search of the loan form. Picking a member records the entry for that member, within the operator's borrower scope as a card is; the operator confirms with "Registra ingresso". Enter picks a suggestion only when one is highlighted with the arrows, so a desk card reader that types the code and sends Enter works as before, also while the list is open.
+
+### Loans and closures: the limits left in rc.3
+
+- **A promoted reservation ends on an open day of the branch of the copy it takes.** With a book's copies in several branches the request's end followed the general calendar, because the copy was not known yet. Once the copy is chosen, a day closed at its branch now moves the end to the branch's next open day, when the book and that copy can take the added days; otherwise the requested end stays, as approval already did.
+- **The "book available" e-mail names the loan's return day.** It read the day from the request again, so an e-mail sent later (a retry after a failed send) could name the requested day while the loan had been moved, or the general day for a copy in a closed branch. It now reads the loan the promotion created.
+- **A refused move re-arms the due-soon reminder once.** When a closure makes the return day later but the move is refused (another reader holds the next days), the stored date stays and the reader's return day changes. A reminder already sent for the old day is now sent again for the new one, and only once: `prestiti.warning_sent_for` (new, `migrate_0.9.0.sql`) keeps the day the reminder announced. Loans warned before the upgrade count as warned for their stored date.
+- **A loan whose copy is replaced during a calendar save is still moved.** The save looked only at the branch of the copy found by its first scan and skipped the loan when that branch was open, even if the copy was being replaced by one in a branch closed that day. Every branch holding a copy of the book is now considered before the lock, and the decision is taken on the current row under the lock.
+- **The history of a calendar move records the loan as it was.** The "before" state of `loan.due_moved` and of a late flag cleared by the calendar is read with a current read, so a desk edit committed while the save was running is not shown as changed by the calendar.
+
+### Maintenance
+
+- **The npm audit waiver for `braces` is gone.** The advisory no longer reports against the dependency tree (`npm audit` is clean in both trees), so `.github/npm-audit-waivers.json` is empty again.
+
 ## [0.9.0-rc.3]
 
 Release candidate: published as a GitHub prerelease, offered only to installations that opt in with `UPDATER_CHANNEL=rc` or `UPDATER_ALLOW_PRERELEASE=1`. No migration and no schema change.

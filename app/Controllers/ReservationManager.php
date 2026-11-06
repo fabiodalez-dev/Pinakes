@@ -340,6 +340,8 @@ class ReservationManager
                         $this->rollbackIfOwned($ownTransaction);
                         return false;
                     }
+                    // The e-mail states this loan's day, not a recomputed one.
+                    $nextReservation['prestito_id'] = (int) $loanCreated;
 
                     // BUG9/D4 double-subtraction fix: the reservation is claimed
                     // 'completata' BEFORE createLoanFromReservation() recalcs, so
@@ -456,7 +458,7 @@ class ReservationManager
      * and creates a loan with state 'pendente' and origin 'prenotazione'.
      * The loan requires admin confirmation of physical book pickup.
      *
-     * @param array{libro_id: int, utente_id: int, data_inizio_richiesta: string, data_fine_richiesta: string} $reservation Reservation data
+     * @param array{libro_id: int, utente_id: int, data_inizio_richiesta: string, data_fine_richiesta: string, queue_position?: int|string|null} $reservation Reservation data
      * @return int|false Loan ID on success, false on failure (no copies available or race condition)
      */
     private function createLoanFromReservation($reservation)
@@ -601,6 +603,44 @@ class ReservationManager
                 // Abort if race detected
                 $this->rollbackIfOwned($ownTransaction);
                 return false;
+            }
+
+            // The copy is known only now. With the book's copies in several
+            // branches the end above follows the general calendar; a day
+            // closed at this copy's branch moves to the branch's next open day
+            // when the book and this copy can take the added days, as approval
+            // does (LoanApprovalController). Otherwise the date stays.
+            $branchDue = \App\Services\CirculationPolicy::dueDateFor((string) $endDate, 0, $this->db, $copyId);
+            if ($branchDue !== $endDate) {
+                $queuePos = isset($reservation['queue_position']) ? (int) $reservation['queue_position'] : null;
+                $fits = (new \App\Services\CapacityService($this->db, lockingReads: true))->hasFreeCapacity(
+                    $bookId,
+                    (string) $startDate,
+                    $branchDue,
+                    excludeReservationsAfterQueuePos: $queuePos
+                );
+                if ($fits) {
+                    $extraStart = \App\Support\LibraryCalendar::shift((string) $endDate, 1);
+                    $extraStmt = $this->db->prepare("
+                        SELECT 1 FROM prestiti
+                        WHERE copia_id = ?
+                        AND data_prestito <= ?
+                        AND (stato = 'in_ritardo' OR (stato = 'in_corso' AND data_scadenza < ?) OR data_scadenza >= ?)
+                        AND (
+                            (attivo = 1 AND stato IN ('in_corso','da_ritirare','prenotato','in_ritardo'))
+                            OR (stato = 'pendente' AND copia_id IS NOT NULL)
+                        )
+                        LIMIT 1
+                        FOR UPDATE
+                    ");
+                    $extraStmt->bind_param('isss', $copyId, $branchDue, $today, $extraStart);
+                    $extraStmt->execute();
+                    $extraBusy = (bool) $extraStmt->get_result()->fetch_row();
+                    $extraStmt->close();
+                    if (!$extraBusy) {
+                        $endDate = $branchDue;
+                    }
+                }
             }
 
             // Create loan with copia_id and origine='prenotazione'
@@ -798,8 +838,7 @@ class ReservationManager
                 'libro_autore' => $book['autore'] ?: $notificationService->translateInLocale('Autore non specificato', $recipientLocale),
                 'libro_isbn' => $book['isbn'] ?: 'N/A',
                 'data_inizio' => $notificationService->formatEmailDate((string) $reservation['data_inizio_richiesta'], false, $recipientLocale),
-                // The day createLoanFromReservation() stores: a closed end day moves to the next open day.
-                'data_fine' => $notificationService->formatEmailDate(\App\Support\LibraryCalendar::requestDueDate($this->db, (string) $reservation['data_fine_richiesta'], 0, (int) $reservation['libro_id']), false, $recipientLocale),
+                'data_fine' => $notificationService->formatEmailDate($this->noticeDueDate($reservation), false, $recipientLocale),
                 'book_url' => absoluteUrl($bookLink),
                 'profile_url' => absoluteUrl(RouteTranslator::route('profile'))
             ];
@@ -838,6 +877,79 @@ class ReservationManager
             ]);
             return false;
         }
+    }
+
+    /**
+     * The return day the e-mail states: the usable day of the loan the
+     * promotion created (its branch, a later calendar move or a refused one
+     * included), read from that loan rather than recomputed from the
+     * request. The promotion passes the loan id; the retry sweep finds the
+     * loan by book, reader, origin and creation time. Without a loan, the day the
+     * request would get.
+     *
+     * @param array<string, mixed> $reservation
+     */
+    private function noticeDueDate(array $reservation): string
+    {
+        $bookId = (int) $reservation['libro_id'];
+        $loanId = (int) ($reservation['prestito_id'] ?? 0);
+        $loan = null;
+        if ($loanId > 0) {
+            $stmt = $this->db->prepare("SELECT data_scadenza, copia_id FROM prestiti WHERE id = ? AND libro_id = ?");
+            $stmt->bind_param('ii', $loanId, $bookId);
+        } else {
+            // The retry sweep: the promotion created the loan after the
+            // reservation was made, in the transaction that completed it, so
+            // the loan is the first one this reader got from a reservation of
+            // this book since the reservation's creation. created_at never
+            // moves; updated_at only moves forward (each failed send reverts
+            // the claim and touches it). The reservation is completed before
+            // the loan is inserted, after the copy lock and the capacity
+            // reads, so the loan can be a few seconds (a lock wait) newer
+            // than the completion: the upper bound keeps ten minutes of
+            // slack, harmless since the earliest loan wins. Staff may have
+            // changed the loan's dates before the retry, so dates play no
+            // part in the lookup.
+            $userId = (int) $reservation['utente_id'];
+            $madeAt = (string) ($reservation['created_at'] ?? '');
+            $completedAt = (string) ($reservation['updated_at'] ?? '');
+            if ($completedAt === '') {
+                $completedAt = \App\Support\DateHelper::now();
+            }
+            if ($madeAt === '') {
+                $madeAt = $completedAt;
+                $stmt = $this->db->prepare("
+                    SELECT data_scadenza, copia_id FROM prestiti
+                    WHERE libro_id = ? AND utente_id = ? AND origine = 'prenotazione'
+                      AND data_scadenza IS NOT NULL
+                      AND created_at BETWEEN ? - INTERVAL 8 DAY AND ? + INTERVAL 10 MINUTE
+                    ORDER BY created_at DESC, id DESC
+                    LIMIT 1
+                ");
+            } else {
+                $stmt = $this->db->prepare("
+                    SELECT data_scadenza, copia_id FROM prestiti
+                    WHERE libro_id = ? AND utente_id = ? AND origine = 'prenotazione'
+                      AND data_scadenza IS NOT NULL
+                      AND created_at BETWEEN ? AND ? + INTERVAL 10 MINUTE
+                    ORDER BY created_at, id
+                    LIMIT 1
+                ");
+            }
+            if ($stmt !== false) {
+                $stmt->bind_param('iiss', $bookId, $userId, $madeAt, $completedAt);
+            }
+        }
+        if ($stmt !== false) {
+            $stmt->execute();
+            $loan = $stmt->get_result()->fetch_assoc();
+            $stmt->close();
+        }
+        if (is_array($loan) && !empty($loan['data_scadenza'])) {
+            $stored = substr((string) $loan['data_scadenza'], 0, 10);
+            return \App\Support\LibraryCalendar::dueDate($this->db, $stored, $loan['copia_id'] !== null ? (int) $loan['copia_id'] : null);
+        }
+        return \App\Support\LibraryCalendar::requestDueDate($this->db, (string) $reservation['data_fine_richiesta'], 0, $bookId);
     }
 
     /**

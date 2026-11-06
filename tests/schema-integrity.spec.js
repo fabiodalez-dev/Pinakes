@@ -43,6 +43,7 @@ const { test, expect } = require('@playwright/test');
 const { execFileSync } = require('child_process');
 const {
     readCoreTablesFromSchema,
+    readCoreColumnsFromSchema,
     readBundledPlugins,
 } = require('./helpers/source-expectations');
 
@@ -152,6 +153,26 @@ test.describe.serial('Schema integrity — v0.7.4 (17 tests)', () => {
         expect(missing,
             `Tables defined in schema.sql but missing from DB: ${missing.join(', ')}`
         ).toHaveLength(0);
+    });
+
+    // ── 2b. Every core column ─────────────────────────────────────────────────
+
+    test('2b. Every column schema.sql defines exists in the DB (fresh install and upgrade)', () => {
+        // A column added to schema.sql without a migration exists on a fresh
+        // install only; an upgraded install never gets it. Derived, not listed.
+        const expected = readCoreColumnsFromSchema() ?? {};
+        const rows = dbQuery("SELECT CONCAT(TABLE_NAME, '.', COLUMN_NAME) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE()");
+        const actual = new Set(rows.split('\n').map(r => r.trim()).filter(Boolean));
+        const missing = [];
+        let count = 0;
+        for (const [table, columns] of Object.entries(expected)) {
+            for (const column of columns) {
+                count++;
+                if (!actual.has(`${table}.${column}`)) missing.push(`${table}.${column}`);
+            }
+        }
+        expect(count, 'schema.sql must declare columns').toBeGreaterThan(100);
+        expect(missing, `Columns defined in schema.sql but missing from DB: ${missing.join(', ')}`).toHaveLength(0);
     });
 
     // ── 3. libri columns ──────────────────────────────────────────────────────

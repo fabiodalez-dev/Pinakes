@@ -8630,7 +8630,6 @@
   "Ospiti": "Gæster",
   "P. IVA": "Momsnr.",
   "Partita IVA": "Momsnummer",
-  "Passa la tessera sul lettore o digita il codice": "Scan kortet eller indtast koden",
   "Presenza dell'ospite registrata.": "Gæstens besøg er registreret.",
   "Presenza registrata per %s, ma la tessera non è attiva.": "Besøg registreret for %s, men kortet er ikke aktivt.",
   "Presenze": "Besøg",
@@ -8659,6 +8658,7 @@
   "Socio": "Medlem",
   "Socio: leggi la tessera": "Medlem: scan kortet",
   "Tessera non riconosciuta. Controlla il codice o registra la visita come ospite.": "Kortet blev ikke genkendt. Kontrollér koden, eller registrér besøget som gæst.",
+  "Tessera non riconosciuta. Controlla il codice, scegli il socio dai suggerimenti o registra la visita come ospite.": "Kortet blev ikke genkendt. Kontrollér koden, vælg medlemmet blandt forslagene, eller registrér besøget som gæst.",
   "Tipo di contenuto RDA": "RDA-indholdstype",
   "Tipo di mediazione RDA": "RDA-medietype",
   "Tipo di supporto RDA": "RDA-bærertype",
@@ -9322,5 +9322,7 @@
   "L'esito di questa importazione non è stato salvato: controlla il catalogo prima di importare di nuovo, con una nuova chiave.": "Resultatet af denne import blev ikke gemt: kontroller kataloget, før du importerer igen, med en ny nøgle.",
   "Impossibile salvare l'avanzamento dell'importazione: la riga non è stata contata, riprova.": "Importens fremskridt kunne ikke gemmes: rækken blev ikke talt med, prøv igen.",
   "Utente importato, ma l'invito potrebbe essere già stato inviato: se non è arrivato, invialo di nuovo dalla scheda dell'utente.": "Bruger importeret, men invitationen er muligvis allerede sendt: hvis den ikke er nået frem, så send den igen fra brugerens side.",
-  "Questa ricerca ha raggiunto il numero massimo di importazioni: ripeti la ricerca per continuare.": "Denne søgning har nået det maksimale antal importer: søg igen for at fortsætte."
+  "Questa ricerca ha raggiunto il numero massimo di importazioni: ripeti la ricerca per continuare.": "Denne søgning har nået det maksimale antal importer: søg igen for at fortsætte.",
+  "Tessera o nome del socio": "Lånerkort eller medlemmets navn",
+  "Passa la tessera, digita il codice o cerca il socio per nome": "Scan kortet, indtast koden eller søg efter medlemmet ved navn"
 }

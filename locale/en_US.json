@@ -8630,7 +8630,6 @@
   "Ospiti": "Guests",
   "P. IVA": "VAT no.",
   "Partita IVA": "VAT number",
-  "Passa la tessera sul lettore o digita il codice": "Scan the card or type its code",
   "Presenza dell'ospite registrata.": "Guest visit recorded.",
   "Presenza registrata per %s, ma la tessera non è attiva.": "Visit recorded for %s, but the card is not active.",
   "Presenze": "Visits",
@@ -8659,6 +8658,7 @@
   "Socio": "Member",
   "Socio: leggi la tessera": "Member: scan the card",
   "Tessera non riconosciuta. Controlla il codice o registra la visita come ospite.": "Card not recognised. Check the code or record the visit as a guest.",
+  "Tessera non riconosciuta. Controlla il codice, scegli il socio dai suggerimenti o registra la visita come ospite.": "Card not recognised. Check the code, pick the member from the suggestions or record the visit as a guest.",
   "Tipo di contenuto RDA": "RDA content type",
   "Tipo di mediazione RDA": "RDA media type",
   "Tipo di supporto RDA": "RDA carrier type",
@@ -9322,5 +9322,7 @@
   "L'esito di questa importazione non è stato salvato: controlla il catalogo prima di importare di nuovo, con una nuova chiave.": "The outcome of this import was not saved: check the catalogue before importing again, with a new key.",
   "Impossibile salvare l'avanzamento dell'importazione: la riga non è stata contata, riprova.": "The import progress could not be saved: the row was not counted, try again.",
   "Utente importato, ma l'invito potrebbe essere già stato inviato: se non è arrivato, invialo di nuovo dalla scheda dell'utente.": "User imported, but the invitation may already have been sent: if it did not arrive, send it again from the user record.",
-  "Questa ricerca ha raggiunto il numero massimo di importazioni: ripeti la ricerca per continuare.": "This search has reached the maximum number of imports: search again to continue."
+  "Questa ricerca ha raggiunto il numero massimo di importazioni: ripeti la ricerca per continuare.": "This search has reached the maximum number of imports: search again to continue.",
+  "Tessera o nome del socio": "Card or member name",
+  "Passa la tessera, digita il codice o cerca il socio per nome": "Scan the card, type its code or search for the member by name"
 }

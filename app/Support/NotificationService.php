@@ -682,8 +682,16 @@ class NotificationService {
                     }
                     $loan['effective_due_at'] = $effectiveDue;
                     $loan['giorni_rimasti'] = (int) (new \DateTimeImmutable($today))->diff(new \DateTimeImmutable($effectiveDue))->days;
-                    $updateStmt = $this->db->prepare("UPDATE prestiti SET warning_sent = 1 WHERE id = ? AND utente_id = ? AND copia_id <=> ? AND attivo = 1 AND stato IN ('in_corso', 'in_ritardo') AND data_scadenza = ? AND (warning_sent IS NULL OR warning_sent = 0)");
-                    $updateStmt->bind_param('iiis', $loan['id'], $loan['utente_id'], $copyId, $loan['data_scadenza']);
+                    // warning_sent_for keeps the day this e-mail announces, so a
+                    // calendar save that changes the usable day without moving
+                    // the stored date re-arms it (LibraryCalendar::extendDueDates()).
+                    if (LibraryCalendar::hasWarningSentFor($this->db)) {
+                        $updateStmt = $this->db->prepare("UPDATE prestiti SET warning_sent = 1, warning_sent_for = ? WHERE id = ? AND utente_id = ? AND copia_id <=> ? AND attivo = 1 AND stato IN ('in_corso', 'in_ritardo') AND data_scadenza = ? AND (warning_sent IS NULL OR warning_sent = 0)");
+                        $updateStmt->bind_param('siiis', $effectiveDue, $loan['id'], $loan['utente_id'], $copyId, $loan['data_scadenza']);
+                    } else {
+                        $updateStmt = $this->db->prepare("UPDATE prestiti SET warning_sent = 1 WHERE id = ? AND utente_id = ? AND copia_id <=> ? AND attivo = 1 AND stato IN ('in_corso', 'in_ritardo') AND data_scadenza = ? AND (warning_sent IS NULL OR warning_sent = 0)");
+                        $updateStmt->bind_param('iiis', $loan['id'], $loan['utente_id'], $copyId, $loan['data_scadenza']);
+                    }
                     $updateStmt->execute();
                     $claimed = $updateStmt->affected_rows === 1;
                     $updateStmt->close();
@@ -740,8 +748,16 @@ class NotificationService {
                     $sentCount++;
                 } else {
                     // Email failed after retries, revert the flag so it can be retried next run
-                    $revertStmt = $this->db->prepare("UPDATE prestiti SET warning_sent = 0 WHERE id = ? AND data_scadenza = ? AND utente_id = ? AND copia_id <=> ? AND attivo = 1 AND stato IN ('in_corso', 'in_ritardo')");
-                    $revertStmt->bind_param('isii', $loan['id'], $loan['data_scadenza'], $loan['utente_id'], $copyId);
+                    // Only this claim: a calendar save may have re-armed the
+                    // reminder meanwhile and another run claimed it for a new
+                    // day; reverting that one would send it twice.
+                    if (LibraryCalendar::hasWarningSentFor($this->db)) {
+                        $revertStmt = $this->db->prepare("UPDATE prestiti SET warning_sent = 0, warning_sent_for = NULL WHERE id = ? AND data_scadenza = ? AND utente_id = ? AND copia_id <=> ? AND attivo = 1 AND stato IN ('in_corso', 'in_ritardo') AND warning_sent = 1 AND warning_sent_for <=> ?");
+                        $revertStmt->bind_param('isiis', $loan['id'], $loan['data_scadenza'], $loan['utente_id'], $copyId, $loan['effective_due_at']);
+                    } else {
+                        $revertStmt = $this->db->prepare("UPDATE prestiti SET warning_sent = 0 WHERE id = ? AND data_scadenza = ? AND utente_id = ? AND copia_id <=> ? AND attivo = 1 AND stato IN ('in_corso', 'in_ritardo')");
+                        $revertStmt->bind_param('isii', $loan['id'], $loan['data_scadenza'], $loan['utente_id'], $copyId);
+                    }
                     $revertStmt->execute();
                     $revertStmt->close();
                     SecureLogger::warning("Failed to send expiration warning for loan {$loan['id']} after retries, flag reverted");
@@ -1894,6 +1910,20 @@ class NotificationService {
             $result = $this->db->query("SHOW COLUMNS FROM prestiti LIKE 'pickup_reminder_sent_for'");
             if ($result->num_rows === 0) {
                 $this->db->query("ALTER TABLE prestiti ADD COLUMN pickup_reminder_sent_for DATE NULL DEFAULT NULL");
+            }
+
+            // Due-soon reminder: the usable day it announced (migrate_0.9.0.sql).
+            // Optional: without it the reminders work as before 0.9.0
+            // (LibraryCalendar::hasWarningSentFor()), so an account that
+            // cannot ALTER must not stop the pickup and other reminders.
+            try {
+                $result = $this->db->query("SHOW COLUMNS FROM prestiti LIKE 'warning_sent_for'");
+                if ($result !== false && $result->num_rows === 0) {
+                    $this->db->query("ALTER TABLE prestiti ADD COLUMN warning_sent_for DATE NULL DEFAULT NULL");
+                    LibraryCalendar::reset();
+                }
+            } catch (\Throwable $e) {
+                SecureLogger::warning('prestiti.warning_sent_for not added: ' . $e->getMessage());
             }
 
             if (!$pickupSchemaReady) {

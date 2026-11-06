@@ -18,6 +18,7 @@ const fs   = require('fs');
 const path = require('path');
 const {
     parseCreateTableNames,
+    parseCreateTableColumns,
     parseBundledPluginNames,
     readBundledPlugins,
 } = require('./helpers/source-expectations');
@@ -184,6 +185,13 @@ test.describe.serial('Code Quality — 15 static analysis tests', () => {
         expect(parseCreateTableNames(
             'CREATE TABLE `quoted_name` (id INT);\nCREATE TABLE IF NOT EXISTS unquoted_name (id INT);'
         )).toEqual(['quoted_name', 'unquoted_name']);
+        // Columns: indented or not, quoted or not; index, key and constraint
+        // lines (and their continuation lines) are not columns.
+        expect(parseCreateTableColumns(
+            'CREATE TABLE `t1` (\n  `id` int NOT NULL,\n`flush_left` date DEFAULT NULL,\nbare_left int,\n'
+            + '  PRIMARY KEY (`id`),\nKEY `k` (`flush_left`),\n  CONSTRAINT `fk` FOREIGN KEY (`id`)\n    REFERENCES `t0` (`id`) ON DELETE CASCADE\n);\n'
+            + 'CREATE TABLE IF NOT EXISTS t2 (\n    id INT,\n    note TEXT\n) ENGINE=InnoDB;'
+        )).toEqual({ t1: ['id', 'flush_left', 'bare_left'], t2: ['id', 'note'] });
         expect(parseBundledPluginNames(
             "final class BundledPlugins { const LIST = [\n'a-plugin',\n// 'comment-only'\n'b-plugin',\n]; }"
         )).toEqual(['a-plugin', 'b-plugin']);

@@ -971,6 +971,7 @@ CREATE TABLE `prestiti` (
   `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   `attivo` tinyint(1) NOT NULL DEFAULT '1',
   `warning_sent` tinyint(1) DEFAULT '0',
+  `warning_sent_for` date DEFAULT NULL,
   `overdue_notification_sent` tinyint(1) DEFAULT '0',
   `pickup_notification_sent` tinyint(1) DEFAULT '0',
   `pickup_notification_claim_token` char(32) CHARACTER SET ascii COLLATE ascii_bin DEFAULT NULL,
