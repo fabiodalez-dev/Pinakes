@@ -1065,6 +1065,12 @@ $cases = [
     },
 ];
 
+// Included by another suite for its harness (SettingsReview25): the 25
+// scenarios run only when this file is the script itself.
+if (realpath((string) ($_SERVER['SCRIPT_FILENAME'] ?? '')) !== __FILE__) {
+    return;
+}
+
 $suite = null; $passed = 0; $failed = 0; $savedSession = $_SESSION ?? [];
 try {
     SettingsReview25::eq(count($cases), 25, 'Acceptance review must contain exactly 25 independent scenarios');

@@ -552,15 +552,19 @@ final class ActivityLog
     }
 
     /** @return array<string,mixed> */
-    public static function loadLoanSnapshot(mysqli $db, int $loanId): array
+    public static function loadLoanSnapshot(mysqli $db, int $loanId, bool $lockingRead = false): array
     {
         try {
+            // $lockingRead: a current read for a caller that already holds the
+            // loan row and its book row locked inside a transaction, where a
+            // plain read can return the transaction's older snapshot.
             // CI-SOFT-DELETE-EXEMPT: an audit event must retain the title of an existing loan even after its book is archived.
             $stmt = $db->prepare(
                 'SELECT p.id, p.libro_id, p.copia_id, p.utente_id, p.data_prestito, '
                 . 'p.data_scadenza, p.data_restituzione, p.stato, p.origine, p.renewals, '
                 . 'p.note, p.attivo, p.pickup_deadline, p.sanzione, l.titolo AS book_title '
                 . 'FROM prestiti p LEFT JOIN libri l ON l.id = p.libro_id WHERE p.id = ? LIMIT 1'
+                . ($lockingRead ? ' LOCK IN SHARE MODE' : '')
             );
             if ($stmt === false) {
                 throw new \RuntimeException($db->error);

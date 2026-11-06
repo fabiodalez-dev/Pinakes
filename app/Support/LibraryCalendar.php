@@ -154,6 +154,29 @@ final class LibraryCalendar
     public static function reset(): void
     {
         self::$instances = [];
+        self::$warningForColumn = [];
+    }
+
+    /** @var array<int, bool> spl_object_id(db) => prestiti.warning_sent_for exists */
+    private static array $warningForColumn = [];
+
+    /**
+     * Whether prestiti.warning_sent_for exists (migrate_0.9.0.sql, also added
+     * by NotificationService::addNotificationColumns()). Without it the
+     * due-soon reminder works as before: one flag, no day remembered.
+     */
+    public static function hasWarningSentFor(\mysqli $db): bool
+    {
+        $key = spl_object_id($db);
+        if (!isset(self::$warningForColumn[$key])) {
+            try {
+                $r = $db->query("SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'prestiti' AND COLUMN_NAME = 'warning_sent_for'");
+                self::$warningForColumn[$key] = $r instanceof \mysqli_result && (int) $r->fetch_row()[0] > 0;
+            } catch (\Throwable) {
+                return false;
+            }
+        }
+        return self::$warningForColumn[$key];
     }
 
     // ── Funnels used by the loan code ───────────────────────────────────────
@@ -317,7 +340,8 @@ final class LibraryCalendar
         }
         $today = DateHelper::today();
         $stmt = $db->prepare(
-            "SELECT p.id, p.libro_id, p.data_scadenza, c.sede_id
+            "SELECT p.id, p.libro_id, p.data_scadenza, c.sede_id,
+                    (SELECT GROUP_CONCAT(DISTINCT c2.sede_id) FROM copie c2 WHERE c2.libro_id = p.libro_id) AS book_branches
              FROM prestiti p
              LEFT JOIN copie c ON c.id = p.copia_id
              WHERE p.attivo = 1 AND p.stato IN ('in_corso', 'da_ritirare', 'prenotato')
@@ -332,12 +356,33 @@ final class LibraryCalendar
         $stmt->close();
 
         $capacity = new \App\Services\CapacityService($db, lockingReads: true);
+        $withWarningDay = self::hasWarningSentFor($db);
         $moved = 0;
         $notMoved = 0;
         foreach ($rows as $row) {
             $due = substr((string) $row['data_scadenza'], 0, 10);
-            $next = $calendar->nextOpenDay($due, $row['sede_id'] !== null ? (int) $row['sede_id'] : null);
-            if (!DateHelper::isISODateFormat($due) || $next <= $due) {
+            if (!DateHelper::isISODateFormat($due)) {
+                continue;
+            }
+            // Pre-filter on the scan, before any lock: a loan is a candidate
+            // when its due day is closed at its copy's branch or at any other
+            // branch holding a copy of the book, since the copy can be
+            // replaced by one of those while this save waits for the lock.
+            // The decision below is taken on the current row under the lock.
+            $branches = [$row['sede_id'] !== null ? (int) $row['sede_id'] : null];
+            foreach (explode(',', (string) ($row['book_branches'] ?? '')) as $b) {
+                if (ctype_digit(trim($b))) {
+                    $branches[] = (int) trim($b);
+                }
+            }
+            $candidate = false;
+            foreach (array_unique($branches, SORT_REGULAR) as $branch) {
+                if ($calendar->nextOpenDay($due, $branch) > $due) {
+                    $candidate = true;
+                    break;
+                }
+            }
+            if (!$candidate) {
                 continue;
             }
             $id = (int) $row['id'];
@@ -392,9 +437,11 @@ final class LibraryCalendar
                 // snapshot. Locking capacity reads see the operator who held
                 // this book lock before us, including copyless reservations.
                 if ($capacity->hasFreeCapacity($bookId, self::shift($due, 1), $next, excludePrestitoId: $id)) {
-                    $before = ActivityLog::loadLoanSnapshot($db, $id);
+                    // Current read: the row is locked, but a plain read in the
+                    // calendar-save transaction can return its older snapshot.
+                    $before = ActivityLog::loadLoanSnapshot($db, $id, lockingRead: true);
                     $update = $db->prepare(
-                        "UPDATE prestiti SET data_scadenza = ?, warning_sent = 0
+                        "UPDATE prestiti SET data_scadenza = ?, warning_sent = 0" . ($withWarningDay ? ', warning_sent_for = NULL' : '') . "
                          WHERE id = ? AND attivo = 1 AND data_scadenza = ? AND stato IN ('in_corso', 'da_ritirare', 'prenotato')"
                     );
                     $update->bind_param('sis', $next, $id, $due);
@@ -404,6 +451,21 @@ final class LibraryCalendar
                     if ($changed) {
                         ActivityLog::recordLoanEvent($db, $id, 'loan.due_moved', $before, 'aggiornamento', 'calendar', $operatorId);
                     }
+                } elseif ($withWarningDay) {
+                    // The move is refused: the stored date stays, but the
+                    // reader's return day is now $next. A due-soon e-mail that
+                    // announced another day (the stored one for a row warned
+                    // before warning_sent_for existed) is re-armed, so the
+                    // reader is told the new day once; the same day is not
+                    // sent again on the next save.
+                    $rearm = $db->prepare(
+                        "UPDATE prestiti SET warning_sent = 0, warning_sent_for = NULL
+                         WHERE id = ? AND attivo = 1 AND data_scadenza = ? AND warning_sent = 1
+                           AND COALESCE(warning_sent_for, data_scadenza) <> ?"
+                    );
+                    $rearm->bind_param('iss', $id, $due, $next);
+                    $rearm->execute();
+                    $rearm->close();
                 }
                 if ($ownTransaction) {
                     $db->commit();
@@ -504,7 +566,7 @@ final class LibraryCalendar
             $id = (int) $row['id'];
             $due = (string) $row['data_scadenza'];
             self::withBookLock($db, (int) $row['libro_id'], static function () use ($db, $id, $due, $operatorId): void {
-                $before = ActivityLog::loadLoanSnapshot($db, $id);
+                $before = ActivityLog::loadLoanSnapshot($db, $id, lockingRead: true);
                 $update = $db->prepare("UPDATE prestiti SET stato = 'in_corso' WHERE id = ? AND attivo = 1 AND stato = 'in_ritardo' AND data_scadenza = ?");
                 $update->bind_param('is', $id, $due);
                 $update->execute();
