@@ -25,9 +25,9 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 [![Documentation](https://img.shields.io/badge/Documentazione-Docsify-4285f4?style=for-the-badge&logo=readthedocs&logoColor=white)](https://fabiodalez-dev.github.io/Pinakes/)
 [![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-ffdd00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black)](https://buymeacoffee.com/fabiodalez)
 
-## What's New in v0.9.0
+## What's New in v0.9.1
 
-**The tools of a full library system, each one optional.** The first stable release of the 0.9.0 cycle, after three release candidates: inventory stocktake with barcode, camera or list scanning; MARC 21, UNIMARC and danMARC2 import and export with copy cataloguing over SRU; patron types with a rules matrix by material, a closures calendar with the public holidays of every country, and optional fines with a patron ledger and a debt block; printable library cards, patron photos and user import from CSV; a visitor log that also finds a member by name, ISBD catalogue cards, suppliers and RDA types. Due dates follow closures added after the loan was made, and a loan is late only from the first open day after its due date. Every module has its own switch in Settings → Modules; an upgrade turns on only what is reached from an explicit action, or what the library already uses. The Mobile API (1.10.0) opens all of it to the Android app, and every 0.9.0 page works at phone width. Two additive migrations (`migrate_0.9.0-rc.1.sql`, `migrate_0.9.0.sql`), both run when upgrading from 0.8.9. Full details in **[CHANGELOG.md](CHANGELOG.md)**.
+**Updates check the database against the schema.** A migration recorded as executed was taken as proof that its tables and columns existed. Installs upgraded by the 0.3.x updater, which dropped every statement that began with a comment, recorded `migrate_0.4.0.sql` while missing `user_sessions`, `gdpr_requests`, `consent_log` and `utenti.privacy_accettata` (so new readers could not register), and a file-only upgrade could skip later migrations too. After the migrations of every update, and once on the first page load after the files change, Pinakes now creates any table and adds any column of `schema.sql` the database lacks, with the schema's definition and position; nothing is dropped or altered. No migration. Full details in **[CHANGELOG.md](CHANGELOG.md)**.
 
 ---
 
@@ -53,13 +53,13 @@ The showcase contains 50 catalogue books, 8 desiderata, 3 periodicals with 10 is
 
 Highlights of the two releases before the current one are below; the README never lists more than the last three versions. The full version-by-version history lives in **[CHANGELOG.md](CHANGELOG.md)**.
 
+### v0.9.0
+
+**The tools of a full library system, each one optional.** Inventory stocktake, MARC 21, UNIMARC and danMARC2 import and export with copy cataloguing, patron types with a rules matrix, a closures calendar with the public holidays of every country, optional fines with a patron ledger, printable library cards, patron photos, user import, a visitor log, ISBD cards, suppliers and RDA types, each with its own switch in Settings → Modules; the Android app reaches all of it. Two additive migrations (`migrate_0.9.0-rc.1.sql`, `migrate_0.9.0.sql`). Full details in **[CHANGELOG.md](CHANGELOG.md)**.
+
 ### v0.8.9
 
 **Search Console verification, a pickup reminder, and an SEO pass.** Settings → Advanced has a field for the `<meta>` verification tags of Google, Bing and the other search engines ([#497](https://github.com/fabiodalez-dev/Pinakes/pull/497)). Readers get a reminder before the pickup deadline passes, and the staff is told when a pickup expires ([#498](https://github.com/fabiodalez-dev/Pinakes/pull/498)). One additive migration (`migrate_0.8.9.sql`). Full details in **[CHANGELOG.md](CHANGELOG.md)**.
-
-### v0.8.8
-
-**A French sentence that now includes the last day of a loan.** "retour avant le D" left out the return day the server still accepts; it now says "retour au plus tard le D" ([#490](https://github.com/fabiodalez-dev/Pinakes/pull/490)). No migration.
 
 Older releases are in **[CHANGELOG.md](CHANGELOG.md)**.
 

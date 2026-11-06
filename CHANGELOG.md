@@ -2,6 +2,15 @@
 
 Full version-by-version history for Pinakes. The README shows only the last three releases; everything older lives here.
 
+## [0.9.1]
+
+A patch release: updates now check the database against the schema. No migration.
+
+### Updater
+
+- **Missing tables and columns are created after every update.** The updater took a migration recorded as executed as proof that its objects existed. The 0.3.x updater split each migration on `;` and dropped every chunk that began with a `--` comment, so installs it upgraded to 0.4.x recorded `migrate_0.4.0.sql` (and any later migration it ran) while most of its statements never ran: `user_sessions`, `gdpr_requests` and `consent_log` were missing, and so was `utenti.privacy_accettata`, which registration writes, so new readers could not register. A file-only upgrade could skip later migrations as well (on one install, the LibraryThing and catalogue columns of `migrate_0.4.6.sql` and `migrate_0.4.7.sql`). `App\Support\SchemaRepair` reads `installer/database/schema.sql` and creates every table the database lacks and adds every missing column with the schema's definition, after the previous schema column; it never drops, renames or alters anything, and leaves indexes of existing tables alone. A reader with a recorded `data_accettazione_privacy` gets `privacy_accettata = 1` when that column arrives late.
+- **It also runs once on the first page load after the files change.** The update that installs a release runs the previous release's updater, so the check runs again on the first request of each new version (marker `storage/.schema-repaired`, serialised with a MySQL named lock); this covers the upgrade to 0.9.1 itself and file-only upgrades. Failures are logged and never block the update or the page.
+
 ## [0.9.0]
 
 First stable release of the 0.9.0 cycle. It contains everything in 0.9.0-rc.1, rc.2 and rc.3 below, plus the changes listed here. Upgrading from 0.8.9 runs two additive migrations, `migrate_0.9.0-rc.1.sql` and `migrate_0.9.0.sql`; upgrading from 0.9.0-rc.3 runs only the second. The optional modules follow the upgrade defaults described under rc.1 (Feature toggles).
