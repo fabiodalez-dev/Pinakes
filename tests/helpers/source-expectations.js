@@ -87,9 +87,54 @@ function readBundledPlugins(root = DEFAULT_ROOT) {
     return parseBundledPluginNames(source);
 }
 
+/**
+ * Every column of every CREATE TABLE in schema.sql, as { table: [columns] }.
+ * A column line starts with a backticked name; KEY, PRIMARY KEY, UNIQUE and
+ * CONSTRAINT lines do not, so they are left out.
+ *
+ * @returns {Record<string, string[]>}
+ */
+function parseCreateTableColumns(sql) {
+    /** @type {Record<string, string[]>} */
+    const tables = {};
+    // Names with or without backticks; the body ends at the line that closes it.
+    const re = /^\s*CREATE\s+TABLE(?:\s+IF\s+NOT\s+EXISTS)?\s+(?:`([^`]+)`|([A-Za-z_][A-Za-z0-9_$]*))\s*\(([\s\S]*?)\n\s*\)[^\n]*;/gim;
+    // Index and constraint lines, and the continuation lines of a multi-line
+    // CHECK or FOREIGN KEY (REFERENCES …, ON DELETE …, OR …, AND …).
+    const notColumns = /^(KEY|UNIQUE|PRIMARY|CONSTRAINT|INDEX|FOREIGN|FULLTEXT|SPATIAL|CHECK|REFERENCES|ON|OR|AND|NOT)$/i;
+    let m;
+    while ((m = re.exec(sql)) !== null) {
+        const columns = [];
+        for (const line of m[3].split('\n')) {
+            const col = line.match(/^\s+(?:`([^`]+)`|([A-Za-z_][A-Za-z0-9_$]*))\s/);
+            const name = col && (col[1] || col[2]);
+            if (name && (col[1] || !notColumns.test(name))) columns.push(name);
+        }
+        tables[m[1] || m[2]] = columns;
+    }
+    const expected = parseCreateTableNames(sql);
+    if (Object.keys(tables).length !== expected.length) {
+        throw new Error(`Parsed columns for ${Object.keys(tables).length} of ${expected.length} CREATE TABLE statements`);
+    }
+    return tables;
+}
+
+/** @returns {Record<string, string[]> | null} */
+function readCoreColumnsFromSchema(root = DEFAULT_ROOT) {
+    let sql;
+    try {
+        sql = fs.readFileSync(path.join(root, 'installer', 'database', 'schema.sql'), 'utf-8');
+    } catch {
+        return null;
+    }
+    return parseCreateTableColumns(sql);
+}
+
 module.exports = {
     parseCreateTableNames,
+    parseCreateTableColumns,
     parseBundledPluginNames,
     readCoreTablesFromSchema,
+    readCoreColumnsFromSchema,
     readBundledPlugins,
 };
