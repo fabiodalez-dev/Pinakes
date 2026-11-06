@@ -5621,6 +5621,8 @@
   "Invia questo URL a Google Search Console.": "Senden Sie diese URL an die Google Search Console.",
   "Percorso sul server (per cron/CLI) — non inviarlo a Google.": "Pfad auf dem Server (für Cron/CLI) — nicht an Google senden.",
   "Utente non trovato": "Benutzer nicht gefunden",
+  "Indica la tessera oppure il socio, non entrambi.": "Gib den Ausweis oder das Mitglied an, nicht beides.",
+  "Socio non valido.": "Ungültiges Mitglied.",
   "Utente sospeso: prestiti non consentiti": "Benutzer gesperrt: Ausleihen nicht erlaubt",
   "Tessera scaduta: rinnovala per richiedere prestiti": "Ausweis abgelaufen: Erneuern Sie ihn, um Ausleihen zu beantragen",
   "Utente non idoneo al prestito": "Benutzer nicht ausleihberechtigt",

@@ -5621,6 +5621,8 @@
   "Invia questo URL a Google Search Console.": "Send denne URL til Google Search Console.",
   "Percorso sul server (per cron/CLI) — non inviarlo a Google.": "Sti på serveren (til cron/CLI) — send den ikke til Google.",
   "Utente non trovato": "Bruger ikke fundet",
+  "Indica la tessera oppure il socio, non entrambi.": "Angiv kortet eller medlemmet, ikke begge.",
+  "Socio non valido.": "Ugyldigt medlem.",
   "Utente sospeso: prestiti non consentiti": "Bruger suspenderet: udlån ikke tilladt",
   "Tessera scaduta: rinnovala per richiedere prestiti": "Kort udløbet: Forny det for at anmode om udlån",
   "Utente non idoneo al prestito": "Bruger ikke berettiget til udlån",

@@ -22,7 +22,9 @@ use Slim\Psr7\Response as SlimResponse;
 
 /**
  * Visitor log (Pinakes 0.9.0 /admin/attendance) for the app: the phone scans
- * the patron card at the entrance.
+ * the patron card at the entrance, or (Mobile API 1.11.0, Pinakes 0.9.2) the
+ * operator picks a member found with GET /staff/users, as the web kiosk's
+ * name search does.
  *
  * Reads use AttendanceRepository, the web kiosk's repository. A check-in
  * applies the kiosk's own steps (AttendanceRepository::findMemberByCard with
@@ -89,7 +91,7 @@ final class StaffAttendanceController
         }
     }
 
-    /** POST /staff/attendance/check-ins {card_code, branch_id?} — Idempotency-Key. */
+    /** POST /staff/attendance/check-ins {card_code | user_id, branch_id?} — Idempotency-Key. */
     public function checkIn(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
     {
         $json = JsonBody::parse($request);
@@ -97,8 +99,17 @@ final class StaffAttendanceController
             return $this->invalid($response, ['idempotency_key' => __('Chiave di idempotenza non valida.')]);
         }
         $card = is_string($json['card_code'] ?? null) ? trim($json['card_code']) : '';
+        // A member picked from the search arrives as user_id; exactly one of
+        // the two identifies the visitor.
+        $hasUser = array_key_exists('user_id', $json) && $json['user_id'] !== null;
+        // A JSON integer only: true, "7" and 7.0 are not a member id.
+        $userId = $hasUser && is_int($json['user_id']) && $json['user_id'] > 0 ? $json['user_id'] : false;
         $errors = [];
-        if ($card === '') {
+        if ($hasUser && $card !== '') {
+            $errors['user_id'] = __('Indica la tessera oppure il socio, non entrambi.');
+        } elseif ($hasUser && $userId === false) {
+            $errors['user_id'] = __('Socio non valido.');
+        } elseif (!$hasUser && $card === '') {
             $errors['card_code'] = __('Inserisci il codice della tessera.');
         }
         try {
@@ -120,8 +131,22 @@ final class StaffAttendanceController
                 'attendance_check_in',
                 $staffId,
                 0,
-                ['card_code' => $card, 'branch_id' => $branch],
-                function () use ($repo, $card, $branch, $response): ResponseInterface|int {
+                // A card check-in keeps the 0.9.1 fingerprint, so a keyed
+                // retry across the update still replays instead of conflicting.
+                $userId === false
+                    ? ['card_code' => $card, 'branch_id' => $branch]
+                    : ['user_id' => $userId, 'branch_id' => $branch],
+                function () use ($repo, $card, $userId, $branch, $response): ResponseInterface|int {
+                    if ($userId !== false) {
+                        // findMemberById() applies the operator's borrower
+                        // scope, as findMemberByCard() does.
+                        $member = $repo->findMemberById($userId);
+                        if ($member === null) {
+                            return ResponseEnvelope::error($response, 'member_not_found', __('Utente non trovato'), 404);
+                        }
+
+                        return $repo->recordMember($member['id'], $branch);
+                    }
                     $member = $repo->findMemberByCard($card);
                     if ($member === null) {
                         return ResponseEnvelope::error(
