@@ -458,7 +458,7 @@ class ReservationManager
      * and creates a loan with state 'pendente' and origin 'prenotazione'.
      * The loan requires admin confirmation of physical book pickup.
      *
-     * @param array{libro_id: int, utente_id: int, data_inizio_richiesta: string, data_fine_richiesta: string} $reservation Reservation data
+     * @param array{libro_id: int, utente_id: int, data_inizio_richiesta: string, data_fine_richiesta: string, queue_position?: int|string|null} $reservation Reservation data
      * @return int|false Loan ID on success, false on failure (no copies available or race condition)
      */
     private function createLoanFromReservation($reservation)
