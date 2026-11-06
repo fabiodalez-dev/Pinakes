@@ -53,7 +53,8 @@ test.describe.serial('Visitor log: member search by name', () => {
     await suggestions().filter({ hasText: 'Anna' }).click();
     await expect(page.locator('#attendance-member-suggest')).toBeHidden();
     await expect(page.locator('#attendance-member-id')).toHaveValue(String(withCard));
-    await expect(page.locator('#attendance-scan-form button[type="submit"]')).toBeFocused();
+    // The focus stays in the field, so the next swipe cannot confirm this pick.
+    await expect(page.locator('#codice_tessera')).toBeFocused();
     await submitAndWait(() => page.click('#attendance-scan-form button[type="submit"]'));
     await expect(page.getByText(/Benvenuto\/a, Anna P\.: presenza registrata\./)).toBeVisible();
     expect(visits(withCard)).toBe(1);
@@ -114,10 +115,12 @@ test.describe.serial('Visitor log: member search by name', () => {
 test.describe('Visitor log: member search edge cases', () => {
   const EDGE = `Bordi${STAMP}`;
   const EDGE_CARD = `E2EU${STAMP}`.slice(0, 20);
+  const NEXT_CARD = `E2EW${STAMP}`.slice(0, 20);
   const ROLE = `ZZ Presenze ${STAMP}`;
   const OPERATOR_EMAIL = `ps-op-${STAMP}@example.test`;
   const OPERATOR_PASS = `Op!${STAMP}Aa1`;
   let member = 0;
+  let nextReader = 0;
   let operator = 0;
   let role = 0;
 
@@ -138,6 +141,8 @@ test.describe('Visitor log: member search edge cases', () => {
   test.beforeAll(() => {
     h.dbQuery(`INSERT INTO utenti (codice_tessera, nome, cognome, email, password, stato, tipo_utente) VALUES (${h.sqlString(EDGE_CARD)}, 'Carla', ${h.sqlString(EDGE)}, ${h.sqlString(`ps-c-${STAMP}@example.test`)}, 'x', 'attivo', 'standard')`);
     member = parseInt(h.dbQuery(`SELECT id FROM utenti WHERE codice_tessera = ${h.sqlString(EDGE_CARD)}`), 10);
+    h.dbQuery(`INSERT INTO utenti (codice_tessera, nome, cognome, email, password, stato, tipo_utente) VALUES (${h.sqlString(NEXT_CARD)}, 'Dario', ${h.sqlString(`Dopo${STAMP}`)}, ${h.sqlString(`ps-d-${STAMP}@example.test`)}, 'x', 'attivo', 'standard')`);
+    nextReader = parseInt(h.dbQuery(`SELECT id FROM utenti WHERE codice_tessera = ${h.sqlString(NEXT_CARD)}`), 10);
     h.dbQuery(`INSERT INTO ruoli (nome, permessi) VALUES (${h.sqlString(ROLE)}, '["backend.access","loans.manage"]')`);
     role = parseInt(h.dbQuery(`SELECT id FROM ruoli WHERE nome = ${h.sqlString(ROLE)}`), 10);
     const hash = execFileSync('php', ['-r', 'echo password_hash($argv[1], PASSWORD_DEFAULT);', OPERATOR_PASS], { encoding: 'utf-8' });
@@ -146,8 +151,8 @@ test.describe('Visitor log: member search edge cases', () => {
   });
 
   test.afterAll(() => {
-    try { h.dbQuery(`DELETE FROM presenze WHERE utente_id IN (${member}, ${operator})`); } catch (_) { /* cleanup */ }
-    try { h.dbQuery(`DELETE FROM utenti WHERE id IN (${member}, ${operator})`); } catch (_) { /* cleanup */ }
+    try { h.dbQuery(`DELETE FROM presenze WHERE utente_id IN (${member}, ${nextReader}, ${operator})`); } catch (_) { /* cleanup */ }
+    try { h.dbQuery(`DELETE FROM utenti WHERE id IN (${member}, ${nextReader}, ${operator})`); } catch (_) { /* cleanup */ }
     try { h.dbQuery(`DELETE FROM ruoli WHERE id = ${role}`); } catch (_) { /* cleanup */ }
   });
 
@@ -162,6 +167,33 @@ test.describe('Visitor log: member search edge cases', () => {
     await sent(page, () => field(page).press('Enter'));
     await expect(page.getByText('Tessera non riconosciuta. Controlla il codice o registra la visita come ospite.')).toBeVisible();
     expect(visits()).toBe(0);
+  });
+
+  test('After a pick left unconfirmed, the next reader\'s swipe records that reader', async ({ page }) => {
+    await openDesk(page);
+    const nextVisits = () => parseInt(h.dbQuery(`SELECT COUNT(*) FROM presenze WHERE utente_id = ${nextReader} AND tipo = 'socio'`), 10);
+    const before = [visits(), nextVisits()];
+    await field(page).pressSequentially(`Carla ${EDGE}`);
+    await options(page).first().click();
+    await expect(page.locator('#attendance-member-id')).toHaveValue(String(member));
+    // A keyboard-wedge reader types the next card and sends Enter.
+    await field(page).pressSequentially(NEXT_CARD);
+    await expect(page.locator('#attendance-member-id')).toHaveValue('');
+    await sent(page, () => field(page).press('Enter'));
+    await expect(page.getByText(/Benvenuto\/a, Dario D\.: presenza registrata\./)).toBeVisible();
+    expect([visits(), nextVisits()]).toEqual([before[0], before[1] + 1]);
+  });
+
+  test('The list of the previous text goes as soon as the text changes', async ({ page }) => {
+    await openDesk(page);
+    await field(page).pressSequentially(`Carla ${EDGE}`);
+    await expect(options(page)).toHaveCount(1);
+    // Hold the next answer, so only the old list could still be on screen.
+    await page.route('**/api/search/utenti*', async (route) => { await new Promise((r) => setTimeout(r, 1500)); await route.continue(); });
+    await field(page).press('x');
+    await expect(options(page)).toHaveCount(0);
+    await expect(box(page)).toBeHidden();
+    await page.unroute('**/api/search/utenti*');
   });
 
   test('Escape also stops a search still waiting to start', async ({ page }) => {
@@ -192,7 +224,9 @@ test.describe('Visitor log: member search edge cases', () => {
     await openDesk(page);
     await field(page).pressSequentially(`Nessuno${STAMP}`);
     await expect(box(page)).toContainText('Nessun risultato');
-    await box(page).locator('.suggestion-item').click();
+    // The line is aria-disabled, so Playwright would wait for it forever:
+    // force the press, which is exactly what this case is about.
+    await box(page).locator('.suggestion-item').click({ force: true });
     await expect(field(page)).toBeFocused();
     await expect(box(page)).toBeVisible();
     await field(page).press('Tab');

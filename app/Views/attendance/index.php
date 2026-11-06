@@ -399,8 +399,12 @@ document.addEventListener('DOMContentLoaded', function () {
       picked.value = el.getAttribute('data-id') || '';
       card.value = el.textContent.trim();
       hide();
-      const submit = card.form.querySelector('button[type="submit"]');
-      if (submit) { submit.focus(); }
+      // The focus stays in the field, with its text selected: Enter there
+      // confirms the pick, and a card swiped by the next reader replaces the
+      // name, which drops the pick and sends that card, instead of reaching
+      // a focused button that would confirm the previous member.
+      card.focus();
+      card.select();
     }
     // A line that cannot be picked: no match, or a search that did not run.
     function notice(text) {
@@ -435,12 +439,13 @@ document.addEventListener('DOMContentLoaded', function () {
 
     card.addEventListener('input', function () {
       picked.value = '';
-      // The list on screen answers the previous text: a highlight on it must
-      // not catch the Enter a reader sends right after the new code.
-      highlight(-1);
+      // The list on screen answers the previous text: it goes at once, so
+      // neither a click nor the Enter a reader sends right after the new code
+      // can pick a member the field no longer names.
+      hide();
       const query = card.value.trim();
       cancel();
-      if (query.length < 2) { hide(); return; }
+      if (query.length < 2) { return; }
       timer = setTimeout(function () {
         request = new AbortController();
         fetch(endpoint + '?q=' + encodeURIComponent(query), { signal: request.signal, credentials: 'same-origin', headers: { 'Accept': 'application/json' } })
