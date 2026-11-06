@@ -70,6 +70,10 @@ final class AreaRegistry
             $feature = $class::feature();
             $flags['staff_' . $class::area()] = $feature === null || \App\Support\Features::enabled($feature);
         }
+        // Mobile API 1.11.0: check-ins also take a picked member (user_id).
+        if (array_key_exists('staff_attendance', $flags)) {
+            $flags['staff_attendance_member_pick'] = $flags['staff_attendance'];
+        }
 
         return $flags;
     }

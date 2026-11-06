@@ -5621,6 +5621,8 @@
   "Invia questo URL a Google Search Console.": "Submit this URL to Google Search Console.",
   "Percorso sul server (per cron/CLI) — non inviarlo a Google.": "Server path (for cron/CLI) — do not submit it to Google.",
   "Utente non trovato": "User not found",
+  "Indica la tessera oppure il socio, non entrambi.": "Give the card or the member, not both.",
+  "Socio non valido.": "Invalid member.",
   "Utente sospeso: prestiti non consentiti": "User suspended: loans not allowed",
   "Tessera scaduta: rinnovala per richiedere prestiti": "Card expired: renew it to request loans",
   "Utente non idoneo al prestito": "User not eligible for loans",

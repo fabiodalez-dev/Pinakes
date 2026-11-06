@@ -25,9 +25,9 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 [![Documentation](https://img.shields.io/badge/Documentazione-Docsify-4285f4?style=for-the-badge&logo=readthedocs&logoColor=white)](https://fabiodalez-dev.github.io/Pinakes/)
 [![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-ffdd00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black)](https://buymeacoffee.com/fabiodalez)
 
-## What's New in v0.9.1
+## What's New in v0.9.2
 
-**Updates check the database against the schema.** A migration recorded as executed was taken as proof that its tables and columns existed. Installs upgraded by the 0.3.x updater, which dropped every statement that began with a comment, recorded `migrate_0.4.0.sql` while missing `user_sessions`, `gdpr_requests`, `consent_log` and `utenti.privacy_accettata` (so new readers could not register), and a file-only upgrade could skip later migrations too. After the migrations of every update, and once on the first page load after the files change, Pinakes now creates any table and adds any column of `schema.sql` the database lacks, with the schema's definition and position; nothing is dropped or altered. No migration. Full details in **[CHANGELOG.md](CHANGELOG.md)**.
+**The app's visitor log finds a member by name.** Mobile API 1.11.0: `POST /staff/attendance/check-ins` also accepts `user_id`, a member picked from `GET /staff/users` (the borrower search of the loan desk), with the same reach as a scanned card, so a reader who forgot the card can be checked in from the phone as on the web page since 0.9.0. `/health` advertises it as `staff_attendance_member_pick`. No migration. Full details in **[CHANGELOG.md](CHANGELOG.md)**.
 
 ---
 
@@ -53,13 +53,13 @@ The showcase contains 50 catalogue books, 8 desiderata, 3 periodicals with 10 is
 
 Highlights of the two releases before the current one are below; the README never lists more than the last three versions. The full version-by-version history lives in **[CHANGELOG.md](CHANGELOG.md)**.
 
+### v0.9.1
+
+**Updates check the database against the schema.** After the migrations of every update, and once on the first page load after the files change, Pinakes creates any table and adds any column of `schema.sql` the database lacks; installs upgraded by the 0.3.x updater had recorded `migrate_0.4.0.sql` without its tables, so new readers could not register. No migration. Full details in **[CHANGELOG.md](CHANGELOG.md)**.
+
 ### v0.9.0
 
 **The tools of a full library system, each one optional.** Inventory stocktake, MARC 21, UNIMARC and danMARC2 import and export with copy cataloguing, patron types with a rules matrix, a closures calendar with the public holidays of every country, optional fines with a patron ledger, printable library cards, patron photos, user import, a visitor log, ISBD cards, suppliers and RDA types, each with its own switch in Settings → Modules; the Android app reaches all of it. Two additive migrations (`migrate_0.9.0-rc.1.sql`, `migrate_0.9.0.sql`). Full details in **[CHANGELOG.md](CHANGELOG.md)**.
-
-### v0.8.9
-
-**Search Console verification, a pickup reminder, and an SEO pass.** Settings → Advanced has a field for the `<meta>` verification tags of Google, Bing and the other search engines ([#497](https://github.com/fabiodalez-dev/Pinakes/pull/497)). Readers get a reminder before the pickup deadline passes, and the staff is told when a pickup expires ([#498](https://github.com/fabiodalez-dev/Pinakes/pull/498)). One additive migration (`migrate_0.8.9.sql`). Full details in **[CHANGELOG.md](CHANGELOG.md)**.
 
 Older releases are in **[CHANGELOG.md](CHANGELOG.md)**.
 

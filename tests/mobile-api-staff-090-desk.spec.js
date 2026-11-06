@@ -118,6 +118,7 @@ test.beforeAll(async ({ browser, request }) => {
     ctx.suspended = patron('sus', 'sospeso', null);
     ctx.expiredAccount = patron('exp', 'scaduto', null);
     ctx.oldCard = patron('old', 'attivo', '2020-01-31');
+    ctx.picked = patron('pick', 'attivo', null);
     ctx.branchId = F.dbInsert(`INSERT INTO sedi (nome, codice, is_active) VALUES (${F.sqlStr(`Sede E2E ${RUN}`)}, ${F.sqlStr(TAG)}, 1)`);
     ctx.inactiveBranchId = F.dbInsert(`INSERT INTO sedi (nome, codice, is_active) VALUES (${F.sqlStr(`Sede chiusa E2E ${RUN}`)}, ${F.sqlStr(`${TAG}x`)}, 0)`);
     await flushCache();
@@ -190,6 +191,7 @@ test.describe('Guards and discovery', () => {
     test('health advertises the three areas; OpenAPI documents every route', async ({ request }) => {
         const f = (await F.api(request, 'GET', '/health')).json.data.features;
         expect(f.staff_attendance).toBe(true);
+        expect(f.staff_attendance_member_pick).toBe(true);
         expect(f.staff_statistics).toBe(true);
         expect(f.staff_user_import).toBe(true);
         const doc = (await F.api(request, 'GET', '/openapi.json')).json;
@@ -251,6 +253,42 @@ test.describe('Visitor log', () => {
         expect(other.status).toBe(422);
         expect(other.json.error.code).toBe('idempotency_conflict');
         expect(F.dbInt(`SELECT COUNT(*) FROM presenze WHERE utente_id=${ctx.oldCard.id}`)).toBe(0);
+    });
+
+    test('a member picked from the search (user_id) is recorded like a card; the same key replays it', async ({ request }) => {
+        // The operator finds the member by name with the borrower search the loan desk uses.
+        const found = await F.api(request, 'GET', `/staff/users?q=${encodeURIComponent(email('pick'))}`, { token: ctx.staff });
+        expect(found.status, found.text.slice(0, 300)).toBe(200);
+        expect(found.json.data.map((u) => u.id)).toContain(ctx.picked.id);
+        const body = { user_id: ctx.picked.id, branch_id: ctx.branchId };
+        const r = await F.api(request, 'POST', '/staff/attendance/check-ins', { token: ctx.staff, body, extraHeaders: { 'Idempotency-Key': idemKey('pick1') } });
+        expect(r.status, r.text.slice(0, 300)).toBe(201);
+        ctx.visits.push(r.json.data.id);
+        expect(r.json.data.type).toBe('member');
+        expect(r.json.data.member).toMatchObject({ id: ctx.picked.id, card_code: ctx.picked.card, card_active: true });
+        expect(F.dbScalar(`SELECT CONCAT(tipo, '|', utente_id, '|', sede_id) FROM presenze WHERE id=${r.json.data.id}`)).toBe(`socio|${ctx.picked.id}|${ctx.branchId}`);
+        const again = await F.api(request, 'POST', '/staff/attendance/check-ins', { token: ctx.staff, body, extraHeaders: { 'Idempotency-Key': idemKey('pick1') } });
+        expect(again.status).toBe(200);
+        expect(again.json.meta.replayed).toBe(true);
+        expect(F.dbInt(`SELECT COUNT(*) FROM presenze WHERE utente_id=${ctx.picked.id}`)).toBe(1);
+        // Another member under the same key is a different request.
+        const other = await F.api(request, 'POST', '/staff/attendance/check-ins', { token: ctx.staff, body: { user_id: ctx.oldCard.id }, extraHeaders: { 'Idempotency-Key': idemKey('pick1') } });
+        expect(other.status).toBe(422);
+        expect(other.json.error.code).toBe('idempotency_conflict');
+    });
+
+    test('a picked member that does not exist → 404 member_not_found; card and member together, or a bad id → 422', async ({ request }) => {
+        const before = F.dbInt('SELECT COUNT(*) FROM presenze');
+        const missing = await F.api(request, 'POST', '/staff/attendance/check-ins', { token: ctx.staff, body: { user_id: 2147480000 } });
+        expect(missing.status, missing.text.slice(0, 300)).toBe(404);
+        expect(missing.json.error.code).toBe('member_not_found');
+        for (const body of [{ user_id: ctx.picked.id, card_code: ctx.active.card }, { user_id: 'abc' }, { user_id: 0 }, { user_id: -3 }]) {
+            const bad = await F.api(request, 'POST', '/staff/attendance/check-ins', { token: ctx.staff, body });
+            expect(bad.status, JSON.stringify(body)).toBe(422);
+            expect(bad.json.error.code).toBe('validation');
+            expect(bad.json.meta.fields.user_id, JSON.stringify(bad.json)).toBeTruthy();
+        }
+        expect(F.dbInt('SELECT COUNT(*) FROM presenze')).toBe(before);
     });
 
     test('unknown card → 404 card_not_found and nothing recorded; empty card, bad branch, bad key → 422', async ({ request }) => {
@@ -369,7 +407,9 @@ test.describe('Visitor log', () => {
         await setFeatures({ visitor_log: '0' });
         try {
             const before = F.dbInt('SELECT COUNT(*) FROM presenze');
-            expect((await F.api(request, 'GET', '/health')).json.data.features.staff_attendance).toBe(false);
+            const off = (await F.api(request, 'GET', '/health')).json.data.features;
+            expect(off.staff_attendance).toBe(false);
+            expect(off.staff_attendance_member_pick).toBe(false);
             for (const [method, route] of ROUTES().filter(([, r]) => r.startsWith('/staff/attendance'))) {
                 const r = await F.api(request, method, route, { token: ctx.admin, body: method === 'GET' ? undefined : { card_code: ctx.active.card, retention_days: 30 } });
                 expect(r.status, `${method} ${route}`).toBe(404);

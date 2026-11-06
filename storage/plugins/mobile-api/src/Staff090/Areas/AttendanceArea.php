@@ -53,6 +53,9 @@ final class AttendanceArea implements StaffArea
         $doc['components']['schemas']['HealthPayload']['properties']['features']['properties']['staff_attendance'] = [
             'type' => 'boolean', 'description' => 'The visitor log of Mobile API 1.10.0 is available (module visitor_log on).',
         ];
+        $doc['components']['schemas']['HealthPayload']['properties']['features']['properties']['staff_attendance_member_pick'] = [
+            'type' => 'boolean', 'description' => 'Mobile API 1.11.0 (Pinakes 0.9.2): POST /staff/attendance/check-ins also accepts user_id, a member picked from GET /staff/users. Same value as staff_attendance; absent on older servers.',
+        ];
 
         $i = ['type' => 'integer'];
         $s = ['type' => 'string'];
@@ -114,16 +117,17 @@ final class AttendanceArea implements StaffArea
             '200' => O::ok('Counters, the day / hour-slot series, the latest visits, branches and the retention.', O::ref('AttendanceOverview')),
             '422' => O::err('`validation` (meta.fields.days: not one of the periods).'),
         ] + $unavailable, ['parameters' => [$days]])];
-        $doc['paths']['/staff/attendance/check-ins'] = ['post' => O::op($t, 'staffAttendanceCheckIn', 'Record a member visit from the scanned card (visitor_log, 120/min)', $visit('Recorded. member.card_active=false / warning=card_not_active when the account is suspended or expired: the kiosk records it with a warning.') + [
-            '404' => O::err('`card_not_found`: no account with this card code in the operator\'s reach (nothing recorded; offer the guest form). `feature_disabled`.'),
+        $doc['paths']['/staff/attendance/check-ins'] = ['post' => O::op($t, 'staffAttendanceCheckIn', 'Record a member visit from the scanned card or a picked member (visitor_log, 120/min)', $visit('Recorded. member.card_active=false / warning=card_not_active when the account is suspended or expired: the kiosk records it with a warning.') + [
+            '404' => O::err('`card_not_found`: no account with this card code in the operator\'s reach (nothing recorded; offer the guest form). `member_not_found`: no account with this user_id in the operator\'s reach. `feature_disabled`.'),
             '409' => O::err('`concurrent_retry`: the same key is being processed.'),
-            '422' => O::err('`validation` (meta.fields: card_code empty; branch_id not an active branch; idempotency_key malformed); `idempotency_conflict`.'),
+            '422' => O::err('`validation` (meta.fields: card_code empty without user_id; user_id not a positive integer, or sent together with card_code; branch_id not an active branch; idempotency_key malformed); `idempotency_conflict`.'),
         ] + $unavailable, [
             'parameters' => [$key],
             'requestBody' => O::inlineBody([
-                'card_code' => ['type' => 'string', 'description' => 'The library card code as scanned (Code128 / QR on the card); surrounding blanks ignored, exact match.'],
+                'card_code' => ['type' => 'string', 'description' => 'The library card code as scanned (Code128 / QR on the card); surrounding blanks ignored, exact match. Required unless user_id is sent.'],
+                'user_id' => ['type' => ['integer', 'null'], 'description' => 'Mobile API 1.11.0: a member picked from GET /staff/users, instead of card_code (never both). Same borrower scope as the card.'],
                 'branch_id' => ['type' => ['integer', 'null'], 'description' => 'Optional: an id from branches.'],
-            ], ['card_code']),
+            ]),
         ])];
         $doc['paths']['/staff/attendance/guests'] = ['post' => O::op($t, 'staffAttendanceGuest', 'Record a guest visit (visitor_log, 120/min)', $visit('Recorded (type=guest).') + [
             '409' => O::err('`concurrent_retry`.'),

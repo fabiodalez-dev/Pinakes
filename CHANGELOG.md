@@ -2,6 +2,15 @@
 
 Full version-by-version history for Pinakes. The README shows only the last three releases; everything older lives here.
 
+## [0.9.2]
+
+A patch release for the Android app's visitor log. No migration.
+
+### Mobile API 1.11.0
+
+- **A check-in can name the member instead of the card.** Since 0.9.0 the web visitor log finds a member by name, e-mail, phone or card when the reader forgot the card; the app could only scan a card. `POST /staff/attendance/check-ins` now also accepts `user_id`, a member picked from `GET /staff/users` (the borrower search of the loan desk), resolved with `AttendanceRepository::findMemberById()` under the operator's borrower scope, as the web kiosk does. Exactly one of `card_code` and `user_id` is required (both, or a `user_id` that is not a positive integer, is `422 validation`); a member out of reach is `404 member_not_found` and records nothing. The idempotency key covers the member as it covers the card.
+- **`/health` advertises it.** `features.staff_attendance_member_pick` follows `staff_attendance`, so an app can offer the member search only on servers that accept it.
+
 ## [0.9.1]
 
 A patch release: updates now check the database against the schema. No migration.
