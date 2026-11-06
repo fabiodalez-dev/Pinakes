@@ -19,6 +19,7 @@
 
 const { test, expect } = require('@playwright/test');
 const { execFileSync } = require('child_process');
+const crypto = require('crypto');
 const fs = require('fs');
 const F = require('./helpers/mobile-api-fixtures');
 const { serverFileExists, readServerFile, writeServerFile, removeServerFile } = require('./helpers/server-files');
@@ -248,6 +249,10 @@ test.describe('Visitor log', () => {
         expect(again.json.meta.replayed).toBe(true);
         expect(again.json.data.id).toBe(v.id);
         expect(F.dbInt(`SELECT COUNT(*) FROM presenze WHERE utente_id=${ctx.active.id}`)).toBe(1);
+        // A card check-in hashes the same payload as 0.9.1, so a key the app
+        // stored before the update still replays after it.
+        const v091 = crypto.createHash('sha256').update(JSON.stringify({ branch_id: ctx.branchId, card_code: ctx.active.card })).digest('hex');
+        expect(F.dbScalar(`SELECT request_hash FROM mobile_idempotency_keys WHERE scope='attendance_check_in' AND idem_key='${idemKey('in1')}'`)).toBe(v091);
 
         const other = await F.api(request, 'POST', '/staff/attendance/check-ins', { token: ctx.staff, body: { card_code: ctx.oldCard.card }, extraHeaders: { 'Idempotency-Key': idemKey('in1') } });
         expect(other.status).toBe(422);
@@ -282,7 +287,7 @@ test.describe('Visitor log', () => {
         const missing = await F.api(request, 'POST', '/staff/attendance/check-ins', { token: ctx.staff, body: { user_id: 2147480000 } });
         expect(missing.status, missing.text.slice(0, 300)).toBe(404);
         expect(missing.json.error.code).toBe('member_not_found');
-        for (const body of [{ user_id: ctx.picked.id, card_code: ctx.active.card }, { user_id: 'abc' }, { user_id: 0 }, { user_id: -3 }]) {
+        for (const body of [{ user_id: ctx.picked.id, card_code: ctx.active.card }, { user_id: 'abc' }, { user_id: 0 }, { user_id: -3 }, { user_id: true }, { user_id: String(ctx.picked.id) }, { user_id: 1.5 }]) {
             const bad = await F.api(request, 'POST', '/staff/attendance/check-ins', { token: ctx.staff, body });
             expect(bad.status, JSON.stringify(body)).toBe(422);
             expect(bad.json.error.code).toBe('validation');

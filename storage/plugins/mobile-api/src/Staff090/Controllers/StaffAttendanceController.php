@@ -102,7 +102,8 @@ final class StaffAttendanceController
         // A member picked from the search arrives as user_id; exactly one of
         // the two identifies the visitor.
         $hasUser = array_key_exists('user_id', $json) && $json['user_id'] !== null;
-        $userId = $hasUser ? filter_var($json['user_id'], FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]) : false;
+        // A JSON integer only: true, "7" and 7.0 are not a member id.
+        $userId = $hasUser && is_int($json['user_id']) && $json['user_id'] > 0 ? $json['user_id'] : false;
         $errors = [];
         if ($hasUser && $card !== '') {
             $errors['user_id'] = __('Indica la tessera oppure il socio, non entrambi.');
@@ -130,7 +131,11 @@ final class StaffAttendanceController
                 'attendance_check_in',
                 $staffId,
                 0,
-                ['card_code' => $card, 'user_id' => $userId === false ? null : $userId, 'branch_id' => $branch],
+                // A card check-in keeps the 0.9.1 fingerprint, so a keyed
+                // retry across the update still replays instead of conflicting.
+                $userId === false
+                    ? ['card_code' => $card, 'branch_id' => $branch]
+                    : ['user_id' => $userId, 'branch_id' => $branch],
                 function () use ($repo, $card, $userId, $branch, $response): ResponseInterface|int {
                     if ($userId !== false) {
                         // findMemberById() applies the operator's borrower
