@@ -211,7 +211,11 @@ test.describe('Visitor log: member search edge cases', () => {
     await expect(box(page)).toContainText('Ricerca non disponibile. Riprova.');
     await page.unroute('**/api/search/utenti*');
     await page.route('**/api/search/utenti*', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: '{"error":true}' }));
-    await field(page).press('a');
+    // Start the second search from an empty field, so the notice of the first
+    // error is gone and only the non-array answer can bring it back.
+    await field(page).fill('');
+    await expect(box(page)).toBeHidden();
+    await field(page).pressSequentially(`${EDGE}a`);
     await expect(box(page)).toContainText('Ricerca non disponibile. Riprova.');
     await expect(box(page)).not.toContainText('Nessun risultato');
     await page.unroute('**/api/search/utenti*');
