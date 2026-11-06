@@ -899,13 +899,17 @@ class ReservationManager
             $stmt->bind_param('ii', $loanId, $bookId);
         } else {
             // The retry sweep: the promotion created the loan after the
-            // reservation was made and no later than its completion, so the
-            // loan is the first one this reader got from a reservation of
+            // reservation was made, in the transaction that completed it, so
+            // the loan is the first one this reader got from a reservation of
             // this book since the reservation's creation. created_at never
             // moves; updated_at only moves forward (each failed send reverts
-            // the claim and touches it), so it stays a valid upper bound for
-            // the whole 7-day retry window. Staff may have changed the loan's
-            // dates before the retry, so dates play no part in the lookup.
+            // the claim and touches it). The reservation is completed before
+            // the loan is inserted, after the copy lock and the capacity
+            // reads, so the loan can be a few seconds (a lock wait) newer
+            // than the completion: the upper bound keeps ten minutes of
+            // slack, harmless since the earliest loan wins. Staff may have
+            // changed the loan's dates before the retry, so dates play no
+            // part in the lookup.
             $userId = (int) $reservation['utente_id'];
             $madeAt = (string) ($reservation['created_at'] ?? '');
             $completedAt = (string) ($reservation['updated_at'] ?? '');
@@ -918,7 +922,7 @@ class ReservationManager
                     SELECT data_scadenza, copia_id FROM prestiti
                     WHERE libro_id = ? AND utente_id = ? AND origine = 'prenotazione'
                       AND data_scadenza IS NOT NULL
-                      AND created_at BETWEEN ? - INTERVAL 8 DAY AND ?
+                      AND created_at BETWEEN ? - INTERVAL 8 DAY AND ? + INTERVAL 10 MINUTE
                     ORDER BY created_at DESC, id DESC
                     LIMIT 1
                 ");
@@ -927,7 +931,7 @@ class ReservationManager
                     SELECT data_scadenza, copia_id FROM prestiti
                     WHERE libro_id = ? AND utente_id = ? AND origine = 'prenotazione'
                       AND data_scadenza IS NOT NULL
-                      AND created_at BETWEEN ? AND ?
+                      AND created_at BETWEEN ? AND ? + INTERVAL 10 MINUTE
                     ORDER BY created_at, id
                     LIMIT 1
                 ");

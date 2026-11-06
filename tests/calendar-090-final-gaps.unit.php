@@ -212,6 +212,12 @@ $cases = [
         $t->db->query("UPDATE prenotazioni SET notifica_inviata = 0, updated_at = updated_at + INTERVAL 3 DAY WHERE id={$reservationId}");
         $row = $t->db->query("SELECT * FROM prenotazioni WHERE id={$reservationId}")->fetch_assoc();
         SettingsReview25::eq($notice->invoke(new ReservationManager($t->db), $row), $t->day(12), 'A retry days later still finds the loan');
+        // The sweep reads the row at its completion time, while the loan was
+        // inserted a few seconds later (after the copy lock and capacity reads).
+        $t->db->query("UPDATE prestiti SET created_at = NOW() + INTERVAL 5 SECOND WHERE id={$loan}");
+        $t->db->query("UPDATE prenotazioni SET updated_at = NOW() WHERE id={$reservationId}");
+        $row = $t->db->query("SELECT * FROM prenotazioni WHERE id={$reservationId}")->fetch_assoc();
+        SettingsReview25::eq($notice->invoke(new ReservationManager($t->db), $row), $t->day(12), 'A loan inserted seconds after the completion is still found');
     },
     'a loan whose copy is replaced by one in a closed branch is still moved' => static function (SettingsReview25 $t): void {
         // The loan's copy sits in branch A, open on day 5; the book has a
