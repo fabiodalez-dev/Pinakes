@@ -25,9 +25,9 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 [![Documentation](https://img.shields.io/badge/Documentazione-Docsify-4285f4?style=for-the-badge&logo=readthedocs&logoColor=white)](https://fabiodalez-dev.github.io/Pinakes/)
 [![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-ffdd00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black)](https://buymeacoffee.com/fabiodalez)
 
-## What's New in v0.9.0-rc.3
+## What's New in v0.9.0
 
-**Release candidate. Loans follow closures added later, and the admin works on a phone.** Saving a closure, a weekly closed day or a holiday now moves the active loans that fall on a newly closed day to the next open day, with their pickup deadlines, history and due-soon reminder; a loan due on a day closed afterwards is not late until the first open day after it, and the overdue sweep, e-mail, push and fine all count open days only. Every 0.9.0 page and the older book list, book page, book form, updates and archival pages were checked at 390 px: nothing scrolls sideways, wide tables read as cards and long values wrap. No migration. Full details in **[CHANGELOG.md](CHANGELOG.md)**.
+**The tools of a full library system, each one optional.** The first stable release of the 0.9.0 cycle, after three release candidates: inventory stocktake with barcode, camera or list scanning; MARC 21, UNIMARC and danMARC2 import and export with copy cataloguing over SRU; patron types with a rules matrix by material, a closures calendar with the public holidays of every country, and optional fines with a patron ledger and a debt block; printable library cards, patron photos and user import from CSV; a visitor log that also finds a member by name, ISBD catalogue cards, suppliers and RDA types. Due dates follow closures added after the loan was made, and a loan is late only from the first open day after its due date. Every module has its own switch in Settings → Modules; an upgrade turns on only what is reached from an explicit action, or what the library already uses. The Mobile API (1.10.0) opens all of it to the Android app, and every 0.9.0 page works at phone width. Two additive migrations (`migrate_0.9.0-rc.1.sql`, `migrate_0.9.0.sql`), both run when upgrading from 0.8.9. Full details in **[CHANGELOG.md](CHANGELOG.md)**.
 
 ---
 
@@ -53,13 +53,13 @@ The showcase contains 50 catalogue books, 8 desiderata, 3 periodicals with 10 is
 
 Highlights of the two releases before the current one are below; the README never lists more than the last three versions. The full version-by-version history lives in **[CHANGELOG.md](CHANGELOG.md)**.
 
-### v0.9.0-rc.2
+### v0.8.9
 
-**Everything the 0.9.0 admin does, ready for the Android app.** The Mobile API plugin (1.10.0) opens every new 0.9.0 tool to the staff app: stocktake with the phone as scanner, the patron ledger at the desk, library settings, patron types, the rules matrix, the closures calendar, suppliers, catalogue cards, MARC import and export, copy cataloguing, the visitor log, statistics and patron import, each through the same controllers as the website. No migration. Full details in **[CHANGELOG.md](CHANGELOG.md)**.
+**Search Console verification, a pickup reminder, and an SEO pass.** Settings → Advanced has a field for the `<meta>` verification tags of Google, Bing and the other search engines ([#497](https://github.com/fabiodalez-dev/Pinakes/pull/497)). Readers get a reminder before the pickup deadline passes, and the staff is told when a pickup expires ([#498](https://github.com/fabiodalez-dev/Pinakes/pull/498)). One additive migration (`migrate_0.8.9.sql`). Full details in **[CHANGELOG.md](CHANGELOG.md)**.
 
-### v0.9.0-rc.1
+### v0.8.8
 
-**Stocktake, MARC in and out, and the circulation tools of a full library system.** Inventory stocktake sessions with barcode, camera or list scanning and a live report; MARC 21, UNIMARC and danMARC2 bulk import and export with copy cataloguing over SRU; a visitor log, ISBD catalogue cards, suppliers and RDA types; printable library cards, patron photos and user import from CSV; patron types with a rules matrix, a closures calendar and optional fines with a patron ledger. Every module is optional and starts switched off on an upgrade. One additive migration (`migrate_0.9.0-rc.1.sql`). Full details in **[CHANGELOG.md](CHANGELOG.md)**.
+**A French sentence that now includes the last day of a loan.** "retour avant le D" left out the return day the server still accepts; it now says "retour au plus tard le D" ([#490](https://github.com/fabiodalez-dev/Pinakes/pull/490)). No migration.
 
 Older releases are in **[CHANGELOG.md](CHANGELOG.md)**.
 
