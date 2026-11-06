@@ -884,7 +884,7 @@ class ReservationManager
      * promotion created (its branch, a later calendar move or a refused one
      * included), read from that loan rather than recomputed from the
      * request. The promotion passes the loan id; the retry sweep finds the
-     * loan by book, reader, origin and start day. Without a loan, the day the
+     * loan by book, reader, origin and creation time. Without a loan, the day the
      * request would get.
      *
      * @param array<string, mixed> $reservation
@@ -898,26 +898,43 @@ class ReservationManager
             $stmt = $this->db->prepare("SELECT data_scadenza, copia_id FROM prestiti WHERE id = ? AND libro_id = ?");
             $stmt->bind_param('ii', $loanId, $bookId);
         } else {
-            // The retry sweep: the reservation was completed in the same
-            // transaction that created its loan, so the loan is the one
-            // created closest to the reservation's last update, within a
-            // day. Staff may have changed the loan's dates before the retry,
-            // so the start day only breaks a tie.
+            // The retry sweep: the promotion created the loan after the
+            // reservation was made and no later than its completion, so the
+            // loan is the first one this reader got from a reservation of
+            // this book since the reservation's creation. created_at never
+            // moves; updated_at only moves forward (each failed send reverts
+            // the claim and touches it), so it stays a valid upper bound for
+            // the whole 7-day retry window. Staff may have changed the loan's
+            // dates before the retry, so dates play no part in the lookup.
             $userId = (int) $reservation['utente_id'];
-            $start = (string) ($reservation['data_inizio_richiesta'] ?? '');
+            $madeAt = (string) ($reservation['created_at'] ?? '');
             $completedAt = (string) ($reservation['updated_at'] ?? '');
             if ($completedAt === '') {
                 $completedAt = \App\Support\DateHelper::now();
             }
-            $stmt = $this->db->prepare("
-                SELECT data_scadenza, copia_id FROM prestiti
-                WHERE libro_id = ? AND utente_id = ? AND origine = 'prenotazione'
-                  AND data_scadenza IS NOT NULL
-                  AND created_at BETWEEN ? - INTERVAL 1 DAY AND ? + INTERVAL 1 DAY
-                ORDER BY ABS(TIMESTAMPDIFF(SECOND, created_at, ?)), data_prestito = ? DESC, id DESC
-                LIMIT 1
-            ");
-            $stmt->bind_param('iissss', $bookId, $userId, $completedAt, $completedAt, $completedAt, $start);
+            if ($madeAt === '') {
+                $madeAt = $completedAt;
+                $stmt = $this->db->prepare("
+                    SELECT data_scadenza, copia_id FROM prestiti
+                    WHERE libro_id = ? AND utente_id = ? AND origine = 'prenotazione'
+                      AND data_scadenza IS NOT NULL
+                      AND created_at BETWEEN ? - INTERVAL 8 DAY AND ?
+                    ORDER BY created_at DESC, id DESC
+                    LIMIT 1
+                ");
+            } else {
+                $stmt = $this->db->prepare("
+                    SELECT data_scadenza, copia_id FROM prestiti
+                    WHERE libro_id = ? AND utente_id = ? AND origine = 'prenotazione'
+                      AND data_scadenza IS NOT NULL
+                      AND created_at BETWEEN ? AND ?
+                    ORDER BY created_at, id
+                    LIMIT 1
+                ");
+            }
+            if ($stmt !== false) {
+                $stmt->bind_param('iiss', $bookId, $userId, $madeAt, $completedAt);
+            }
         }
         if ($stmt !== false) {
             $stmt->execute();
