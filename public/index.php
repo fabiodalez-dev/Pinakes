@@ -509,8 +509,9 @@ if (!$isCli) {
 
 // Once per version: add any table or column of schema.sql the database
 // lacks. The update that installs a release runs the previous release's
-// updater, so this is where a newer repair first runs.
-if (!$isCli) {
+// updater, so this is where a newer repair first runs. Not while an update
+// holds maintenance mode: its migrations may still be running.
+if (!$isCli && !file_exists($maintenanceFile)) {
     try {
         \App\Support\SchemaRepair::runOncePerVersion($container->get('db'));
     } catch (\Throwable $e) {

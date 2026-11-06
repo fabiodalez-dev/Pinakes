@@ -1091,6 +1091,24 @@ if ($authenticated && $requestMethod === 'POST' && isset($_FILES['zipfile'])) {
             $log[] = '[OK] Backfill contributor completato';
         }
 
+        // Match Updater::installUpdate(): add any table or column of
+        // schema.sql the database still lacks (a recorded migration is not
+        // proof its statements ran). Non-fatal, like the web updater.
+        try {
+            $autoload = $rootPath . '/vendor/autoload.php';
+            if (!is_file($autoload)) {
+                throw new RuntimeException('Autoloader non trovato per la verifica dello schema');
+            }
+            require_once $autoload;
+            $repair = \App\Support\SchemaRepair::repair($db, $rootPath);
+            $log[] = sprintf('[OK] Verifica schema: %d tabelle e %d colonne aggiunte', count($repair['tables']), count($repair['columns']));
+            foreach ($repair['failed'] as $failure) {
+                $log[] = '[WARN] Verifica schema: ' . $failure;
+            }
+        } catch (Throwable $repairError) {
+            $log[] = '[WARN] Verifica schema non riuscita: ' . $repairError->getMessage();
+        }
+
         // Match Updater::installUpdate(): migrations may materialise or repair
         // physical-copy rows, so refresh the derived book/copy projection before
         // reporting the manual upgrade complete. Keep this non-fatal just like

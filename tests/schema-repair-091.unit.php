@@ -61,7 +61,18 @@ try {
     $tableExists = static fn (string $t): bool => (int) $db->query("SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '{$t}'")->fetch_row()[0] === 1;
 
     $parsed = SchemaRepair::parse((string) file_get_contents($root . '/installer/database/schema.sql'));
-    $check(count($parsed) === 78 && array_sum(array_map(static fn ($t) => count($t['columns']), $parsed)) === 823, 'schema.sql parses into the same 78 tables and 823 columns as the JS parser');
+    $parsedColumns = [];
+    foreach ($parsed as $t => $def) {
+        foreach (array_keys($def['columns']) as $c) {
+            $parsedColumns[] = "{$t}.{$c}";
+        }
+    }
+    $installedColumns = array_map(static fn ($r) => $r[0], $db->query("SELECT CONCAT(TABLE_NAME, '.', COLUMN_NAME) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() ORDER BY TABLE_NAME, ORDINAL_POSITION")->fetch_all(MYSQLI_NUM));
+    $sortedParsed = $parsedColumns;
+    sort($sortedParsed);
+    $sortedInstalled = $installedColumns;
+    sort($sortedInstalled);
+    $check($parsed !== [] && $sortedParsed === $sortedInstalled, 'the parser reads every table and column a fresh install of schema.sql creates (' . count($parsed) . ' tables, ' . count($parsedColumns) . ' columns)');
 
     $fresh = SchemaRepair::repair($db, $root);
     $check($fresh === ['tables' => [], 'columns' => [], 'failed' => []], 'a complete database is left untouched');
@@ -70,6 +81,8 @@ try {
     $libriBefore = $shape('libri');
     $utentiBefore = $shape('utenti');
     $tablesBefore = array_combine($missingTables, array_map($shape, $missingTables));
+    $ddl = static fn (string $t): string => (string) preg_replace('/ AUTO_INCREMENT=\d+/', '', (string) $db->query("SHOW CREATE TABLE `{$t}`")->fetch_row()[1]);
+    $ddlBefore = array_combine($missingTables, array_map($ddl, $missingTables));
     $db->query("INSERT INTO utenti (codice_tessera, nome, cognome, email, password, data_accettazione_privacy) VALUES ('SR-A','A','Accepted','a@example.test','x','2025-01-01 10:00:00'),('SR-B','B','Never','b@example.test','x',NULL)") or throw new RuntimeException($db->error);
     $db->query('SET FOREIGN_KEY_CHECKS = 0');
     foreach ($missingTables as $t) {
@@ -90,7 +103,7 @@ try {
     $check($shape('libri') === $libriBefore, 'libri gets back every column with the schema type, default, comment and position');
     $check($shape('utenti') === $utentiBefore, 'utenti gets privacy_accettata back in its place');
     foreach ($missingTables as $t) {
-        $check($shape($t) === $tablesBefore[$t], "{$t} is created as schema.sql declares it");
+        $check($shape($t) === $tablesBefore[$t] && $ddl($t) === $ddlBefore[$t], "{$t} is created as schema.sql declares it, keys and foreign keys included");
     }
     $flags = $db->query("SELECT email, privacy_accettata FROM utenti WHERE email IN ('a@example.test','b@example.test') ORDER BY email")->fetch_all(MYSQLI_NUM);
     $check($flags === [['a@example.test', '1'], ['b@example.test', '0']], 'a reader with a recorded acceptance date counts as accepted, one without does not');
@@ -114,6 +127,18 @@ try {
     file_put_contents($tmpRoot . '/version.json', '{"version":"9.9.2"}');
     SchemaRepair::runOncePerVersion($db, $tmpRoot);
     $check($hasOclc(), 'a new version checks again');
+    // Without a readable schema.sql the repair fails and leaves no marker.
+    rename($tmpRoot . '/installer/database/schema.sql', $tmpRoot . '/installer/database/schema.sql.off');
+    file_put_contents($tmpRoot . '/version.json', '{"version":"9.9.4"}');
+    $threw = false;
+    try {
+        SchemaRepair::runOncePerVersion($db, $tmpRoot);
+    } catch (RuntimeException) {
+        $threw = true;
+    }
+    $check($threw && file_get_contents($tmpRoot . '/storage/.schema-repaired') === '9.9.2', 'a missing schema.sql is an error and writes no marker');
+    rename($tmpRoot . '/installer/database/schema.sql.off', $tmpRoot . '/installer/database/schema.sql');
+    file_put_contents($tmpRoot . '/version.json', '{"version":"9.9.2"}');
     $db->query("SELECT GET_LOCK('pinakes_schema_repair', 0)");
     $other = new mysqli($host, $user, $pass, $sandbox, $port, $socket ?: null);
     $other->query('ALTER TABLE libri DROP COLUMN oclc');

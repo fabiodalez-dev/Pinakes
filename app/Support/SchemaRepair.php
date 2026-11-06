@@ -33,7 +33,8 @@ final class SchemaRepair
      * Run the repair once for the version in version.json. The marker is
      * written even when a statement failed (logged), so a database the
      * account cannot alter is not retried on every request; the next update
-     * runs the repair again.
+     * runs the repair again. An unreadable schema.sql throws before the
+     * marker, so the check runs again once the file is back.
      */
     public static function runOncePerVersion(\mysqli $db, ?string $rootPath = null): void
     {
@@ -47,8 +48,9 @@ final class SchemaRepair
             return;
         }
         // Only an installed application is repaired: during installation
-        // the installer owns the schema.
-        $installed = $db->query("SELECT 1 FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'migrations' LIMIT 1");
+        // the installer owns the schema. utenti exists in every install,
+        // also in the oldest ones that predate the migrations table.
+        $installed = $db->query("SELECT 1 FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'utenti' LIMIT 1");
         if (!$installed instanceof \mysqli_result || $installed->num_rows === 0) {
             return;
         }
@@ -67,45 +69,31 @@ final class SchemaRepair
 
     /**
      * @return array{tables: list<string>, columns: list<string>, failed: list<string>}
+     * @throws \RuntimeException when schema.sql is missing or yields no table,
+     *         so runOncePerVersion() writes no marker and tries again
      */
     public static function repair(\mysqli $db, ?string $rootPath = null): array
     {
         $root = $rootPath ?? dirname(__DIR__, 2);
         $result = ['tables' => [], 'columns' => [], 'failed' => []];
         $sql = @file_get_contents($root . '/installer/database/schema.sql');
-        if ($sql === false || $sql === '') {
-            return $result;
-        }
-        $schema = self::parse($sql);
+        $schema = is_string($sql) && $sql !== '' ? self::parse($sql) : [];
         if ($schema === []) {
-            return $result;
+            throw new \RuntimeException('installer/database/schema.sql is missing or has no CREATE TABLE');
         }
         $existing = self::existingColumns($db);
 
-        // Missing tables, in schema order; a table whose foreign key points
-        // at a table created later is retried once at the end.
+        // Missing tables, in schema order. A table whose foreign key points
+        // at a table created later, or at a column added below, is retried
+        // after the columns; only that last attempt reports a failure.
         $pending = [];
         foreach ($schema as $table => $def) {
             if (!isset($existing[$table])) {
                 $pending[$table] = $def['create'];
             }
         }
-        for ($pass = 0; $pass < 2 && $pending !== []; $pass++) {
-            foreach ($pending as $table => $create) {
-                try {
-                    if ($db->query($create) === true) {
-                        $result['tables'][] = $table;
-                        unset($pending[$table]);
-                    } elseif ($pass === 1) {
-                        $result['failed'][] = "$table: " . $db->error;
-                    }
-                } catch (\Throwable $e) {
-                    if ($pass === 1) {
-                        $result['failed'][] = "$table: " . $e->getMessage();
-                    }
-                }
-            }
-        }
+        self::createTables($db, $pending, $result, false);
+        self::createTables($db, $pending, $result, false);
         if ($result['tables'] !== []) {
             $existing = self::existingColumns($db);
         }
@@ -126,7 +114,9 @@ final class SchemaRepair
                         if ($db->query($alter) === true) {
                             $result['columns'][] = "$table.$name";
                             $have[strtolower($name)] = true;
-                            self::afterColumnAdded($db, $table, $name);
+                            if (!self::afterColumnAdded($db, $table, $name)) {
+                                $result['failed'][] = "$table.$name: backfill: " . $db->error;
+                            }
                         } elseif ($db->errno !== 1060) {
                             $result['failed'][] = "$table.$name: " . $db->error;
                             continue;
@@ -141,6 +131,7 @@ final class SchemaRepair
                 $previous = $name;
             }
         }
+        self::createTables($db, $pending, $result, true);
 
         if ($result['tables'] !== [] || $result['columns'] !== []) {
             SecureLogger::warning('[SchemaRepair] Added missing schema objects', [
@@ -152,6 +143,31 @@ final class SchemaRepair
             SecureLogger::error('[SchemaRepair] Could not add schema objects', ['failed' => $result['failed']]);
         }
         return $result;
+    }
+
+    /**
+     * One attempt at each pending table; created ones leave $pending.
+     *
+     * @param array<string, string> $pending table => CREATE TABLE IF NOT EXISTS
+     * @param array{tables: list<string>, columns: list<string>, failed: list<string>} $result
+     */
+    private static function createTables(\mysqli $db, array &$pending, array &$result, bool $report): void
+    {
+        foreach ($pending as $table => $create) {
+            try {
+                $ok = $db->query($create) === true;
+                $error = $db->error;
+            } catch (\Throwable $e) {
+                $ok = false;
+                $error = $e->getMessage();
+            }
+            if ($ok) {
+                $result['tables'][] = $table;
+                unset($pending[$table]);
+            } elseif ($report) {
+                $result['failed'][] = "$table: " . $error;
+            }
+        }
     }
 
     /**
@@ -195,14 +211,21 @@ final class SchemaRepair
      * Data a column needs when it arrives late. utenti.privacy_accettata is
      * only written at registration, so an install that missed it could not
      * register anyone; a reader with a recorded acceptance date accepted.
+     * Returns false when the backfill statement failed.
      */
-    private static function afterColumnAdded(\mysqli $db, string $table, string $column): void
+    private static function afterColumnAdded(\mysqli $db, string $table, string $column): bool
     {
-        if ($table === 'utenti' && $column === 'privacy_accettata') {
+        if ($table !== 'utenti' || $column !== 'privacy_accettata') {
+            return true;
+        }
+        try {
             $hasDate = $db->query("SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'utenti' AND COLUMN_NAME = 'data_accettazione_privacy'");
-            if ($hasDate instanceof \mysqli_result && $hasDate->num_rows > 0) {
-                $db->query("UPDATE utenti SET privacy_accettata = 1 WHERE data_accettazione_privacy IS NOT NULL");
+            if (!$hasDate instanceof \mysqli_result || $hasDate->num_rows === 0) {
+                return true;
             }
+            return $db->query("UPDATE utenti SET privacy_accettata = 1 WHERE data_accettazione_privacy IS NOT NULL") === true;
+        } catch (\Throwable) {
+            return false;
         }
     }
 
