@@ -2528,6 +2528,18 @@ class Updater
                 'executed' => $migrationResult['executed']
             ]);
 
+            // A migration recorded as executed is not proof its statements
+            // ran (the 0.3.x updater dropped comment-led statements): add any
+            // table or column of schema.sql the database still lacks.
+            try {
+                $repair = SchemaRepair::repair($this->db, $this->rootPath);
+                $this->debugLog('INFO', 'Verifica schema completata', $repair);
+            } catch (\Throwable $e) {
+                $this->debugLog('WARNING', 'Verifica schema non riuscita (non bloccante)', [
+                    'error' => $e->getMessage(),
+                ]);
+            }
+
             // Some migrations (e.g. 0.7.20 loan-state cleanup) change occupancy by
             // rewriting prestiti rows directly; re-derive copie.stato and the
             // libri.copie_disponibili/stato display caches so they stay consistent.

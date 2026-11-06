@@ -507,6 +507,17 @@ if (!$isCli) {
     }
 }
 
+// Once per version: add any table or column of schema.sql the database
+// lacks. The update that installs a release runs the previous release's
+// updater, so this is where a newer repair first runs.
+if (!$isCli) {
+    try {
+        \App\Support\SchemaRepair::runOncePerVersion($container->get('db'));
+    } catch (\Throwable $e) {
+        error_log('Schema repair failed: ' . $e->getMessage());
+    }
+}
+
 // Initialize Hook System
 \App\Support\Hooks::init($container->get('hookManager'));
 
