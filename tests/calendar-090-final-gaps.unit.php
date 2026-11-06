@@ -100,6 +100,114 @@ $cases = [
         (new NotificationService($t->db))->sendLoanExpirationWarnings();
         SettingsReview25::eq([(int) $t->scalar("SELECT warning_sent FROM prestiti WHERE id={$soon}"), (string) $t->scalar("SELECT warning_sent_for FROM prestiti WHERE id={$soon}")], [1, $t->day(2)], 'The due-soon reminder stores the day it names');
     },
+    'a move that succeeds later keeps a reminder that already named the new day' => static function (SettingsReview25 $t): void {
+        $book = $t->book($t->branchA);
+        $loan = $t->loan($book, $t->day(5));
+        $reservation = finalGapsReserve($t, $book, $t->secondReader, $t->day(6), $t->day(9));
+        $t->closure($t->day(5), branch: $t->branchA);
+        SettingsReview25::eq($t->due($loan), $t->day(5), 'The move is refused while day 6 is promised');
+        // The reminder went out for the usable day, 6.
+        $t->db->query("UPDATE prestiti SET warning_sent = 1, warning_sent_for = '{$t->day(6)}' WHERE id={$loan}");
+        // Another loan of the branch, warned for its stored day 5.
+        $other = $t->loan($t->book($t->branchA), $t->day(5), ['reader' => $t->patron()]);
+        $t->db->query("UPDATE prestiti SET warning_sent = 1, warning_sent_for = '{$t->day(5)}' WHERE id={$other}");
+        $t->db->query("UPDATE prenotazioni SET stato = 'annullata' WHERE id={$reservation}");
+        $t->closure($t->day(30), branch: $t->branchA);
+        SettingsReview25::eq($t->due($loan), $t->day(6), 'The next save moves the loan to day 6');
+        SettingsReview25::eq([(int) $t->scalar("SELECT warning_sent FROM prestiti WHERE id={$loan}"), (string) $t->scalar("SELECT warning_sent_for FROM prestiti WHERE id={$loan}")], [1, $t->day(6)], 'The reminder that named day 6 stays sent: no second e-mail for the same day');
+        SettingsReview25::eq([$t->due($other), (int) $t->scalar("SELECT warning_sent FROM prestiti WHERE id={$other}")], [$t->day(6), 0], 'A reminder that named day 5 is re-armed when its loan moves');
+    },
+    'removing the closure re-arms a reminder that named the later day' => static function (SettingsReview25 $t): void {
+        $book = $t->book($t->branchA);
+        $loan = $t->loan($book, $t->day(5));
+        finalGapsReserve($t, $book, $t->secondReader, $t->day(6), $t->day(9));
+        $late = $t->closure($t->day(30), branch: $t->branchA);
+        $closure = $t->closure($t->day(5), branch: $t->branchA);
+        $t->db->query("UPDATE prestiti SET warning_sent = 1, warning_sent_for = '{$t->day(6)}' WHERE id={$loan}");
+        $t->asAdmin();
+        (new LibraryCalendarController())->delete($t->request('/admin/calendar/closures/' . $closure), new Response(), $t->db, $closure);
+        SettingsReview25::eq([$t->due($loan), (int) $t->scalar("SELECT warning_sent FROM prestiti WHERE id={$loan}")], [$t->day(5), 0], 'The reader returns on day 5 again: the reminder for day 6 is re-armed');
+
+        // The same with the last closure removed (no calendar rule left).
+        $closure = $t->closure($t->day(5), branch: $t->branchA);
+        $t->db->query("UPDATE prestiti SET warning_sent = 1, warning_sent_for = '{$t->day(6)}' WHERE id={$loan}");
+        $t->asAdmin();
+        (new LibraryCalendarController())->delete($t->request('/admin/calendar/closures/' . $late), new Response(), $t->db, $late);
+        SettingsReview25::eq((int) $t->scalar("SELECT warning_sent FROM prestiti WHERE id={$loan}"), 1, 'Removing another closure leaves the usable day 6 and the reminder as sent');
+        $t->asAdmin();
+        (new LibraryCalendarController())->delete($t->request('/admin/calendar/closures/' . $closure), new Response(), $t->db, $closure);
+        SettingsReview25::eq((int) $t->scalar("SELECT COUNT(*) FROM calendario_chiusure WHERE sede_id={$t->branchA}"), 0, 'No closure is left');
+        SettingsReview25::eq((int) $t->scalar("SELECT warning_sent FROM prestiti WHERE id={$loan}"), 0, 'With no rule left the reminder for day 6 is re-armed too');
+    },
+    'a move refused by the overlap trigger re-arms the reminder' => static function (SettingsReview25 $t): void {
+        // Two copies in branch A: the book has room on day 6, but copy A is
+        // promised to another reader from day 6, so the trigger refuses.
+        $book = $t->book($t->branchA);
+        finalGapsCopy($t, $book, $t->branchA);
+        $loan = $t->loan($book, $t->day(5));
+        $t->loan($book, $t->day(15), ['copy' => $book['copies'][0], 'reader' => $t->patron(), 'start' => $t->day(6), 'status' => 'prenotato']);
+        $t->db->query("UPDATE prestiti SET warning_sent = 1, warning_sent_for = '{$t->day(5)}' WHERE id={$loan}");
+        $t->closure($t->day(5), branch: $t->branchA);
+        SettingsReview25::eq($t->due($loan), $t->day(5), 'The trigger keeps the stored date');
+        SettingsReview25::eq((int) $t->scalar("SELECT warning_sent FROM prestiti WHERE id={$loan}"), 0, 'The reminder for day 5 is re-armed: the reader returns on day 6');
+    },
+    'a failed send reverts only its own claim' => static function (SettingsReview25 $t): void {
+        $loan = $t->loan($t->book(), $t->day(2), ['reader' => $t->patron()]);
+        $service = new NotificationService($t->db);
+        $calls = 0;
+        $fake = new class ($t->db, static function () use ($t, $loan, &$calls): void {
+            $calls++;
+            // While this send runs, a calendar save re-arms the reminder and
+            // another run claims it for day 3.
+            $t->other->query("UPDATE prestiti SET warning_sent = 1, warning_sent_for = '{$t->day(3)}' WHERE id={$loan}");
+        }) extends \App\Support\EmailService {
+            public function __construct(mysqli $db, private Closure $during)
+            {
+                parent::__construct($db);
+            }
+            public function sendTemplate(string $to, string $templateName, array $variables = [], ?string $locale = null, array $attachments = []): bool
+            {
+                ($this->during)();
+                return false;
+            }
+        };
+        (new ReflectionProperty(NotificationService::class, 'emailService'))->setValue($service, $fake);
+        $reachable = new ReflectionProperty(\App\Support\Mailer::class, 'smtpReachable');
+        $wasReachable = $reachable->getValue();
+        $reachable->setValue(null, true);
+        ConfigStore::clearCache();
+        try {
+            $service->sendLoanExpirationWarnings();
+        } finally {
+            $reachable->setValue(null, $wasReachable);
+        }
+        SettingsReview25::check($calls > 0, 'The e-mail was attempted and failed');
+        SettingsReview25::eq([(int) $t->scalar("SELECT warning_sent FROM prestiti WHERE id={$loan}"), (string) $t->scalar("SELECT warning_sent_for FROM prestiti WHERE id={$loan}")], [1, $t->day(3)], 'The claim for day 3 made meanwhile is kept');
+    },
+    'a refused warning_sent_for column does not stop the other reminders' => static function (SettingsReview25 $t): void {
+        $t->other->query('ALTER TABLE prestiti DROP COLUMN warning_sent_for');
+        LibraryCalendar::reset();
+        try {
+            $t->db->refuse = ['ADD COLUMN warning_sent_for'];
+            SettingsReview25::check((new NotificationService($t->db))->addNotificationColumns(), 'The notification schema is reported ready without the optional column');
+            SettingsReview25::check(!LibraryCalendar::hasWarningSentFor($t->db), 'The reminders run without warning_sent_for');
+        } finally {
+            $t->db->refuse = [];
+            $t->other->query('ALTER TABLE prestiti ADD COLUMN warning_sent_for date DEFAULT NULL AFTER warning_sent');
+            LibraryCalendar::reset();
+        }
+    },
+    'a retried e-mail finds the loan after its dates were changed' => static function (SettingsReview25 $t): void {
+        $book = $t->book($t->branchA);
+        $reservationId = finalGapsReserve($t, $book, $t->reader, $t->today, $t->day(10));
+        SettingsReview25::check((new ReservationManager($t->db))->processBookAvailability($book['id']), 'The reservation is promoted');
+        $loan = (int) $t->scalar("SELECT id FROM prestiti WHERE libro_id={$book['id']} AND utente_id={$t->reader}");
+        // Staff moves the loan's dates before the retry.
+        $t->db->query("UPDATE prestiti SET data_prestito = '{$t->day(1)}', data_scadenza = '{$t->day(12)}' WHERE id={$loan}");
+        $row = $t->db->query("SELECT * FROM prenotazioni WHERE id={$reservationId}")->fetch_assoc();
+        $notice = new ReflectionMethod(ReservationManager::class, 'noticeDueDate');
+        SettingsReview25::eq($notice->invoke(new ReservationManager($t->db), $row), $t->day(12), 'The retry names the loan\'s current day, not the requested one');
+    },
     'a loan whose copy is replaced by one in a closed branch is still moved' => static function (SettingsReview25 $t): void {
         // The loan's copy sits in branch A, open on day 5; the book has a
         // copy in branch B, closed on day 5. The copy is replaced while the

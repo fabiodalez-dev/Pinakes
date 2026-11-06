@@ -95,7 +95,7 @@ test.describe.serial('Visitor log: member search by name', () => {
     await page.locator('#codice_tessera').fill(`NOPE${STAMP}`.slice(0, 20));
     await expect(page.locator('#attendance-member-id')).toHaveValue('');
     await submitAndWait(() => page.click('#attendance-scan-form button[type="submit"]'));
-    await expect(page.getByText('Tessera non riconosciuta. Controlla il codice o registra la visita come ospite.')).toBeVisible();
+    await expect(page.getByText('Tessera non riconosciuta. Controlla il codice, scegli il socio dai suggerimenti o registra la visita come ospite.')).toBeVisible();
     expect(visits(bruno)).toBe(1);
   });
 
@@ -165,7 +165,7 @@ test.describe('Visitor log: member search edge cases', () => {
     // A reader firing into the field: new text and Enter, before the list refreshes.
     await field(page).press('x');
     await sent(page, () => field(page).press('Enter'));
-    await expect(page.getByText('Tessera non riconosciuta. Controlla il codice o registra la visita come ospite.')).toBeVisible();
+    await expect(page.getByText('Tessera non riconosciuta. Controlla il codice, scegli il socio dai suggerimenti o registra la visita come ospite.')).toBeVisible();
     expect(visits()).toBe(0);
   });
 
@@ -274,7 +274,7 @@ test.describe('Visitor log: member search edge cases', () => {
     const before = visits();
     await forge(page, `${member}abc`);
     await sent(page, () => page.click('#attendance-scan-form button[type="submit"]'));
-    await expect(page.getByText('Tessera non riconosciuta. Controlla il codice o registra la visita come ospite.')).toBeVisible();
+    await expect(page.getByText('Tessera non riconosciuta. Controlla il codice, scegli il socio dai suggerimenti o registra la visita come ospite.')).toBeVisible();
     expect(visits()).toBe(before);
   });
 

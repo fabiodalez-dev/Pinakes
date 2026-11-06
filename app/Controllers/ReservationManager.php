@@ -898,15 +898,26 @@ class ReservationManager
             $stmt = $this->db->prepare("SELECT data_scadenza, copia_id FROM prestiti WHERE id = ? AND libro_id = ?");
             $stmt->bind_param('ii', $loanId, $bookId);
         } else {
+            // The retry sweep: the reservation was completed in the same
+            // transaction that created its loan, so the loan is the one
+            // created closest to the reservation's last update, within a
+            // day. Staff may have changed the loan's dates before the retry,
+            // so the start day only breaks a tie.
             $userId = (int) $reservation['utente_id'];
-            $start = (string) $reservation['data_inizio_richiesta'];
+            $start = (string) ($reservation['data_inizio_richiesta'] ?? '');
+            $completedAt = (string) ($reservation['updated_at'] ?? '');
+            if ($completedAt === '') {
+                $completedAt = \App\Support\DateHelper::now();
+            }
             $stmt = $this->db->prepare("
                 SELECT data_scadenza, copia_id FROM prestiti
-                WHERE libro_id = ? AND utente_id = ? AND origine = 'prenotazione' AND data_prestito = ?
+                WHERE libro_id = ? AND utente_id = ? AND origine = 'prenotazione'
                   AND data_scadenza IS NOT NULL
-                ORDER BY id DESC LIMIT 1
+                  AND created_at BETWEEN ? - INTERVAL 1 DAY AND ? + INTERVAL 1 DAY
+                ORDER BY ABS(TIMESTAMPDIFF(SECOND, created_at, ?)), data_prestito = ? DESC, id DESC
+                LIMIT 1
             ");
-            $stmt->bind_param('iis', $bookId, $userId, $start);
+            $stmt->bind_param('iissss', $bookId, $userId, $completedAt, $completedAt, $completedAt, $start);
         }
         if ($stmt !== false) {
             $stmt->execute();

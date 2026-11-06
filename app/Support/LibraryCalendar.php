@@ -336,6 +336,9 @@ final class LibraryCalendar
     {
         $calendar = self::forDb($db);
         if (!$calendar->hasRules()) {
+            // The last closure was removed: no date moves, but a reminder
+            // that announced a later usable day must announce the stored one.
+            self::rearmChangedReminders($db);
             return 0;
         }
         $today = DateHelper::today();
@@ -440,33 +443,36 @@ final class LibraryCalendar
                     // Current read: the row is locked, but a plain read in the
                     // calendar-save transaction can return its older snapshot.
                     $before = ActivityLog::loadLoanSnapshot($db, $id, lockingRead: true);
-                    $update = $db->prepare(
-                        "UPDATE prestiti SET data_scadenza = ?, warning_sent = 0" . ($withWarningDay ? ', warning_sent_for = NULL' : '') . "
-                         WHERE id = ? AND attivo = 1 AND data_scadenza = ? AND stato IN ('in_corso', 'da_ritirare', 'prenotato')"
-                    );
-                    $update->bind_param('sis', $next, $id, $due);
+                    if ($withWarningDay) {
+                        // A reminder that already announced $next (sent after
+                        // an earlier refused move) stays sent: the reader was
+                        // told this day. Any other reminder is re-armed.
+                        // warning_sent is assigned first: it reads the old
+                        // warning_sent_for.
+                        $update = $db->prepare(
+                            "UPDATE prestiti SET data_scadenza = ?,
+                                    warning_sent = IF(warning_sent_for <=> ?, warning_sent, 0),
+                                    warning_sent_for = IF(warning_sent_for <=> ?, warning_sent_for, NULL)
+                             WHERE id = ? AND attivo = 1 AND data_scadenza = ? AND stato IN ('in_corso', 'da_ritirare', 'prenotato')"
+                        );
+                        $update->bind_param('sssis', $next, $next, $next, $id, $due);
+                    } else {
+                        $update = $db->prepare(
+                            "UPDATE prestiti SET data_scadenza = ?, warning_sent = 0
+                             WHERE id = ? AND attivo = 1 AND data_scadenza = ? AND stato IN ('in_corso', 'da_ritirare', 'prenotato')"
+                        );
+                        $update->bind_param('sis', $next, $id, $due);
+                    }
                     $update->execute();
                     $changed = $update->affected_rows > 0;
                     $update->close();
                     if ($changed) {
                         ActivityLog::recordLoanEvent($db, $id, 'loan.due_moved', $before, 'aggiornamento', 'calendar', $operatorId);
                     }
-                } elseif ($withWarningDay) {
-                    // The move is refused: the stored date stays, but the
-                    // reader's return day is now $next. A due-soon e-mail that
-                    // announced another day (the stored one for a row warned
-                    // before warning_sent_for existed) is re-armed, so the
-                    // reader is told the new day once; the same day is not
-                    // sent again on the next save.
-                    $rearm = $db->prepare(
-                        "UPDATE prestiti SET warning_sent = 0, warning_sent_for = NULL
-                         WHERE id = ? AND attivo = 1 AND data_scadenza = ? AND warning_sent = 1
-                           AND COALESCE(warning_sent_for, data_scadenza) <> ?"
-                    );
-                    $rearm->bind_param('iss', $id, $due, $next);
-                    $rearm->execute();
-                    $rearm->close();
                 }
+                // A refused move (capacity here, the overlap trigger below)
+                // keeps the stored date: rearmChangedReminders() tells the
+                // reader the new usable day.
                 if ($ownTransaction) {
                     $db->commit();
                 }
@@ -511,6 +517,7 @@ final class LibraryCalendar
         }
 
         self::reconcileOverdue($db, $today, $operatorId);
+        self::rearmChangedReminders($db);
         if ($notMoved > 0) {
             // Loans already moved are not touched again by a retry (their due
             // date is open now), so a second run only finishes these.
@@ -575,6 +582,53 @@ final class LibraryCalendar
                 if ($changed) {
                     ActivityLog::recordLoanEvent($db, $id, 'loan.updated', $before, 'aggiornamento', 'calendar', $operatorId);
                 }
+            });
+        }
+    }
+
+    /**
+     * A due-soon reminder already sent announces a day; when the usable day
+     * of that loan is now a different one, the reminder is re-armed so the
+     * reader is told the new day once. That covers a move refused by
+     * capacity or by the overlap trigger (the usable day goes later) and a
+     * closure removed after such a refusal (it goes back to the stored day).
+     * A row warned before warning_sent_for existed is taken to announce its
+     * stored date. The flags are cleared only if they still name the day read
+     * here, so a reminder claimed meanwhile for the new day is kept.
+     */
+    private static function rearmChangedReminders(\mysqli $db): void
+    {
+        if (!self::hasWarningSentFor($db)) {
+            return;
+        }
+        $stmt = $db->prepare(
+            "SELECT id, libro_id, data_scadenza, copia_id, warning_sent_for FROM prestiti
+             WHERE attivo = 1 AND stato IN ('in_corso', 'in_ritardo') AND warning_sent = 1
+               AND data_scadenza IS NOT NULL"
+        );
+        if ($stmt === false) {
+            return;
+        }
+        $stmt->execute();
+        $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+        $stmt->close();
+        self::primeCopyBranches($db, array_map(static fn (array $r): int => (int) ($r['copia_id'] ?? 0), $rows));
+        foreach ($rows as $row) {
+            $due = substr((string) $row['data_scadenza'], 0, 10);
+            $announced = $row['warning_sent_for'] !== null ? substr((string) $row['warning_sent_for'], 0, 10) : null;
+            $usable = self::dueDate($db, $due, $row['copia_id'] !== null ? (int) $row['copia_id'] : null);
+            if ($usable === ($announced ?? $due)) {
+                continue;
+            }
+            $id = (int) $row['id'];
+            self::withBookLock($db, (int) $row['libro_id'], static function () use ($db, $id, $due, $announced): void {
+                $rearm = $db->prepare(
+                    "UPDATE prestiti SET warning_sent = 0, warning_sent_for = NULL
+                     WHERE id = ? AND attivo = 1 AND data_scadenza = ? AND warning_sent = 1 AND warning_sent_for <=> ?"
+                );
+                $rearm->bind_param('iss', $id, $due, $announced);
+                $rearm->execute();
+                $rearm->close();
             });
         }
     }

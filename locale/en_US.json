@@ -8658,6 +8658,7 @@
   "Socio": "Member",
   "Socio: leggi la tessera": "Member: scan the card",
   "Tessera non riconosciuta. Controlla il codice o registra la visita come ospite.": "Card not recognised. Check the code or record the visit as a guest.",
+  "Tessera non riconosciuta. Controlla il codice, scegli il socio dai suggerimenti o registra la visita come ospite.": "Card not recognised. Check the code, pick the member from the suggestions or record the visit as a guest.",
   "Tipo di contenuto RDA": "RDA content type",
   "Tipo di mediazione RDA": "RDA media type",
   "Tipo di supporto RDA": "RDA carrier type",

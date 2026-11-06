@@ -89,8 +89,8 @@ function readBundledPlugins(root = DEFAULT_ROOT) {
 
 /**
  * Every column of every CREATE TABLE in schema.sql, as { table: [columns] }.
- * A column line starts with a backticked name; KEY, PRIMARY KEY, UNIQUE and
- * CONSTRAINT lines do not, so they are left out.
+ * A column line starts with its name, quoted or not, indented or not; index,
+ * key and constraint lines and their continuation lines are left out.
  *
  * @returns {Record<string, string[]>}
  */
@@ -106,7 +106,7 @@ function parseCreateTableColumns(sql) {
     while ((m = re.exec(sql)) !== null) {
         const columns = [];
         for (const line of m[3].split('\n')) {
-            const col = line.match(/^\s+(?:`([^`]+)`|([A-Za-z_][A-Za-z0-9_$]*))\s/);
+            const col = line.match(/^\s*(?:`([^`]+)`|([A-Za-z_][A-Za-z0-9_$]*))\s/);
             const name = col && (col[1] || col[2]);
             if (name && (col[1] || !notColumns.test(name))) columns.push(name);
         }

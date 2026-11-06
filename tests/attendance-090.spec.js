@@ -65,7 +65,7 @@ test.describe.serial('Visitor log (presenze)', () => {
     const before = visits('1=1');
     await page.fill('#codice_tessera', `NOPE${STAMP}`.slice(0, 20));
     await Promise.all([page.waitForURL(/\/admin\/attendance$/), page.click('#attendance-scan-form button[type="submit"]')]);
-    await expect(page.getByText('Tessera non riconosciuta. Controlla il codice o registra la visita come ospite.')).toBeVisible();
+    await expect(page.getByText('Tessera non riconosciuta. Controlla il codice, scegli il socio dai suggerimenti o registra la visita come ospite.')).toBeVisible();
     expect(visits('1=1')).toBe(before);
   });
 

@@ -8658,6 +8658,7 @@
   "Socio": "Medlem",
   "Socio: leggi la tessera": "Medlem: scan kortet",
   "Tessera non riconosciuta. Controlla il codice o registra la visita come ospite.": "Kortet blev ikke genkendt. Kontrollér koden, eller registrér besøget som gæst.",
+  "Tessera non riconosciuta. Controlla il codice, scegli il socio dai suggerimenti o registra la visita come ospite.": "Kortet blev ikke genkendt. Kontrollér koden, vælg medlemmet blandt forslagene, eller registrér besøget som gæst.",
   "Tipo di contenuto RDA": "RDA-indholdstype",
   "Tipo di mediazione RDA": "RDA-medietype",
   "Tipo di supporto RDA": "RDA-bærertype",

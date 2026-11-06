@@ -68,7 +68,7 @@ class AttendanceController
             if ($member === null) {
                 $_SESSION['error_message'] = $pickedId !== false
                     ? __('Utente non trovato')
-                    : __('Tessera non riconosciuta. Controlla il codice o registra la visita come ospite.');
+                    : __('Tessera non riconosciuta. Controlla il codice, scegli il socio dai suggerimenti o registra la visita come ospite.');
                 return $this->back($response);
             }
             $repo->recordMember($member['id'], $this->rememberBranch($repo, $body));
