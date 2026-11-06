@@ -434,6 +434,7 @@ jobs:
           - group: catalogue
             specs: >-
               tests/attendance-090.spec.js
+              tests/attendance-member-search.spec.js
               tests/catalogue-cards-090.spec.js
               tests/feature-toggle-catalogue-cards.spec.js
               tests/feature-toggles-followups.spec.js
