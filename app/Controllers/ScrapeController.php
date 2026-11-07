@@ -497,7 +497,6 @@ class ScrapeController
 
         $maxAttempts = max(1, $maxAttempts);
         $delaySeconds = 1;
-        $lastError = null;
         $partial = null;
         for ($attempt = 1; $attempt <= $maxAttempts; $attempt++) {
             try {
@@ -515,7 +514,13 @@ class ScrapeController
                     }
                 }
             } catch (\Throwable $e) {
-                $lastError = $e;
+                SecureLogger::warning('Scraping plugin: tentativo fallito', [
+                    'context' => $context,
+                    'isbn' => $identifier,
+                    'attempt' => $attempt,
+                    'maxAttempts' => $maxAttempts,
+                    'error' => $e->getMessage(),
+                ]);
             }
 
             if ($attempt < $maxAttempts) {
@@ -524,14 +529,6 @@ class ScrapeController
             }
         }
 
-        if ($lastError !== null) {
-            SecureLogger::warning('Scraping plugin fallito dopo tutti i tentativi', [
-                'context' => $context,
-                'isbn' => $identifier,
-                'maxAttempts' => $maxAttempts,
-                'error' => $lastError->getMessage(),
-            ]);
-        }
         return $partial === [] ? null : $partial;
     }
 
