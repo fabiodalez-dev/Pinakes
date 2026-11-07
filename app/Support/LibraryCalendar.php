@@ -959,7 +959,7 @@ final class LibraryCalendar
         return $moved;
     }
 
-    /** A closed pickup day can move forward, within the stored loan period. */
+    /** A closed pickup day can move forward, up to the loan's return day. */
     public function pickupDeadlineOnReopening(string $deadline, ?string $dueDate, ?int $branch, bool $useEffectiveDue = true): string
     {
         $next = $this->nextOpenDay($deadline, $branch);

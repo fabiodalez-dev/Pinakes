@@ -1025,9 +1025,19 @@ class LoanApprovalController
                 return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
             }
 
+            $copiaId = (int) $loan['copia_id'];
+            $calendar = \App\Support\LibraryCalendar::forDb($db);
+            if ($calendar->hasRules() && !$calendar->isOpen($today, \App\Support\LibraryCalendar::branchOfCopy($db, $copiaId))) {
+                $db->rollback();
+                $response->getBody()->write(json_encode([
+                    'success' => false,
+                    'message' => __('La sede è chiusa oggi. Riprova il prossimo giorno di apertura.'),
+                ]));
+                return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+            }
+
             // A closure may have been imported before the maintenance pass
             // had a chance to persist the new pickup deadline.
-            $copiaId = (int) $loan['copia_id'];
             $pickupDeadline = \App\Support\LibraryCalendar::effectivePickupDeadline($db, $loan['pickup_deadline'], $loan['data_scadenza'], $copiaId);
             if ($pickupDeadline !== null && $today > $pickupDeadline) {
                 $db->rollback();

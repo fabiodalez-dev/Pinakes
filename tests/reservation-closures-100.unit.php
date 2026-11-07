@@ -278,6 +278,8 @@ $cases['a pinned scheduled pickup waits for its own branch to reopen'] = static 
     $loan = matrixLoan($t, $b, $b['copies'][0], $t->today, $t->day(5));
     matrixHoliday($t, $t->today, 1, $t->branchA);
     SettingsReview25::eq((new MaintenanceService($t->db))->activateScheduledLoans(), 0, 'The announced branch is still closed');
+    $response = (new LoanApprovalController())->confirmPickup($t->request('/admin/loans/pickup', ['loan_id' => $loan]), new Response(), $t->db);
+    SettingsReview25::eq($response->getStatusCode(), 400, 'Direct staff confirmation also respects the assigned branch closure');
     SettingsReview25::eq(matrixState($t, $loan), 'prenotato', 'An open sibling does not silently move an assigned pickup');
 };
 $cases['an unassigned scheduled pickup chooses an open branch'] = static function (SettingsReview25 $t): void {

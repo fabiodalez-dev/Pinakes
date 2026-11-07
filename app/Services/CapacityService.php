@@ -484,8 +484,8 @@ final class CapacityService
         // Start falls back to the reservation deadline for legacy 'attiva' rows whose
         // data_inizio_richiesta is NULL (nullable column). For normal rows the COALESCE
         // returns data_inizio_richiesta unchanged, so this is behaviour-preserving; it
-        // only stops such legacy holds from silently vanishing from the occupancy peak
-        // (they never promote either, so they'd otherwise allow overbooking their copy).
+        // stops such legacy holds from vanishing from the occupancy peak while
+        // promotion uses the same fallback day.
         $rStart = 'COALESCE(r.data_inizio_richiesta, DATE(r.data_scadenza_prenotazione))';
         // A reservation belonging to a currently ineligible patron is paused,
         // not allowed to consume scarce capacity and starve eligible readers.
