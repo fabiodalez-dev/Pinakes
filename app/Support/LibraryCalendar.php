@@ -252,7 +252,16 @@ final class LibraryCalendar
         // A scheduled loan whose move was refused also ends on the next open day;
         // it cannot be late or due yet, so only the date follows the calendar.
         $scheduled = (int) ($loan['attivo'] ?? 1) === 1 && in_array($loan['stato'] ?? '', ['prenotato', 'da_ritirare'], true);
-        $effectiveDue = ($holding || $scheduled) && $due !== null ? self::dueDate($db, $due, $copyId) : $due;
+        $effectiveDue = $due;
+        if (($holding || $scheduled) && $due !== null) {
+            $calendar = self::forDb($db);
+            if ($calendar->hasRules()) {
+                $branch = $scheduled && $copyId === null && isset($loan['libro_id'])
+                    ? self::requestBranch($db, (int) $loan['libro_id'])
+                    : self::branchOfCopy($db, $copyId);
+                $effectiveDue = $calendar->nextOpenDay($due, $branch);
+            }
+        }
         return [
             'effective_due_at' => $effectiveDue,
             'is_overdue' => $holding && $due !== null && self::isPastDue($db, $due, $copyId, $today),
@@ -732,6 +741,24 @@ final class LibraryCalendar
         return $calendar->nextOpenDay($due, self::requestBranch($db, $bookId));
     }
 
+    /** An unassigned hold follows the book's request branch until a copy is pinned. */
+    public static function reservationBranch(\mysqli $db, int $bookId, ?int $copyId): ?int
+    {
+        return $copyId === null ? self::requestBranch($db, $bookId) : self::branchOfCopy($db, $copyId);
+    }
+
+    /** @return array{string,string} Effective start and inclusive end for an active queue event. */
+    public static function reservationCalendarDates(\mysqli $db, int $bookId, string $start, string $end): array
+    {
+        $calendar = self::forDb($db);
+        if (!$calendar->hasRules()) {
+            return [$start, $end];
+        }
+        $branch = self::requestBranch($db, $bookId);
+        $end = $calendar->nextOpenDay($end, $branch);
+        return [min($calendar->nextOpenDay($start, $branch), $end), $end];
+    }
+
     /** A closed deadline gives the reader the whole first open day to use it. */
     public static function reservationExpired(\mysqli $db, string $deadline, int $bookId, string $now): bool
     {
@@ -927,6 +954,18 @@ final class LibraryCalendar
         return DateHelper::isISODateFormat($due) ? max($deadline, min($next, $due)) : $next;
     }
 
+    /** The collection deadline shown to readers, even before reconciliation. */
+    public static function effectivePickupDeadline(\mysqli $db, ?string $deadline, ?string $due, ?int $copyId): ?string
+    {
+        if ($deadline === null || $deadline === '') {
+            return null;
+        }
+        $calendar = self::forDb($db);
+        return $calendar->hasRules()
+            ? $calendar->pickupDeadlineOnReopening(substr($deadline, 0, 10), $due, self::branchOfCopy($db, $copyId))
+            : substr($deadline, 0, 10);
+    }
+
     // ── Queries ─────────────────────────────────────────────────────────────
 
     /** True when weekly closures, closure rows or selected holidays apply. */
@@ -1074,20 +1113,19 @@ final class LibraryCalendar
 
     /**
      * Closed days in [$from, $to], both included, for the request calendars.
-     * Listed day by day, so the list stops MAX_SCAN_DAYS days after $from:
-     * the callers ask for a month or a 400-day horizon, never a span that
-     * long, and a ten-year closure is not expanded into ten years of dates.
+     * The default protects callers from expanding arbitrary long intervals.
+     * A request picker with an already bounded horizon can opt into all its days.
      *
      * @return list<string>
      */
-    public function closedDatesBetween(string $from, string $to, ?int $sedeId = null): array
+    public function closedDatesBetween(string $from, string $to, ?int $sedeId = null, int $maxDays = self::MAX_SCAN_DAYS): array
     {
         if (!$this->hasRules() || !DateHelper::isISODateFormat($from) || !DateHelper::isISODateFormat($to) || $to < $from) {
             return [];
         }
         $closed = [];
         $day = $from;
-        for ($i = 0; $i < self::MAX_SCAN_DAYS && $day <= $to; $i++) {
+        for ($i = 0; $i < $maxDays && $day <= $to; $i++) {
             if (!$this->isOpen($day, $sedeId)) {
                 $closed[] = $day;
             }

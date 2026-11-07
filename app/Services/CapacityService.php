@@ -158,7 +158,7 @@ final class CapacityService
     }
 
     /**
-     * Earliest day on or after $from with at least one free capacity unit.
+     * Earliest open day on or after $from with at least one free capacity unit.
      *
      * Uses the same canonical HOLDING/reservation intervals as every write
      * gate, then sweeps only their boundary events. Open-ended overdue loans
@@ -180,6 +180,8 @@ final class CapacityService
         if ($total <= 0) {
             return null;
         }
+        $calendar = \App\Support\LibraryCalendar::forDb($this->db);
+        $branch = $calendar->hasRules() ? \App\Support\LibraryCalendar::requestBranch($this->db, $libroId) : null;
 
         // Keep one day available for finite end+1 events. Any interval clamped
         // to this horizon is effectively open-ended for application purposes.
@@ -188,10 +190,6 @@ final class CapacityService
             $this->holdingLoanIntervals($libroId, $from, $horizon, null, null),
             $this->activeReservationIntervals($libroId, $from, $horizon, null, null)
         );
-        if ($intervals === []) {
-            return $from;
-        }
-
         /** @var array<string, int> $events */
         $events = [];
         foreach ($intervals as [$start, $end]) {
@@ -206,21 +204,20 @@ final class CapacityService
         $occupied = 0;
         $cursor = $from;
         foreach ($events as $date => $delta) {
-            // No boundary changes between cursor and date: if capacity was
-            // already free, cursor is the earliest possible answer.
+            // Search only this free segment. If it is entirely closed, the
+            // first open day could already belong to the next borrower.
             if ($date > $cursor && $occupied < $total) {
-                return $cursor;
+                $open = $calendar->firstOpenDayBetween($cursor, \App\Support\LibraryCalendar::shift($date, -1), $branch);
+                if ($open !== null) {
+                    return $open;
+                }
             }
             $occupied += $delta;
-            if ($date >= $from && $occupied < $total) {
-                return $date;
-            }
             $cursor = $date;
         }
 
-        // Remaining occupancy is made exclusively of horizon-clamped,
-        // open-ended commitments; their physical return date is unknown.
-        return null;
+        // Remaining occupants have no known release date.
+        return $occupied < $total ? $calendar->firstOpenDayBetween($cursor, '9999-12-31', $branch) : null;
     }
 
     /**
@@ -441,9 +438,28 @@ final class CapacityService
     }
 
     /** Whether this physical copy has a commitment in the inclusive window. */
-    public function copyHasHoldingLoan(int $libroId, int $copyId, string $start, string $end): bool
+    public function copyHasHoldingLoan(int $libroId, int $copyId, string $start, string $end, ?int $excludeLoanId = null): bool
     {
-        return $this->holdingLoanIntervals($libroId, $start, $end, null, null, $copyId) !== [];
+        return $this->holdingLoanIntervals($libroId, $start, $end, $excludeLoanId, null, $copyId) !== [];
+    }
+
+    /** Effective due day when both this copy and the title can honor the window. */
+    public function reservationDueDateForCopy(int $bookId, int $copyId, string $start, string $storedDue, ?int $excludeLoanId = null): ?string
+    {
+        $calendar = \App\Support\LibraryCalendar::forDb($this->db);
+        if (!$calendar->hasRules()) {
+            return $storedDue;
+        }
+        $branch = \App\Support\LibraryCalendar::branchOfCopy($this->db, $copyId);
+        $due = $calendar->nextOpenDay($storedDue, $branch);
+        if ($due < $start || !$calendar->isOpen($due, $branch)
+            || $this->copyHasHoldingLoan($bookId, $copyId, $start, $due, $excludeLoanId)) {
+            return null;
+        }
+        if ($due > $storedDue && !$this->hasFreeCapacity($bookId, \App\Support\LibraryCalendar::shift($storedDue, 1), $due, excludePrestitoId: $excludeLoanId)) {
+            return null;
+        }
+        return $due;
     }
 
     /**

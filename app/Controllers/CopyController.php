@@ -289,25 +289,7 @@ class CopyController
                 $reservationManager = null;
 
                 if (in_array($stato, ['perso', 'danneggiato', 'manutenzione', 'in_restauro', 'in_trasferimento'], true)) {
-                    // One copy may host several non-overlapping future holds.
-                    for ($guard = 0; $guard < 1000; $guard++) {
-                        $held = $db->prepare("
-                            SELECT 1 FROM prestiti
-                            WHERE copia_id = ? AND (
-                                (attivo = 1 AND stato IN ('prenotato','da_ritirare'))
-                                OR (attivo = 0 AND stato = 'pendente' AND origine = 'prenotazione')
-                            )
-                            LIMIT 1
-                        ");
-                        $held->bind_param('i', $copyId);
-                        $held->execute();
-                        $stillHeld = (bool) $held->get_result()->fetch_row();
-                        $held->close();
-                        if (!$stillHeld) {
-                            break;
-                        }
-                        $reassignmentService->reassignOnCopyLost($copyId);
-                    }
+                    $reassignmentService->reassignAllOnCopyLost($copyId);
                 } elseif ($stato === 'disponibile') {
                     $reassignmentService->reassignOnReturn($copyId);
                     $reservationManager = new \App\Controllers\ReservationManager($db);

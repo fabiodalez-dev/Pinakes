@@ -195,7 +195,7 @@ class UserActionsController
             // bloccante, quindi un'approvazione/annullamento concorrente può
             // averne cambiato lo stato (o, TOCTOU, il libro) nel frattempo.
             $stmt = $db->prepare("
-                SELECT id, copia_id, stato, libro_id, pickup_deadline
+                SELECT id, copia_id, stato, libro_id, pickup_deadline, data_scadenza
                 FROM prestiti
                 WHERE id = ? AND utente_id = ? AND (
                     (attivo = 0 AND stato = 'pendente')
@@ -224,7 +224,9 @@ class UserActionsController
             // ciò che il cron avrebbe chiuso come 'scaduto'. Solo 'da_ritirare'
             // porta una deadline attiva; prenotato/pendente restano 'annullato'.
             $todayApp = \App\Support\DateHelper::today();
-            $pickupDeadline = !empty($loan['pickup_deadline']) ? (string) $loan['pickup_deadline'] : null;
+            $pickupDeadline = \App\Support\LibraryCalendar::effectivePickupDeadline(
+                $db, $loan['pickup_deadline'], $loan['data_scadenza'], $loan['copia_id'] !== null ? (int) $loan['copia_id'] : null
+            );
             $pickupExpired = (string) $loan['stato'] === 'da_ritirare'
                 && $pickupDeadline !== null
                 && $pickupDeadline < $todayApp;

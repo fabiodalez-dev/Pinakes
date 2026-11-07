@@ -568,7 +568,9 @@ final class StaffLoanReader
             'due_at'          => $due,
             'effective_due_at' => $dates['effective_due_at'],
             'is_overdue'      => $isOverdue,
-            'pickup_deadline' => self::date($r['pickup_deadline'] ?? null),
+            'pickup_deadline' => $status === 'da_ritirare'
+                ? \App\Support\LibraryCalendar::effectivePickupDeadline($this->db, self::date($r['pickup_deadline'] ?? null), $due, $copyId)
+                : self::date($r['pickup_deadline'] ?? null),
             'returned_at'     => self::date($r['data_restituzione'] ?? null),
             'returned_late'   => (int) ($r['restituito_in_ritardo'] ?? 0) === 1,
             'days_overdue'    => $daysOverdue,

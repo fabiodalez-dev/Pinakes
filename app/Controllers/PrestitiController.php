@@ -1684,22 +1684,7 @@ class PrestitiController
                 // come fa CopyController::updateCopy per lo stesso evento.
                 $reassignmentService = new \App\Services\ReservationReassignmentService($db);
                 $reassignmentService->setExternalTransaction(true);
-                // A lost copy can hold MORE THAN ONE non-overlapping future reservation
-                // (period-based pre-booking, see the comment above). reassignOnCopyLost()
-                // handles a single hold, so loop until none is left pointing at the dead
-                // copy — each call either reassigns the hold to another copy or nulls its
-                // copia_id, so it always makes progress (bounded guard for safety).
-                for ($reassignGuard = 0; $reassignGuard < 1000; $reassignGuard++) {
-                    $stillHeld = $db->query(
-                        "SELECT 1 FROM prestiti WHERE copia_id = " . (int) $copia_id
-                        . " AND ((attivo = 1 AND stato IN ('prenotato','da_ritirare'))"
-                        . " OR (attivo = 0 AND stato = 'pendente' AND origine = 'prenotazione')) LIMIT 1"
-                    );
-                    if (!$stillHeld || $stillHeld->num_rows === 0) {
-                        break;
-                    }
-                    $reassignmentService->reassignOnCopyLost((int) $copia_id);
-                }
+                $reassignmentService->reassignAllOnCopyLost((int) $copia_id);
             }
 
             // Ricalcola le copie disponibili DOPO l'eventuale riassegnazione/conversione

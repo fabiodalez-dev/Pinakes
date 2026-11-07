@@ -73,7 +73,7 @@ final class UserLoanCalendar
     {
         $in = "'" . implode("','", self::STATES) . "'";
         $stmt = $this->db->prepare(
-            "SELECT p.id, p.stato, p.copia_id, p.data_prestito, p.data_scadenza, p.pickup_deadline,
+            "SELECT p.id, p.libro_id, p.stato, p.copia_id, p.data_prestito, p.data_scadenza, p.pickup_deadline,
                     DATE_FORMAT(p.updated_at, '%Y-%m-%d %H:%i:%s') AS updated_at,
                     UNIX_TIMESTAMP(p.updated_at) AS seq, l.titolo
                FROM prestiti p
@@ -89,7 +89,8 @@ final class UserLoanCalendar
         if ($stmt === false) {
             throw new \RuntimeException('loan calendar prepare failed: ' . $this->db->error);
         }
-        $stmt->bind_param('is', $userId, $today);
+        $candidateFloor = \App\Support\LibraryCalendar::forDb($this->db)->hasRules() ? '1000-01-01' : $today;
+        $stmt->bind_param('is', $userId, $candidateFloor);
         $stmt->execute();
         $result = $stmt->get_result();
         $rows = [];
@@ -100,9 +101,20 @@ final class UserLoanCalendar
 
         \App\Support\LibraryCalendar::primeCopyBranches($this->db, array_map(static fn (array $r): int => (int) ($r['copia_id'] ?? 0), $rows));
 
-        // A booked loan ends on its usable day, which a closure can put after the stored one.
-        return array_values(array_filter($rows, fn (array $r): bool => $r['stato'] !== 'prenotato'
-            || \App\Support\LibraryCalendar::dueDate($this->db, substr((string) $r['data_scadenza'], 0, 10), $r['copia_id'] !== null ? (int) $r['copia_id'] : null) >= $today));
+        $active = [];
+        foreach ($rows as $row) {
+            $dates = \App\Support\LibraryCalendar::loanDates($this->db, $row, $today);
+            $copyId = $row['copia_id'] !== null ? (int) $row['copia_id'] : null;
+            $end = $row['stato'] === 'da_ritirare'
+                ? \App\Support\LibraryCalendar::effectivePickupDeadline($this->db, $row['pickup_deadline'], $row['data_scadenza'], $copyId)
+                : null;
+            $row['calendar_end'] = $end ?? $dates['effective_due_at'] ?? $row['data_scadenza'];
+            $row['calendar_overdue'] = $dates['is_overdue'];
+            if (!in_array($row['stato'], ['prenotato', 'da_ritirare'], true) || $row['calendar_end'] >= $today) {
+                $active[] = $row;
+            }
+        }
+        return $active;
     }
 
     /**
@@ -111,7 +123,7 @@ final class UserLoanCalendar
     private function reservations(int $userId, string $today): array
     {
         $stmt = $this->db->prepare(
-            "SELECT r.id, r.data_prenotazione, r.data_scadenza_prenotazione, r.data_inizio_richiesta,
+            "SELECT r.id, r.libro_id, r.data_prenotazione, r.data_scadenza_prenotazione, r.data_inizio_richiesta,
                     r.data_fine_richiesta, DATE_FORMAT(r.updated_at, '%Y-%m-%d %H:%i:%s') AS updated_at,
                     UNIX_TIMESTAMP(r.updated_at) AS seq, l.titolo
                FROM prenotazioni r
@@ -123,12 +135,22 @@ final class UserLoanCalendar
         if ($stmt === false) {
             throw new \RuntimeException('reservation calendar prepare failed: ' . $this->db->error);
         }
-        $stmt->bind_param('is', $userId, $today);
+        $candidateFloor = \App\Support\LibraryCalendar::forDb($this->db)->hasRules() ? '1000-01-01' : $today;
+        $stmt->bind_param('is', $userId, $candidateFloor);
         $stmt->execute();
         $result = $stmt->get_result();
         $rows = [];
         while ($result !== false && ($r = $result->fetch_assoc()) !== null) {
-            $rows[] = $r;
+            $start = $r['data_inizio_richiesta']
+                ?? (!empty($r['data_prenotazione']) ? substr((string) $r['data_prenotazione'], 0, 10) : null)
+                ?? substr((string) $r['data_scadenza_prenotazione'], 0, 10);
+            $end = $r['data_fine_richiesta']
+                ?? (!empty($r['data_scadenza_prenotazione']) ? substr((string) $r['data_scadenza_prenotazione'], 0, 10) : null)
+                ?? $start;
+            [$r['calendar_start'], $r['calendar_end']] = \App\Support\LibraryCalendar::reservationCalendarDates($this->db, (int) $r['libro_id'], $start, $end);
+            if ($r['calendar_end'] >= $today) {
+                $rows[] = $r;
+            }
         }
         $stmt->close();
 
@@ -141,13 +163,10 @@ final class UserLoanCalendar
     private function loanEvent(array $loan, string $today, \DateTimeZone $tz, bool $withAlarm): string
     {
         $state = (string) $loan['stato'];
-        $dates = \App\Support\LibraryCalendar::loanDates($this->db, $loan, $today);
         if (in_array($state, ['in_corso', 'in_ritardo'], true)) {
-            $state = $dates['is_overdue'] ? 'in_ritardo' : 'in_corso';
+            $state = $loan['calendar_overdue'] ? 'in_ritardo' : 'in_corso';
         }
-        $end = ($state === 'da_ritirare' && !empty($loan['pickup_deadline']))
-            ? (string) $loan['pickup_deadline']
-            : (string) ($dates['effective_due_at'] ?? $loan['data_scadenza']);
+        $end = (string) $loan['calendar_end'];
         if ($state === 'in_ritardo') {
             // Still physically out today: never end the event on the missed date.
             $end = max($end, $today);
@@ -157,9 +176,10 @@ final class UserLoanCalendar
         // with it, one step per day past the stored date, so a client that
         // replaces an event by SEQUENCE takes the new end.
         $revisionShift = 0;
-        $storedDue = substr((string) ($loan['data_scadenza'] ?? ''), 0, 10);
-        if (in_array($state, ['in_corso', 'in_ritardo', 'prenotato'], true) && $storedDue !== '' && $end > $storedDue) {
-            $revisionShift = (int) (new \DateTimeImmutable($storedDue))->diff(new \DateTimeImmutable($end))->days;
+        $storedEnd = substr((string) ($state === 'da_ritirare' && $loan['pickup_deadline'] !== null
+            ? $loan['pickup_deadline'] : $loan['data_scadenza']), 0, 10);
+        if ($storedEnd !== '' && $end > $storedEnd) {
+            $revisionShift = (int) (new \DateTimeImmutable($storedEnd))->diff(new \DateTimeImmutable($end))->days;
         }
         $updatedAt = (string) ($loan['updated_at'] ?? '');
         // Removing a closure lowers the shift: the calendar's revision rose by
@@ -209,22 +229,17 @@ final class UserLoanCalendar
      */
     private function reservationEvent(array $r, \DateTimeZone $tz): string
     {
-        $start = $r['data_inizio_richiesta']
-            ?? (!empty($r['data_prenotazione']) ? substr((string) $r['data_prenotazione'], 0, 10) : null)
-            ?? substr((string) $r['data_scadenza_prenotazione'], 0, 10);
-        $end = $r['data_fine_richiesta']
-            ?? (!empty($r['data_scadenza_prenotazione']) ? substr((string) $r['data_scadenza_prenotazione'], 0, 10) : null)
-            ?? $start;
+        $this->calendarRevision ??= \App\Support\LibraryCalendar::revision($this->db);
         $title = (string) $r['titolo'];
 
         return $this->event(
             'reservation-' . (int) $r['id'] . '@pinakes',
-            (string) $start,
-            (string) $end,
+            (string) $r['calendar_start'],
+            (string) $r['calendar_end'],
             '📅 ' . __('Prenotazione') . ': ' . $title,
             __('Libro') . ': ' . $title . "\n" . __('Tipo') . ': ' . __('Prenotazione'),
             (string) ($r['updated_at'] ?? ''),
-            (int) ($r['seq'] ?? 0),
+            (int) ($r['seq'] ?? 0) + $this->calendarRevision,
             $tz,
             ''
         );
