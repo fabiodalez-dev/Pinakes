@@ -363,26 +363,7 @@ class ReservationReassignmentService
         $calendar = \App\Support\LibraryCalendar::forDb($this->db);
         $originalBranch = $calendar->hasRules() ? \App\Support\LibraryCalendar::branchOfCopy($this->db, $copiaId) : null;
         $candidateFloor = $calendar->hasRules() ? '1000-01-01' : $today;
-        $stmt = $this->db->prepare("
-            SELECT id, libro_id, utente_id, data_prestito, data_scadenza
-            FROM prestiti
-            WHERE copia_id = ?
-            AND data_scadenza >= ?
-            AND ( (attivo = 1 AND stato IN ('prenotato', 'da_ritirare'))
-                  OR (attivo = 0 AND stato = 'pendente' AND origine = 'prenotazione') )
-            ORDER BY data_prestito ASC, id ASC
-        ");
-        $stmt->bind_param('is', $copiaId, $candidateFloor);
-        $stmt->execute();
-        $rows = $stmt->get_result();
-        $reservation = null;
-        while ($candidate = $rows->fetch_assoc()) {
-            if ($calendar->nextOpenDay((string) $candidate['data_scadenza'], $originalBranch) >= $today) {
-                $reservation = $candidate;
-                break;
-            }
-        }
-        $stmt->close();
+        $reservation = $this->usableHoldOnCopy($copiaId, $today);
 
         if ($reservation === null) {
             return false;
@@ -550,11 +531,47 @@ class ReservationReassignmentService
         return $this->handleNoCopyAvailable($reservationId, $copiaId, $resEnd);
     }
 
+    /** @return array<string,mixed>|null */
+    private function usableHoldOnCopy(int $copiaId, string $today, bool $lockingRead = false): ?array
+    {
+        $calendar = \App\Support\LibraryCalendar::forDb($this->db);
+        $originalBranch = $calendar->hasRules() ? \App\Support\LibraryCalendar::branchOfCopy($this->db, $copiaId) : null;
+        $candidateFloor = $calendar->hasRules() ? '1000-01-01' : $today;
+        $lock = $lockingRead ? ' FOR UPDATE' : '';
+        $stmt = $this->db->prepare("
+            SELECT id, libro_id, utente_id, data_prestito, data_scadenza
+            FROM prestiti
+            WHERE copia_id = ?
+            AND data_scadenza >= ?
+            AND ( (attivo = 1 AND stato IN ('prenotato', 'da_ritirare'))
+                  OR (attivo = 0 AND stato = 'pendente' AND origine = 'prenotazione') )
+            ORDER BY data_prestito ASC, id ASC{$lock}
+        ");
+        $stmt->bind_param('is', $copiaId, $candidateFloor);
+        $stmt->execute();
+        $rows = $stmt->get_result();
+        $reservation = null;
+        while ($candidate = $rows->fetch_assoc()) {
+            if ($calendar->nextOpenDay((string) $candidate['data_scadenza'], $originalBranch) >= $today) {
+                $reservation = $candidate;
+                break;
+            }
+        }
+        $stmt->close();
+
+        return $reservation;
+    }
+
     /** Reassign all still-usable holds without spinning on already expired rows. */
     public function reassignAllOnCopyLost(int $copyId): void
     {
         for ($guard = 0; $guard < 1000; $guard++) {
             if (!$this->reassignOnCopyLost($copyId)) {
+                // A refused update (for example a trigger restoring the
+                // assignment) must not look like the end of the queue.
+                if ($this->usableHoldOnCopy($copyId, \App\Support\DateHelper::today(), lockingRead: true) !== null) {
+                    throw new \RuntimeException('Hold could not be moved from copy ' . $copyId);
+                }
                 return;
             }
         }
