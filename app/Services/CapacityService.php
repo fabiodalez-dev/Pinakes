@@ -124,11 +124,12 @@ final class CapacityService
         ?int $excludePrestitoId = null,
         ?int $excludeReservationId = null,
         ?int $excludeUserId = null,
-        ?int $excludeReservationsAfterQueuePos = null
+        ?int $excludeReservationsAfterQueuePos = null,
+        ?string $excludeQueueTailStartingBy = null
     ): int {
         $intervals = array_merge(
             $this->holdingLoanIntervals($libroId, $start, $end, $excludePrestitoId, $excludeUserId),
-            $this->activeReservationIntervals($libroId, $start, $end, $excludeReservationId, $excludeUserId, $excludeReservationsAfterQueuePos)
+            $this->activeReservationIntervals($libroId, $start, $end, $excludeReservationId, $excludeUserId, $excludeReservationsAfterQueuePos, $excludeQueueTailStartingBy)
         );
         return $this->sweepPeak($intervals);
     }
@@ -147,13 +148,14 @@ final class CapacityService
         ?int $excludePrestitoId = null,
         ?int $excludeReservationId = null,
         ?int $excludeUserId = null,
-        ?int $excludeReservationsAfterQueuePos = null
+        ?int $excludeReservationsAfterQueuePos = null,
+        ?string $excludeQueueTailStartingBy = null
     ): bool {
         $total = $this->totalCopies($libroId);
         if ($total <= 0) {
             return false;
         }
-        $occ = $this->occupiedCount($libroId, $start, $end, $excludePrestitoId, $excludeReservationId, $excludeUserId, $excludeReservationsAfterQueuePos);
+        $occ = $this->occupiedCount($libroId, $start, $end, $excludePrestitoId, $excludeReservationId, $excludeUserId, $excludeReservationsAfterQueuePos, $excludeQueueTailStartingBy);
         return $occ < $total;
     }
 
@@ -475,7 +477,7 @@ final class CapacityService
      * Active reservation intervals overlapping [$start,$end], clamped to the window.
      * @return list<array{0:string,1:string}>
      */
-    private function activeReservationIntervals(int $libroId, string $start, string $end, ?int $excludeReservationId, ?int $excludeUserId, ?int $excludeReservationsAfterQueuePos = null): array
+    private function activeReservationIntervals(int $libroId, string $start, string $end, ?int $excludeReservationId, ?int $excludeUserId, ?int $excludeReservationsAfterQueuePos = null, ?string $excludeQueueTailStartingBy = null): array
     {
         // Canonical 3-step coalesce chain for the reservation end (no 2-step variants).
         $rEnd = 'COALESCE(r.data_fine_richiesta, DATE(r.data_scadenza_prenotazione), r.data_inizio_richiesta)';
@@ -570,9 +572,17 @@ final class CapacityService
         // with a known queue_position strictly greater than the promoted one.
         // NULL queue_position rows still count (conservative — never overbook).
         if ($excludeReservationsAfterQueuePos !== null) {
-            $sql .= ' AND NOT (r.queue_position IS NOT NULL AND r.queue_position > ?)';
+            $sql .= ' AND NOT (r.queue_position IS NOT NULL AND r.queue_position > ?';
             $types .= 'i';
             $params[] = $excludeReservationsAfterQueuePos;
+            // On added days, FIFO still breaks ties in the original period,
+            // but does not take a separate window promised to a later reader.
+            if ($excludeQueueTailStartingBy !== null) {
+                $sql .= " AND $rStart <= ?";
+                $types .= 's';
+                $params[] = $excludeQueueTailStartingBy;
+            }
+            $sql .= ')';
         }
         return $this->fetchIntervals($sql, $types, $params, $end, $libroId, $today);
     }

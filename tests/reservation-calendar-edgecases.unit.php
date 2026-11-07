@@ -168,6 +168,17 @@ try {
 
         $reset();
         [$b] = $book();
+        $head = $reserve($b, $user, $today, $d(2));
+        $tail = $reserve($b, $other, $today, $d(2), 2);
+        $close($d(2), $d(3));
+        $db->begin_transaction();
+        $manager = new ReservationManager($db);
+        $manager->setExternalTransaction(true);
+        $check($manager->processBookAvailability($b) && $state($head) === 'completata' && $state($tail) === 'attiva', 'an overlapping lower-priority request does not stall FIFO when both returns shift');
+        $db->rollback();
+
+        $reset();
+        [$b] = $book();
         $r = $reserve($b, $user, $d(-3), $d(-1));
         $close($d(-1), $d(-1));
         $check($expire() === 0 && $state($r) === 'attiva', 'first reopening day does not cancel the queue');
