@@ -326,7 +326,9 @@ final class LibraryCalendar
      * day, with no open day after it gone by yet (isPastDue() false), goes
      * back to 'in_corso'; its reminder flags are kept.
      *
-     * Past due dates are not moved: that loan is late or returned. Call before
+     * Past due dates of loans out are not moved. A waiting pickup may still
+     * move when the first usable day is today or later, so a retroactive
+     * closure cannot make it expire before the reader could collect it. Call before
      * extendPickupDeadlines(), whose cap is the due date. $operatorId is the
      * history operator (ActivityLog::SYSTEM_OPERATOR from maintenance; null =
      * the session user, for a save from the calendar pages). Returns the
@@ -348,7 +350,7 @@ final class LibraryCalendar
              FROM prestiti p
              LEFT JOIN copie c ON c.id = p.copia_id
              WHERE p.attivo = 1 AND p.stato IN ('in_corso', 'da_ritirare', 'prenotato')
-               AND p.data_scadenza IS NOT NULL AND p.data_scadenza >= ?"
+               AND p.data_scadenza IS NOT NULL AND (p.data_scadenza >= ? OR p.stato = 'da_ritirare')"
         );
         if ($stmt === false) {
             return 0;
@@ -420,7 +422,7 @@ final class LibraryCalendar
                      FROM prestiti p LEFT JOIN copie c ON c.id = p.copia_id
                      WHERE p.id = ? AND p.libro_id = ? AND p.attivo = 1
                        AND p.stato IN ('in_corso', 'da_ritirare', 'prenotato')
-                       AND p.data_scadenza >= ? FOR UPDATE"
+                       AND (p.data_scadenza >= ? OR p.stato = 'da_ritirare') FOR UPDATE"
                 );
                 $lockLoan->bind_param('iis', $id, $bookId, $today);
                 $lockLoan->execute();
@@ -432,7 +434,7 @@ final class LibraryCalendar
                 }
                 $due = substr((string) $current['data_scadenza'], 0, 10);
                 $next = $calendar->nextOpenDay($due, $current['sede_id'] !== null ? (int) $current['sede_id'] : null);
-                if (!DateHelper::isISODateFormat($due) || $next <= $due) {
+                if (!DateHelper::isISODateFormat($due) || $next <= $due || $next < $today) {
                     if ($ownTransaction) { $db->commit(); }
                     continue;
                 }
@@ -730,6 +732,25 @@ final class LibraryCalendar
         return $calendar->nextOpenDay($due, self::requestBranch($db, $bookId));
     }
 
+    /** A closed deadline gives the reader the whole first open day to use it. */
+    public static function reservationExpired(\mysqli $db, string $deadline, int $bookId, string $now): bool
+    {
+        $day = substr($deadline, 0, 10);
+        if (!DateHelper::isISODateFormat($day)) {
+            return false;
+        }
+        $calendar = self::forDb($db);
+        if (!$calendar->hasRules()) {
+            return $deadline < $now;
+        }
+        $branch = self::requestBranch($db, $bookId);
+        if (!$calendar->isOpen(substr($now, 0, 10), $branch)) {
+            return false;
+        }
+        $effective = $calendar->nextOpenDay($day, $branch);
+        return ($effective > $day ? $effective . ' 23:59:59' : $deadline) < $now;
+    }
+
     /** The branch of the book's lendable copies when they all sit in one, otherwise null. */
     public static function requestBranch(\mysqli $db, int $bookId): ?int
     {
@@ -839,7 +860,30 @@ final class LibraryCalendar
                 continue;
             }
             $id = (int) $row['id'];
-            self::withBookLock($db, (int) $row['libro_id'], static function () use ($db, $next, $id, $deadline, &$moved): void {
+            self::withBookLock($db, (int) $row['libro_id'], static function () use ($db, $calendar, $today, $id, &$moved): void {
+                // The due date or assigned branch can change while waiting for
+                // the book lock. Recompute the cap from the current locked row.
+                $read = $db->prepare(
+                    "SELECT p.pickup_deadline, p.data_scadenza, c.sede_id
+                     FROM prestiti p LEFT JOIN copie c ON c.id = p.copia_id
+                     WHERE p.id = ? AND p.stato = 'da_ritirare' AND p.attivo = 1 FOR UPDATE"
+                );
+                $read->bind_param('i', $id);
+                $read->execute();
+                $current = $read->get_result()->fetch_assoc();
+                $read->close();
+                if ($current === null || $current['pickup_deadline'] === null) {
+                    return;
+                }
+                $deadline = substr((string) $current['pickup_deadline'], 0, 10);
+                $next = $calendar->nextOpenDay($deadline, $current['sede_id'] !== null ? (int) $current['sede_id'] : null);
+                $due = substr((string) ($current['data_scadenza'] ?? ''), 0, 10);
+                if (DateHelper::isISODateFormat($due)) {
+                    $next = min($next, $due);
+                }
+                if ($next <= $deadline || $next < $today) {
+                    return;
+                }
                 $stmt = $db->prepare(
                     "UPDATE prestiti SET pickup_deadline = ?
                      WHERE id = ? AND stato = 'da_ritirare' AND attivo = 1 AND pickup_deadline = ?"

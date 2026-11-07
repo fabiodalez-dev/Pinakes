@@ -200,7 +200,21 @@ try {
         $db->begin_transaction();
         $check($one("SELECT setting_value FROM system_settings WHERE category = 'calendar' AND setting_key = 'holiday_country'") === 'IT', 'the cron snapshot starts with Italy');
         HolidayPresets::apply($other, 'US', '', ['US:new_year'], '2030-01-01');
-        $check(HolidayPresets::ensureYears($db, '2030-01-01') === 0, 'upkeep sees the newly committed US selection and its already materialised rows');
+        try {
+            $added = HolidayPresets::ensureYears($db, '2030-01-01');
+        } catch (\mysqli_sql_exception $e) {
+            // MariaDB with innodb_snapshot_isolation refuses a current read
+            // of a row changed after this caller's snapshot (1020). The caller
+            // must restart its whole transaction; upkeep must not silently
+            // commit or discard its caller's work to hide that conflict.
+            if ($e->getCode() !== 1020 || !str_contains($db->server_info, 'MariaDB')) {
+                throw $e;
+            }
+            $db->rollback();
+            $db->begin_transaction();
+            $added = HolidayPresets::ensureYears($db, '2030-01-01');
+        }
+        $check($added === 0, 'upkeep sees the newly committed US selection and its already materialised rows');
         $check(\App\Support\DbAtomic::inTransaction($db), 'upkeep leaves its caller transaction open');
         $db->commit();
         $check(HolidayPresets::selection($db)['country'] === 'US' && $count("regola_festivita = 'IT:easter_monday'") === 0, 'upkeep never restores the old country after a concurrent apply');
