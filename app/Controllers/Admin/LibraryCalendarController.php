@@ -748,13 +748,10 @@ class LibraryCalendarController
                     $day = LibraryCalendar::shift($next['open'][$key], 1);
                 }
                 $calendar ??= new LibraryCalendar($next['weekdays'], $next['rows'], $next['holidays']);
-                $open = null;
-                while ($open === null && str_starts_with($day, (string) $year)) {
-                    if ($calendar->isOpen($day, $branch)) {
-                        $open = $day;
-                    }
-                    $day = LibraryCalendar::shift($day, 1);
-                }
+                // nextOpenDay() steps over a whole yearly closure at once, so a
+                // long annual closure costs one move per year, not one per day.
+                $found = $calendar->nextOpenDay($day, $branch);
+                $open = str_starts_with($found, (string) $year) && $calendar->isOpen($found, $branch) ? $found : null;
                 if ($open === null) {
                     return __('Con questa chiusura annuale la biblioteca resterebbe chiusa tutto l\'anno: almeno un giorno deve restare aperto.');
                 }

@@ -478,7 +478,7 @@ class ReservationManager
      * and creates a loan with state 'pendente' and origin 'prenotazione'.
      * The loan requires admin confirmation of physical book pickup.
      *
-     * @param array{libro_id: int, utente_id: int, data_inizio_richiesta: string, data_fine_richiesta: string, queue_position?: int|string|null} $reservation Reservation data
+     * @param array{id?: int|string, libro_id: int, utente_id: int, data_inizio_richiesta: string, data_fine_richiesta: string, queue_position?: int|string|null} $reservation Reservation data
      * @return int|false Loan ID on success, false on failure (no copies available or race condition)
      */
     private function createLoanFromReservation($reservation)
@@ -639,8 +639,19 @@ class ReservationManager
                     $branchDue,
                     excludeReservationsAfterQueuePos: $queuePos
                 );
+                // As for the general-calendar extension above, the days the
+                // branch adds must not run into a period already promised to
+                // any other reader, later queue positions included.
+                $extraStart = \App\Support\LibraryCalendar::shift((string) $endDate, 1);
                 if ($fits) {
-                    $extraStart = \App\Support\LibraryCalendar::shift((string) $endDate, 1);
+                    $fits = (new \App\Services\CapacityService($this->db, lockingReads: true))->hasFreeCapacity(
+                        $bookId,
+                        $extraStart,
+                        $branchDue,
+                        excludeReservationId: isset($reservation['id']) ? (int) $reservation['id'] : null
+                    );
+                }
+                if ($fits) {
                     $extraStmt = $this->db->prepare("
                         SELECT 1 FROM prestiti
                         WHERE copia_id = ?

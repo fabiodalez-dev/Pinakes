@@ -1076,21 +1076,46 @@ final class LibraryCalendar
     }
 
     /**
-     * The last day of the one-off closures of $sedeId (or of every branch)
-     * that contain $ymd, the latest when several overlap; null when none
-     * does (the day is closed by a weekday or a yearly closure, or open).
-     * Yearly closures are not considered: they are shorter than a year and
-     * a scan walks them day by day, within its bound.
+     * The last day of the closures of $sedeId (or of every branch) that
+     * contain $ymd, the latest when several overlap; null when none does (the
+     * day is closed by a weekday or a holiday, or open). For a yearly closure
+     * it is the last day of the occurrence containing $ymd, so a scan steps
+     * over a long annual closure in one move instead of day by day.
      */
     private function closedThrough(string $ymd, ?int $sedeId): ?string
     {
         $through = null;
+        $monthDay = substr($ymd, 5);
         foreach ($this->closures as $closure) {
-            if ($closure['yearly'] || ($closure['sede'] !== null && $closure['sede'] !== $sedeId)) {
+            if ($closure['sede'] !== null && $closure['sede'] !== $sedeId) {
                 continue;
             }
-            if ($ymd >= $closure['start'] && $ymd <= $closure['end'] && ($through === null || $closure['end'] > $through)) {
-                $through = $closure['end'];
+            if ($closure['yearly']) {
+                if (!self::recurringCovers($closure['start'], $closure['end'], $ymd, $monthDay)) {
+                    continue;
+                }
+                $year = (int) substr($ymd, 0, 4);
+                $to = substr($closure['end'], 5);
+                // A span wrapping over New Year, met in its December part,
+                // ends in the following year.
+                if ($to < substr($closure['start'], 5) && $monthDay > $to) {
+                    $year++;
+                }
+                if ($year > 9999) {
+                    continue;
+                }
+                // 29 February in a common year: the occurrence ends on the 28th.
+                $end = sprintf('%04d-%s', $year, $to);
+                if (!DateHelper::isISODateFormat($end)) {
+                    $end = sprintf('%04d-02-28', $year);
+                }
+            } elseif ($ymd >= $closure['start'] && $ymd <= $closure['end']) {
+                $end = $closure['end'];
+            } else {
+                continue;
+            }
+            if ($through === null || $end > $through) {
+                $through = $end;
             }
         }
         return $through;

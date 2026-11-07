@@ -20,6 +20,7 @@ use App\Support\DataIntegrity;
 use App\Support\DateHelper;
 use App\Support\Features;
 use App\Support\LibraryCalendar;
+use App\Support\MaintenanceService;
 use Slim\Psr7\Factory\ServerRequestFactory;
 use Slim\Psr7\Response;
 
@@ -79,7 +80,7 @@ try {
     Features::override('fines', false);
     $_SESSION = ['user' => ['id' => 1, 'tipo_utente' => 'admin']];
 
-    ConfigStore::usingConnection($db, function () use ($db, $check, $post): void {
+    ConfigStore::usingConnection($db, function () use ($db, $check, $post, $args, $sandbox): void {
         $today = DateHelper::today();
         $d = static fn (int $days): string => LibraryCalendar::shift($today, $days);
         DateHelper::synchronizeDatabaseSession($db);
@@ -220,6 +221,39 @@ try {
         $check($response->getStatusCode() === 200, 'pickup succeeds on the advertised effective day');
         $check($db->query("SELECT stato FROM prestiti WHERE id={$loan}")->fetch_row()[0] === 'in_corso', 'successful pickup starts the loan');
 
+        // Maintenance alone (no calendar save) must reconcile pickups before
+        // expiring them: when the reconciliation fails on another book, the
+        // pickup expiry waits for the next pass instead of cancelling a pickup
+        // whose deadline the closure should have moved.
+        $reset();
+        $pickupLoan = static function (int $bookId, int $copyId, int $userId) use ($db, $d): int {
+            $db->query("INSERT INTO prestiti (libro_id,copia_id,utente_id,data_prestito,data_scadenza,stato,origine,attivo,pickup_deadline)
+                        VALUES ({$bookId},{$copyId},{$userId},'{$d(-2)}','{$d(5)}','da_ritirare','richiesta',1,'{$d(-1)}')");
+            return (int) $db->insert_id;
+        };
+        [$blockedBook, $blockedCopy] = $book();
+        [$waitingBook, $waitingCopy] = $book();
+        $blockedLoan = $pickupLoan($blockedBook, $blockedCopy, $other);
+        $waitingLoan = $pickupLoan($waitingBook, $waitingCopy, $user);
+        $close($d(-1), $d(-1));
+        $holder = new mysqli($args[0], $args[1], $args[2], $sandbox, $args[4], $args[5]);
+        $holder->begin_transaction();
+        $holder->query("SELECT id FROM libri WHERE id={$blockedBook} FOR UPDATE");
+        $db->query('SET SESSION innodb_lock_wait_timeout = 1');
+        try {
+            $run = (new MaintenanceService($db))->runAll();
+        } finally {
+            $holder->rollback();
+            $holder->close();
+            $db->query('SET SESSION innodb_lock_wait_timeout = DEFAULT');
+        }
+        $pickupRow = static fn (int $id): array => $db->query("SELECT stato, pickup_deadline FROM prestiti WHERE id={$id}")->fetch_assoc();
+        $check((bool) array_filter($run['errors'], static fn ($e): bool => str_starts_with((string) $e, 'extendPickupDeadlines')), 'maintenance reports the failed pickup reconciliation');
+        $check($pickupRow($waitingLoan)['stato'] === 'da_ritirare', 'a failed reconciliation defers pickup expiry instead of cancelling the pickup');
+        $run = (new MaintenanceService($db))->runAll();
+        $check($pickupRow($waitingLoan)['stato'] === 'da_ritirare' && $pickupRow($waitingLoan)['pickup_deadline'] === $today
+            && $pickupRow($blockedLoan)['pickup_deadline'] === $today, 'the next maintenance pass moves both pickup deadlines to the reopening day');
+
         $reset();
         $calendarAdmin->store($post(['data_inizio' => '2026-01-01', 'data_fine' => '2026-12-29', 'ricorrente_annuale' => '1', 'descrizione' => 'Annual closure']), new Response(), $db);
         $holiday = ['nome' => 'Last open days', 'tipo' => 'fixed', 'fixed_mese' => '12', 'fixed_giorno' => '30', 'durata_giorni' => '2', 'attiva' => '1'];
@@ -252,6 +286,28 @@ try {
         $db->query("UPDATE prenotazioni SET data_inizio_richiesta=NULL, data_fine_richiesta=NULL WHERE libro_id={$b}");
         $db->query("UPDATE utenti SET stato='attivo' WHERE id={$user}");
         $check(!(new CapacityService($db))->hasFreeCapacity($b, $d(12), $d(12)), 'legacy NULL-start reservations still occupy their fallback day');
+
+        // The integrity audit reads a loan due on a closed day the way
+        // CapacityService does: it keeps its copy until the reopening day.
+        $reset();
+        [$b, $copy] = $book();
+        $close($d(3), $d(3));
+        $db->query("INSERT INTO prestiti (libro_id,copia_id,utente_id,data_prestito,data_scadenza,stato,origine,attivo)
+                    VALUES ({$b},{$copy},{$user},'{$d(-2)}','{$d(3)}','in_corso','richiesta',1)");
+        $reserve($b, $other, $d(4), $d(6));
+        $issues = (new DataIntegrity($db))->verifyDataConsistency();
+        $check(in_array('overbooked_circulation_period', array_column($issues, 'type'), true), 'integrity audit counts a loan until the reopening day after its closed due date');
+
+        // nextOpenDay() now steps over a whole yearly closure: same answers
+        // as the day-by-day walk, including the New Year wrap and 29 February.
+        $yearly = new LibraryCalendar([], [
+            ['data_inizio' => '2020-12-20', 'data_fine' => '2021-01-10', 'ricorrente_annuale' => 1],
+            ['data_inizio' => '2020-02-01', 'data_fine' => '2020-02-29', 'ricorrente_annuale' => 1],
+            ['data_inizio' => '2020-03-05', 'data_fine' => '2020-06-30', 'ricorrente_annuale' => 1],
+        ]);
+        $check($yearly->nextOpenDay('2027-12-25') === '2028-01-11' && $yearly->nextOpenDay('2028-01-02') === '2028-01-11', 'a yearly closure wrapping New Year is stepped over from either side');
+        $check($yearly->nextOpenDay('2027-02-10') === '2027-03-01' && $yearly->nextOpenDay('2028-02-10') === '2028-03-01', 'a closure ending on 29 February ends on the 28th in a common year');
+        $check($yearly->nextOpenDay('2027-03-05') === '2027-07-01' && $yearly->addOpenDays('2027-03-04', 1) === '2027-07-01', 'a long yearly closure is stepped over in one move');
     });
 } catch (Throwable $e) {
     $failed++;

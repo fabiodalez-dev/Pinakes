@@ -200,6 +200,15 @@ try {
         $db->begin_transaction();
         $check($one("SELECT setting_value FROM system_settings WHERE category = 'calendar' AND setting_key = 'holiday_country'") === 'IT', 'the cron snapshot starts with Italy');
         HolidayPresets::apply($other, 'US', '', ['US:new_year'], '2030-01-01');
+        // Only MariaDB with innodb_snapshot_isolation under REPEATABLE READ
+        // must refuse the current read; everywhere else upkeep goes through.
+        $expectConflict = false;
+        if (str_contains($db->server_info, 'MariaDB')) {
+            $iso = $db->query('SELECT @@innodb_snapshot_isolation, @@transaction_isolation');
+            $isoRow = $iso instanceof \mysqli_result ? $iso->fetch_row() : null;
+            $expectConflict = $isoRow !== null && (int) $isoRow[0] === 1 && $isoRow[1] === 'REPEATABLE-READ';
+        }
+        $conflicted = false;
         try {
             $added = HolidayPresets::ensureYears($db, '2030-01-01');
         } catch (\mysqli_sql_exception $e) {
@@ -210,9 +219,13 @@ try {
             if ($e->getCode() !== 1020 || !str_contains($db->server_info, 'MariaDB')) {
                 throw $e;
             }
+            $conflicted = true;
             $db->rollback();
             $db->begin_transaction();
             $added = HolidayPresets::ensureYears($db, '2030-01-01');
+        }
+        if ($expectConflict) {
+            $check($conflicted, 'MariaDB snapshot isolation: upkeep propagates the 1020 conflict instead of hiding it');
         }
         $check($added === 0, 'upkeep sees the newly committed US selection and its already materialised rows');
         $check(\App\Support\DbAtomic::inTransaction($db), 'upkeep leaves its caller transaction open');

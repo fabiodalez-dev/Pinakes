@@ -1031,7 +1031,7 @@ class DataIntegrity {
         $eventsByBook = [];
         $applicationToday = DateHelper::today();
         $stmt = $this->db->prepare("
-            SELECT libro_id, 'prestito' AS source_type, id AS source_id,
+            SELECT libro_id, 'prestito' AS source_type, id AS source_id, copia_id,
                    DATE(data_prestito) AS start_date,
                    DATE(CASE
                        -- Overdue loans occupy the copy open-endedly. The sentinel is
@@ -1070,6 +1070,12 @@ class DataIntegrity {
             if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $start) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $end)) {
                 continue;
             }
+            // A loan due on a closed day keeps its book until the day the
+            // reader is told, as in CapacityService, even when the stored date
+            // could not move. Overdue loans keep their open-ended sentinel.
+            if ($end !== '9999-12-30') {
+                $end = LibraryCalendar::holdingEnd($this->db, $end, $row['copia_id'] !== null ? (int) $row['copia_id'] : null);
+            }
             if ($end < $start) {
                 $end = $start;
             }
@@ -1087,43 +1093,26 @@ class DataIntegrity {
         $stmt->close();
 
         // Active waitlist reservations occupy their promised period too (the
-        // decision): add them as occupancy events with the same legacy-start
-        // fallback and canonical 3-step end chain used by CapacityService.
-        $stmt = $this->db->prepare("
-            SELECT libro_id,
-                   DATE(COALESCE(data_inizio_richiesta, DATE(data_scadenza_prenotazione))) AS start_date,
-                   DATE(COALESCE(data_fine_richiesta, DATE(data_scadenza_prenotazione), data_inizio_richiesta)) AS end_date
-            FROM prenotazioni
-            WHERE stato = 'attiva'
-              AND COALESCE(data_inizio_richiesta, DATE(data_scadenza_prenotazione)) IS NOT NULL
-        ");
-        $stmt->execute();
-        $resResult = $stmt->get_result();
-        while ($row = $resResult->fetch_assoc()) {
-            $bookId = (int) $row['libro_id'];
+        // decision). Read them through CapacityService, so the audit counts
+        // exactly the reservations the write gates count: the same legacy-start
+        // fallback and end chain, the end moved past closures, and the same
+        // pauses (ineligible patron, patron at the loan limit, material rule).
+        $capacityService = new \App\Services\CapacityService($this->db);
+        $resBooks = $this->db->query("SELECT DISTINCT libro_id FROM prenotazioni WHERE stato = 'attiva'");
+        $reservedBookIds = $resBooks instanceof \mysqli_result ? array_map('intval', array_column($resBooks->fetch_all(MYSQLI_NUM), 0)) : [];
+        if ($resBooks instanceof \mysqli_result) {
+            $resBooks->free();
+        }
+        foreach ($reservedBookIds as $bookId) {
             if (!isset($capacityByBook[$bookId])) {
                 continue;
             }
-            $start = substr((string) $row['start_date'], 0, 10);
-            $end = substr((string) ($row['end_date'] ?? ''), 0, 10);
-            if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $start)) {
-                continue;
+            foreach ($capacityService->reservationIntervalsInRange($bookId, '1000-01-01', '9999-12-30') as [$start, $end]) {
+                $endExclusive = (new \DateTimeImmutable($end))->modify('+1 day')->format('Y-m-d');
+                $eventsByBook[$bookId][$start] = ($eventsByBook[$bookId][$start] ?? 0) + 1;
+                $eventsByBook[$bookId][$endExclusive] = ($eventsByBook[$bookId][$endExclusive] ?? 0) - 1;
             }
-            if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $end) || $end < $start) {
-                $end = $start;
-            }
-            $end = LibraryCalendar::requestDueDate($this->db, $end, 0, $bookId);
-            $endExclusive = (new \DateTimeImmutable($end))->modify('+1 day')->format('Y-m-d');
-            // Defensive clamp: keep the sweep key a 4-digit 'YYYY-MM-DD' string so
-            // ksort's lexicographic order stays chronological (a 5-digit year like
-            // '10000-01-01' would sort before every real date and corrupt the peak).
-            if ($endExclusive > '9999-12-31') {
-                $endExclusive = '9999-12-31';
-            }
-            $eventsByBook[$bookId][$start] = ($eventsByBook[$bookId][$start] ?? 0) + 1;
-            $eventsByBook[$bookId][$endExclusive] = ($eventsByBook[$bookId][$endExclusive] ?? 0) - 1;
         }
-        $stmt->close();
 
         foreach ($eventsByBook as $bookId => $events) {
             ksort($events);

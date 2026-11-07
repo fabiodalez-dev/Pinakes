@@ -233,13 +233,18 @@ class MaintenanceService
         }
 
         // Reconcile waiting pickups on every pass, even if an unrelated loan
-        // could not move. Expiry must read the newly usable collection day.
+        // could not move. Expiry must read the newly usable collection day, so
+        // when the reconciliation fails the pickup expiry waits for the next
+        // pass instead of cancelling a pickup whose deadline was not moved.
+        $pickupDeadlinesReconciled = true;
         try {
             if (Features::enabled('closures_calendar')) {
                 LibraryCalendar::extendPickupDeadlines($this->db);
             }
         } catch (\Throwable $e) {
+            $pickupDeadlinesReconciled = false;
             $results['errors'][] = 'extendPickupDeadlines: ' . $e->getMessage();
+            SecureLogger::error('MaintenanceService: pickup deadlines not reconciled, pickup expiry deferred', ['error' => $e->getMessage()]);
         }
 
         // Overdue flip FIRST (#366 residual): flip date-overdue 'in_corso' loans
@@ -278,7 +283,9 @@ class MaintenanceService
         }
 
         try {
-            $results['expired_pickups'] = $this->checkExpiredPickups();
+            if ($pickupDeadlinesReconciled) {
+                $results['expired_pickups'] = $this->checkExpiredPickups();
+            }
         } catch (\Throwable $e) {
             $results['errors'][] = 'checkExpiredPickups: ' . $e->getMessage();
             SecureLogger::error(__('MaintenanceService errore ritiri scaduti'), ['error' => $e->getMessage()]);
