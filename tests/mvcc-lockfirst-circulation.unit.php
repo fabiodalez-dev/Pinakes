@@ -353,7 +353,7 @@ try {
     $rmSource = $readSource('/app/Controllers/ReservationManager.php');
     $pba = $extractMethod($rmSource, 'function processBookAvailability(');
     $fifoLockingRead = (bool) preg_match(
-        '/FROM prenotazioni r\s+JOIN utenti u ON r\.utente_id = u\.id.*?ORDER BY r\.queue_position ASC\s+LIMIT 1\s+FOR UPDATE/s',
+        '/FROM prenotazioni r\s+JOIN utenti u ON r\.utente_id = u\.id.*?ORDER BY r\.queue_position ASC(?:, r\.id ASC)?\s+LIMIT 1\s+FOR UPDATE/s',
         $pba
     );
     $queueReadUsesOffset = (bool) preg_match(

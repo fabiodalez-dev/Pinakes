@@ -72,7 +72,8 @@ class DataIntegrity {
             $stmt->execute();
             $stmt->close();
 
-            $reservationStillHolds = $this->reservationEndTodaySql($today);
+            $scheduledStillHolds = $this->scheduledLoanEndTodaySql($today);
+            $unassignedHoldCount = $this->unassignedHoldCountTodaySql($today, $scheduledStillHolds);
             // Ricalcola copie_disponibili e stato per tutti i libri non soft-deleted
             // Conta le copie fisicamente disponibili OGGI:
             // - Include copie 'disponibile' e 'prenotato' (fisicamente in biblioteca)
@@ -93,7 +94,7 @@ class DataIntegrity {
                             AND (
                                 ( p.attivo = 1 AND (
                                     p.stato IN ('in_corso', 'in_ritardo', 'da_ritirare')
-                                    OR (p.stato = 'prenotato' AND p.data_prestito <= '{$today}' AND p.data_scadenza >= '{$today}')
+                                    OR (p.stato = 'prenotato' AND p.data_prestito <= '{$today}' AND {$scheduledStillHolds})
                                 ) )
                                 OR ( p.attivo = 0 AND p.stato = 'pendente' AND p.copia_id IS NOT NULL )
                             )
@@ -101,15 +102,7 @@ class DataIntegrity {
                         AND c.stato IN ('disponibile', 'prenotato')
                         AND {$lendable}
                         AND p.id IS NULL
-                    ) - (
-                        SELECT COUNT(*)
-                        FROM prenotazioni pr
-                        WHERE pr.libro_id = l.id
-                        AND pr.stato = 'attiva'
-                        AND COALESCE(pr.data_inizio_richiesta, DATE(pr.data_scadenza_prenotazione)) IS NOT NULL
-                        AND COALESCE(pr.data_inizio_richiesta, DATE(pr.data_scadenza_prenotazione)) <= '{$today}'
-                        AND {$reservationStillHolds}
-                    ),
+                    ) - {$unassignedHoldCount},
                     0
                 ),
                 copie_totali = (
@@ -127,7 +120,7 @@ class DataIntegrity {
                                 AND (
                                     ( p.attivo = 1 AND (
                                         p.stato IN ('in_corso', 'in_ritardo', 'da_ritirare')
-                                        OR (p.stato = 'prenotato' AND p.data_prestito <= '{$today}' AND p.data_scadenza >= '{$today}')
+                                        OR (p.stato = 'prenotato' AND p.data_prestito <= '{$today}' AND {$scheduledStillHolds})
                                     ) )
                                     OR ( p.attivo = 0 AND p.stato = 'pendente' AND p.copia_id IS NOT NULL )
                                 )
@@ -135,15 +128,7 @@ class DataIntegrity {
                             AND c.stato IN ('disponibile', 'prenotato')
                             AND {$lendable}
                             AND p.id IS NULL
-                        ) - (
-                            SELECT COUNT(*)
-                            FROM prenotazioni pr
-                            WHERE pr.libro_id = l.id
-                            AND pr.stato = 'attiva'
-                            AND COALESCE(pr.data_inizio_richiesta, DATE(pr.data_scadenza_prenotazione)) IS NOT NULL
-                            AND COALESCE(pr.data_inizio_richiesta, DATE(pr.data_scadenza_prenotazione)) <= '{$today}'
-                            AND {$reservationStillHolds}
-                        ),
+                        ) - {$unassignedHoldCount},
                         0
                     ) > 0 THEN 'disponibile'
                     WHEN (SELECT COUNT(*) FROM copie c WHERE c.libro_id = l.id AND c.stato = 'prestato') > 0 THEN 'prestato'
@@ -215,42 +200,72 @@ class DataIntegrity {
         return $results;
     }
 
-    /** Extend the counter's SQL predicate only for reservations reaching today after a closure. */
-    private function reservationEndTodaySql(string $today, ?int $bookId = null): string
+    /** A copyless scheduled loan takes a title slot until it receives a copy. */
+    private function unassignedHoldCountTodaySql(string $today, string $scheduledStillHolds, ?int $bookId = null): string
     {
-        $end = 'COALESCE(pr.data_fine_richiesta, DATE(pr.data_scadenza_prenotazione), pr.data_inizio_richiesta)';
-        $raw = "{$end} >= '{$today}'";
-        $calendar = LibraryCalendar::forDb($this->db);
-        if (!$calendar->hasRules()) {
+        $reservationCount = $this->reservationCountTodaySql($today, $bookId);
+        return "({$reservationCount} + (SELECT COUNT(*) FROM prestiti p WHERE p.libro_id = l.id AND p.copia_id IS NULL
+                      AND p.attivo = 1 AND p.stato = 'prenotato' AND p.data_prestito <= '{$today}' AND {$scheduledStillHolds}))";
+    }
+
+    /** The counter uses the same effective intervals and pauses as the booking gates. */
+    private function reservationCountTodaySql(string $today, ?int $bookId = null): string
+    {
+        $start = 'COALESCE(pr.data_inizio_richiesta, DATE(pr.data_scadenza_prenotazione))';
+        if (!LibraryCalendar::forDb($this->db)->hasRules()) {
+            return "(SELECT COUNT(*) FROM prenotazioni pr WHERE pr.libro_id = l.id AND pr.stato = 'attiva'
+                      AND {$start} <= '{$today}'
+                      AND COALESCE(pr.data_fine_richiesta, DATE(pr.data_scadenza_prenotazione), pr.data_inizio_richiesta) >= '{$today}')";
+        }
+        $capacity = new \App\Services\CapacityService($this->db, lockingReads: true);
+        if ($bookId !== null) {
+            return (string) count($capacity->reservationIntervalsInRange($bookId, $today, $today));
+        }
+
+        $stmt = $this->db->prepare("SELECT pr.libro_id FROM prenotazioni pr WHERE pr.stato = 'attiva' AND {$start} <= ? FOR UPDATE");
+        $stmt->bind_param('s', $today);
+        $stmt->execute();
+        $bookIds = array_unique(array_column($stmt->get_result()->fetch_all(MYSQLI_NUM), 0));
+        $stmt->close();
+        $counts = [];
+        foreach ($bookIds as $id) {
+            $id = (int) $id;
+            $count = count($capacity->reservationIntervalsInRange($id, $today, $today));
+            if ($count > 0) {
+                $counts[] = "WHEN {$id} THEN {$count}";
+            }
+        }
+        return $counts === [] ? '0' : '(CASE l.id ' . implode(' ', $counts) . ' ELSE 0 END)';
+    }
+
+    /** Scheduled holds still occupied today after their stored due day. */
+    private function scheduledLoanEndTodaySql(string $today, ?int $bookId = null): string
+    {
+        $raw = "p.data_scadenza >= '{$today}'";
+        if (!LibraryCalendar::forDb($this->db)->hasRules()) {
             return $raw;
         }
-        $bookFilter = $bookId === null ? '' : ' AND pr.libro_id = ?';
-        $stmt = $this->db->prepare(
-            "SELECT pr.id, pr.libro_id, {$end} AS due
-             FROM prenotazioni pr WHERE pr.stato = 'attiva'
-               AND COALESCE(pr.data_inizio_richiesta, DATE(pr.data_scadenza_prenotazione)) <= ?
-               AND {$end} < ?{$bookFilter} FOR UPDATE"
-        );
+        $bookFilter = $bookId === null ? '' : ' AND libro_id = ?';
+        $stmt = $this->db->prepare("SELECT id, libro_id, copia_id, data_scadenza FROM prestiti
+                                  WHERE attivo = 1 AND stato = 'prenotato'
+                                    AND data_prestito <= ? AND data_scadenza < ?{$bookFilter} FOR UPDATE");
         if ($bookId === null) {
             $stmt->bind_param('ss', $today, $today);
         } else {
             $stmt->bind_param('ssi', $today, $today, $bookId);
         }
         $stmt->execute();
-        $rows = $stmt->get_result();
-        $branches = [];
+        $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+        $stmt->close();
+        LibraryCalendar::primeCopyBranches($this->db, array_map(static fn (array $r): int => (int) $r['copia_id'], $rows));
         $extended = [];
-        while ($row = $rows->fetch_assoc()) {
-            $id = (int) $row['libro_id'];
-            if (!array_key_exists($id, $branches)) {
-                $branches[$id] = LibraryCalendar::requestBranch($this->db, $id, lockingRead: true);
-            }
-            if ($calendar->nextOpenDay((string) $row['due'], $branches[$id]) >= $today) {
+        foreach ($rows as $row) {
+            $copyId = isset($row['copia_id']) ? (int) $row['copia_id'] : null;
+            if (LibraryCalendar::holdingEnd($this->db, (string) $row['data_scadenza'], $copyId, (int) $row['libro_id'], lockingRead: true) >= $today) {
                 $extended[] = (int) $row['id'];
             }
         }
-        $stmt->close();
-        return $extended === [] ? $raw : "({$raw} OR pr.id IN (" . implode(',', $extended) . '))';
+        return $extended === [] ? $raw : "({$raw} OR p.id IN (" . implode(',', $extended) . '))';
     }
 
     /**
@@ -407,7 +422,8 @@ class DataIntegrity {
             $stmt->execute();
             $stmt->close();
 
-            $reservationStillHolds = $this->reservationEndTodaySql($today, $bookId);
+            $scheduledStillHolds = $this->scheduledLoanEndTodaySql($today, $bookId);
+            $unassignedHoldCount = $this->unassignedHoldCountTodaySql($today, $scheduledStillHolds, $bookId);
             // Aggiorna copie_disponibili e stato del libro dalla tabella copie
             // Conta le copie fisicamente disponibili OGGI:
             // - Include copie 'disponibile' e 'prenotato' (fisicamente in biblioteca)
@@ -428,7 +444,7 @@ class DataIntegrity {
                             AND (
                                 ( p.attivo = 1 AND (
                                     p.stato IN ('in_corso', 'in_ritardo', 'da_ritirare')
-                                    OR (p.stato = 'prenotato' AND p.data_prestito <= '{$today}' AND p.data_scadenza >= '{$today}')
+                                    OR (p.stato = 'prenotato' AND p.data_prestito <= '{$today}' AND {$scheduledStillHolds})
                                 ) )
                                 OR ( p.attivo = 0 AND p.stato = 'pendente' AND p.copia_id IS NOT NULL )
                             )
@@ -436,15 +452,7 @@ class DataIntegrity {
                         AND c.stato IN ('disponibile', 'prenotato')
                         AND {$lendable}
                         AND p.id IS NULL
-                    ) - (
-                        SELECT COUNT(*)
-                        FROM prenotazioni pr
-                        WHERE pr.libro_id = ?
-                        AND pr.stato = 'attiva'
-                        AND COALESCE(pr.data_inizio_richiesta, DATE(pr.data_scadenza_prenotazione)) IS NOT NULL
-                        AND COALESCE(pr.data_inizio_richiesta, DATE(pr.data_scadenza_prenotazione)) <= '{$today}'
-                        AND {$reservationStillHolds}
-                    ),
+                    ) - {$unassignedHoldCount},
                     0
                 ),
                 copie_totali = (
@@ -462,7 +470,7 @@ class DataIntegrity {
                                 AND (
                                     ( p.attivo = 1 AND (
                                         p.stato IN ('in_corso', 'in_ritardo', 'da_ritirare')
-                                        OR (p.stato = 'prenotato' AND p.data_prestito <= '{$today}' AND p.data_scadenza >= '{$today}')
+                                        OR (p.stato = 'prenotato' AND p.data_prestito <= '{$today}' AND {$scheduledStillHolds})
                                     ) )
                                     OR ( p.attivo = 0 AND p.stato = 'pendente' AND p.copia_id IS NOT NULL )
                                 )
@@ -470,15 +478,7 @@ class DataIntegrity {
                             AND c.stato IN ('disponibile', 'prenotato')
                             AND {$lendable}
                             AND p.id IS NULL
-                        ) - (
-                            SELECT COUNT(*)
-                            FROM prenotazioni pr
-                            WHERE pr.libro_id = ?
-                            AND pr.stato = 'attiva'
-                            AND COALESCE(pr.data_inizio_richiesta, DATE(pr.data_scadenza_prenotazione)) IS NOT NULL
-                            AND COALESCE(pr.data_inizio_richiesta, DATE(pr.data_scadenza_prenotazione)) <= '{$today}'
-                            AND {$reservationStillHolds}
-                        ),
+                        ) - {$unassignedHoldCount},
                         0
                     ) > 0 THEN 'disponibile'
                     WHEN (SELECT COUNT(*) FROM copie c WHERE c.libro_id = ? AND c.stato = 'prestato') > 0 THEN 'prestato'
@@ -494,7 +494,7 @@ class DataIntegrity {
                 END
                 WHERE id = ?
             ");
-            $stmt->bind_param('iiiiiiiiii', $bookId, $bookId, $bookId, $bookId, $bookId, $bookId, $bookId, $bookId, $bookId, $bookId);
+            $stmt->bind_param('iiiiiiii', $bookId, $bookId, $bookId, $bookId, $bookId, $bookId, $bookId, $bookId);
             $result = $stmt->execute();
             $stmt->close();
 
@@ -1071,22 +1071,9 @@ class DataIntegrity {
         $eventsByBook = [];
         $applicationToday = DateHelper::today();
         $stmt = $this->db->prepare("
-            SELECT libro_id, 'prestito' AS source_type, id AS source_id, copia_id, attivo,
+            SELECT libro_id, copia_id, attivo, stato,
                    DATE(data_prestito) AS start_date,
-                   DATE(CASE
-                       -- Overdue loans occupy the copy open-endedly. The sentinel is
-                       -- 9999-12-30 (NOT 9999-12-31) so the +1-day endExclusive below
-                       -- stays a 4-digit 'YYYY-MM-DD' string: '10000-01-01' would sort
-                       -- BEFORE every real date under ksort's lexicographic order
-                       -- ('1' < '2'), zeroing the overdue occupancy in the peak scan.
-                       -- A date-overdue `in_corso` row is the same unreturned
-                       -- physical copy before maintenance flips its state (#366).
-                       WHEN attivo = 1 AND (
-                           stato = 'in_ritardo'
-                           OR (stato = 'in_corso' AND data_scadenza < ?)
-                       ) THEN '9999-12-30'
-                       ELSE data_scadenza
-                   END) AS end_date
+                   DATE(data_scadenza) AS end_date
             FROM prestiti
             WHERE (
                     (attivo = 1 AND stato IN ('prenotato', 'da_ritirare', 'in_corso', 'in_ritardo'))
@@ -1095,7 +1082,6 @@ class DataIntegrity {
               AND data_prestito IS NOT NULL
               AND data_scadenza IS NOT NULL
         ");
-        $stmt->bind_param('s', $applicationToday);
         $stmt->execute();
         $intervalsResult = $stmt->get_result();
 
@@ -1110,11 +1096,15 @@ class DataIntegrity {
             if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $start) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $end)) {
                 continue;
             }
-            // A loan due on a closed day keeps its book until the day the
-            // reader is told, as in CapacityService, even when the stored date
-            // could not move. Overdue loans keep their open-ended sentinel.
-            if ((int) $row['attivo'] === 1 && $end !== '9999-12-30') {
-                $end = LibraryCalendar::holdingEnd($this->db, $end, $row['copia_id'] !== null ? (int) $row['copia_id'] : null);
+            if ((int) $row['attivo'] === 1) {
+                $copyId = $row['copia_id'] !== null ? (int) $row['copia_id'] : null;
+                $due = LibraryCalendar::dueDate($this->db, $end, $copyId);
+                $end = LibraryCalendar::holdingEnd($this->db, $end, $copyId, $row['stato'] === 'prenotato' ? $bookId : null);
+                if ($row['stato'] === 'in_ritardo' || ($row['stato'] === 'in_corso' && $due < $applicationToday)) {
+                    // A genuinely overdue loan holds indefinitely. Leave one
+                    // day for the exclusive end to stay within a four-digit year.
+                    $end = '9999-12-30';
+                }
             }
             if ($end < $start) {
                 $end = $start;

@@ -160,7 +160,7 @@ final class CapacityService
     }
 
     /**
-     * Earliest day on or after $from with at least one free capacity unit.
+     * Earliest open day on or after $from with at least one free capacity unit.
      *
      * Uses the same canonical HOLDING/reservation intervals as every write
      * gate, then sweeps only their boundary events. Open-ended overdue loans
@@ -182,18 +182,30 @@ final class CapacityService
         if ($total <= 0) {
             return null;
         }
+        $calendar = \App\Support\LibraryCalendar::forDb($this->db);
+        $branch = $calendar->hasRules() ? \App\Support\LibraryCalendar::requestBranch($this->db, $libroId) : null;
+        $copyBranches = $calendar->hasRules() ? $this->mixedLendingCopyBranches($libroId) : [];
+        $copyIntervals = [];
+        $trackCopy = $copyBranches === [] ? null : static function (int $copyId, string $start, string $end) use (&$copyIntervals): void {
+            $copyIntervals[$copyId][] = [$start, $end];
+        };
 
         // Keep one day available for finite end+1 events. Any interval clamped
         // to this horizon is effectively open-ended for application purposes.
         $horizon = '9999-12-30';
         $intervals = array_merge(
-            $this->holdingLoanIntervals($libroId, $from, $horizon, null, null),
+            $this->holdingLoanIntervals($libroId, $from, $horizon, null, null, onCopyInterval: $trackCopy),
             $this->activeReservationIntervals($libroId, $from, $horizon, null, null)
         );
-        if ($intervals === []) {
-            return $from;
+        foreach ($copyIntervals as &$held) {
+            sort($held);
         }
-
+        unset($held);
+        $firstOpen = static function (string $start, string $end) use ($calendar, $branch, $copyBranches, $copyIntervals): ?string {
+            return $copyBranches === []
+                ? $calendar->firstOpenDayBetween($start, $end, $branch)
+                : self::firstFreeOpenCopyDay($calendar, $start, $end, $copyBranches, $copyIntervals);
+        };
         /** @var array<string, int> $events */
         $events = [];
         foreach ($intervals as [$start, $end]) {
@@ -208,21 +220,68 @@ final class CapacityService
         $occupied = 0;
         $cursor = $from;
         foreach ($events as $date => $delta) {
-            // No boundary changes between cursor and date: if capacity was
-            // already free, cursor is the earliest possible answer.
+            // Search only this free segment. If it is entirely closed, the
+            // first open day could already belong to the next borrower.
             if ($date > $cursor && $occupied < $total) {
-                return $cursor;
+                $open = $firstOpen($cursor, \App\Support\LibraryCalendar::shift($date, -1));
+                if ($open !== null) {
+                    return $open;
+                }
             }
             $occupied += $delta;
-            if ($date >= $from && $occupied < $total) {
-                return $date;
-            }
             $cursor = $date;
         }
 
-        // Remaining occupancy is made exclusively of horizon-clamped,
-        // open-ended commitments; their physical return date is unknown.
-        return null;
+        // Remaining occupants have no known release date.
+        return $occupied < $total ? $firstOpen($cursor, $horizon) : null;
+    }
+
+    /** @return array<int, ?int> physical copies in titles with more than one branch calendar */
+    private function mixedLendingCopyBranches(int $bookId): array
+    {
+        $lendable = ($this->circulation ??= new CirculationPolicy($this->db))->lendableCopySql('');
+        $stmt = $this->db->prepare("SELECT id, sede_id FROM copie WHERE libro_id = ? AND {$lendable}
+                                   AND stato NOT IN ('perso','danneggiato','manutenzione','in_restauro','in_trasferimento')");
+        $stmt->bind_param('i', $bookId);
+        $stmt->execute();
+        $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+        $stmt->close();
+        $copies = [];
+        foreach ($rows as $row) {
+            $copies[(int) $row['id']] = $row['sede_id'] === null ? null : (int) $row['sede_id'];
+        }
+        return count(array_unique($copies, SORT_REGULAR)) > 1 ? $copies : [];
+    }
+
+    /**
+     * @param array<int, ?int> $branches
+     * @param array<int, list<array{string,string}>> $intervals
+     */
+    private static function firstFreeOpenCopyDay(\App\Support\LibraryCalendar $calendar, string $start, string $end, array $branches, array $intervals): ?string
+    {
+        $first = null;
+        foreach ($branches as $copyId => $branch) {
+            $cursor = $start;
+            $last = $first === null ? $end : \App\Support\LibraryCalendar::shift($first, -1);
+            foreach ($intervals[$copyId] ?? [] as [$heldFrom, $heldThrough]) {
+                if ($heldThrough < $cursor) {
+                    continue;
+                }
+                if ($heldFrom > $cursor) {
+                    $open = $calendar->firstOpenDayBetween($cursor, min($last, \App\Support\LibraryCalendar::shift($heldFrom, -1)), $branch);
+                    if ($open !== null) {
+                        $first = $open;
+                        continue 2;
+                    }
+                }
+                if ($heldThrough >= $last) {
+                    continue 2;
+                }
+                $cursor = \App\Support\LibraryCalendar::shift($heldThrough, 1);
+            }
+            $first = $calendar->firstOpenDayBetween($cursor, $last, $branch) ?? $first;
+        }
+        return $first;
     }
 
     /**
@@ -391,9 +450,10 @@ final class CapacityService
 
     /**
      * HOLDING loan intervals overlapping [$start,$end], clamped to the window.
+     * @param (callable(int, string, string): void)|null $onCopyInterval
      * @return list<array{0:string,1:string}>
      */
-    private function holdingLoanIntervals(int $libroId, string $start, string $end, ?int $excludePrestitoId, ?int $excludeUserId, ?int $copyId = null): array
+    private function holdingLoanIntervals(int $libroId, string $start, string $end, ?int $excludePrestitoId, ?int $excludeUserId, ?int $copyId = null, ?callable $onCopyInterval = null): array
     {
         // An unreturned overdue loan has no known end yet. Its contractual due
         // date is in the past, but the physical copy remains out of the library:
@@ -404,13 +464,17 @@ final class CapacityService
         // same unreturned copy — treat it exactly like 'in_ritardo' (one branch,
         // one clamp, never both on the same row: the OR selects a single case).
         $today = \App\Support\DateHelper::today();
-        $openEnded = "(p.attivo = 1 AND (p.stato = 'in_ritardo' OR (p.stato = 'in_corso' AND p.data_scadenza < ?)))";
+        $hasCalendar = \App\Support\LibraryCalendar::forDb($this->db)->hasRules();
+        $useRawDue = $hasCalendar ? '0' : '1';
+        $openEnded = "(p.attivo = 1 AND (p.stato = 'in_ritardo' OR ({$useRawDue} = 1 AND p.stato = 'in_corso' AND p.data_scadenza < ?)))";
         $sql = "SELECT GREATEST(p.data_prestito, ?) AS s,
                        LEAST(CASE
                            WHEN {$openEnded} THEN ?
                            ELSE p.data_scadenza
                        END, ?) AS e,
                        IF(p.attivo = 1, p.data_scadenza, NULL) AS stored_due,
+                       p.stato AS loan_state,
+                       p.libro_id AS loan_book,
                        p.copia_id AS stored_copy
                 FROM prestiti p
                 WHERE p.libro_id = ?
@@ -422,7 +486,6 @@ final class CapacityService
         // A loan whose stored day is closed ends on the next open day, which the
         // reader is told, even when the move was refused and the row kept its
         // date. With a calendar, a stored day before the window can still reach it.
-        $hasCalendar = \App\Support\LibraryCalendar::forDb($this->db)->hasRules();
         $params = [$start, $today, $end, $end, $libroId, $end, $today, $hasCalendar ? '1000-01-01' : $start];
         if ($excludePrestitoId !== null) {
             $sql .= ' AND p.id <> ?';
@@ -439,7 +502,7 @@ final class CapacityService
             $types .= 'i';
             $params[] = $copyId;
         }
-        return $this->fetchIntervals($sql, $types, $params, $end);
+        return $this->fetchIntervals($sql, $types, $params, $end, today: $today, onCopyInterval: $onCopyInterval);
     }
 
     /** Whether this physical copy has a commitment in the inclusive window. */
@@ -468,8 +531,8 @@ final class CapacityService
         // Start falls back to the reservation deadline for legacy 'attiva' rows whose
         // data_inizio_richiesta is NULL (nullable column). For normal rows the COALESCE
         // returns data_inizio_richiesta unchanged, so this is behaviour-preserving; it
-        // only stops such legacy holds from silently vanishing from the occupancy peak
-        // (they never promote either, so they'd otherwise allow overbooking their copy).
+        // stops such legacy holds from vanishing from the occupancy peak while
+        // promotion uses the same fallback day.
         $rStart = 'COALESCE(r.data_inizio_richiesta, DATE(r.data_scadenza_prenotazione))';
         // A reservation belonging to a currently ineligible patron is paused,
         // not allowed to consume scarce capacity and starve eligible readers.
@@ -597,9 +660,10 @@ final class CapacityService
     /**
      * @param string $types
      * @param list<int|string> $params
+     * @param (callable(int, string, string): void)|null $onCopyInterval
      * @return list<array{0:string,1:string}>
      */
-    private function fetchIntervals(string $sql, string $types, array $params, ?string $windowEnd = null, ?int $reservationBookId = null, ?string $today = null): array
+    private function fetchIntervals(string $sql, string $types, array $params, ?string $windowEnd = null, ?int $reservationBookId = null, ?string $today = null, ?callable $onCopyInterval = null): array
     {
         if ($this->lockingReads) {
             $sql .= ' FOR UPDATE';
@@ -621,9 +685,12 @@ final class CapacityService
             $s = (string) $row['s'];
             $e = (string) $row['e'];
             $storedDue = (string) ($row['stored_due'] ?? '');
-            if ($windowEnd !== null && $storedDue !== '' && $e === $storedDue) {
+            if ($windowEnd !== null && $storedDue !== '' && $calendar->hasRules() && $row['loan_state'] !== 'in_ritardo') {
                 $copyId = $row['stored_copy'] !== null ? (int) $row['stored_copy'] : null;
-                $e = min(\App\Support\LibraryCalendar::holdingEnd($this->db, $storedDue, $copyId), $windowEnd);
+                $scheduledBookId = $row['loan_state'] === 'prenotato' ? (int) $row['loan_book'] : null;
+                $e = $row['loan_state'] === 'in_corso' && $today !== null && \App\Support\LibraryCalendar::isPastDue($this->db, $storedDue, $copyId, $today)
+                    ? $windowEnd
+                    : min(\App\Support\LibraryCalendar::holdingEnd($this->db, $storedDue, $copyId, $scheduledBookId, $this->lockingReads), $windowEnd);
             }
             if ($windowEnd !== null && isset($row['reservation_due'])) {
                 $effectiveEnd = $calendar->nextOpenDay((string) $row['reservation_due'], $branch);
@@ -640,6 +707,9 @@ final class CapacityService
             }
             if ($s !== '' && $e !== '' && $s <= $e) {
                 $out[] = [$s, $e];
+                if ($onCopyInterval !== null && isset($row['stored_copy'])) {
+                    $onCopyInterval((int) $row['stored_copy'], $s, $e);
+                }
             }
         }
         $stmt->close();
