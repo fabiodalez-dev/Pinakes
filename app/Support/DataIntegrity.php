@@ -1365,7 +1365,10 @@ class DataIntegrity {
                                 'utente_nome' => (string) $info['nome'],
                                 'libro_titolo' => (string) $info['titolo'],
                                 // Raw: formattata da sendQueueReservationExpiredNotification()
-                                'data_scadenza' => (string) $exp['data_scadenza_prenotazione'],
+                                // The effective deadline expiry used, not a closed stored day.
+                                'data_scadenza' => LibraryCalendar::reservationDeadline(
+                                    $this->db, (string) $exp['data_scadenza_prenotazione'], (int) $exp['libro_id']
+                                ),
                             ],
                         ];
                     }

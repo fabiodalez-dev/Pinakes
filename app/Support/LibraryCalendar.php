@@ -747,8 +747,24 @@ final class LibraryCalendar
         if (!$calendar->isOpen(substr($now, 0, 10), $branch)) {
             return false;
         }
-        $effective = $calendar->nextOpenDay($day, $branch);
-        return ($effective > $day ? $effective . ' 23:59:59' : $deadline) < $now;
+        return self::reservationDeadline($db, $deadline, $bookId, $branch) < $now;
+    }
+
+    /**
+     * The deadline a queue reservation really has: a closed deadline day
+     * lasts until the end of the first open day after it, at the book's
+     * request branch; an open day (or no calendar) keeps the stored value.
+     * Used by expiry and by the expiry e-mail, so both quote the same day.
+     */
+    public static function reservationDeadline(\mysqli $db, string $deadline, int $bookId, ?int $branch = null): string
+    {
+        $day = substr($deadline, 0, 10);
+        $calendar = self::forDb($db);
+        if (!DateHelper::isISODateFormat($day) || !$calendar->hasRules()) {
+            return $deadline;
+        }
+        $effective = $calendar->nextOpenDay($day, $branch ?? self::requestBranch($db, $bookId));
+        return $effective > $day ? $effective . ' 23:59:59' : $deadline;
     }
 
     /** The branch of the book's lendable copies when they all sit in one, otherwise null. */

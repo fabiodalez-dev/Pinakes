@@ -172,6 +172,8 @@ try {
         $check($expire() === 0 && $state($r) === 'attiva', 'first reopening day does not cancel the queue');
         $check(!LibraryCalendar::reservationExpired($db, $d(-1) . ' 23:59:59', $b, $today . ' 23:59:59'), 'the entire reopening day remains usable');
         $check(LibraryCalendar::reservationExpired($db, $d(-1) . ' 23:59:59', $b, $d(1) . ' 00:00:00'), 'expiry resumes after that usable day');
+        $check(LibraryCalendar::reservationDeadline($db, $d(-1) . ' 23:59:59', $b) === $today . ' 23:59:59', 'the expiry e-mail quotes the effective deadline, not the closed stored day');
+        $check(LibraryCalendar::reservationDeadline($db, $d(-3) . ' 18:00:00', $b) === $d(-3) . ' 18:00:00', 'an open deadline day keeps its stored time');
         $issues = (new DataIntegrity($db))->verifyDataConsistency();
         $check(!in_array('expired_reservation', array_column($issues, 'type'), true), 'integrity audit agrees with queue expiry after a closure');
         (new DataIntegrity($db))->fixDataInconsistencies();

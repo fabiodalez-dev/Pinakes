@@ -297,6 +297,14 @@ class ReservationManager
                     $bookId, \App\Support\LibraryCalendar::shift($storedEndDate, 1), $endDate,
                     excludeReservationId: (int) $nextReservation['id']
                 )) {
+                    // The head stays 'attiva' and blocks the queue until staff
+                    // resolve it (the integrity audit lists it): say why.
+                    \App\Support\SecureLogger::info('Promozione prenotazione rinviata: la chiusura allunga il periodo su una promessa già fatta', [
+                        'prenotazione_id' => (int) $nextReservation['id'],
+                        'libro_id' => $bookId,
+                        'fine_richiesta' => $storedEndDate,
+                        'fine_effettiva' => $endDate,
+                    ]);
                     $this->commitIfOwned($ownTransaction);
                     return false;
                 }
@@ -1245,7 +1253,10 @@ class ReservationManager
                             'utente_nome' => $info['nome'],
                             'libro_titolo' => $info['titolo'],
                             // Raw: formattata da sendQueueReservationExpiredNotification()
-                            'data_scadenza' => (string) $row['data_scadenza_prenotazione'],
+                            // The effective deadline expiry used, not a closed stored day.
+                            'data_scadenza' => \App\Support\LibraryCalendar::reservationDeadline(
+                                $this->db, (string) $row['data_scadenza_prenotazione'], (int) $row['libro_id']
+                            ),
                         ],
                     ];
                 }
