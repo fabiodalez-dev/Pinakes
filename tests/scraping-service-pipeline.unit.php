@@ -112,6 +112,17 @@ try {
     $check(($fallback['final_hook_seen'] ?? false) && $events === ['validate', 'fetch', 'fetch', 'modify', 'response'], 'fallback uses the same final hooks once');
 
     $events = []; $calls = 0;
+    $fetch = static fn(int $attempt) => $attempt === 1 ? ['image' => 'https://example.test/first.jpg'] : ['title' => ' Late  title ', 'image' => ''];
+    $merged = ScrapingService::scrapeBookData('9780306406157', 2);
+    $check(($merged['title'] ?? null) === 'Late title' && ($merged['image'] ?? null) === 'https://example.test/first.jpg', 'a later attempt keeps the cover an earlier attempt found');
+
+    $events = []; $calls = 0;
+    $fetch = static fn(int $attempt) => $attempt === 1 ? ['image' => 'https://example.test/kept.jpg'] : [];
+    $remote->append(new RemoteResponse(200, [], json_encode(['items' => [['volumeInfo' => ['title' => 'Kept fallback']]]])));
+    $kept = ScrapingService::scrapeBookData('9780306406157', 2);
+    $check(($kept['image'] ?? null) === 'https://example.test/kept.jpg' && ($kept['title'] ?? null) === 'Kept fallback', 'an empty retry does not drop the partial cover before the fallback');
+
+    $events = []; $calls = 0;
     $check(ScrapingService::scrapeBookData('not-an-isbn', 1) === [] && $calls === 0, 'invalid input is rejected before any provider is called');
 
     $events = []; $calls = 0;

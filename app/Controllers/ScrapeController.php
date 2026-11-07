@@ -332,7 +332,13 @@ class ScrapeController
             // Plugin returned metadata but no cover image — try built-in sources for cover
             if (empty($payload['image'])) {
                 SecureLogger::debug('[ScrapeController] Plugin data has no cover, trying built-in sources', ['isbn' => $searchIdentifier]);
-                $coverUrl = $this->findCoverFromBuiltinSources($searchIdentifier);
+                // The cover is optional: a failing lookup keeps the metadata.
+                try {
+                    $coverUrl = $this->findCoverFromBuiltinSources($searchIdentifier);
+                } catch (\Throwable $coverError) {
+                    $coverUrl = null;
+                    SecureLogger::warning('[ScrapeController] Built-in cover lookup failed', ['isbn' => $searchIdentifier, 'error' => $coverError->getMessage()]);
+                }
                 if ($coverUrl !== null) {
                     $payload['image'] = $coverUrl;
                     SecureLogger::debug('[ScrapeController] Cover found from built-in source', ['isbn' => $searchIdentifier]);
@@ -497,10 +503,16 @@ class ScrapeController
             try {
                 $result = \App\Support\Hooks::apply('scrape.fetch.custom', null, [$sources, $identifier]);
                 if (is_array($result)) {
-                    if (!empty($result['title'])) {
-                        return $result;
+                    // A later attempt only adds what it actually found: an
+                    // empty or thinner retry must not drop the cover (or any
+                    // other field) an earlier attempt already returned.
+                    $partial = array_merge($partial ?? [], array_filter(
+                        $result,
+                        static fn ($value): bool => $value !== null && $value !== '' && $value !== []
+                    ));
+                    if (!empty($partial['title'])) {
+                        return $partial;
                     }
-                    $partial = $result;
                 }
             } catch (\Throwable $e) {
                 $lastError = $e;
@@ -520,7 +532,7 @@ class ScrapeController
                 'error' => $lastError->getMessage(),
             ]);
         }
-        return $partial;
+        return $partial === [] ? null : $partial;
     }
 
     /**

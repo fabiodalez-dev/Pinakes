@@ -201,6 +201,23 @@ try {
     $check($res4 === null, 'A18 refuses an ISBN still owned by a soft-deleted book');
     $check((int) $scalar("SELECT external_book_id IS NOT NULL FROM bookclub_books WHERE id={$cb4}") === 1, 'A19 failed acquisition leaves the external proposal intact');
 
+    // A4b (edge): only the DERIVED form belongs to an archived book. A legacy
+    // row deleted before ISBNs were cleared keeps an ISBN-10; a proposal with
+    // its ISBN-13 must still be acquired as a new book, storing only its own
+    // form, never linking the archived row nor tripping the unique isbn10 key.
+    $archived13 = $mkIsbn13('9780001' . $rand5());
+    $archived10 = \App\Support\IsbnFormatter::isbn13ToIsbn10($archived13);
+    $q("INSERT INTO libri (titolo, isbn10, deleted_at) VALUES ('{$TOKEN} Archived10', '{$archived10}', NOW())");
+    $archivedLibro = (int) $db->insert_id; $createdLibri[] = $archivedLibro;
+    [$cb4b] = $seedExternal("{$TOKEN} Prop A4b Derived", $archived13);
+    $res4b = $repo->acquireExternalBook($cb4b);
+    $check(is_int($res4b) && $res4b !== $archivedLibro, 'A18b a derived ISBN-10 held by an archived book does not block the acquisition');
+    if (is_int($res4b)) {
+        $createdLibri[] = $res4b;
+        $check((string) $scalar("SELECT CONCAT(isbn13, '|', COALESCE(isbn10, '-')) FROM libri WHERE id={$res4b}") === $archived13 . '|-', 'A18c the new book keeps its own ISBN-13 and leaves the archived ISBN-10 alone');
+        $check($scalar("SELECT deleted_at IS NOT NULL FROM libri WHERE id={$archivedLibro}") == 1, 'A18d the archived book stays archived');
+    }
+
     // A5 (edge): ISBN matches nothing → creates new.
     [$cb5] = $seedExternal("{$TOKEN} Prop A5", '9782222' . random_int(100000, 999999));
     $res5 = $repo->acquireExternalBook($cb5);

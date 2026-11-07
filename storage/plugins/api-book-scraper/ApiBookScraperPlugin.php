@@ -410,8 +410,35 @@ class ApiBookScraperPlugin
      */
     public function validateIsbn(bool $isValid, string $isbn): bool
     {
-        // Mantiene la validazione esistente
-        return $isValid;
+        // The API also answers music barcodes: a checksum-valid UPC-A/EAN-13
+        // reaches it (hooks are registered only when the plugin is usable).
+        // Anything else keeps the core ISBN verdict.
+        return $isValid || self::checksumBarcode($isbn) !== null;
+    }
+
+    /** The digits of a checksum-valid 12/13-digit barcode, otherwise null. */
+    private static function checksumBarcode(string $input): ?string
+    {
+        $digits = preg_replace('/[-\s]/', '', trim($input)) ?? '';
+        if (!ctype_digit($digits) || !in_array(strlen($digits), [12, 13], true)) {
+            return null;
+        }
+        $sum = 0;
+        for ($i = strlen($digits) - 2, $weight = 3; $i >= 0; $i--, $weight = 4 - $weight) {
+            $sum += (int) $digits[$i] * $weight;
+        }
+        return (10 - $sum % 10) % 10 === (int) substr($digits, -1) ? $digits : null;
+    }
+
+    /** First provider value that is not null or blank. */
+    private static function firstFilled(mixed ...$values): mixed
+    {
+        foreach ($values as $value) {
+            if ($value !== null && (!is_string($value) || trim($value) !== '')) {
+                return $value;
+            }
+        }
+        return null;
     }
 
     /**
@@ -553,16 +580,7 @@ class ApiBookScraperPlugin
         $variants = preg_match('/^(?:[0-9]{9}[0-9X]|97[89][0-9]{10})$/D', $identifier) === 1
             ? \App\Support\IsbnFormatter::getAllVariants($identifier)
             : [];
-        $barcode = $variants['isbn13'] ?? null;
-        if ($barcode === null && ctype_digit($identifier) && in_array(strlen($identifier), [12, 13], true)) {
-            $sum = 0;
-            for ($i = strlen($identifier) - 2, $weight = 3; $i >= 0; $i--, $weight = 4 - $weight) {
-                $sum += (int) $identifier[$i] * $weight;
-            }
-            if ((10 - $sum % 10) % 10 === (int) substr($identifier, -1)) {
-                $barcode = $identifier;
-            }
-        }
+        $barcode = $variants['isbn13'] ?? self::checksumBarcode($identifier);
 
         $mappedData = [
             'title' => $data['title'] ?? $data['titolo'] ?? null,
@@ -570,9 +588,10 @@ class ApiBookScraperPlugin
             'authors' => $this->parseAuthors($data),
             'publisher' => $data['publisher'] ?? $data['editore'] ?? null,
             'publish_date' => $data['publish_date'] ?? $data['data_pubblicazione'] ?? null,
-            'isbn13' => $data['isbn13'] ?? $data['isbn_13'] ?? $variants['isbn13'] ?? null,
-            'isbn10' => $data['isbn10'] ?? $data['isbn_10'] ?? $variants['isbn10'] ?? null,
-            'ean' => $data['ean'] ?? $barcode,
+            // A blank provider identifier counts as missing, not as a value.
+            'isbn13' => self::firstFilled($data['isbn13'] ?? null, $data['isbn_13'] ?? null, $variants['isbn13'] ?? null),
+            'isbn10' => self::firstFilled($data['isbn10'] ?? null, $data['isbn_10'] ?? null, $variants['isbn10'] ?? null),
+            'ean' => self::firstFilled($data['ean'] ?? null, $barcode),
             'pages' => $data['pages'] ?? $data['numero_pagine'] ?? null,
             // No language from the API means unknown, not Italian.
             'language' => $this->languageName($data['language'] ?? $data['lingua'] ?? null),

@@ -41,6 +41,17 @@ foreach (['0306406153', '9780306406158', '0720642442525', 'CDP 7912682', 'prefix
 $book = $map('0306406152', ['isbn13' => '9780140328721', 'isbn10' => '0140328726', 'ean' => '9780140328721']);
 $check($book['isbn13'] === '9780140328721' && $book['isbn10'] === '0140328726' && $book['ean'] === '9780140328721', 'explicit provider identifiers take precedence over request fallbacks');
 
+$book = $map('0306406152', ['isbn13' => '', 'isbn10' => ' ', 'ean' => '']);
+$check($book['isbn13'] === '9780306406157' && $book['isbn10'] === '0306406152' && $book['ean'] === '9780306406157', 'blank provider identifiers fall back to the derived ones');
+
+foreach (['720642442524', '0720642442524', '0777 7836 4627'] as $barcode) {
+    $check($plugin->validateIsbn(false, $barcode), "$barcode is accepted for the API as a checksum-valid barcode");
+}
+foreach (['720642442525', 'CDP 7912682', '12345', '0306406153'] as $input) {
+    $check(!$plugin->validateIsbn(false, $input), "$input stays rejected");
+}
+$check($plugin->validateIsbn(true, '9780306406157'), 'a core-valid ISBN stays valid');
+
 // Exercise the controller normalizer too: previously it retained the wrong,
 // already-populated isbn13 rather than replacing the ISBN-10 in that slot.
 $normalizer = new ReflectionMethod(App\Controllers\ScrapeController::class, 'normalizeIsbnFields');
