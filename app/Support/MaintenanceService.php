@@ -1264,7 +1264,10 @@ class MaintenanceService
             throw new \RuntimeException('Failed to prepare scheduled reservations query');
         }
 
-        $stmt->bind_param('sss', $today, $today, $today);
+        // Legacy deadlines can be extended by any branch calendar. The
+        // per-book promotion query computes the exact cutoff under its lock.
+        $legacyFloor = LibraryCalendar::forDb($this->db)->hasRules() ? '1000-01-01' : $today;
+        $stmt->bind_param('sss', $today, $legacyFloor, $today);
         $stmt->execute();
         $result = $stmt->get_result();
         $reservations = $result ? $result->fetch_all(MYSQLI_ASSOC) : [];
@@ -1605,10 +1608,8 @@ class MaintenanceService
         $result = $stmt->get_result();
         $expiredPickups = $result ? $result->fetch_all(MYSQLI_ASSOC) : [];
         $stmt->close();
-        // A deadline that fell on a day later declared closed was already moved
-        // to the next open day when the calendar changed
-        // (LibraryCalendar::extendPickupDeadlines()), so the stored deadline is
-        // the one rule every path reads.
+        // Recheck the effective deadline after locking the current loan: the
+        // candidate scan may run before a calendar or copy change is reconciled.
 
         $expiredCount = 0;
         $integrity = new DataIntegrity($this->db);
@@ -1640,7 +1641,7 @@ class MaintenanceService
                 }
 
                 $lockLoan = $this->db->prepare("
-                    SELECT id, libro_id, copia_id, utente_id, pickup_deadline
+                    SELECT id, libro_id, copia_id, utente_id, pickup_deadline, data_scadenza
                     FROM prestiti
                     WHERE id = ? AND stato = 'da_ritirare' AND attivo = 1
                       AND pickup_deadline IS NOT NULL AND pickup_deadline < ?
@@ -1657,7 +1658,10 @@ class MaintenanceService
                 $copiaId = $lockedPickup['copia_id'] ? (int) $lockedPickup['copia_id'] : null;
                 // A closure of the copy's branch today: the pickup cannot
                 // expire on a day the reader could not come in.
-                if ($copiaId !== null && !$calendar->isOpen($today, LibraryCalendar::branchOfCopy($this->db, $copiaId))) {
+                $branch = LibraryCalendar::branchOfCopy($this->db, $copiaId);
+                if (!$calendar->isOpen($today, $branch) || $calendar->pickupDeadlineOnReopening(
+                    (string) $lockedPickup['pickup_deadline'], $lockedPickup['data_scadenza'], $branch
+                ) >= $today) {
                     $this->db->rollback();
                     continue;
                 }

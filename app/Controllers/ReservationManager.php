@@ -228,7 +228,8 @@ class ReservationManager
                 LIMIT 1
                 FOR UPDATE
             ");
-            $stmt->bind_param('isss', $bookId, $today, $today, $today);
+            $legacyFloor = \App\Support\LibraryCalendar::legacyReservationDeadlineFloor($this->db, $today, (int) $bookId);
+            $stmt->bind_param('isss', $bookId, $today, $legacyFloor, $today);
             $stmt->execute();
             $result = $stmt->get_result();
             $nextReservation = $result ? $result->fetch_assoc() : null;
@@ -279,6 +280,15 @@ class ReservationManager
                     ?: (!empty($nextReservation['data_scadenza_prenotazione'])
                         ? substr((string) $nextReservation['data_scadenza_prenotazione'], 0, 10)
                         : $startDate);
+                if ($nextReservation['data_inizio_richiesta'] === null && $startDate !== null && $startDate <= $today) {
+                    // A legacy deadline on a closed day can still be used on
+                    // reopening. Start the resulting loan on that usable day.
+                    $startDate = \App\Support\LibraryCalendar::requestStartDay($this->db, $startDate, (int) $bookId);
+                    if ($startDate > $today) {
+                        $this->commitIfOwned($ownTransaction);
+                        return false;
+                    }
+                }
                 // Feed both resolved bounds to createLoanFromReservation() too.
                 // Legacy rows can have a NULL requested start but a valid legacy
                 // deadline; selecting them without normalising the start would
@@ -569,109 +579,78 @@ class ReservationManager
                     )
                 ), '9999-12-31') DESC,
                 c.id ASC
-                LIMIT 1
             ");
             $copyStmt->bind_param('iiisssss', $bookId, $bookId, $promotedUserId, $endDate, $today, $startDate, $endDate, $endDate);
             $copyStmt->execute();
-            $copyResult = $copyStmt->get_result();
-            $copy = $copyResult->fetch_assoc();
+            $candidates = $copyStmt->get_result()->fetch_all(MYSQLI_ASSOC);
             $copyStmt->close();
 
-            $copyId = $copy ? (int) $copy['id'] : null;
+            $capacity = new \App\Services\CapacityService($this->db, lockingReads: true);
+            $hasCalendar = \App\Support\LibraryCalendar::forDb($this->db)->hasRules();
+            $copyId = null;
+            foreach ($candidates as $candidate) {
+                $candidateId = (int) $candidate['id'];
+                // Lock copy and re-check overlap to prevent race conditions
+                $lockCopyStmt = $this->db->prepare("SELECT id FROM copie WHERE id = ? FOR UPDATE");
+                $lockCopyStmt->bind_param('i', $candidateId);
+                $lockCopyStmt->execute();
+                $lockCopyStmt->close();
 
-            if (!$copyId) {
-                // No copy available for the requested range – treat as failed allocation
-                $this->rollbackIfOwned($ownTransaction);
-                return false;
-            }
-
-            // Lock copy and re-check overlap to prevent race conditions
-            $lockCopyStmt = $this->db->prepare("SELECT id FROM copie WHERE id = ? FOR UPDATE");
-            $lockCopyStmt->bind_param('i', $copyId);
-            $lockCopyStmt->execute();
-            $lockCopyStmt->close();
-
-            // FOR UPDATE (locking/current read) like approveLoan's final overlap
-            // check: with a plain read a caller whose REPEATABLE READ snapshot
-            // predates the book lock would miss a loan a competitor just
-            // committed on this copy and double-commit the same copia_id.
-            $overlapCopyStmt = $this->db->prepare("
-                SELECT 1 FROM prestiti
-                WHERE copia_id = ?
-                AND (
-                    (utente_id = ? AND libro_id = ?
-                     AND ( (attivo = 0 AND stato = 'pendente')
-                           OR (attivo = 1 AND stato IN ('in_corso','da_ritirare','prenotato','in_ritardo')) ))
-                    OR (
-                        data_prestito <= ?
-                        AND (stato = 'in_ritardo' OR (stato = 'in_corso' AND data_scadenza < ?) OR data_scadenza >= ?)
-                        AND (
-                            (attivo = 1 AND stato IN ('in_corso','da_ritirare','prenotato','in_ritardo'))
-                            OR (stato = 'pendente' AND copia_id IS NOT NULL)  -- pending conversion holds this copy (#157, model A-refined)
+                // FOR UPDATE (locking/current read) like approveLoan's final overlap
+                // check: with a plain read a caller whose REPEATABLE READ snapshot
+                // predates the book lock would miss a loan a competitor just
+                // committed on this copy and double-commit the same copia_id.
+                $overlapCopyStmt = $this->db->prepare("
+                    SELECT 1 FROM prestiti
+                    WHERE copia_id = ?
+                    AND (
+                        (utente_id = ? AND libro_id = ?
+                         AND ( (attivo = 0 AND stato = 'pendente')
+                               OR (attivo = 1 AND stato IN ('in_corso','da_ritirare','prenotato','in_ritardo')) ))
+                        OR (
+                            data_prestito <= ?
+                            AND (stato = 'in_ritardo' OR (stato = 'in_corso' AND data_scadenza < ?) OR data_scadenza >= ?)
+                            AND (
+                                (attivo = 1 AND stato IN ('in_corso','da_ritirare','prenotato','in_ritardo'))
+                                OR (stato = 'pendente' AND copia_id IS NOT NULL)  -- pending conversion holds this copy (#157, model A-refined)
+                            )
                         )
                     )
-                )
-                LIMIT 1
-                FOR UPDATE
-            ");
-            $overlapCopyStmt->bind_param('iiisss', $copyId, $promotedUserId, $bookId, $endDate, $today, $startDate);
-            $overlapCopyStmt->execute();
-            $overlapCopy = $overlapCopyStmt->get_result()->fetch_assoc();
-            $overlapCopyStmt->close();
+                    LIMIT 1
+                    FOR UPDATE
+                ");
+                $overlapCopyStmt->bind_param('iiisss', $candidateId, $promotedUserId, $bookId, $endDate, $today, $startDate);
+                $overlapCopyStmt->execute();
+                $overlapCopy = $overlapCopyStmt->get_result()->fetch_assoc();
+                $overlapCopyStmt->close();
 
-            if ($overlapCopy) {
-                // Abort if race detected
+
+                if ($overlapCopy) {
+                    continue;
+                }
+
+                // A closed return day still occupies the copy through its usable
+                // return day. Keeping the old stored date would hide the added
+                // days while the loan is pending and shift them back on approval.
+                $branchDue = \App\Services\CirculationPolicy::dueDateFor((string) $endDate, 0, $this->db, $candidateId);
+                if ($branchDue > $endDate && !$capacity->hasFreeCapacity(
+                    $bookId, \App\Support\LibraryCalendar::shift((string) $endDate, 1), $branchDue
+                )) {
+                    continue;
+                }
+                // The aggregate gate cannot tell whether this specific copy
+                // is still held by a loan with a calendar-adjusted return day.
+                if ($hasCalendar && $capacity->copyHasHoldingLoan($bookId, $candidateId, (string) $startDate, $branchDue)) {
+                    continue;
+                }
+
+                $copyId = $candidateId;
+                $endDate = $branchDue;
+                break;
+            }
+            if ($copyId === null) {
                 $this->rollbackIfOwned($ownTransaction);
                 return false;
-            }
-
-            // The copy is known only now. With the book's copies in several
-            // branches the end above follows the general calendar; a day
-            // closed at this copy's branch moves to the branch's next open day
-            // when the book and this copy can take the added days, as approval
-            // does (LoanApprovalController). Otherwise the date stays.
-            $branchDue = \App\Services\CirculationPolicy::dueDateFor((string) $endDate, 0, $this->db, $copyId);
-            if ($branchDue !== $endDate) {
-                $queuePos = isset($reservation['queue_position']) ? (int) $reservation['queue_position'] : null;
-                $fits = (new \App\Services\CapacityService($this->db, lockingReads: true))->hasFreeCapacity(
-                    $bookId,
-                    (string) $startDate,
-                    $branchDue,
-                    excludeReservationsAfterQueuePos: $queuePos
-                );
-                // As for the general-calendar extension above, the days the
-                // branch adds must not run into a period already promised to
-                // any other reader, later queue positions included.
-                $extraStart = \App\Support\LibraryCalendar::shift((string) $endDate, 1);
-                if ($fits) {
-                    $fits = (new \App\Services\CapacityService($this->db, lockingReads: true))->hasFreeCapacity(
-                        $bookId,
-                        $extraStart,
-                        $branchDue,
-                        excludeReservationId: isset($reservation['id']) ? (int) $reservation['id'] : null
-                    );
-                }
-                if ($fits) {
-                    $extraStmt = $this->db->prepare("
-                        SELECT 1 FROM prestiti
-                        WHERE copia_id = ?
-                        AND data_prestito <= ?
-                        AND (stato = 'in_ritardo' OR (stato = 'in_corso' AND data_scadenza < ?) OR data_scadenza >= ?)
-                        AND (
-                            (attivo = 1 AND stato IN ('in_corso','da_ritirare','prenotato','in_ritardo'))
-                            OR (stato = 'pendente' AND copia_id IS NOT NULL)
-                        )
-                        LIMIT 1
-                        FOR UPDATE
-                    ");
-                    $extraStmt->bind_param('isss', $copyId, $branchDue, $today, $extraStart);
-                    $extraStmt->execute();
-                    $extraBusy = (bool) $extraStmt->get_result()->fetch_row();
-                    $extraStmt->close();
-                    if (!$extraBusy) {
-                        $endDate = $branchDue;
-                    }
-                }
             }
 
             // Create loan with copia_id and origine='prenotazione'

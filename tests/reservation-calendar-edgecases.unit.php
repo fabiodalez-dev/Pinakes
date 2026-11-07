@@ -181,6 +181,19 @@ try {
         $check($state($r) !== 'annullata', 'integrity repair preserves a queue still inside its effective window');
 
         $reset();
+        [$b] = $book();
+        $r = $reserve($b, $user, $d(-1), $d(-1));
+        $db->query("UPDATE prenotazioni SET data_inizio_richiesta=NULL, data_fine_richiesta=NULL WHERE id={$r}");
+        $close($d(-1), $d(-1));
+        $db->begin_transaction();
+        $manager = new ReservationManager($db);
+        $manager->setExternalTransaction(true);
+        $check($manager->processBookAvailability($b), 'a legacy reservation remains promotable on the reopening day');
+        $allocated = $db->query("SELECT data_prestito, data_scadenza FROM prestiti WHERE libro_id={$b} AND origine='prenotazione'")->fetch_assoc();
+        $check(($allocated['data_prestito'] ?? null) === $today && $allocated['data_scadenza'] === $today, 'legacy promotion starts on the usable day');
+        $db->rollback();
+
+        $reset();
         $db->query("INSERT INTO sedi (nome) VALUES ('Calendar regression branch')");
         $branch = (int) $db->insert_id;
         [$b] = $book($branch);
@@ -191,6 +204,30 @@ try {
         $check($expire() === 1, 'only the genuinely expired queue is cancelled');
         $check($state($r) === 'attiva' && $state($expired) === 'annullata', 'a branch closure protects its own queue without protecting other branches');
         $check(!(new CapacityService($db))->hasFreeCapacity($b, $d(2), $d(2)), 'branch closure also extends queue capacity to reopening');
+
+        $reset();
+        [$b] = $book($branch);
+        $db->query("INSERT INTO copie (libro_id,numero_inventario,stato) VALUES ({$b},'CAL-OPEN-{$b}','disponibile')");
+        $openCopy = (int) $db->insert_id;
+        $head = $reserve($b, $user, $today, $d(2));
+        $tail = $reserve($b, $other, $d(4), $d(7), 2);
+        $db->query("INSERT INTO prestiti (libro_id,copia_id,utente_id,data_prestito,data_scadenza,stato,origine,attivo)
+                    VALUES ({$b},{$openCopy},{$other},'{$d(4)}','{$d(6)}','prenotato','richiesta',1)");
+        $futureLoan = (int) $db->insert_id;
+        $close($d(2), $d(3), $branch);
+        $db->begin_transaction();
+        $manager = new ReservationManager($db);
+        $manager->setExternalTransaction(true);
+        $check($manager->processBookAvailability($b), 'promotion tries another branch when the preferred copy would overbook the added days');
+        $allocated = $db->query("SELECT copia_id, data_scadenza FROM prestiti WHERE libro_id={$b} AND origine='prenotazione'")->fetch_assoc();
+        $check((int) ($allocated['copia_id'] ?? 0) === $openCopy && $allocated['data_scadenza'] === $d(2), 'promotion chooses the copy that can keep the promised return date');
+        $db->rollback();
+        $db->query("UPDATE prestiti SET data_prestito='{$today}' WHERE id={$futureLoan}");
+        $db->begin_transaction();
+        $manager = new ReservationManager($db);
+        $manager->setExternalTransaction(true);
+        $check(!$manager->processBookAvailability($b) && $state($head) === 'attiva' && $state($tail) === 'attiva', 'if no copy can honor the promise, the head stays in the queue');
+        $db->rollback();
 
         $reset();
         [$b] = $book();
@@ -236,6 +273,7 @@ try {
         $blockedLoan = $pickupLoan($blockedBook, $blockedCopy, $other);
         $waitingLoan = $pickupLoan($waitingBook, $waitingCopy, $user);
         $close($d(-1), $d(-1));
+        $check((new MaintenanceService($db))->checkExpiredPickups() === 0, 'pickup expiry protects the reopening day before deadlines are reconciled');
         $holder = new mysqli($args[0], $args[1], $args[2], $sandbox, $args[4], $args[5]);
         $holder->begin_transaction();
         $holder->query("SELECT id FROM libri WHERE id={$blockedBook} FOR UPDATE");
@@ -270,6 +308,11 @@ try {
         $holiday['anno_inizio'] = '2100';
         $calendarAdmin->updateCustom($post($holiday), new Response(), $db, $holidayId);
         $check((int) $db->query("SELECT attiva FROM festivita_personalizzate WHERE id={$holidayId}")->fetch_row()[0] === 0, 'a far-future activation is validated beyond the old 28-year horizon');
+
+        $reset();
+        $calendarAdmin->store($post(['data_inizio' => '2026-01-02', 'data_fine' => '2026-12-31', 'ricorrente_annuale' => '1', 'descrizione' => 'Only New Year open']), new Response(), $db);
+        $calendarAdmin->storeCustom($post(['nome' => 'Cross-year closure', 'tipo' => 'dates', 'date_specifiche' => '2400-12-31', 'durata_giorni' => '2', 'attiva' => '1']), new Response(), $db);
+        $check((int) $db->query('SELECT COUNT(*) FROM festivita_personalizzate')->fetch_row()[0] === 0, 'coverage checks the following year when an explicit holiday crosses New Year');
 
         $reset();
         [$b] = $book();

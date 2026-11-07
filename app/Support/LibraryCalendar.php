@@ -767,6 +767,17 @@ final class LibraryCalendar
         return $effective > $day ? $effective . ' 23:59:59' : $deadline;
     }
 
+    /** Oldest stored deadline that can still reach today for a legacy queue row. */
+    public static function legacyReservationDeadlineFloor(\mysqli $db, string $today, int $bookId): string
+    {
+        $calendar = self::forDb($db);
+        if (!$calendar->hasRules()) {
+            return $today;
+        }
+        $previousOpen = $calendar->previousOpenDay(self::shift($today, -1), self::requestBranch($db, $bookId));
+        return self::shift($previousOpen, 1);
+    }
+
     /** The branch of the book's lendable copies when they all sit in one, otherwise null. */
     public static function requestBranch(\mysqli $db, int $bookId): ?int
     {
@@ -867,24 +878,21 @@ final class LibraryCalendar
         $moved = 0;
         foreach ($rows as $row) {
             $deadline = substr((string) $row['pickup_deadline'], 0, 10);
-            $next = $calendar->nextOpenDay($deadline, $row['sede_id'] !== null ? (int) $row['sede_id'] : null);
-            $dueDate = $row['data_scadenza'] !== null ? substr((string) $row['data_scadenza'], 0, 10) : '';
-            if (DateHelper::isISODateFormat($dueDate) && $next > $dueDate) {
-                $next = $dueDate;
-            }
+            $next = $calendar->pickupDeadlineOnReopening($deadline, $row['data_scadenza'], $row['sede_id'] !== null ? (int) $row['sede_id'] : null);
             if ($next <= $deadline || $next < $today) {
                 continue;
             }
             $id = (int) $row['id'];
-            self::withBookLock($db, (int) $row['libro_id'], static function () use ($db, $calendar, $today, $id, &$moved): void {
+            $bookId = (int) $row['libro_id'];
+            self::withBookLock($db, $bookId, static function () use ($db, $calendar, $today, $id, $bookId, &$moved): void {
                 // The due date or assigned branch can change while waiting for
                 // the book lock. Recompute the cap from the current locked row.
                 $read = $db->prepare(
                     "SELECT p.pickup_deadline, p.data_scadenza, c.sede_id
                      FROM prestiti p LEFT JOIN copie c ON c.id = p.copia_id
-                     WHERE p.id = ? AND p.stato = 'da_ritirare' AND p.attivo = 1 FOR UPDATE"
+                     WHERE p.id = ? AND p.libro_id = ? AND p.stato = 'da_ritirare' AND p.attivo = 1 FOR UPDATE"
                 );
-                $read->bind_param('i', $id);
+                $read->bind_param('ii', $id, $bookId);
                 $read->execute();
                 $current = $read->get_result()->fetch_assoc();
                 $read->close();
@@ -892,11 +900,7 @@ final class LibraryCalendar
                     return;
                 }
                 $deadline = substr((string) $current['pickup_deadline'], 0, 10);
-                $next = $calendar->nextOpenDay($deadline, $current['sede_id'] !== null ? (int) $current['sede_id'] : null);
-                $due = substr((string) ($current['data_scadenza'] ?? ''), 0, 10);
-                if (DateHelper::isISODateFormat($due)) {
-                    $next = min($next, $due);
-                }
+                $next = $calendar->pickupDeadlineOnReopening($deadline, $current['data_scadenza'], $current['sede_id'] !== null ? (int) $current['sede_id'] : null);
                 if ($next <= $deadline || $next < $today) {
                     return;
                 }
@@ -911,6 +915,14 @@ final class LibraryCalendar
             });
         }
         return $moved;
+    }
+
+    /** A closed pickup day can move forward, within the stored loan period. */
+    public function pickupDeadlineOnReopening(string $deadline, ?string $dueDate, ?int $branch): string
+    {
+        $next = $this->nextOpenDay($deadline, $branch);
+        $due = substr($dueDate ?? '', 0, 10);
+        return DateHelper::isISODateFormat($due) ? max($deadline, min($next, $due)) : $next;
     }
 
     // ── Queries ─────────────────────────────────────────────────────────────
@@ -983,24 +995,31 @@ final class LibraryCalendar
 
     /**
      * $ymd itself when open, otherwise the first open day after it. A day
-     * inside a one-off closure jumps to the day after that closure; the
-     * scan bound only applies to closed weekdays and yearly closures. With
-     * every day closed (two yearly closures covering the year) $ymd is
-     * returned after the bound, as before.
+     * inside a dated or yearly closure jumps to the end of that occurrence.
+     * If no open day is found within the scan bound, keep the original day.
      */
     public function nextOpenDay(string $ymd, ?int $sedeId = null): string
     {
+        return $this->firstOpenDayBetween($ymd, '9999-12-31', $sedeId) ?? $ymd;
+    }
+
+    /** First open day in the inclusive window, or null if it has none. */
+    public function firstOpenDayBetween(string $ymd, string $lastDay, ?int $sedeId = null): ?string
+    {
         if (!DateHelper::isISODateFormat($ymd)) {
-            return $ymd;
+            return null;
         }
         $day = $ymd;
-        for ($i = 0; $i < self::MAX_SCAN_DAYS; $i++) {
+        for ($i = 0; $i < self::MAX_SCAN_DAYS && $day <= $lastDay; $i++) {
             if ($this->isOpen($day, $sedeId)) {
                 return $day;
             }
             $day = self::shift($this->closedThrough($day, $sedeId) ?? $day, 1);
+            if (strlen($day) !== 10) {
+                break;
+            }
         }
-        return $ymd;
+        return null;
     }
 
     /** Same as nextOpenDay(): the name the loan code reads best with. */

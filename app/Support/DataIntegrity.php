@@ -1031,7 +1031,7 @@ class DataIntegrity {
         $eventsByBook = [];
         $applicationToday = DateHelper::today();
         $stmt = $this->db->prepare("
-            SELECT libro_id, 'prestito' AS source_type, id AS source_id, copia_id,
+            SELECT libro_id, 'prestito' AS source_type, id AS source_id, copia_id, attivo,
                    DATE(data_prestito) AS start_date,
                    DATE(CASE
                        -- Overdue loans occupy the copy open-endedly. The sentinel is
@@ -1073,7 +1073,7 @@ class DataIntegrity {
             // A loan due on a closed day keeps its book until the day the
             // reader is told, as in CapacityService, even when the stored date
             // could not move. Overdue loans keep their open-ended sentinel.
-            if ($end !== '9999-12-30') {
+            if ((int) $row['attivo'] === 1 && $end !== '9999-12-30') {
                 $end = LibraryCalendar::holdingEnd($this->db, $end, $row['copia_id'] !== null ? (int) $row['copia_id'] : null);
             }
             if ($end < $start) {

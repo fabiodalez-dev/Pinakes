@@ -204,9 +204,12 @@ try {
         // must refuse the current read; everywhere else upkeep goes through.
         $expectConflict = false;
         if (str_contains($db->server_info, 'MariaDB')) {
-            $iso = $db->query('SELECT @@innodb_snapshot_isolation, @@transaction_isolation');
-            $isoRow = $iso instanceof \mysqli_result ? $iso->fetch_row() : null;
-            $expectConflict = $isoRow !== null && (int) $isoRow[0] === 1 && $isoRow[1] === 'REPEATABLE-READ';
+            // Older MariaDB exposes tx_isolation and may not have
+            // innodb_snapshot_isolation at all. SHOW omits unknown variables.
+            $iso = $db->query("SHOW SESSION VARIABLES WHERE Variable_name IN ('innodb_snapshot_isolation', 'transaction_isolation', 'tx_isolation')");
+            $vars = $iso instanceof \mysqli_result ? array_column($iso->fetch_all(MYSQLI_NUM), 1, 0) : [];
+            $expectConflict = in_array($vars['innodb_snapshot_isolation'] ?? '', ['ON', '1'], true)
+                && ($vars['transaction_isolation'] ?? $vars['tx_isolation'] ?? '') === 'REPEATABLE-READ';
         }
         $conflicted = false;
         try {

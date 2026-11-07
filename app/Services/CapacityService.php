@@ -391,7 +391,7 @@ final class CapacityService
      * HOLDING loan intervals overlapping [$start,$end], clamped to the window.
      * @return list<array{0:string,1:string}>
      */
-    private function holdingLoanIntervals(int $libroId, string $start, string $end, ?int $excludePrestitoId, ?int $excludeUserId): array
+    private function holdingLoanIntervals(int $libroId, string $start, string $end, ?int $excludePrestitoId, ?int $excludeUserId, ?int $copyId = null): array
     {
         // An unreturned overdue loan has no known end yet. Its contractual due
         // date is in the past, but the physical copy remains out of the library:
@@ -432,7 +432,18 @@ final class CapacityService
             $types .= 'i';
             $params[] = $excludeUserId;
         }
+        if ($copyId !== null) {
+            $sql .= ' AND p.copia_id = ?';
+            $types .= 'i';
+            $params[] = $copyId;
+        }
         return $this->fetchIntervals($sql, $types, $params, $end);
+    }
+
+    /** Whether this physical copy has a commitment in the inclusive window. */
+    public function copyHasHoldingLoan(int $libroId, int $copyId, string $start, string $end): bool
+    {
+        return $this->holdingLoanIntervals($libroId, $start, $end, null, null, $copyId) !== [];
     }
 
     /**
@@ -480,7 +491,12 @@ final class CapacityService
         // Filter on the effective end in fetchIntervals(), after resolving the
         // book's branch, just as promotion does with requestDueDate().
         $params = [$start, $end, $libroId, $today, $end, $hasCalendar ? '1000-01-01' : $start];
-        if ($circulation->anyTotalLoanLimit()) {
+        $hasLoanLimit = $circulation->anyTotalLoanLimit();
+        $materialRefused = $circulation->materialRefusedReservationUserIds($libroId, $this->lockingReads);
+        $legacyFloor = $hasLoanLimit || $materialRefused !== []
+            ? \App\Support\LibraryCalendar::legacyReservationDeadlineFloor($this->db, $today, $libroId)
+            : $today;
+        if ($hasLoanLimit) {
             // Per-patron limit (CirculationPolicy; 0 = no limit for that patron).
             $limitSql = $circulation->totalLoanLimitSql('u');
             // A locking outer read does not lock a nested subquery, which would
@@ -510,19 +526,18 @@ final class CapacityService
                       ) < {$limitSql})";
             $types .= 'sss';
             $params[] = $today;
-            $params[] = $today;
+            $params[] = $legacyFloor;
             $params[] = $today;
         }
         // Same pause as queue promotion for the per-material rules: a
         // promotable reservation of a patron the matrix refuses for this
         // title does not hold capacity (ReservationManager skips it too).
-        $materialRefused = $circulation->materialRefusedReservationUserIds($libroId, $this->lockingReads);
         if ($materialRefused !== []) {
             $sql .= ' AND NOT (r.utente_id IN (' . implode(',', array_map('intval', $materialRefused)) . ')
                       AND ' . \App\Support\LoanEligibility::promotableReservationWhere('r') . ')';
             $types .= 'ss';
             $params[] = $today;
-            $params[] = $today;
+            $params[] = $legacyFloor;
         }
         if ($excludeReservationId !== null) {
             $sql .= ' AND r.id <> ?';

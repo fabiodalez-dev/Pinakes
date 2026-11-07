@@ -699,12 +699,17 @@ class LibraryCalendarController
             $activeOnly = ($hasActive instanceof \mysqli_result && $hasActive->num_rows > 0) ? ' AND attiva = 1' : '';
             $result = $db->query('SELECT data_inizio, data_fine, ricorrente_annuale, sede_id FROM calendario_chiusure WHERE ricorrente_annuale = 1' . $activeOnly);
             $holidays = array_merge(HolidayPresets::calendarRules($db) ?? [], CustomHolidays::calendarRules($db));
-            $firstYear = min(1900, (int) substr(DateHelper::today(), 0, 4) - 1);
-            $years = array_fill_keys(range($firstYear, max($firstYear + 399, (int) substr(DateHelper::today(), 0, 4) + 27)), true);
+            $currentYear = (int) substr(DateHelper::today(), 0, 4);
+            $firstYear = min(1900, $currentYear - 1);
+            $years = array_fill_keys(range($firstYear, min(9999, max($firstYear + 399, $currentYear + 27))), true);
             foreach ($holidays as $holiday) {
-                if (($holiday['rule'][0] ?? '') === 'dates') {
-                    foreach ($holiday['rule'][1] as $date) {
-                        $years[(int) substr($date, 0, 4)] = true;
+                $explicit = ($holiday['rule'][0] ?? '') === 'dates' ? $holiday['rule'][1] : [];
+                foreach (array_merge($explicit, array_values($holiday['overrides'] ?? [])) as $date) {
+                    $year = (int) substr($date, 0, 4);
+                    // An observed date or a multi-day holiday can also close
+                    // days in the year on either side of the explicit date.
+                    for ($y = max(1000, $year - 1); $y <= min(9999, $year + 1); $y++) {
+                        $years[$y] = true;
                     }
                 }
             }
@@ -748,10 +753,7 @@ class LibraryCalendarController
                     $day = LibraryCalendar::shift($next['open'][$key], 1);
                 }
                 $calendar ??= new LibraryCalendar($next['weekdays'], $next['rows'], $next['holidays']);
-                // nextOpenDay() steps over a whole yearly closure at once, so a
-                // long annual closure costs one move per year, not one per day.
-                $found = $calendar->nextOpenDay($day, $branch);
-                $open = str_starts_with($found, (string) $year) && $calendar->isOpen($found, $branch) ? $found : null;
+                $open = $calendar->firstOpenDayBetween($day, $year . '-12-31', $branch);
                 if ($open === null) {
                     return __('Con questa chiusura annuale la biblioteca resterebbe chiusa tutto l\'anno: almeno un giorno deve restare aperto.');
                 }
