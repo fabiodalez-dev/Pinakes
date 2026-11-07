@@ -1225,34 +1225,32 @@ class ReservationManager
             // Dati utente/titolo per le notifiche, letti ora (prima dell'UPDATE)
             // con le righe già lockate. Libri soft-deleted esclusi: la prenotazione
             // viene comunque annullata ma senza email (convenzione deleted_at).
-            if ($expiring !== []) {
-                $infoStmt = $this->db->prepare("
-                    SELECT u.email, u.nome, l.titolo
-                    FROM prenotazioni r
-                    JOIN utenti u ON r.utente_id = u.id
-                    JOIN libri l ON r.libro_id = l.id AND l.deleted_at IS NULL
-                    WHERE r.id = ?
-                ");
-                foreach ($expiring as $row) {
-                    $reservationId = (int) $row['id'];
-                    $infoStmt->bind_param('i', $reservationId);
-                    $infoStmt->execute();
-                    $infoResult = $infoStmt->get_result();
-                    $info = $infoResult ? $infoResult->fetch_assoc() : null;
-                    if ($info && !empty($info['email'])) {
-                        $expiryNotifications[] = [
-                            'email' => $info['email'],
-                            'variables' => [
-                                'utente_nome' => $info['nome'],
-                                'libro_titolo' => $info['titolo'],
-                                // Raw: formattata da sendQueueReservationExpiredNotification()
-                                'data_scadenza' => (string) $row['data_scadenza_prenotazione'],
-                            ],
-                        ];
-                    }
+            $infoStmt = $this->db->prepare("
+                SELECT u.email, u.nome, l.titolo
+                FROM prenotazioni r
+                JOIN utenti u ON r.utente_id = u.id
+                JOIN libri l ON r.libro_id = l.id AND l.deleted_at IS NULL
+                WHERE r.id = ?
+            ");
+            foreach ($expiring as $row) {
+                $reservationId = (int) $row['id'];
+                $infoStmt->bind_param('i', $reservationId);
+                $infoStmt->execute();
+                $infoResult = $infoStmt->get_result();
+                $info = $infoResult ? $infoResult->fetch_assoc() : null;
+                if ($info && !empty($info['email'])) {
+                    $expiryNotifications[] = [
+                        'email' => $info['email'],
+                        'variables' => [
+                            'utente_nome' => $info['nome'],
+                            'libro_titolo' => $info['titolo'],
+                            // Raw: formattata da sendQueueReservationExpiredNotification()
+                            'data_scadenza' => (string) $row['data_scadenza_prenotazione'],
+                        ],
+                    ];
                 }
-                $infoStmt->close();
             }
+            $infoStmt->close();
 
             // Only the locked rows whose effective, branch-specific deadline
             // has elapsed may expire. The raw date is only a candidate filter.
