@@ -546,15 +546,33 @@ class ApiBookScraperPlugin
 
         $data = $apiData['data'] ?? $apiData;
 
+        // A lookup can be an ISBN-10, an ISBN-13 or a music barcode. Never
+        // copy the raw input into isbn13/EAN: an ISBN-10 needs conversion,
+        // and UPC/EANs without a Bookland prefix are not book identifiers.
+        $identifier = strtoupper(preg_replace('/[-\s]/', '', $isbn) ?? '');
+        $variants = preg_match('/^(?:[0-9]{9}[0-9X]|97[89][0-9]{10})$/D', $identifier) === 1
+            ? \App\Support\IsbnFormatter::getAllVariants($identifier)
+            : [];
+        $barcode = $variants['isbn13'] ?? null;
+        if ($barcode === null && ctype_digit($identifier) && in_array(strlen($identifier), [12, 13], true)) {
+            $sum = 0;
+            for ($i = strlen($identifier) - 2, $weight = 3; $i >= 0; $i--, $weight = 4 - $weight) {
+                $sum += (int) $identifier[$i] * $weight;
+            }
+            if ((10 - $sum % 10) % 10 === (int) substr($identifier, -1)) {
+                $barcode = $identifier;
+            }
+        }
+
         $mappedData = [
             'title' => $data['title'] ?? $data['titolo'] ?? null,
             'subtitle' => $data['subtitle'] ?? $data['sottotitolo'] ?? null,
             'authors' => $this->parseAuthors($data),
             'publisher' => $data['publisher'] ?? $data['editore'] ?? null,
             'publish_date' => $data['publish_date'] ?? $data['data_pubblicazione'] ?? null,
-            'isbn13' => $data['isbn13'] ?? $data['isbn_13'] ?? $isbn,
-            'isbn10' => $data['isbn10'] ?? $data['isbn_10'] ?? null,
-            'ean' => $data['ean'] ?? $isbn,
+            'isbn13' => $data['isbn13'] ?? $data['isbn_13'] ?? $variants['isbn13'] ?? null,
+            'isbn10' => $data['isbn10'] ?? $data['isbn_10'] ?? $variants['isbn10'] ?? null,
+            'ean' => $data['ean'] ?? $barcode,
             'pages' => $data['pages'] ?? $data['numero_pagine'] ?? null,
             // No language from the API means unknown, not Italian.
             'language' => $this->languageName($data['language'] ?? $data['lingua'] ?? null),

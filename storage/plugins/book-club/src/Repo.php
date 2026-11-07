@@ -921,13 +921,17 @@ class Repo
         $digits = $isbn !== null
             ? strtoupper((string) preg_replace('/[^0-9Xx]/', '', $isbn))
             : '';
-        // Only keep a part whose checksum is valid. A 13/10-length run of
-        // otherwise-arbitrary digits must never become a reconcile match key,
-        // or two unrelated books sharing a malformed code would get linked.
-        return [
-            (strlen($digits) === 13 && IsbnFormatter::isValidIsbn13($digits)) ? $digits : null,
-            (strlen($digits) === 10 && IsbnFormatter::isValidIsbn10($digits)) ? $digits : null,
-        ];
+        // A valid UPC/EAN checksum alone does not make a barcode an ISBN.
+        // Check the shape before getAllVariants(), whose permissive cleaner
+        // also removes misplaced X characters from arbitrary input.
+        if (preg_match('/^(?:[0-9]{9}[0-9X]|97[89][0-9]{10})$/D', $digits) !== 1) {
+            return [null, null];
+        }
+        // Use both checksum-valid variants: an ISBN-10 proposal must find a
+        // catalogue record carrying only its ISBN-13, and vice versa. 979
+        // publications have no ISBN-10 and retain only the 13-digit key.
+        $variants = IsbnFormatter::getAllVariants($digits);
+        return [$variants['isbn13'] ?? null, $variants['isbn10'] ?? null];
     }
 
     /**

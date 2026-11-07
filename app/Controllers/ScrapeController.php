@@ -211,7 +211,8 @@ class ScrapeController
         return $data;
     }
 
-    public function byIsbn(Request $request, Response $response): Response
+    /** Internal callers can retry plugin fetches; HTTP routes keep a single attempt. */
+    public function byIsbn(Request $request, Response $response, int $maxAttempts = 1, string $context = 'Scraping'): Response
     {
         // FIX F003: Only release the PHP session lock when this is the top-level
         // HTTP entry point (route /api/scrape/isbn). In-process callers like
@@ -317,7 +318,7 @@ class ScrapeController
         SecureLogger::debug('[ScrapeController] Available sources', ['sources' => array_keys($sources)]);
 
         // Hook: scrape.fetch.custom - Allow plugins to completely replace scraping logic
-        $customResult = \App\Support\Hooks::apply('scrape.fetch.custom', null, [$sources, $searchIdentifier]);
+        $customResult = $this->fetchPluginData($sources, $searchIdentifier, $maxAttempts, $context);
 
         // Check if plugin result has a title (complete data) or only partial data (e.g., cover only)
         $hasCompleteData = is_array($customResult) && !empty($customResult['title']);
@@ -476,6 +477,52 @@ class ScrapeController
 
         return $response->withStatus(404)->withHeader('Content-Type', 'application/json');
     }
+
+    /**
+     * Retry plugin fetches before built-in fallback. Finalization happens once,
+     * after a complete result or after fallback has filled partial plugin data.
+     * HTTP callers use one attempt; imports retain their retry/backoff policy.
+     */
+    private function fetchPluginData(array $sources, string $identifier, int $maxAttempts, string $context): ?array
+    {
+        if (!\App\Support\Hooks::has('scrape.fetch.custom')) {
+            return null;
+        }
+
+        $maxAttempts = max(1, $maxAttempts);
+        $delaySeconds = 1;
+        $lastError = null;
+        $partial = null;
+        for ($attempt = 1; $attempt <= $maxAttempts; $attempt++) {
+            try {
+                $result = \App\Support\Hooks::apply('scrape.fetch.custom', null, [$sources, $identifier]);
+                if (is_array($result)) {
+                    if (!empty($result['title'])) {
+                        return $result;
+                    }
+                    $partial = $result;
+                }
+            } catch (\Throwable $e) {
+                $lastError = $e;
+            }
+
+            if ($attempt < $maxAttempts) {
+                sleep($delaySeconds);
+                $delaySeconds = min($delaySeconds * 2, 8);
+            }
+        }
+
+        if ($lastError !== null) {
+            SecureLogger::warning('Scraping plugin fallito dopo tutti i tentativi', [
+                'context' => $context,
+                'isbn' => $identifier,
+                'maxAttempts' => $maxAttempts,
+                'error' => $lastError->getMessage(),
+            ]);
+        }
+        return $partial;
+    }
+
     /**
      * Get default scraping sources
      *
