@@ -181,7 +181,7 @@ final class CapacityService
             return null;
         }
         $calendar = \App\Support\LibraryCalendar::forDb($this->db);
-        $branch = $calendar->hasRules() ? \App\Support\LibraryCalendar::requestBranch($this->db, $libroId) : null;
+        $branch = $calendar->hasRules() ? \App\Support\LibraryCalendar::requestScope($this->db, $libroId) : null;
 
         // Keep one day available for finite end+1 events. Any interval clamped
         // to this horizon is effectively open-ended for application purposes.
@@ -621,7 +621,7 @@ final class CapacityService
         $out = [];
         $calendar = \App\Support\LibraryCalendar::forDb($this->db);
         $branch = $reservationBookId !== null && $calendar->hasRules()
-            ? \App\Support\LibraryCalendar::requestBranch($this->db, $reservationBookId, $this->lockingReads)
+            ? \App\Support\LibraryCalendar::requestScope($this->db, $reservationBookId, $this->lockingReads)
             : null;
         while ($row = $res->fetch_assoc()) {
             $s = (string) $row['s'];

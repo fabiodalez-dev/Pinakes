@@ -820,7 +820,7 @@ class ReservationsController
             ->closedDatesBetween(
                 $from,
                 \App\Support\LibraryCalendar::shift($from, $closedHorizon),
-                \App\Support\LibraryCalendar::requestBranch($this->db, (int) $bookId),
+                \App\Support\LibraryCalendar::requestScope($this->db, (int) $bookId),
                 $closedHorizon + 1
             );
         $reservationIntervals = (new \App\Services\CapacityService($this->db))->reservationIntervalsInRange(

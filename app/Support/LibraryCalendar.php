@@ -257,7 +257,7 @@ final class LibraryCalendar
             $calendar = self::forDb($db);
             if ($calendar->hasRules()) {
                 $branch = $scheduled && $copyId === null && isset($loan['libro_id'])
-                    ? self::requestBranch($db, (int) $loan['libro_id'])
+                    ? self::requestScope($db, (int) $loan['libro_id'])
                     : self::branchOfCopy($db, $copyId);
                 $effectiveDue = $calendar->nextOpenDay($due, $branch);
             }
@@ -713,9 +713,7 @@ final class LibraryCalendar
     }
 
     /**
-     * The next open day a request for this book can start on: its copies'
-     * branch when they all sit in one, otherwise the library as a whole, since
-     * no copy is bound yet.
+     * The next day at least one branch with a lendable copy can serve a request.
      */
     public static function requestStartDay(\mysqli $db, string $ymd, int $bookId): string
     {
@@ -723,7 +721,7 @@ final class LibraryCalendar
         if (!$calendar->hasRules()) {
             return $ymd;
         }
-        return $calendar->nextOpenDay($ymd, self::requestBranch($db, $bookId));
+        return $calendar->nextOpenDay($ymd, self::requestScope($db, $bookId));
     }
 
     /**
@@ -738,13 +736,13 @@ final class LibraryCalendar
         if (!$calendar->hasRules()) {
             return $due;
         }
-        return $calendar->nextOpenDay($due, self::requestBranch($db, $bookId));
+        return $calendar->nextOpenDay($due, self::requestScope($db, $bookId));
     }
 
-    /** An unassigned hold follows the book's request branch until a copy is pinned. */
-    public static function reservationBranch(\mysqli $db, int $bookId, ?int $copyId): ?int
+    /** @return int|list<int>|null Scope before and after a hold is pinned to a copy. */
+    public static function reservationBranch(\mysqli $db, int $bookId, ?int $copyId): int|array|null
     {
-        return $copyId === null ? self::requestBranch($db, $bookId) : self::branchOfCopy($db, $copyId);
+        return $copyId === null ? self::requestScope($db, $bookId) : self::branchOfCopy($db, $copyId);
     }
 
     /** @return array{string,string} Effective start and inclusive end for an active queue event. */
@@ -754,7 +752,7 @@ final class LibraryCalendar
         if (!$calendar->hasRules()) {
             return [$start, $end];
         }
-        $branch = self::requestBranch($db, $bookId);
+        $branch = self::requestScope($db, $bookId);
         $end = $calendar->nextOpenDay($end, $branch);
         return [min($calendar->nextOpenDay($start, $branch), $end), $end];
     }
@@ -770,7 +768,7 @@ final class LibraryCalendar
         if (!$calendar->hasRules()) {
             return $deadline < $now;
         }
-        $branch = self::requestBranch($db, $bookId);
+        $branch = self::requestScope($db, $bookId);
         if (!$calendar->isOpen(substr($now, 0, 10), $branch)) {
             return false;
         }
@@ -783,14 +781,14 @@ final class LibraryCalendar
      * request branch; an open day (or no calendar) keeps the stored value.
      * Used by expiry and by the expiry e-mail, so both quote the same day.
      */
-    public static function reservationDeadline(\mysqli $db, string $deadline, int $bookId, ?int $branch = null): string
+    public static function reservationDeadline(\mysqli $db, string $deadline, int $bookId, int|array|null $branch = null): string
     {
         $day = substr($deadline, 0, 10);
         $calendar = self::forDb($db);
         if (!DateHelper::isISODateFormat($day) || !$calendar->hasRules()) {
             return $deadline;
         }
-        $effective = $calendar->nextOpenDay($day, $branch ?? self::requestBranch($db, $bookId));
+        $effective = $calendar->nextOpenDay($day, $branch ?? self::requestScope($db, $bookId));
         return $effective > $day ? $effective . ' 23:59:59' : $deadline;
     }
 
@@ -801,12 +799,24 @@ final class LibraryCalendar
         if (!$calendar->hasRules()) {
             return $today;
         }
-        $previousOpen = $calendar->previousOpenDay(self::shift($today, -1), self::requestBranch($db, $bookId));
+        $previousOpen = $calendar->previousOpenDay(self::shift($today, -1), self::requestScope($db, $bookId));
         return self::shift($previousOpen, 1);
     }
 
     /** The branch of the book's lendable copies when they all sit in one, otherwise null. */
     public static function requestBranch(\mysqli $db, int $bookId, bool $lockingRead = false): ?int
+    {
+        $scope = self::requestScope($db, $bookId, $lockingRead);
+        return is_int($scope) ? $scope : null;
+    }
+
+    /**
+     * Open at any branch with a lendable copy. An unlocated copy follows the
+     * library calendar, which is also the fallback for titles with no copies.
+     *
+     * @return int|list<int>|null
+     */
+    public static function requestScope(\mysqli $db, int $bookId, bool $lockingRead = false): int|array|null
     {
         $lendable = (new \App\Services\CirculationPolicy($db))->lendableCopySql('');
         $distinct = $lockingRead ? '' : 'DISTINCT ';
@@ -819,7 +829,10 @@ final class LibraryCalendar
         $stmt->execute();
         $branches = array_values(array_unique(array_column($stmt->get_result()->fetch_all(MYSQLI_NUM), 0), SORT_REGULAR));
         $stmt->close();
-        return count($branches) === 1 && $branches[0] !== null ? (int) $branches[0] : null;
+        if ($branches === [] || in_array(null, $branches, true)) {
+            return null;
+        }
+        return count($branches) === 1 ? (int) $branches[0] : array_map('intval', $branches);
     }
 
     /**
@@ -979,8 +992,16 @@ final class LibraryCalendar
      * only when that branch is asked for; a closure without a branch counts
      * for every branch and for the library as a whole ($sedeId = null).
      */
-    public function isOpen(string $ymd, ?int $sedeId = null): bool
+    public function isOpen(string $ymd, int|array|null $sedeId = null): bool
     {
+        if (is_array($sedeId)) {
+            foreach ($sedeId as $branch) {
+                if ($this->isOpen($ymd, $branch)) {
+                    return true;
+                }
+            }
+            return false;
+        }
         if (!DateHelper::isISODateFormat($ymd)) {
             return true;
         }
@@ -1039,14 +1060,24 @@ final class LibraryCalendar
      * inside a dated or yearly closure jumps to the end of that occurrence.
      * If no open day is found within the scan bound, keep the original day.
      */
-    public function nextOpenDay(string $ymd, ?int $sedeId = null): string
+    public function nextOpenDay(string $ymd, int|array|null $sedeId = null): string
     {
         return $this->firstOpenDayBetween($ymd, '9999-12-31', $sedeId) ?? $ymd;
     }
 
     /** First open day in the inclusive window, or null if it has none. */
-    public function firstOpenDayBetween(string $ymd, string $lastDay, ?int $sedeId = null): ?string
+    public function firstOpenDayBetween(string $ymd, string $lastDay, int|array|null $sedeId = null): ?string
     {
+        if (is_array($sedeId)) {
+            $first = null;
+            foreach ($sedeId as $branch) {
+                $candidate = $this->firstOpenDayBetween($ymd, $lastDay, $branch);
+                if ($candidate !== null && ($first === null || $candidate < $first)) {
+                    $first = $candidate;
+                }
+            }
+            return $first;
+        }
         if (!DateHelper::isISODateFormat($ymd)) {
             return null;
         }
@@ -1073,8 +1104,18 @@ final class LibraryCalendar
      * $ymd itself when open, otherwise the last open day before it: the
      * mirror of nextOpenDay(), jumping to the day before a one-off closure.
      */
-    public function previousOpenDay(string $ymd, ?int $sedeId = null): string
+    public function previousOpenDay(string $ymd, int|array|null $sedeId = null): string
     {
+        if (is_array($sedeId)) {
+            $last = null;
+            foreach ($sedeId as $branch) {
+                $candidate = $this->previousOpenDay($ymd, $branch);
+                if ($this->isOpen($candidate, $branch) && ($last === null || $candidate > $last)) {
+                    $last = $candidate;
+                }
+            }
+            return $last ?? $ymd;
+        }
         if (!DateHelper::isISODateFormat($ymd)) {
             return $ymd;
         }
@@ -1118,7 +1159,7 @@ final class LibraryCalendar
      *
      * @return list<string>
      */
-    public function closedDatesBetween(string $from, string $to, ?int $sedeId = null, int $maxDays = self::MAX_SCAN_DAYS): array
+    public function closedDatesBetween(string $from, string $to, int|array|null $sedeId = null, int $maxDays = self::MAX_SCAN_DAYS): array
     {
         if (!$this->hasRules() || !DateHelper::isISODateFormat($from) || !DateHelper::isISODateFormat($to) || $to < $from) {
             return [];

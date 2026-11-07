@@ -243,7 +243,7 @@ class DataIntegrity {
         while ($row = $rows->fetch_assoc()) {
             $id = (int) $row['libro_id'];
             if (!array_key_exists($id, $branches)) {
-                $branches[$id] = LibraryCalendar::requestBranch($this->db, $id, lockingRead: true);
+                $branches[$id] = LibraryCalendar::requestScope($this->db, $id, lockingRead: true);
             }
             if ($calendar->nextOpenDay((string) $row['due'], $branches[$id]) >= $today) {
                 $extended[] = (int) $row['id'];

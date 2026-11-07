@@ -339,7 +339,7 @@ test.describe.serial('Closures added after the loan', () => {
     }
   });
 
-  test('Move 11: when the next booking of that copy starts the day after, the activation still happens and keeps the date', async () => {
+  test('Move 11: activation waits if another booking holds the copy on reopening', async () => {
     const book = title('activate-booked');
     const copy = book.copyIds[0];
     const due = addDays(today, 12);
@@ -354,9 +354,12 @@ test.describe.serial('Closures added after the loan', () => {
       db(`INSERT INTO prestiti (libro_id, copia_id, utente_id, data_prestito, data_scadenza, stato, origine, attivo) VALUES (${book.id}, NULL, ${patron.id}, '${today}', '${due}', 'prenotato', 'prenotazione', 1)`);
       const loanId = F.dbInt(`SELECT id FROM prestiti WHERE libro_id=${book.id} AND utente_id=${patron.id} ORDER BY id DESC LIMIT 1`);
       runMaintenance();
-      // Moving the date would overlap the next booking (the trigger would
-      // refuse the whole activation, on every pass): activated, date kept.
-      expect(loanRow(loanId).split('|').slice(0, 2)).toEqual(['da_ritirare', due]);
+      // A closed stored date cannot make an overlap on the usable day safe.
+      expect(loanRow(loanId).split('|').slice(0, 2)).toEqual(['prenotato', due]);
+      expect(F.dbInt(`SELECT COALESCE(copia_id,0) FROM prestiti WHERE id=${loanId}`)).toBe(0);
+      db(`DELETE FROM prestiti WHERE libro_id=${book.id} AND utente_id=${other.id}`);
+      runMaintenance();
+      expect(loanRow(loanId).split('|').slice(0, 2)).toEqual(['da_ritirare', addDays(due, 1)]);
       expect(F.dbInt(`SELECT copia_id FROM prestiti WHERE id=${loanId}`)).toBe(copy);
     } finally {
       db(`DELETE FROM prestiti WHERE libro_id=${book.id}`);

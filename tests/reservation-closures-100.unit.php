@@ -138,40 +138,43 @@ foreach ($calendars as $name => $calendarSpec) {
         SettingsReview25::eq($view['earliest_available'], $open, 'Earliest selectable start');
         SettingsReview25::eq(in_array($date, $view['closed_dates'], true), $date !== $open, 'Closed dates and selectable starts agree');
     };
-    $cases["copy-available estimate skips {$name}"] = static function (SettingsReview25 $t) use ($fixture): void {
-        [$b, $date, $open] = $fixture($t);
-        SettingsReview25::eq((new CapacityService($t->db))->firstAvailableDate($b['id'], $date), $open, 'First open day with physical capacity');
-    };
-    $cases["staff creates a same-day hold during {$name}"] = static function (SettingsReview25 $t) use ($fixture): void {
-        [$b, $date, $open] = $fixture($t);
-        (new ReservationsAdminController())->store($t->request('/admin/reservations/create', [
-            'libro_id' => $b['id'], 'utente_id' => $t->reader, 'data_prenotazione' => $date, 'data_scadenza' => $date,
-        ]), new Response(), $t->db);
-        $row = $t->db->query("SELECT data_inizio_richiesta,data_fine_richiesta FROM prenotazioni WHERE libro_id={$b['id']}")->fetch_row();
-        SettingsReview25::eq($row, [$open, $open], 'Stored staff hold covers the usable date');
-    };
-    $cases["staff edits a live hold into {$name}"] = static function (SettingsReview25 $t) use ($fixture): void {
-        [$b, $date, $open] = $fixture($t);
-        $id = matrixReserve($t, $b, $t->reader, $t->day(6), $t->day(7));
-        (new ReservationsAdminController())->update($t->request('/admin/reservations/edit', [
-            'stato' => 'attiva', 'data_prenotazione' => $date, 'data_scadenza_prenotazione' => $date,
-            'data_inizio_richiesta' => $date, 'data_fine_richiesta' => $date,
-        ]), new Response(), $t->db, $id);
-        $row = $t->db->query("SELECT data_inizio_richiesta,data_fine_richiesta FROM prenotazioni WHERE id={$id}")->fetch_row();
-        SettingsReview25::eq($row, [$open, $open], 'Edited hold follows the same calendar as creation');
-    };
-    $cases["web request normalizes its start through {$name}"] = static function (SettingsReview25 $t) use ($fixture): void {
-        [$b, $date, $open] = $fixture($t);
-        $_SESSION['user']['id'] = $t->reader;
-        $_SESSION['user']['tipo_utente'] = 'standard';
-        $end = $t->day(4, $date);
-        $response = (new ReservationsController($t->db))->createReservation($t->request('/api/reservations', [
-            'start_date' => $date, 'end_date' => $end,
-        ]), new Response(), ['id' => $b['id']]);
-        SettingsReview25::eq($response->getStatusCode(), 200, 'Web request is accepted');
-        $row = $t->db->query("SELECT data_prestito,data_scadenza FROM prestiti WHERE libro_id={$b['id']}")->fetch_row();
-        SettingsReview25::eq($row, [$open, $end], 'Loan starts on the usable day and keeps the open end');
-    };
+    // The inactive-rule control needs no duplicate checks of the other writers.
+    if ($name !== 'inactive holiday') {
+        $cases["copy-available estimate skips {$name}"] = static function (SettingsReview25 $t) use ($fixture): void {
+            [$b, $date, $open] = $fixture($t);
+            SettingsReview25::eq((new CapacityService($t->db))->firstAvailableDate($b['id'], $date), $open, 'First open day with physical capacity');
+        };
+        $cases["staff creates a same-day hold during {$name}"] = static function (SettingsReview25 $t) use ($fixture): void {
+            [$b, $date, $open] = $fixture($t);
+            (new ReservationsAdminController())->store($t->request('/admin/reservations/create', [
+                'libro_id' => $b['id'], 'utente_id' => $t->reader, 'data_prenotazione' => $date, 'data_scadenza' => $date,
+            ]), new Response(), $t->db);
+            $row = $t->db->query("SELECT data_inizio_richiesta,data_fine_richiesta FROM prenotazioni WHERE libro_id={$b['id']}")->fetch_row();
+            SettingsReview25::eq($row, [$open, $open], 'Stored staff hold covers the usable date');
+        };
+        $cases["staff edits a live hold into {$name}"] = static function (SettingsReview25 $t) use ($fixture): void {
+            [$b, $date, $open] = $fixture($t);
+            $id = matrixReserve($t, $b, $t->reader, $t->day(6), $t->day(7));
+            (new ReservationsAdminController())->update($t->request('/admin/reservations/edit', [
+                'stato' => 'attiva', 'data_prenotazione' => $date, 'data_scadenza_prenotazione' => $date,
+                'data_inizio_richiesta' => $date, 'data_fine_richiesta' => $date,
+            ]), new Response(), $t->db, $id);
+            $row = $t->db->query("SELECT data_inizio_richiesta,data_fine_richiesta FROM prenotazioni WHERE id={$id}")->fetch_row();
+            SettingsReview25::eq($row, [$open, $open], 'Edited hold follows the same calendar as creation');
+        };
+        $cases["web request normalizes its start through {$name}"] = static function (SettingsReview25 $t) use ($fixture): void {
+            [$b, $date, $open] = $fixture($t);
+            $_SESSION['user']['id'] = $t->reader;
+            $_SESSION['user']['tipo_utente'] = 'standard';
+            $end = $t->day(4, $date);
+            $response = (new ReservationsController($t->db))->createReservation($t->request('/api/reservations', [
+                'start_date' => $date, 'end_date' => $end,
+            ]), new Response(), ['id' => $b['id']]);
+            SettingsReview25::eq($response->getStatusCode(), 200, 'Web request is accepted');
+            $row = $t->db->query("SELECT data_prestito,data_scadenza FROM prestiti WHERE libro_id={$b['id']}")->fetch_row();
+            SettingsReview25::eq($row, [$open, $end], 'Loan starts on the usable day and keeps the open end');
+        };
+    }
     $cases["explicit reader queue follows {$name}"] = static function (SettingsReview25 $t) use ($fixture): void {
         [$b, $date, $open] = $fixture($t);
         $_SESSION['user']['id'] = $t->reader;
@@ -347,9 +350,6 @@ $cases['a replacement copy in another branch stores its usable return day'] = st
     SettingsReview25::eq([(int) $row[0], $row[1]], [$replacement, $t->day(5)], 'Replacement commitment uses the destination calendar');
 };
 
-// The inactive-rule controls already exercise the web picker and creation.
-// Use the remaining two slots for both cancellation entry points.
-unset($cases['copy-available estimate skips inactive holiday'], $cases['staff edits a live hold into inactive holiday']);
 foreach (['staff', 'reader'] as $actor) {
     $cases["{$actor} cancellation on reopening is voluntary, not an expiry"] = static function (SettingsReview25 $t) use ($actor): void {
         $b = $t->book($t->branchA);
@@ -367,7 +367,6 @@ foreach (['staff', 'reader'] as $actor) {
     };
 }
 
-unset($cases['staff creates a same-day hold during inactive holiday']);
 $cases['NCIP requests start on reopening and return the persisted effective due date'] = static function (SettingsReview25 $t): void {
     $b = $t->book($t->branchA);
     matrixHoliday($t, $t->today, 1, $t->branchA);
@@ -381,6 +380,20 @@ $cases['NCIP requests start on reopening and return the persisted effective due 
     $row = $t->db->query("SELECT data_prestito,data_scadenza FROM prestiti WHERE id={$id}")->fetch_row();
     SettingsReview25::eq($row, [$t->day(1), $t->day(16)], 'Duration starts at reopening and skips the return holiday');
     SettingsReview25::eq($outcome['due_date'], $row[1], 'NCIP returns the same due date as the stored request');
+};
+
+$cases['a mixed-branch title waits until at least one lending branch reopens'] = static function (SettingsReview25 $t): void {
+    $b = $t->book($t->branchA);
+    matrixCopy($t, $b, $t->branchB);
+    $day = $t->day(2);
+    matrixClosure($t, $day, $t->day(4), $t->branchA);
+    matrixHoliday($t, $day, 1, $t->branchB);
+    $firstOpen = $t->day(3);
+    $availability = (new ReservationsController($t->db))->getBookAvailabilityData($b['id'], $day, 4);
+    SettingsReview25::eq($availability['earliest_available'], $firstOpen, 'No site can serve the request on the first day');
+    SettingsReview25::check(in_array($day, $availability['closed_dates'], true), 'Overlapping branch closures are presented as closed');
+    SettingsReview25::eq((new CapacityService($t->db))->firstAvailableDate($b['id'], $day), $firstOpen, 'The copy-available estimate follows the same branch scope');
+    SettingsReview25::eq(LibraryCalendar::reservationDeadline($t->db, $day . ' 18:00:00', $b['id']), $firstOpen . ' 23:59:59', 'A deadline extends until one branch can accept it');
 };
 
 $passed = $failed = 0;
