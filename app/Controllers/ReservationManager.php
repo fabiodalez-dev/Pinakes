@@ -299,13 +299,15 @@ class ReservationManager
                 $storedEndDate = (string) $endDate;
                 $endDate = \App\Support\LibraryCalendar::requestDueDate($this->db, (string) $endDate, 0, $bookId);
                 $nextReservation['data_fine_richiesta'] = $endDate;
+                $headQueuePos = isset($nextReservation['queue_position']) ? (int) $nextReservation['queue_position'] : null;
 
-                // FIFO wins on the original promised period, but a later
-                // closure must not extend it into another reader's already
-                // promised period. Check the added days against the full queue.
+                // Keep FIFO over requests already competing with the head.
+                // A later reader's separate window still owns its added days.
                 if ($endDate > $storedEndDate && !(new \App\Services\CapacityService($this->db, lockingReads: true))->hasFreeCapacity(
                     $bookId, \App\Support\LibraryCalendar::shift($storedEndDate, 1), $endDate,
-                    excludeReservationId: (int) $nextReservation['id']
+                    excludeReservationId: (int) $nextReservation['id'],
+                    excludeReservationsAfterQueuePos: $headQueuePos,
+                    excludeQueueTailStartingBy: $storedEndDate
                 )) {
                     // The head stays 'attiva' and blocks the queue until staff
                     // resolve it (the integrity audit lists it): say why.
@@ -323,11 +325,6 @@ class ReservationManager
                 // capacity gate ignores waitlist entries BEHIND it (they would
                 // otherwise block the head when the waitlist fully subscribes the
                 // copies — e.g. 1 copy + 2 queued reservations promoted 0).
-                // isset() is false for both an absent key and a NULL value, so it
-                // covers a legacy NULL queue_position without a redundant null check.
-                $headQueuePos = isset($nextReservation['queue_position'])
-                    ? (int) $nextReservation['queue_position']
-                    : null;
                 if ($this->isDateRangeAvailable($bookId, $startDate, $endDate, (int) $nextReservation['id'], $headQueuePos)) {
                     // Snapshot per l'audit PRIMA del claim (riga già lockata FOR
                     // UPDATE): così il diff attiva -> completata è coerente.
@@ -354,7 +351,7 @@ class ReservationManager
                     // Create the loan - check return value to handle race conditions
                     // Note: createLoanFromReservation() handles its own transaction internally
                     // when called standalone, but here we're already in a transaction
-                    $loanCreated = $this->createLoanFromReservation($nextReservation);
+                    $loanCreated = $this->createLoanFromReservation($nextReservation, $storedEndDate);
 
                     if ($loanCreated === false) {
                         // Race condition detected - loan creation failed. Restore
@@ -491,7 +488,7 @@ class ReservationManager
      * @param array{id?: int|string, libro_id: int, utente_id: int, data_inizio_richiesta: string, data_fine_richiesta: string, queue_position?: int|string|null} $reservation Reservation data
      * @return int|false Loan ID on success, false on failure (no copies available or race condition)
      */
-    private function createLoanFromReservation($reservation)
+    private function createLoanFromReservation($reservation, ?string $storedEndDate = null)
     {
         $bookId = (int) $reservation['libro_id'];
         $startDate = $reservation['data_inizio_richiesta'];
@@ -634,7 +631,9 @@ class ReservationManager
                 // days while the loan is pending and shift them back on approval.
                 $branchDue = \App\Services\CirculationPolicy::dueDateFor((string) $endDate, 0, $this->db, $candidateId);
                 if ($branchDue > $endDate && !$capacity->hasFreeCapacity(
-                    $bookId, \App\Support\LibraryCalendar::shift((string) $endDate, 1), $branchDue
+                    $bookId, \App\Support\LibraryCalendar::shift((string) $endDate, 1), $branchDue,
+                    excludeReservationsAfterQueuePos: isset($reservation['queue_position']) ? (int) $reservation['queue_position'] : null,
+                    excludeQueueTailStartingBy: $storedEndDate ?? (string) $endDate
                 )) {
                     continue;
                 }
