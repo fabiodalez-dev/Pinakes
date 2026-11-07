@@ -232,6 +232,16 @@ class MaintenanceService
             SecureLogger::error('MaintenanceService: due dates not moved', ['error' => $e->getMessage()]);
         }
 
+        // Reconcile waiting pickups on every pass, even if an unrelated loan
+        // could not move. Expiry must read the newly usable collection day.
+        try {
+            if (Features::enabled('closures_calendar')) {
+                LibraryCalendar::extendPickupDeadlines($this->db);
+            }
+        } catch (\Throwable $e) {
+            $results['errors'][] = 'extendPickupDeadlines: ' . $e->getMessage();
+        }
+
         // Overdue flip FIRST (#366 residual): flip date-overdue 'in_corso' loans
         // to 'in_ritardo' BEFORE expiries/activations/promotions, so every gate
         // in this same pass that special-cases 'in_ritardo' (capacity clamps,

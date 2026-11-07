@@ -436,6 +436,15 @@ final class CapacityService
     }
 
     /**
+     * Calendar occupancy uses the same eligibility and effective dates as writes.
+     * @return list<array{0:string,1:string}>
+     */
+    public function reservationIntervalsInRange(int $libroId, string $start, string $end, ?int $excludeUserId = null): array
+    {
+        return $this->activeReservationIntervals($libroId, $start, $end, null, $excludeUserId);
+    }
+
+    /**
      * Active reservation intervals overlapping [$start,$end], clamped to the window.
      * @return list<array{0:string,1:string}>
      */
@@ -456,7 +465,8 @@ final class CapacityService
         // automatically once the account becomes eligible again.
         $today = \App\Support\DateHelper::today();
         $circulation = $this->circulation ??= new CirculationPolicy($this->db);
-        $sql = "SELECT GREATEST($rStart, ?) AS s, LEAST($rEnd, ?) AS e
+        $hasCalendar = \App\Support\LibraryCalendar::forDb($this->db)->hasRules();
+        $sql = "SELECT GREATEST($rStart, ?) AS s, LEAST($rEnd, ?) AS e, $rEnd AS reservation_due
                 FROM prenotazioni r
                 JOIN utenti u ON u.id = r.utente_id
                 WHERE r.libro_id = ?
@@ -466,7 +476,10 @@ final class CapacityService
                   AND $rStart <= ?
                   AND $rEnd >= ?";
         $types = 'ssisss';
-        $params = [$start, $end, $libroId, $today, $end, $start];
+        // A stored end before this window can still reach it after a closure.
+        // Filter on the effective end in fetchIntervals(), after resolving the
+        // book's branch, just as promotion does with requestDueDate().
+        $params = [$start, $end, $libroId, $today, $end, $hasCalendar ? '1000-01-01' : $start];
         if ($circulation->anyTotalLoanLimit()) {
             // Per-patron limit (CirculationPolicy; 0 = no limit for that patron).
             $limitSql = $circulation->totalLoanLimitSql('u');
@@ -531,7 +544,7 @@ final class CapacityService
             $types .= 'i';
             $params[] = $excludeReservationsAfterQueuePos;
         }
-        return $this->fetchIntervals($sql, $types, $params);
+        return $this->fetchIntervals($sql, $types, $params, $end, $libroId);
     }
 
     /**
@@ -539,7 +552,7 @@ final class CapacityService
      * @param list<int|string> $params
      * @return list<array{0:string,1:string}>
      */
-    private function fetchIntervals(string $sql, string $types, array $params, ?string $windowEnd = null): array
+    private function fetchIntervals(string $sql, string $types, array $params, ?string $windowEnd = null, ?int $reservationBookId = null): array
     {
         if ($this->lockingReads) {
             $sql .= ' FOR UPDATE';
@@ -553,6 +566,10 @@ final class CapacityService
         $stmt->execute();
         $res = $stmt->get_result();
         $out = [];
+        $calendar = \App\Support\LibraryCalendar::forDb($this->db);
+        $branch = $reservationBookId !== null && $calendar->hasRules()
+            ? \App\Support\LibraryCalendar::requestBranch($this->db, $reservationBookId)
+            : null;
         while ($row = $res->fetch_assoc()) {
             $s = (string) $row['s'];
             $e = (string) $row['e'];
@@ -560,6 +577,9 @@ final class CapacityService
             if ($windowEnd !== null && $storedDue !== '' && $e === $storedDue) {
                 $copyId = $row['stored_copy'] !== null ? (int) $row['stored_copy'] : null;
                 $e = min(\App\Support\LibraryCalendar::holdingEnd($this->db, $storedDue, $copyId), $windowEnd);
+            }
+            if ($windowEnd !== null && isset($row['reservation_due'])) {
+                $e = min($calendar->nextOpenDay((string) $row['reservation_due'], $branch), $windowEnd);
             }
             if ($s !== '' && $e !== '' && $s <= $e) {
                 $out[] = [$s, $e];

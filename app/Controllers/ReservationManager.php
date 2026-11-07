@@ -286,8 +286,20 @@ class ReservationManager
                 $nextReservation['data_inizio_richiesta'] = $startDate;
                 // Capacity is checked on the day the loan will end, which a
                 // closure can put after the requested one (an open day stays as it is).
+                $storedEndDate = (string) $endDate;
                 $endDate = \App\Support\LibraryCalendar::requestDueDate($this->db, (string) $endDate, 0, $bookId);
                 $nextReservation['data_fine_richiesta'] = $endDate;
+
+                // FIFO wins on the original promised period, but a later
+                // closure must not extend it into another reader's already
+                // promised period. Check the added days against the full queue.
+                if ($endDate > $storedEndDate && !(new \App\Services\CapacityService($this->db, lockingReads: true))->hasFreeCapacity(
+                    $bookId, \App\Support\LibraryCalendar::shift($storedEndDate, 1), $endDate,
+                    excludeReservationId: (int) $nextReservation['id']
+                )) {
+                    $this->commitIfOwned($ownTransaction);
+                    return false;
+                }
 
                 // #157: pass the promoted reservation's queue_position so the
                 // capacity gate ignores waitlist entries BEHIND it (they would
@@ -1190,6 +1202,18 @@ class ReservationManager
             $expiring = $result ? $result->fetch_all(MYSQLI_ASSOC) : [];
             $selectStmt->close();
 
+            $expiring = array_values(array_filter($expiring, fn (array $row): bool =>
+                \App\Support\LibraryCalendar::reservationExpired(
+                    $this->db, (string) $row['data_scadenza_prenotazione'], (int) $row['libro_id'], $now
+                )
+            ));
+            if ($expiring === []) {
+                $this->commitIfOwned($ownTransaction);
+                return 0;
+            }
+            $expiredIdsSql = implode(',', array_map(static fn (array $row): int => (int) $row['id'], $expiring));
+            $affectedBooks = array_values(array_unique(array_map(static fn (array $row): int => (int) $row['libro_id'], $expiring)));
+
             // Snapshot pre-UPDATE per l'audit di ogni riga espirata (righe già
             // lockate): il diff attiva -> annullata deve partire dallo stato vero.
             $expiryAuditBefore = [];
@@ -1230,15 +1254,15 @@ class ReservationManager
                 $infoStmt->close();
             }
 
-            // Now update the reservations (stesso predicato e stesso $now della
-            // SELECT: annulla esattamente le righe raccolte sopra)
+            // Only the locked rows whose effective, branch-specific deadline
+            // has elapsed may expire. The raw date is only a candidate filter.
             $stmt = $this->db->prepare("
                 UPDATE prenotazioni
                 SET stato = 'annullata'
                 WHERE stato = 'attiva'
                 AND data_scadenza_prenotazione IS NOT NULL
                 AND data_scadenza_prenotazione < ?
-                AND libro_id IN ($bookIdsSql)
+                AND id IN ($expiredIdsSql)
             ");
             $stmt->bind_param('s', $now);
             $stmt->execute();

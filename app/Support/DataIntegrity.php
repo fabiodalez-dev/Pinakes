@@ -778,6 +778,9 @@ class DataIntegrity {
         $result = $stmt->get_result();
         if ($result && $result->num_rows > 0) {
             while ($row = $result->fetch_assoc()) {
+                if (!LibraryCalendar::reservationExpired($this->db, (string) $row['data_scadenza_prenotazione'], (int) $row['libro_id'], $appNow)) {
+                    continue;
+                }
                 $issues[] = [
                     'type' => 'expired_reservation',
                     'message' => \sprintf(__("Prenotazione ID %d scaduta il %s ma ancora attiva"), $row['id'], $row['data_scadenza_prenotazione'])
@@ -1109,6 +1112,7 @@ class DataIntegrity {
             if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $end) || $end < $start) {
                 $end = $start;
             }
+            $end = LibraryCalendar::requestDueDate($this->db, $end, 0, $bookId);
             $endExclusive = (new \DateTimeImmutable($end))->modify('+1 day')->format('Y-m-d');
             // Defensive clamp: keep the sweep key a 4-digit 'YYYY-MM-DD' string so
             // ksort's lexicographic order stays chronological (a 5-digit year like
@@ -1325,6 +1329,9 @@ class DataIntegrity {
                     UPDATE prenotazioni SET stato = 'annullata' WHERE id = ? AND stato = 'attiva'
                 ");
                 foreach ($expiredRows as $exp) {
+                    if (!LibraryCalendar::reservationExpired($this->db, (string) $exp['data_scadenza_prenotazione'], (int) $exp['libro_id'], $appNow)) {
+                        continue;
+                    }
                     $expId = (int) $exp['id'];
                     $beforeSnapshot = ActivityLog::loadReservationSnapshot($this->db, $expId);
 
