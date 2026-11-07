@@ -1015,6 +1015,7 @@ class MaintenanceService
                 // promoting them with copia_id=NULL only moves the failure to
                 // confirmPickup(), which correctly refuses a copy-less loan.
                 $copiaId = !empty($loan['copia_id']) ? (int) $loan['copia_id'] : 0;
+                $dueDate = null;
                 if ($copiaId > 0 && in_array($copiaId, $committedCopyIds, true)) {
                     // Repair legacy/reassigned rows that share a copy with another
                     // open loan for this borrower/title: activation must choose a
@@ -1060,6 +1061,13 @@ class MaintenanceService
                             'copia_impegnata' => $copyHeld,
                         ]);
                         $copiaId = 0;
+                    } else {
+                        $dueDate = $this->activationDueDate($calendar, $loanId, $bookId, $copiaId, (string) $loan['data_prestito'], $oldDue, $today);
+                        if ($dueDate === null) {
+                            // The pinned copy cannot honor its effective return
+                            // window. Try an open sibling before deferring.
+                            $copiaId = 0;
+                        }
                     }
                 }
                 if ($copiaId <= 0) {
@@ -1108,8 +1116,10 @@ class MaintenanceService
                     $freeCopy->close();
                     foreach ($freeCopyRows as $freeCopyRow) {
                         $candidateId = (int) $freeCopyRow['id'];
-                        if ($this->activationDueDate($calendar, $loanId, $bookId, $candidateId, (string) $loan['data_prestito'], $oldDue, $today) !== null) {
+                        $candidateDue = $this->activationDueDate($calendar, $loanId, $bookId, $candidateId, (string) $loan['data_prestito'], $oldDue, $today);
+                        if ($candidateDue !== null) {
                             $copiaId = $candidateId;
+                            $dueDate = $candidateDue;
                             break;
                         }
                     }
@@ -1131,7 +1141,6 @@ class MaintenanceService
                 // on a day that branch is closed moves to its next open day now,
                 // before the pickup deadline is capped at it and the reader is
                 // told both (the pickup-ready e-mail below).
-                $dueDate = $this->activationDueDate($calendar, $loanId, $bookId, $copiaId, (string) $loan['data_prestito'], $oldDue, $today);
                 if ($dueDate === null) {
                     $this->db->rollback();
                     continue;

@@ -1038,10 +1038,15 @@ class LoanApprovalController
                 return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
             }
 
-            // Guardia L1: pickup_deadline (per prestiti storici, pre-cap) può superare
-            // data_scadenza. Non avviare un 'in_corso' la cui finestra è già interamente
-            // trascorsa: nascerebbe scaduto.
-            if (!empty($loan['data_scadenza']) && $loan['data_scadenza'] < $today) {
+            // On reopening, a still-unreconciled return date can move under
+            // this same book lock. Do not start a loan if the extended
+            // window is already promised to another reader.
+            $dueDate = $loan['data_scadenza'];
+            if ($dueDate !== null && $dueDate < $today) {
+                $capacity = new \App\Services\CapacityService($db, lockingReads: true);
+                $dueDate = $capacity->reservationDueDateForCopy($libroId, $copiaId, $today, $dueDate, $loanId);
+            }
+            if (!empty($loan['data_scadenza']) && ($dueDate === null || $dueDate < $today)) {
                 $db->rollback();
                 $response->getBody()->write(json_encode([
                     'success' => false,
@@ -1053,10 +1058,10 @@ class LoanApprovalController
             // Update loan state to 'in_corso'
             $updateStmt = $db->prepare("
                 UPDATE prestiti
-                SET stato = 'in_corso', pickup_deadline = NULL
+                SET stato = 'in_corso', pickup_deadline = NULL, data_scadenza = ?
                 WHERE id = ?
             ");
-            $updateStmt->bind_param('i', $loanId);
+            $updateStmt->bind_param('si', $dueDate, $loanId);
             $updateStmt->execute();
             $updateStmt->close();
 

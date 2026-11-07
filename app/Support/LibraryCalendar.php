@@ -920,7 +920,7 @@ final class LibraryCalendar
         $moved = 0;
         foreach ($rows as $row) {
             $deadline = substr((string) $row['pickup_deadline'], 0, 10);
-            $next = $calendar->pickupDeadlineOnReopening($deadline, $row['data_scadenza'], $row['sede_id'] !== null ? (int) $row['sede_id'] : null);
+            $next = $calendar->pickupDeadlineOnReopening($deadline, $row['data_scadenza'], $row['sede_id'] !== null ? (int) $row['sede_id'] : null, useEffectiveDue: false);
             if ($next <= $deadline || $next < $today) {
                 continue;
             }
@@ -942,7 +942,7 @@ final class LibraryCalendar
                     return;
                 }
                 $deadline = substr((string) $current['pickup_deadline'], 0, 10);
-                $next = $calendar->pickupDeadlineOnReopening($deadline, $current['data_scadenza'], $current['sede_id'] !== null ? (int) $current['sede_id'] : null);
+                $next = $calendar->pickupDeadlineOnReopening($deadline, $current['data_scadenza'], $current['sede_id'] !== null ? (int) $current['sede_id'] : null, useEffectiveDue: false);
                 if ($next <= $deadline || $next < $today) {
                     return;
                 }
@@ -960,11 +960,17 @@ final class LibraryCalendar
     }
 
     /** A closed pickup day can move forward, within the stored loan period. */
-    public function pickupDeadlineOnReopening(string $deadline, ?string $dueDate, ?int $branch): string
+    public function pickupDeadlineOnReopening(string $deadline, ?string $dueDate, ?int $branch, bool $useEffectiveDue = true): string
     {
         $next = $this->nextOpenDay($deadline, $branch);
         $due = substr($dueDate ?? '', 0, 10);
-        return DateHelper::isISODateFormat($due) ? max($deadline, min($next, $due)) : $next;
+        if (!DateHelper::isISODateFormat($due)) {
+            return $next;
+        }
+        // Reads can show the reopening day before maintenance reconciles the
+        // loan. Writes must keep the pickup deadline inside the stored period.
+        $cap = $useEffectiveDue ? $this->nextOpenDay($due, $branch) : $due;
+        return max($deadline, min($next, $cap));
     }
 
     /** The collection deadline shown to readers, even before reconciliation. */

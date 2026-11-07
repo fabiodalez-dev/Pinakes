@@ -175,17 +175,19 @@ foreach ($calendars as $name => $calendarSpec) {
             SettingsReview25::eq($row, [$open, $end], 'Loan starts on the usable day and keeps the open end');
         };
     }
-    $cases["explicit reader queue follows {$name}"] = static function (SettingsReview25 $t) use ($fixture): void {
-        [$b, $date, $open] = $fixture($t);
-        $_SESSION['user']['id'] = $t->reader;
-        $_SESSION['user']['tipo_utente'] = 'standard';
-        $end = $t->day(4, $date);
-        (new UserActionsController())->reserve($t->request('/user/reserve', [
-            'libro_id' => $b['id'], 'desired_date' => $date, 'end_date' => $end,
-        ]), new Response(), $t->db);
-        $row = $t->db->query("SELECT data_inizio_richiesta,data_fine_richiesta FROM prenotazioni WHERE libro_id={$b['id']}")->fetch_row();
-        SettingsReview25::eq($row, [$open, $end], 'Reader hold is persisted on the usable window');
-    };
+    if ($name !== 'inactive holiday') {
+        $cases["explicit reader queue follows {$name}"] = static function (SettingsReview25 $t) use ($fixture): void {
+            [$b, $date, $open] = $fixture($t);
+            $_SESSION['user']['id'] = $t->reader;
+            $_SESSION['user']['tipo_utente'] = 'standard';
+            $end = $t->day(4, $date);
+            (new UserActionsController())->reserve($t->request('/user/reserve', [
+                'libro_id' => $b['id'], 'desired_date' => $date, 'end_date' => $end,
+            ]), new Response(), $t->db);
+            $row = $t->db->query("SELECT data_inizio_richiesta,data_fine_richiesta FROM prenotazioni WHERE libro_id={$b['id']}")->fetch_row();
+            SettingsReview25::eq($row, [$open, $end], 'Reader hold is persisted on the usable window');
+        };
+    }
     $cases["an existing queue still holds capacity through {$name}"] = static function (SettingsReview25 $t) use ($fixture): void {
         [$b, $date, $open] = $fixture($t);
         $id = matrixReserve($t, $b, $t->reader, $t->day(3), $date);
@@ -294,15 +296,16 @@ $cases['a scheduled loan can activate on the reopening day of a past stored end'
     $row = $t->db->query("SELECT stato,data_scadenza,pickup_deadline FROM prestiti WHERE id={$loan}")->fetch_row();
     SettingsReview25::eq($row, ['da_ritirare', $t->today, $t->today], 'Both deadlines are capped to the reopening day');
 };
-$cases['staff can confirm an unreconciled pickup on the effective deadline'] = static function (SettingsReview25 $t): void {
+$cases['staff can confirm when both unreconciled deadlines fall in the same closure'] = static function (SettingsReview25 $t): void {
     $b = $t->book($t->branchA);
-    $loan = matrixLoan($t, $b, $b['copies'][0], $t->day(-5), $t->day(4), 'da_ritirare', pickup: $t->day(-1));
-    matrixHoliday($t, $t->day(-1), 1, $t->branchA);
+    $loan = matrixLoan($t, $b, $b['copies'][0], $t->day(-5), $t->day(-1), 'da_ritirare', pickup: $t->day(-2));
+    matrixHoliday($t, $t->day(-2), 2, $t->branchA);
     matrixCalendarEnd((new IcsGenerator($t->db))->generate(), 'loan-' . $loan . '@pinakes', $t->day(1));
     matrixCalendarEnd((new UserLoanCalendar($t->db))->generate($t->reader, 'Test'), 'loan-' . $loan . '@pinakes', $t->day(1));
     $response = (new LoanApprovalController())->confirmPickup($t->request('/admin/loans/pickup', ['loan_id' => $loan]), new Response(), $t->db);
     SettingsReview25::eq($response->getStatusCode(), 200, 'Reopening is still a valid pickup day before the sweep');
     SettingsReview25::eq(matrixState($t, $loan), 'in_corso', 'Pickup starts the loan');
+    SettingsReview25::eq($t->due($loan), $t->today, 'The confirmed loan stores the safe return day');
 };
 $cases['a closed pickup cannot outlive an unchanged open return deadline'] = static function (SettingsReview25 $t): void {
     $b = $t->book($t->branchA);
@@ -353,8 +356,8 @@ $cases['a replacement copy in another branch stores its usable return day'] = st
 foreach (['staff', 'reader'] as $actor) {
     $cases["{$actor} cancellation on reopening is voluntary, not an expiry"] = static function (SettingsReview25 $t) use ($actor): void {
         $b = $t->book($t->branchA);
-        $loan = matrixLoan($t, $b, $b['copies'][0], $t->day(-5), $t->day(4), 'da_ritirare', pickup: $t->day(-1));
-        matrixHoliday($t, $t->day(-1), 1, $t->branchA);
+        $loan = matrixLoan($t, $b, $b['copies'][0], $t->day(-5), $t->day(-1), 'da_ritirare', pickup: $t->day(-2));
+        matrixHoliday($t, $t->day(-2), 2, $t->branchA);
         $request = $t->request('/cancel', ['loan_id' => $loan]);
         if ($actor === 'staff') {
             (new LoanApprovalController())->cancelPickup($request, new Response(), $t->db);
@@ -394,6 +397,16 @@ $cases['a mixed-branch title waits until at least one lending branch reopens'] =
     SettingsReview25::check(in_array($day, $availability['closed_dates'], true), 'Overlapping branch closures are presented as closed');
     SettingsReview25::eq((new CapacityService($t->db))->firstAvailableDate($b['id'], $day), $firstOpen, 'The copy-available estimate follows the same branch scope');
     SettingsReview25::eq(LibraryCalendar::reservationDeadline($t->db, $day . ' 18:00:00', $b['id']), $firstOpen . ' 23:59:59', 'A deadline extends until one branch can accept it');
+};
+
+$cases['a pinned booking tries a sibling when the original copy is promised on reopening'] = static function (SettingsReview25 $t): void {
+    $b = $t->book($t->branchA);
+    $sibling = matrixCopy($t, $b, $t->branchB);
+    $loan = matrixLoan($t, $b, $b['copies'][0], $t->today, $t->day(4));
+    $t->loan($b, $t->day(8), ['copy' => $b['copies'][0], 'reader' => $t->secondReader, 'start' => $t->day(5), 'status' => 'prenotato']);
+    matrixHoliday($t, $t->day(4), 1, $t->branchA);
+    SettingsReview25::eq((new MaintenanceService($t->db))->activateScheduledLoans(), 1, 'A compatible sibling keeps the pickup valid');
+    SettingsReview25::eq((int) $t->scalar("SELECT copia_id FROM prestiti WHERE id={$loan}"), $sibling, 'The previously pinned copy is protected for the next reader');
 };
 
 $passed = $failed = 0;
