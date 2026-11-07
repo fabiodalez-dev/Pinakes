@@ -103,10 +103,10 @@ $check(IsbnFormatter::isValidIsbn10('0306406152'), 'fixture 0306406152 is a vali
 $check(!IsbnFormatter::isValidIsbn13('1111111111111'), 'fixture 1111111111111 is NOT a valid ISBN-13');
 $check(!IsbnFormatter::isValidIsbn10('1234567890'), 'fixture 1234567890 is NOT a valid ISBN-10');
 
-$check($parts('9780306406157') === ['9780306406157', null], 'valid ISBN-13 kept in the 13 slot');
-$check($parts('978-0-306-40615-7') === ['9780306406157', null], 'valid ISBN-13 kept after stripping hyphens/spaces');
+$check($parts('9780306406157') === ['9780306406157', '0306406152'], 'valid ISBN-13 supplies both equivalent lookup keys');
+$check($parts('978-0-306-40615-7') === ['9780306406157', '0306406152'], 'valid ISBN-13 supplies both keys after stripping hyphens/spaces');
 $check($parts('1111111111111') === [null, null], 'garbage 13-digit run rejected (bug fixed)');
-$check($parts('0306406152') === [null, '0306406152'], 'valid ISBN-10 kept in the 10 slot');
+$check($parts('0306406152') === ['9780306406157', '0306406152'], 'valid ISBN-10 supplies both equivalent lookup keys');
 $check($parts('1234567890') === [null, null], 'garbage 10-digit run rejected (bug fixed)');
 $check($parts('') === [null, null], 'empty string yields no parts');
 $check($parts('978030640615') === [null, null], '12-digit near-miss yields no parts');

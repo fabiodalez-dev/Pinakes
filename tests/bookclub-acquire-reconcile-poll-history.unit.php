@@ -213,6 +213,29 @@ try {
     $check($repo->reconcileExternalBooksWithCatalogue($clubId) === 0, 'A21 automatic pass refuses an ambiguous same-club duplicate');
     $check((int) $scalar("SELECT external_book_id FROM bookclub_books WHERE id={$cbDuplicate}") === $extDuplicate, 'A22 ambiguous proposal remains external with its history intact');
 
+    // A catalogue may carry only one ISBN shape (manual entry, legacy import).
+    // Both explicit acquisition and the save hook must match the other shape,
+    // rather than inserting a second catalogue record for the same publication.
+    foreach ([['isbn13', 'acquire'], ['isbn10', 'acquire'], ['isbn13', 'save'], ['isbn10', 'save']] as $i => [$column, $path]) {
+        $cross13 = $mkIsbn13('978555' . $i . $rand5());
+        $cross10 = \App\Support\IsbnFormatter::isbn13ToIsbn10($cross13);
+        $catalogueCode = $column === 'isbn13' ? $cross13 : $cross10;
+        $proposalCode = $column === 'isbn13' ? $cross10 : $cross13;
+        $q("INSERT INTO libri (titolo, {$column}) VALUES ('{$TOKEN} Cross {$i}', '{$catalogueCode}')");
+        $crossBook = (int) $db->insert_id; $createdLibri[] = $crossBook;
+        [$crossProposal, $crossExternal] = $seedExternal("{$TOKEN} Cross proposal {$i}", $proposalCode);
+        $countBefore = (int) $scalar('SELECT COUNT(*) FROM libri');
+        if ($path === 'acquire') {
+            $check($repo->acquireExternalBook($crossProposal) === $crossBook, "cross-shape $column explicit acquisition reuses the existing book");
+        } else {
+            $plugin->onCatalogueBookSaved($crossBook);
+            $check((int) $scalar("SELECT libro_id FROM bookclub_books WHERE id={$crossProposal}") === $crossBook, "cross-shape $column save hook links the existing book");
+        }
+        $check((int) $scalar('SELECT COUNT(*) FROM libri') === $countBefore, "cross-shape $column $path creates no catalogue duplicate");
+        $check((int) $scalar("SELECT acquired_libro_id FROM bookclub_external_books WHERE id={$crossExternal}") === $crossBook, "cross-shape $column $path stamps the external record");
+        $check($repo->reconcileExternalBooksForCatalogueBook($crossBook) === 0, "cross-shape $column $path is idempotent");
+    }
+
     echo "B. neverChosenProposals — proposed-but-not-chosen archive (#138 feature)\n";
 
     // Seed club books (catalogue-side, simplest) to be poll options.
