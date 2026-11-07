@@ -63,5 +63,18 @@ $normalizer = new ReflectionMethod(App\Controllers\ScrapeController::class, 'nor
 $book = $normalizer->invoke(new App\Controllers\ScrapeController(), $map('0306406152'), '0306406152');
 $check($book['isbn13'] === '9780306406157' && IsbnFormatter::isValidIsbn13($book['isbn13']), 'the mapped ISBN-10 also survives controller finalization with valid identifiers');
 
+// Typed input (scraping form) vs stored/provider values: only typedIsbn()
+// strips an "ISBN" label, dots and Unicode separators.
+foreach (['ISBN 978-0-306-40615-7' => '9780306406157', 'isbn: 9780306406157' => '9780306406157', 'ISBN-13: 978-0-306-40615-7' => '9780306406157',
+          'ISBN-10 0-306-40615-2' => '0306406152', '978.0306406157' => '9780306406157', "978\u{2011}0\u{2011}306\u{2011}40615\u{2011}7" => '9780306406157',
+          "978\u{2013}0306406157" => '9780306406157', "978\u{00A0}0\u{00A0}306\u{00A0}40615\u{00A0}7" => '9780306406157', "978\u{202F}0306406157" => '9780306406157',
+          '0.306.40615.2' => '0306406152'] as $input => $compact) {
+    $check(IsbnFormatter::typedIsbn($input) === $compact, 'typed ' . json_encode($input) . ' is ISBN ' . $compact);
+}
+foreach (['CDP 7912682', 'ISBN CDP7912682', 'ABC 9780306406157', '9780306406157X', 'ISBN 0720642442524', 'ISBN', 'ISBN 978-0-306-40615-8'] as $input) {
+    $check(IsbnFormatter::typedIsbn($input) === null, json_encode($input) . ' is not a typed ISBN');
+}
+$check(IsbnFormatter::bookVariants('ISBN 0306406152') === [], 'stored/provider values stay strict: a labelled value is not a book key');
+
 echo "$checks checks, $failures failures\n";
 exit($failures > 0 ? 1 : 0);

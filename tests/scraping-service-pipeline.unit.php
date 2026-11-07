@@ -125,6 +125,26 @@ try {
     $kept = ScrapingService::scrapeBookData('9780306406157', 2);
     $check(($kept['image'] ?? null) === 'https://example.test/kept.jpg' && ($kept['title'] ?? null) === 'Kept fallback', 'an empty retry does not drop the partial cover before the fallback');
 
+    // The web form sends input.value.trim(): a typed "ISBN" label, dots or
+    // Unicode dashes/spaces are still a book ISBN, queried in compact form.
+    $fetch = static fn(int $attempt, string $identifier) => ['title' => 'Typed', 'image' => 'https://example.test/typed.jpg'];
+    $typed = [
+        'ISBN 978-0-306-40615-7' => '9780306406157', 'ISBN-10: 0-306-40615-2' => '0306406152',
+        '978.0306406157' => '9780306406157', "978\u{2011}0\u{2011}306\u{2011}40615\u{2011}7" => '9780306406157',
+        "978\u{00A0}0306406157" => '9780306406157',
+    ];
+    foreach ($typed as $input => $compact) {
+        $events = []; $calls = 0;
+        $request = (new ServerRequestFactory())->createServerRequest('GET', '/api/scrape/isbn')->withQueryParams(['isbn' => $input]);
+        $response = (new ScrapeController())->byIsbn($request, new Response());
+        $body = json_decode((string) $response->getBody(), true);
+        $check($response->getStatusCode() === 200 && end($seenIdentifiers) === $compact && ($body['isbn13'] ?? null) === '9780306406157',
+            'typed ' . json_encode($input) . ' is scraped as ISBN ' . $compact);
+    }
+    $events = []; $calls = 0;
+    $request = (new ServerRequestFactory())->createServerRequest('GET', '/api/scrape/isbn')->withQueryParams(['isbn' => 'ISBN 978-0-306-40615-8']);
+    $check((new ScrapeController())->byIsbn($request, new Response())->getStatusCode() === 400 && $calls === 0, 'a typed ISBN with a wrong checksum is still rejected');
+
     $events = []; $calls = 0;
     $check(ScrapingService::scrapeBookData('not-an-isbn', 1) === [] && $calls === 0, 'invalid input is rejected before any provider is called');
 

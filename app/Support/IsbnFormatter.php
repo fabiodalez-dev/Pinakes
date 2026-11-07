@@ -218,6 +218,19 @@ class IsbnFormatter
     }
 
     /**
+     * The compact ISBN in what a person typed or pasted, or null when it is
+     * not one. Accepts what the scraping form always accepted: an "ISBN",
+     * "ISBN-13:" (etc.) label, dots, Unicode dashes and Unicode/no-break
+     * spaces. bookVariants() stays strict for stored and provider values.
+     */
+    public static function typedIsbn(string $input): ?string
+    {
+        $isbn = preg_replace('/\A[\s\x{00A0}]*ISBN(?:-?1[03])?[\s\x{00A0}]*:?/iu', '', $input) ?? '';
+        $isbn = strtoupper(preg_replace('/[\p{Pd}\p{Z}\s.\x{00AD}]/u', '', $isbn) ?? '');
+        return self::bookVariants($isbn) !== [] ? $isbn : null;
+    }
+
+    /**
      * Detect format based on length: 'isbn10', 'isbn13', or null
      *
      * Note: This method only checks length, not validity.

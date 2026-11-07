@@ -263,10 +263,13 @@ class ScrapeController
             }
         }
         // SSRF Protection: Validate ISBN format before constructing URL
-        $cleanIsbn = preg_replace('/[^0-9X]/', '', strtoupper($rawIdentifier));
+        // A typed ISBN keeps working with an "ISBN" label, dots or Unicode
+        // dashes/spaces; its compact form is what every source receives.
+        $typedIsbn = IsbnFormatter::typedIsbn($rawIdentifier);
+        $cleanIsbn = $typedIsbn ?? preg_replace('/[^0-9X]/', '', strtoupper($rawIdentifier));
 
         // Validate ISBN format (ISBN-10 or ISBN-13)
-        $bookVariants = IsbnFormatter::bookVariants($rawIdentifier);
+        $bookVariants = $typedIsbn !== null ? IsbnFormatter::bookVariants($typedIsbn) : [];
         $isBookIsbn = $bookVariants !== [];
         $isValid = $isBookIsbn;
 
