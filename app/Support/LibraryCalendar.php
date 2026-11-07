@@ -894,7 +894,12 @@ final class LibraryCalendar
         $rows = $result->fetch_all(MYSQLI_ASSOC);
         $result->free();
 
+        // A caller's transaction (calendar save) is all-or-nothing; without
+        // one (maintenance) each pickup is reconciled in its own.
+        $ownTransaction = !DbAtomic::inTransaction($db);
         $moved = 0;
+        $notMoved = 0;
+        $lastError = null;
         foreach ($rows as $row) {
             $deadline = substr((string) $row['pickup_deadline'], 0, 10);
             $next = $calendar->pickupDeadlineOnReopening($deadline, $row['data_scadenza'], $row['sede_id'] !== null ? (int) $row['sede_id'] : null);
@@ -903,35 +908,53 @@ final class LibraryCalendar
             }
             $id = (int) $row['id'];
             $bookId = (int) $row['libro_id'];
-            self::withBookLock($db, $bookId, static function () use ($db, $calendar, $today, $id, $bookId, &$moved): void {
-                // The due date or assigned branch can change while waiting for
-                // the book lock. Recompute the cap from the current locked row.
-                $read = $db->prepare(
-                    "SELECT p.pickup_deadline, p.data_scadenza, c.sede_id
-                     FROM prestiti p LEFT JOIN copie c ON c.id = p.copia_id
-                     WHERE p.id = ? AND p.libro_id = ? AND p.stato = 'da_ritirare' AND p.attivo = 1 FOR UPDATE"
-                );
-                $read->bind_param('ii', $id, $bookId);
-                $read->execute();
-                $current = $read->get_result()->fetch_assoc();
-                $read->close();
-                if ($current === null || $current['pickup_deadline'] === null) {
-                    return;
+            try {
+                self::withBookLock($db, $bookId, static function () use ($db, $calendar, $today, $id, $bookId, &$moved): void {
+                    // The due date or assigned branch can change while waiting for
+                    // the book lock. Recompute the cap from the current locked row.
+                    $read = $db->prepare(
+                        "SELECT p.pickup_deadline, p.data_scadenza, c.sede_id
+                         FROM prestiti p LEFT JOIN copie c ON c.id = p.copia_id
+                         WHERE p.id = ? AND p.libro_id = ? AND p.stato = 'da_ritirare' AND p.attivo = 1 FOR UPDATE"
+                    );
+                    $read->bind_param('ii', $id, $bookId);
+                    $read->execute();
+                    $current = $read->get_result()->fetch_assoc();
+                    $read->close();
+                    if ($current === null || $current['pickup_deadline'] === null) {
+                        return;
+                    }
+                    $deadline = substr((string) $current['pickup_deadline'], 0, 10);
+                    $next = $calendar->pickupDeadlineOnReopening($deadline, $current['data_scadenza'], $current['sede_id'] !== null ? (int) $current['sede_id'] : null);
+                    if ($next <= $deadline || $next < $today) {
+                        return;
+                    }
+                    $stmt = $db->prepare(
+                        "UPDATE prestiti SET pickup_deadline = ?
+                         WHERE id = ? AND stato = 'da_ritirare' AND attivo = 1 AND pickup_deadline = ?"
+                    );
+                    $stmt->bind_param('sis', $next, $id, $deadline);
+                    $stmt->execute();
+                    $moved += max(0, $stmt->affected_rows);
+                    $stmt->close();
+                });
+            } catch (\Throwable $e) {
+                // Inside a caller's transaction the whole save must fail. On
+                // its own (maintenance), one contended book must not leave
+                // every other pickup unreconciled: the row is rolled back
+                // alone and the run reports itself incomplete at the end.
+                if (!$ownTransaction) {
+                    throw $e;
                 }
-                $deadline = substr((string) $current['pickup_deadline'], 0, 10);
-                $next = $calendar->pickupDeadlineOnReopening($deadline, $current['data_scadenza'], $current['sede_id'] !== null ? (int) $current['sede_id'] : null);
-                if ($next <= $deadline || $next < $today) {
-                    return;
-                }
-                $stmt = $db->prepare(
-                    "UPDATE prestiti SET pickup_deadline = ?
-                     WHERE id = ? AND stato = 'da_ritirare' AND attivo = 1 AND pickup_deadline = ?"
-                );
-                $stmt->bind_param('sis', $next, $id, $deadline);
-                $stmt->execute();
-                $moved += max(0, $stmt->affected_rows);
-                $stmt->close();
-            });
+                $notMoved++;
+                $lastError = $e;
+                SecureLogger::warning('Calendar: pickup deadline of loan ' . $id . ' not moved: ' . $e->getMessage());
+            }
+        }
+        if ($notMoved > 0) {
+            // The last cause rides along: a lock wait (1205) stays visible to
+            // a caller that retries on it.
+            throw new \RuntimeException("Calendar: {$notMoved} pickup deadline(s) not moved ({$moved} moved)", 0, $lastError);
         }
         return $moved;
     }
