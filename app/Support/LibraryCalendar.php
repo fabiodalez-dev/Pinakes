@@ -60,6 +60,9 @@ final class LibraryCalendar
     /** @var array<int, array<string, array<int|string, true>>> per year: date => branches ('*' = every branch) */
     private array $holidayDates = [];
 
+    /** @var array<int, array<string, array<int|string, true>>> adjacent source years used to build holidayDates */
+    private array $holidaySourceDates = [];
+
     /** @var array<int, self> per-connection cache, keyed by spl_object_id */
     private static array $instances = [];
 
@@ -111,6 +114,17 @@ final class LibraryCalendar
                 'sede' => ($sede === null || $sede === '' || (int) $sede <= 0) ? null : (int) $sede,
             ];
         }
+    }
+
+    /**
+     * Add a manual closure without discarding the computed holiday dates.
+     * @param array{data_inizio:string, data_fine:string, ricorrente_annuale:int, sede_id:?int} $row
+     */
+    public function withAdditionalClosure(array $row): self
+    {
+        $next = clone $this;
+        $next->closures = array_merge($this->closures, (new self([], [$row]))->closures);
+        return $next;
     }
 
     /** The calendar stored in the database (settings + closures table). */
@@ -703,9 +717,12 @@ final class LibraryCalendar
      * return day the reader is told, or the day before it when the library hands
      * the book over on that day itself. Both capacity and the request calendar read it.
      */
-    public static function holdingEnd(\mysqli $db, string $storedDue, ?int $copiaId): string
+    public static function holdingEnd(\mysqli $db, string $storedDue, ?int $copiaId, ?int $scheduledBookId = null, bool $lockingRead = false): string
     {
-        $usable = self::dueDate($db, $storedDue, $copiaId);
+        $calendar = self::forDb($db);
+        $usable = $copiaId === null && $scheduledBookId !== null && $calendar->hasRules()
+            ? $calendar->nextOpenDay($storedDue, self::requestScope($db, $scheduledBookId, $lockingRead))
+            : self::dueDate($db, $storedDue, $copiaId);
         if ($usable > $storedDue && (new \App\Models\SettingsRepository($db))->allowsSameDayHandover()) {
             return (new \DateTimeImmutable($usable))->modify('-1 day')->format('Y-m-d');
         }
@@ -1043,22 +1060,36 @@ final class LibraryCalendar
         $year = (int) substr($ymd, 0, 4);
         if (!isset($this->holidayDates[$year])) {
             $dates = [];
+            $sources = [];
             // An observed New Year's Day can land on 31 December of the
             // preceding year. Include adjacent source years before filtering.
             for ($sourceYear = max(1, $year - 1); $sourceYear <= min(9999, $year + 1); $sourceYear++) {
-                foreach ($this->holidayRules as $rule) {
-                    $branch = isset($rule['sede']) && is_int($rule['sede']) ? $rule['sede'] : '*';
-                    foreach (Holidays\HolidayCalculator::datesOf($rule, $sourceYear) as $date) {
-                        if ((int) substr($date, 0, 4) === $year) {
-                            $dates[$date][$branch] = true;
-                        }
+                $sourceDates = $this->holidaySourceDates[$sourceYear] ?? $this->holidaysForSourceYear($sourceYear);
+                $sources[$sourceYear] = $sourceDates;
+                foreach ($sourceDates as $date => $branches) {
+                    if ((int) substr($date, 0, 4) === $year) {
+                        $dates[$date] = ($dates[$date] ?? []) + $branches;
                     }
                 }
             }
+            $this->holidaySourceDates = $sources;
             $this->holidayDates[$year] = $dates;
         }
         $branches = $this->holidayDates[$year][$ymd] ?? null;
         return $branches !== null && (isset($branches['*']) || ($sedeId !== null && isset($branches[$sedeId])));
+    }
+
+    /** @return array<string, array<int|string, true>> */
+    private function holidaysForSourceYear(int $year): array
+    {
+        $dates = [];
+        foreach ($this->holidayRules as $rule) {
+            $branch = isset($rule['sede']) && is_int($rule['sede']) ? $rule['sede'] : '*';
+            foreach (Holidays\HolidayCalculator::datesOf($rule, $year) as $date) {
+                $dates[$date][$branch] = true;
+            }
+        }
+        return $dates;
     }
 
     /**

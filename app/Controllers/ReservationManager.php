@@ -145,9 +145,8 @@ class ReservationManager
     /**
      * Process reservations when a book becomes available
      *
-     * Finds the next date-eligible reservation (where start date <= today)
-     * and attempts to convert it to a pending loan. Only processes one
-     * reservation at a time to maintain queue order.
+     * Converts the first date-eligible reservation whose period can be honored.
+     * Earlier reservations retain their claim on capacity while waiting.
      *
      * Uses row-level locking (SELECT FOR UPDATE) to prevent race conditions
      * where multiple processes try to convert the same reservation.
@@ -163,6 +162,7 @@ class ReservationManager
         $circulation = new \App\Services\CirculationPolicy($this->db);
         $limitSql = $circulation->totalLoanLimitSql('u');
         $ownTransaction = $this->beginTransactionIfNeeded();
+        $candidateStmt = null;
 
         try {
             // Lock the book row first to serialize all reservation processing for this book
@@ -210,7 +210,7 @@ class ReservationManager
             $materialRefusedSql = $materialRefused === []
                 ? ''
                 : ' AND r.utente_id NOT IN (' . implode(',', array_map('intval', $materialRefused)) . ')';
-            $stmt = $this->db->prepare("
+            $candidateStmt = $this->db->prepare("
                 SELECT r.*, u.email, u.nome, u.cognome
                 FROM prenotazioni r
                 JOIN utenti u ON r.utente_id = u.id
@@ -224,18 +224,27 @@ class ReservationManager
                       AND cap.attivo = 1
                       AND cap.stato IN (" . \App\Services\CirculationPolicy::ACTIVE_LOAN_STATES_SQL . ")
                 ) < {$limitSql})
-                ORDER BY r.queue_position ASC
+                AND ((? IS NULL AND r.queue_position IS NOT NULL)
+                     OR r.queue_position > ? OR (r.queue_position <=> ? AND r.id > ?))
+                ORDER BY r.queue_position ASC, r.id ASC
                 LIMIT 1
                 FOR UPDATE
             ");
             $legacyFloor = \App\Support\LibraryCalendar::legacyReservationDeadlineFloor($this->db, $today, (int) $bookId);
-            $stmt->bind_param('isss', $bookId, $today, $legacyFloor, $today);
-            $stmt->execute();
-            $result = $stmt->get_result();
-            $nextReservation = $result ? $result->fetch_assoc() : null;
-            $stmt->close();
+            $position = null;
+            $reservationId = 0;
+            $candidateStmt->bind_param('isssiiii', $bookId, $today, $legacyFloor, $today, $position, $position, $position, $reservationId);
 
-            if ($nextReservation !== null) {
+            while (true) {
+                $candidateStmt->execute();
+                $result = $candidateStmt->get_result();
+                $nextReservation = $result->fetch_assoc();
+                $result->free();
+                if ($nextReservation === null) {
+                    break;
+                }
+                $position = isset($nextReservation['queue_position']) ? (int) $nextReservation['queue_position'] : null;
+                $reservationId = (int) $nextReservation['id'];
                 $promotedUserId = (int) $nextReservation['utente_id'];
                 $userLock = $this->db->prepare('SELECT id FROM utenti WHERE id = ? FOR UPDATE');
                 $userLock->bind_param('i', $promotedUserId);
@@ -252,7 +261,7 @@ class ReservationManager
                         'utente_id' => (int) $nextReservation['utente_id'],
                         'motivo' => $eligibilityError,
                     ]);
-                    $nextReservation = null;
+                    continue;
                 } else {
                     // The SQL predicate avoids head-of-line blocking; this
                     // second check under the user lock closes the race with
@@ -262,12 +271,9 @@ class ReservationManager
                         $promotedUserId
                     );
                     if ($limitError !== null) {
-                        $nextReservation = null;
+                        continue;
                     }
                 }
-            }
-
-            if ($nextReservation) {
                 // Check if the desired date range is available. Resolve the canonical
                 // R_END once: a legacy prenotazione may have data_fine_richiesta NULL but
                 // data_scadenza_prenotazione set — passing the raw NULL would make
@@ -285,8 +291,7 @@ class ReservationManager
                     // reopening. Start the resulting loan on that usable day.
                     $startDate = \App\Support\LibraryCalendar::requestStartDay($this->db, $startDate, (int) $bookId);
                     if ($startDate > $today) {
-                        $this->commitIfOwned($ownTransaction);
-                        return false;
+                        continue;
                     }
                 }
                 // Feed both resolved bounds to createLoanFromReservation() too.
@@ -309,16 +314,15 @@ class ReservationManager
                     excludeReservationsAfterQueuePos: $headQueuePos,
                     excludeQueueTailStartingBy: $storedEndDate
                 )) {
-                    // The head stays 'attiva' and blocks the queue until staff
-                    // resolve it (the integrity audit lists it): say why.
+                    // Leave this hold intact and consider later readers whose
+                    // dates fit around it and all other existing commitments.
                     \App\Support\SecureLogger::info('Promozione prenotazione rinviata: la chiusura allunga il periodo su una promessa già fatta', [
                         'prenotazione_id' => (int) $nextReservation['id'],
                         'libro_id' => $bookId,
                         'fine_richiesta' => $storedEndDate,
                         'fine_effettiva' => $endDate,
                     ]);
-                    $this->commitIfOwned($ownTransaction);
-                    return false;
+                    continue;
                 }
 
                 // #157: pass the promoted reservation's queue_position so the
@@ -353,9 +357,8 @@ class ReservationManager
                     // when called standalone, but here we're already in a transaction
                     $loanCreated = $this->createLoanFromReservation($nextReservation, $storedEndDate);
 
-                    if ($loanCreated === false) {
-                        // Race condition detected - loan creation failed. Restore
-                        // the claim first: with an EXTERNAL transaction we cannot
+                    if ($loanCreated === null || $loanCreated === false) {
+                        // Restore the claim first: with an EXTERNAL transaction we cannot
                         // roll back the owner's work, and leaving the row
                         // 'completata' without its loan would be committed by the
                         // caller (reservation lost). We still hold the row lock,
@@ -364,6 +367,10 @@ class ReservationManager
                         $unclaim->bind_param('i', $nextReservation['id']);
                         $unclaim->execute();
                         $unclaim->close();
+                        if ($loanCreated === null) {
+                            // No copy can serve this reader; no loan was written.
+                            continue;
+                        }
                         $this->rollbackIfOwned($ownTransaction);
                         return false;
                     }
@@ -441,6 +448,8 @@ class ReservationManager
             }
             \App\Support\SecureLogger::error('processBookAvailability error', ['error' => $e->getMessage()]);
             return false;
+        } finally {
+            $candidateStmt?->close();
         }
     }
 
@@ -486,7 +495,7 @@ class ReservationManager
      * The loan requires admin confirmation of physical book pickup.
      *
      * @param array{id?: int|string, libro_id: int, utente_id: int, data_inizio_richiesta: string, data_fine_richiesta: string, queue_position?: int|string|null} $reservation Reservation data
-     * @return int|false Loan ID on success, false on failure (no copies available or race condition)
+     * @return int|false|null Loan ID on success, null if no copy fits, false on write failure.
      */
     private function createLoanFromReservation($reservation, ?string $storedEndDate = null)
     {
@@ -649,7 +658,7 @@ class ReservationManager
             }
             if ($copyId === null) {
                 $this->rollbackIfOwned($ownTransaction);
-                return false;
+                return null;
             }
 
             // Create loan with copia_id and origine='prenotazione'

@@ -266,9 +266,11 @@ class LoanApprovalController
             // diventerebbero ciechi ai prestiti correnti.
             $calendar = \App\Support\LibraryCalendar::forDb($db);
             $capacity = new \App\Services\CapacityService($db, lockingReads: true);
-            $branch = $calendar->hasRules() ? \App\Support\LibraryCalendar::reservationBranch($db, $libroId, $existingCopiaId) : null;
+            // The preliminary check uses the earliest return day across the
+            // book's branches. A pinned copy may fail and have to be replaced.
+            $branch = $calendar->hasRules() ? \App\Support\LibraryCalendar::requestScope($db, $libroId, lockingRead: true) : null;
             $usableDue = $dataScadenza !== null ? $calendar->nextOpenDay($dataScadenza, $branch) : null;
-            if ($usableDue !== null && $usableDue !== '' && $usableDue < $today) {
+            if (!$calendar->hasRules() && $usableDue !== null && $usableDue !== '' && $usableDue < $today) {
                 $db->rollback();
                 $response->getBody()->write(json_encode([
                     'success' => false,
@@ -412,7 +414,11 @@ class LoanApprovalController
                 // end, not only the requested window: a fully occupied earlier day
                 // means this loan would depend on a preceding loan/reservation being
                 // collected and returned on time, which is the bypass fixed by #384.
-                if (!$capacity->hasFreeCapacity($libroId, $today, $usableDue, excludePrestitoId: $loanId)) {
+                // An open sibling can make the earliest effective due date
+                // fall in the past while another copy can still be collected
+                // today. The per-copy check handles its actual due date below.
+                $minimumDue = max($today, (string) $usableDue);
+                if (!$capacity->hasFreeCapacity($libroId, $today, $minimumDue, excludePrestitoId: $loanId)) {
                     $db->rollback();
                     // Name the longest loan still possible from today when a
                     // later commitment is what blocks the approval, so staff
@@ -422,7 +428,7 @@ class LoanApprovalController
                     // return), but the loan itself starts on data_prestito:
                     // the figures count from there, and a conflict before it
                     // cannot be fixed by shortening, so no figures then.
-                    $blocked = array_filter([$capacity->firstUnavailableDateInRange($libroId, $today, $usableDue, null, $loanId)]);
+                    $blocked = array_filter([$capacity->firstUnavailableDateInRange($libroId, $today, $minimumDue, null, $loanId)]);
                     $cap = ($blocked !== [] && min($blocked) > $dataPrestito)
                         ? \App\Support\LoanWindow::cap($dataPrestito, $blocked)
                         : null;

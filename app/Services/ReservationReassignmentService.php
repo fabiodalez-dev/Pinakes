@@ -603,6 +603,26 @@ class ReservationReassignmentService
             $lockBook->execute();
             $lockBook->close();
 
+            $current = $this->db->prepare('SELECT data_scadenza FROM prestiti WHERE id = ? AND libro_id = ? AND copia_id = ? FOR UPDATE');
+            $current->bind_param('iii', $reservationId, $libroId, $lostCopyId);
+            $current->execute();
+            $storedEnd = $current->get_result()->fetch_row()[0] ?? null;
+            $current->close();
+            if ($storedEnd === null) {
+                $this->rollbackIfOwned($ownTransaction);
+                return false;
+            }
+            if ($promisedEnd > $storedEnd) {
+                $capacity = new CapacityService($this->db, lockingReads: true);
+                // On a same-day handover the reopening day was never occupied
+                // by this hold. Storing the adjusted date as an inclusive raw
+                // end would reserve that day even though no copy was assigned.
+                if ((new \App\Models\SettingsRepository($this->db))->allowsSameDayHandover()
+                    || !$capacity->hasFreeCapacity($libroId, \App\Support\LibraryCalendar::shift((string) $storedEnd, 1), $promisedEnd, excludePrestitoId: $reservationId)) {
+                    $promisedEnd = (string) $storedEnd;
+                }
+            }
+
             $stmt = $this->db->prepare("
                 UPDATE prestiti
                 SET copia_id = NULL, data_scadenza = GREATEST(data_scadenza, ?),

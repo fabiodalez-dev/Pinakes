@@ -86,9 +86,10 @@ try {
         DateHelper::synchronizeDatabaseSession($db);
         $db->query("INSERT INTO utenti (nome,cognome,email,password,stato,tipo_utente,codice_tessera,email_verificata)
                     VALUES ('Calendar','One','calendar-one@example.invalid','x','attivo','standard','CAL1',1),
-                           ('Calendar','Two','calendar-two@example.invalid','x','attivo','standard','CAL2',1)");
+                           ('Calendar','Two','calendar-two@example.invalid','x','attivo','standard','CAL2',1),
+                           ('Calendar','Three','calendar-three@example.invalid','x','attivo','standard','CAL3',1)");
         $users = array_map('intval', array_column($db->query('SELECT id FROM utenti ORDER BY id')->fetch_all(MYSQLI_ASSOC), 'id'));
-        [$user, $other] = $users;
+        [$user, $other, $third] = $users;
         $reset = static function () use ($db): void {
             foreach (['prenotazioni', 'prestiti', 'copie', 'libri', 'calendario_chiusure', 'festivita_personalizzate', 'system_settings'] as $table) {
                 $db->query("DELETE FROM {$table}");
@@ -165,6 +166,22 @@ try {
         $db->rollback();
         $issues = (new DataIntegrity($db))->verifyDataConsistency();
         $check(in_array('overbooked_circulation_period', array_column($issues, 'type'), true), 'integrity audit exposes conflicts caused by a later closure');
+
+        $reset();
+        [$b, $copy] = $book();
+        $db->query("INSERT INTO copie (libro_id,numero_inventario,stato) VALUES ({$b},'CAL-SIBLING-{$b}','disponibile')");
+        $head = $reserve($b, $user, $today, $d(2));
+        $tail = $reserve($b, $other, $today, $d(1), 2);
+        $later = $reserve($b, $third, $d(4), $d(7), 3);
+        $db->query("INSERT INTO prestiti (libro_id,copia_id,utente_id,data_prestito,data_scadenza,stato,origine,attivo)
+                    VALUES ({$b},{$copy},{$user},'{$d(4)}','{$d(7)}','prenotato','richiesta',1)");
+        $close($d(2), $d(3));
+        $db->begin_transaction();
+        $manager = new ReservationManager($db);
+        $manager->setExternalTransaction(true);
+        $check($manager->processBookAvailability($b) && $state($tail) === 'completata'
+            && $state($head) === 'attiva' && $state($later) === 'attiva', 'a head blocked only on reopening does not stall a shorter eligible hold on a sibling');
+        $db->rollback();
 
         $reset();
         [$b] = $book();
@@ -290,6 +307,9 @@ try {
         $waitingLoan = $pickupLoan($waitingBook, $waitingCopy, $user);
         $close($d(-1), $d(-1));
         $check((new MaintenanceService($db))->checkExpiredPickups() === 0, 'pickup expiry protects the reopening day before deadlines are reconciled');
+        [$expiredBook, $expiredCopy] = $book();
+        $expiredLoan = $pickupLoan($expiredBook, $expiredCopy, $other);
+        $db->query("UPDATE prestiti SET pickup_deadline='{$d(-2)}' WHERE id={$expiredLoan}");
         $holder = new mysqli($args[0], $args[1], $args[2], $sandbox, $args[4], $args[5]);
         $holder->begin_transaction();
         $holder->query("SELECT id FROM libri WHERE id={$blockedBook} FOR UPDATE");
@@ -304,9 +324,11 @@ try {
         $pickupRow = static fn (int $id): array => $db->query("SELECT stato, pickup_deadline FROM prestiti WHERE id={$id}")->fetch_assoc();
         $check((bool) array_filter($run['errors'], static fn ($e): bool => str_starts_with((string) $e, 'extendPickupDeadlines')), 'maintenance reports the failed pickup reconciliation');
         $check($pickupRow($waitingLoan)['stato'] === 'da_ritirare', 'a failed reconciliation defers pickup expiry instead of cancelling the pickup');
+        $check($pickupRow($expiredLoan)['stato'] === 'da_ritirare', 'a failed reconciliation skips even the independently expired pickup');
         $run = (new MaintenanceService($db))->runAll();
         $check($pickupRow($waitingLoan)['stato'] === 'da_ritirare' && $pickupRow($waitingLoan)['pickup_deadline'] === $today
             && $pickupRow($blockedLoan)['pickup_deadline'] === $today, 'the next maintenance pass moves both pickup deadlines to the reopening day');
+        $check($pickupRow($expiredLoan)['stato'] === 'scaduto', 'a successful reconciliation resumes the deferred expiry sweep');
 
         $reset();
         $calendarAdmin->store($post(['data_inizio' => '2026-01-01', 'data_fine' => '2026-12-29', 'ricorrente_annuale' => '1', 'descrizione' => 'Annual closure']), new Response(), $db);
@@ -329,6 +351,14 @@ try {
         $calendarAdmin->store($post(['data_inizio' => '2026-01-02', 'data_fine' => '2026-12-31', 'ricorrente_annuale' => '1', 'descrizione' => 'Only New Year open']), new Response(), $db);
         $calendarAdmin->storeCustom($post(['nome' => 'Cross-year closure', 'tipo' => 'dates', 'date_specifiche' => '2400-12-31', 'durata_giorni' => '2', 'attiva' => '1']), new Response(), $db);
         $check((int) $db->query('SELECT COUNT(*) FROM festivita_personalizzate')->fetch_row()[0] === 0, 'coverage checks the following year when an explicit holiday crosses New Year');
+
+        $reset();
+        \App\Support\Holidays\HolidayPresets::apply($db, 'IT', '', [], $today);
+        $db->query("INSERT INTO calendario_chiusure (data_inizio,data_fine,descrizione,ricorrente_annuale,regola_festivita)
+                    VALUES ('2026-12-31','2026-12-31','Obsolete preset row',1,'IT:christmas')");
+        unset($_SESSION['error_message']);
+        $calendarAdmin->store($post(['data_inizio' => '2026-01-01', 'data_fine' => '2026-12-30', 'ricorrente_annuale' => '1', 'descrizione' => 'Only December 31 open']), new Response(), $db);
+        $check(!isset($_SESSION['error_message']) && LibraryCalendar::forDb($db)->isOpen('2027-12-31'), 'the coverage guard ignores obsolete preset rows just like the effective calendar');
 
         $reset();
         [$b] = $book();
@@ -367,6 +397,45 @@ try {
         $reserve($b, $other, $d(4), $d(6));
         $issues = (new DataIntegrity($db))->verifyDataConsistency();
         $check(in_array('overbooked_circulation_period', array_column($issues, 'type'), true), 'integrity audit counts a loan until the reopening day after its closed due date');
+
+        $reset();
+        [$b, $copy] = $book();
+        $close($d(-1), $d(-1));
+        $db->query("INSERT INTO prestiti (libro_id,copia_id,utente_id,data_prestito,data_scadenza,stato,origine,attivo)
+                    VALUES ({$b},{$copy},{$user},'{$d(-3)}','{$d(-1)}','in_corso','richiesta',1)");
+        $legacy = $reserve($b, $other, $d(1), $d(1));
+        $db->query("UPDATE prenotazioni SET data_inizio_richiesta=NULL, data_fine_richiesta=NULL WHERE id={$legacy}");
+        $integrity = new DataIntegrity($db);
+        $overbooked = static fn (): bool => (bool) array_filter($integrity->verifyDataConsistency(), static fn (array $issue): bool =>
+            $issue['type'] === 'overbooked_circulation_period' && str_contains($issue['message'], "(ID: {$b})"));
+        $check(!$overbooked(), 'a loan due on reopening today is not treated as indefinitely overdue tomorrow');
+        $db->query("UPDATE prenotazioni SET data_scadenza_prenotazione='{$today} 23:59:59' WHERE id={$legacy}");
+        $check($overbooked(), 'the audit counts a legacy NULL-start booking against an overlapping loan');
+
+        $reset();
+        [$b, $copy] = $book();
+        $reserve($b, $user, $d(-2), $d(-1));
+        $close($d(-1), $d(-1));
+        $db->query("UPDATE utenti SET stato='sospeso' WHERE id={$user}");
+        $available = static fn (): int => (int) $db->query("SELECT copie_disponibili FROM libri WHERE id={$b}")->fetch_row()[0];
+        $integrity->recalculateBookAvailability($b);
+        $check($available() === 1, 'a paused queue entry extended by a closure does not consume the catalogue counter');
+        $db->query("UPDATE utenti SET stato='attivo' WHERE id={$user}");
+        $integrity->recalculateAllBookAvailability();
+        $check($available() === 0, 'the global counter includes the restored queue entry through reopening');
+        $db->query("DELETE FROM prenotazioni WHERE libro_id={$b}");
+        $db->query("INSERT INTO prestiti (libro_id,copia_id,utente_id,data_prestito,data_scadenza,stato,origine,attivo)
+                    VALUES ({$b},{$copy},{$user},'{$d(-3)}','{$d(-1)}','prenotato','richiesta',1)");
+        $db->query("UPDATE libri SET copie_disponibili=1 WHERE id={$b}");
+        $integrity->recalculateBookAvailability($b);
+        $check($available() === 0, 'the single-title counter keeps a scheduled copy through its effective return day');
+        $db->query("UPDATE libri SET copie_disponibili=1 WHERE id={$b}");
+        $integrity->recalculateAllBookAvailability();
+        $check($available() === 0, 'the global counter also keeps a scheduled copy through its effective return day');
+        $db->query("UPDATE prestiti SET copia_id=NULL WHERE libro_id={$b}");
+        $db->query("UPDATE libri SET copie_disponibili=1 WHERE id={$b}");
+        $integrity->recalculateBookAvailability($b);
+        $check($available() === 0, 'a scheduled hold without an assigned copy still uses one title slot on reopening');
 
         // nextOpenDay() now steps over a whole yearly closure: same answers
         // as the day-by-day walk, including the New Year wrap and 29 February.

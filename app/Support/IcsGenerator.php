@@ -80,7 +80,7 @@ class IcsGenerator
         // loan on a record must keep being able to add it to their calendar,
         // even in the legacy case of a flagged title that still carries one.
 
-        $stmt = $this->db->prepare("SELECT p.id, p.stato, p.attivo, p.copia_id, p.data_prestito, p.data_scadenza, p.updated_at,
+        $stmt = $this->db->prepare("SELECT p.id, p.libro_id, p.stato, p.attivo, p.copia_id, p.data_prestito, p.data_scadenza, p.updated_at,
                        l.titolo, CONCAT(u.nome, ' ', u.cognome) AS utente_nome
                 FROM prestiti p
                 JOIN libri l ON p.libro_id = l.id AND l.deleted_at IS NULL

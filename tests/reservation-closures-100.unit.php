@@ -330,10 +330,22 @@ $cases['approval skips a copy whose effective return day is already promised'] =
     $openCopy = matrixCopy($t, $b, $t->branchB);
     $loan = matrixLoan($t, $b, $b['copies'][0], $t->today, $t->day(2), 'pendente');
     $t->loan($b, $t->day(7), ['copy' => $b['copies'][0], 'reader' => $t->secondReader, 'start' => $t->day(3), 'status' => 'prenotato']);
+    matrixReserve($t, $b, $t->operator, $t->day(3), $t->day(7));
     matrixHoliday($t, $t->day(2), 1, $t->branchA);
     $response = (new LoanApprovalController())->approveLoan($t->request('/admin/loans/approve', ['loan_id' => $loan]), new Response(), $t->db);
     SettingsReview25::eq($response->getStatusCode(), 200, 'A compatible copy can be approved');
     SettingsReview25::eq((int) $t->scalar("SELECT copia_id FROM prestiti WHERE id={$loan}"), $openCopy, 'The first copy cannot promise the reopening day twice');
+
+    matrixHoliday($t, $t->day(-1), 1, $t->branchA);
+    foreach ([$t->branchA, $t->branchB] as $pinnedBranch) {
+        $otherBranch = $pinnedBranch === $t->branchA ? $t->branchB : $t->branchA;
+        $b = $t->book($pinnedBranch);
+        $sibling = matrixCopy($t, $b, $otherBranch);
+        $loan = matrixLoan($t, $b, $b['copies'][0], $t->day(-4), $t->day(-1), 'pendente');
+        $response = (new LoanApprovalController())->approveLoan($t->request('/admin/loans/approve', ['loan_id' => $loan]), new Response(), $t->db);
+        SettingsReview25::eq($response->getStatusCode(), 200, 'An elapsed return window at one branch does not discard a valid reopening at another');
+        SettingsReview25::eq((int) $t->scalar("SELECT copia_id FROM prestiti WHERE id={$loan}"), $pinnedBranch === $t->branchA ? $b['copies'][0] : $sibling, 'The chosen copy must still have a usable return date');
+    }
 };
 $cases['a returned copy cannot take a hold that conflicts on its reopening day'] = static function (SettingsReview25 $t): void {
     $b = $t->book($t->branchA);
@@ -353,6 +365,16 @@ $cases['a replacement copy in another branch stores its usable return day'] = st
     (new ReservationReassignmentService($t->db))->reassignOnCopyLost($b['copies'][0]);
     $row = $t->db->query("SELECT copia_id,data_scadenza FROM prestiti WHERE id={$loan}")->fetch_row();
     SettingsReview25::eq([(int) $row[0], $row[1]], [$replacement, $t->day(5)], 'Replacement commitment uses the destination calendar');
+
+    $b = $t->book($t->branchA);
+    $sibling = matrixCopy($t, $b, $t->branchB);
+    $loan = matrixLoan($t, $b, $b['copies'][0], $t->day(2), $t->day(4));
+    $t->loan($b, $t->day(7), ['copy' => $sibling, 'reader' => $t->secondReader, 'start' => $t->day(5), 'status' => 'prenotato']);
+    $t->set('loans', 'same_day_handover_after_closure', '1');
+    $t->db->query("UPDATE copie SET stato='perso' WHERE id={$b['copies'][0]}");
+    SettingsReview25::check((new ReservationReassignmentService($t->db))->reassignOnCopyLost($b['copies'][0]), 'Copy loss can release a hold with no replacement');
+    $row = $t->db->query("SELECT copia_id,data_scadenza FROM prestiti WHERE id={$loan}")->fetch_row();
+    SettingsReview25::eq($row, [null, $t->day(4)], 'An unassigned hold does not take the reopening day from the next reader');
 };
 
 foreach (['staff', 'reader'] as $actor) {
@@ -389,7 +411,7 @@ $cases['NCIP requests start on reopening and return the persisted effective due 
 
 $cases['a mixed-branch title waits until at least one lending branch reopens'] = static function (SettingsReview25 $t): void {
     $b = $t->book($t->branchA);
-    matrixCopy($t, $b, $t->branchB);
+    $copyB = matrixCopy($t, $b, $t->branchB);
     $day = $t->day(2);
     matrixClosure($t, $day, $t->day(4), $t->branchA);
     matrixHoliday($t, $day, 1, $t->branchB);
@@ -399,6 +421,13 @@ $cases['a mixed-branch title waits until at least one lending branch reopens'] =
     SettingsReview25::check(in_array($day, $availability['closed_dates'], true), 'Overlapping branch closures are presented as closed');
     SettingsReview25::eq((new CapacityService($t->db))->firstAvailableDate($b['id'], $day), $firstOpen, 'The copy-available estimate follows the same branch scope');
     SettingsReview25::eq(LibraryCalendar::reservationDeadline($t->db, $day . ' 18:00:00', $b['id']), $firstOpen . ' 23:59:59', 'A deadline extends until one branch can accept it');
+
+    $copyless = matrixLoan($t, $b, null, $t->today, $day);
+    matrixCalendarEnd((string) (new IcsGenerator($t->db))->generateForLoan($copyless), 'loan-' . $copyless . '@pinakes', $t->day(4));
+    SettingsReview25::eq((new CapacityService($t->db))->occupiedCount($b['id'], $firstOpen, $firstOpen), 1, 'A copyless booking also occupies title capacity until an actual lending branch reopens');
+    $t->db->query("DELETE FROM prestiti WHERE id={$copyless}");
+    $t->loan($b, $t->day(6), ['copy' => $copyB, 'start' => $firstOpen, 'status' => 'prenotato']);
+    SettingsReview25::eq((new CapacityService($t->db))->firstAvailableDate($b['id'], $day), $t->day(5), 'The open branch must also have an unoccupied copy');
 };
 
 $cases['a pinned booking tries a sibling when the original copy is promised on reopening'] = static function (SettingsReview25 $t): void {
