@@ -477,7 +477,12 @@ final class CapacityService
         $today = \App\Support\DateHelper::today();
         $circulation = $this->circulation ??= new CirculationPolicy($this->db);
         $hasCalendar = \App\Support\LibraryCalendar::forDb($this->db)->hasRules();
-        $sql = "SELECT GREATEST($rStart, ?) AS s, LEAST($rEnd, ?) AS e, $rEnd AS reservation_due
+        $hasLoanLimit = $circulation->anyTotalLoanLimit();
+        $limitSql = $hasLoanLimit ? $circulation->totalLoanLimitSql('u') : '0';
+        $limitFields = $hasCalendar && $hasLoanLimit
+            ? ", r.utente_id AS reservation_user, r.data_inizio_richiesta AS requested_start, {$limitSql} AS loan_limit"
+            : '';
+        $sql = "SELECT GREATEST($rStart, ?) AS s, LEAST($rEnd, ?) AS e, $rEnd AS reservation_due{$limitFields}
                 FROM prenotazioni r
                 JOIN utenti u ON u.id = r.utente_id
                 WHERE r.libro_id = ?
@@ -491,14 +496,11 @@ final class CapacityService
         // Filter on the effective end in fetchIntervals(), after resolving the
         // book's branch, just as promotion does with requestDueDate().
         $params = [$start, $end, $libroId, $today, $end, $hasCalendar ? '1000-01-01' : $start];
-        $hasLoanLimit = $circulation->anyTotalLoanLimit();
         $materialRefused = $circulation->materialRefusedReservationUserIds($libroId, $this->lockingReads);
         $legacyFloor = $hasLoanLimit || $materialRefused !== []
             ? \App\Support\LibraryCalendar::legacyReservationDeadlineFloor($this->db, $today, $libroId)
             : $today;
         if ($hasLoanLimit) {
-            // Per-patron limit (CirculationPolicy; 0 = no limit for that patron).
-            $limitSql = $circulation->totalLoanLimitSql('u');
             // A locking outer read does not lock a nested subquery, which would
             // still count from the transaction's snapshot: lock it too, in the
             // syntax MySQL and MariaDB both accept inside a subquery.
@@ -519,10 +521,7 @@ final class CapacityService
                           AND cap.attivo = 1
                           AND cap.stato IN (" . CirculationPolicy::ACTIVE_LOAN_STATES_SQL . ")
                           AND (" . \App\Support\LoanEligibility::promotableReservationWhere('r') . "
-                          OR (cap.data_prestito <= $rEnd
-                          AND (cap.stato = 'in_ritardo'
-                               OR (cap.stato = 'in_corso' AND cap.data_scadenza < ?)
-                               OR cap.data_scadenza >= $rStart))){$countLock}
+                          OR (" . self::loanOverlapsReservationSql($rStart, $rEnd) . ")){$countLock}
                       ) < {$limitSql})";
             $types .= 'sss';
             $params[] = $today;
@@ -559,7 +558,30 @@ final class CapacityService
             $types .= 'i';
             $params[] = $excludeReservationsAfterQueuePos;
         }
-        return $this->fetchIntervals($sql, $types, $params, $end, $libroId);
+        return $this->fetchIntervals($sql, $types, $params, $end, $libroId, $today);
+    }
+
+    private static function loanOverlapsReservationSql(string $start, string $end): string
+    {
+        return "cap.data_prestito <= {$end}
+                AND (cap.stato = 'in_ritardo'
+                     OR (cap.stato = 'in_corso' AND cap.data_scadenza < ?)
+                     OR cap.data_scadenza >= {$start})";
+    }
+
+    private function reachesLoanLimit(int $userId, int $limit, string $start, string $end, string $today): bool
+    {
+        $lock = $this->lockingReads ? ' LOCK IN SHARE MODE' : '';
+        $stmt = $this->db->prepare(
+            "SELECT COUNT(*) FROM prestiti cap
+             WHERE cap.utente_id = ? AND cap.attivo = 1 AND cap.stato IN (" . CirculationPolicy::ACTIVE_LOAN_STATES_SQL . ")
+               AND " . self::loanOverlapsReservationSql('?', '?') . $lock
+        );
+        $stmt->bind_param('isss', $userId, $end, $today, $start);
+        $stmt->execute();
+        $count = (int) $stmt->get_result()->fetch_row()[0];
+        $stmt->close();
+        return $count >= $limit;
     }
 
     /**
@@ -567,7 +589,7 @@ final class CapacityService
      * @param list<int|string> $params
      * @return list<array{0:string,1:string}>
      */
-    private function fetchIntervals(string $sql, string $types, array $params, ?string $windowEnd = null, ?int $reservationBookId = null): array
+    private function fetchIntervals(string $sql, string $types, array $params, ?string $windowEnd = null, ?int $reservationBookId = null, ?string $today = null): array
     {
         if ($this->lockingReads) {
             $sql .= ' FOR UPDATE';
@@ -583,7 +605,7 @@ final class CapacityService
         $out = [];
         $calendar = \App\Support\LibraryCalendar::forDb($this->db);
         $branch = $reservationBookId !== null && $calendar->hasRules()
-            ? \App\Support\LibraryCalendar::requestBranch($this->db, $reservationBookId)
+            ? \App\Support\LibraryCalendar::requestBranch($this->db, $reservationBookId, $this->lockingReads)
             : null;
         while ($row = $res->fetch_assoc()) {
             $s = (string) $row['s'];
@@ -594,7 +616,17 @@ final class CapacityService
                 $e = min(\App\Support\LibraryCalendar::holdingEnd($this->db, $storedDue, $copyId), $windowEnd);
             }
             if ($windowEnd !== null && isset($row['reservation_due'])) {
-                $e = min($calendar->nextOpenDay((string) $row['reservation_due'], $branch), $windowEnd);
+                $effectiveEnd = $calendar->nextOpenDay((string) $row['reservation_due'], $branch);
+                $e = min($effectiveEnd, $windowEnd);
+                // The SQL limit check uses the stored end. Recheck future
+                // reservations only when a closure added days and the first
+                // check could have missed another loan starting in that gap.
+                if ($s <= $e && $today !== null && isset($row['requested_start']) && $row['requested_start'] > $today
+                    && (int) $row['loan_limit'] > 0 && $effectiveEnd > $row['reservation_due']
+                    && $this->reachesLoanLimit((int) $row['reservation_user'], (int) $row['loan_limit'], (string) $row['requested_start'], $effectiveEnd, $today)
+                ) {
+                    continue;
+                }
             }
             if ($s !== '' && $e !== '' && $s <= $e) {
                 $out[] = [$s, $e];

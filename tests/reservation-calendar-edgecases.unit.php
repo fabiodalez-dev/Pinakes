@@ -171,6 +171,11 @@ try {
         $r = $reserve($b, $user, $d(-3), $d(-1));
         $close($d(-1), $d(-1));
         $check($expire() === 0 && $state($r) === 'attiva', 'first reopening day does not cancel the queue');
+        $integrity = new DataIntegrity($db);
+        $available = static fn (): int => (int) $db->query("SELECT copie_disponibili FROM libri WHERE id={$b}")->fetch_row()[0];
+        $check($integrity->recalculateBookAvailability($b) && $available() === 0, 'the individual availability counter keeps the copy reserved on reopening');
+        $db->query("UPDATE libri SET copie_disponibili=1 WHERE id={$b}");
+        $check($integrity->recalculateAllBookAvailability()['errors'] === [] && $available() === 0, 'the bulk availability counter also accounts for the effective return day');
         $check(!LibraryCalendar::reservationExpired($db, $d(-1) . ' 23:59:59', $b, $today . ' 23:59:59'), 'the entire reopening day remains usable');
         $check(LibraryCalendar::reservationExpired($db, $d(-1) . ' 23:59:59', $b, $d(1) . ' 00:00:00'), 'expiry resumes after that usable day');
         $check(LibraryCalendar::reservationDeadline($db, $d(-1) . ' 23:59:59', $b) === $today . ' 23:59:59', 'the expiry e-mail quotes the effective deadline, not the closed stored day');
@@ -329,6 +334,17 @@ try {
         $db->query("UPDATE prenotazioni SET data_inizio_richiesta=NULL, data_fine_richiesta=NULL WHERE libro_id={$b}");
         $db->query("UPDATE utenti SET stato='attivo' WHERE id={$user}");
         $check(!(new CapacityService($db))->hasFreeCapacity($b, $d(12), $d(12)), 'legacy NULL-start reservations still occupy their fallback day');
+
+        $reset();
+        [$b] = $book();
+        [$otherBook, $otherCopy] = $book();
+        (new App\Models\SettingsRepository($db))->set('loans', 'max_active_loans_per_user', '1');
+        $reserve($b, $user, $d(10), $d(12));
+        $db->query("INSERT INTO prestiti (libro_id,copia_id,utente_id,data_prestito,data_scadenza,stato,origine,attivo)
+                    VALUES ({$otherBook},{$otherCopy},{$user},'{$d(14)}','{$d(20)}','prenotato','richiesta',1)");
+        $check(!(new CapacityService($db))->hasFreeCapacity($b, $d(10), $d(12)), 'a later loan outside the original window does not pause a future reservation');
+        $close($d(12), $d(13));
+        $check((new CapacityService($db))->hasFreeCapacity($b, $d(10), $d(14)), 'the patron limit also counts a loan starting in the added days');
 
         // The integrity audit reads a loan due on a closed day the way
         // CapacityService does: it keeps its copy until the reopening day.

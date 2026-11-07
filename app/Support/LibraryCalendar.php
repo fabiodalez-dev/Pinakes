@@ -779,18 +779,20 @@ final class LibraryCalendar
     }
 
     /** The branch of the book's lendable copies when they all sit in one, otherwise null. */
-    public static function requestBranch(\mysqli $db, int $bookId): ?int
+    public static function requestBranch(\mysqli $db, int $bookId, bool $lockingRead = false): ?int
     {
         $lendable = (new \App\Services\CirculationPolicy($db))->lendableCopySql('');
+        $distinct = $lockingRead ? '' : 'DISTINCT ';
+        $lock = $lockingRead ? ' FOR UPDATE' : '';
         $stmt = $db->prepare(
-            "SELECT DISTINCT sede_id FROM copie
-             WHERE libro_id = ? AND stato NOT IN ('perso','danneggiato','manutenzione','in_restauro','in_trasferimento') AND {$lendable}"
+            "SELECT {$distinct}sede_id FROM copie
+             WHERE libro_id = ? AND stato NOT IN ('perso','danneggiato','manutenzione','in_restauro','in_trasferimento') AND {$lendable}{$lock}"
         );
         $stmt->bind_param('i', $bookId);
         $stmt->execute();
-        $branches = $stmt->get_result()->fetch_all(MYSQLI_NUM);
+        $branches = array_values(array_unique(array_column($stmt->get_result()->fetch_all(MYSQLI_NUM), 0), SORT_REGULAR));
         $stmt->close();
-        return count($branches) === 1 && $branches[0][0] !== null ? (int) $branches[0][0] : null;
+        return count($branches) === 1 && $branches[0] !== null ? (int) $branches[0] : null;
     }
 
     /**

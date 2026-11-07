@@ -72,6 +72,7 @@ class DataIntegrity {
             $stmt->execute();
             $stmt->close();
 
+            $reservationStillHolds = $this->reservationEndTodaySql($today);
             // Ricalcola copie_disponibili e stato per tutti i libri non soft-deleted
             // Conta le copie fisicamente disponibili OGGI:
             // - Include copie 'disponibile' e 'prenotato' (fisicamente in biblioteca)
@@ -107,7 +108,7 @@ class DataIntegrity {
                         AND pr.stato = 'attiva'
                         AND COALESCE(pr.data_inizio_richiesta, DATE(pr.data_scadenza_prenotazione)) IS NOT NULL
                         AND COALESCE(pr.data_inizio_richiesta, DATE(pr.data_scadenza_prenotazione)) <= '{$today}'
-                        AND COALESCE(pr.data_fine_richiesta, DATE(pr.data_scadenza_prenotazione), pr.data_inizio_richiesta) >= '{$today}'
+                        AND {$reservationStillHolds}
                     ),
                     0
                 ),
@@ -141,7 +142,7 @@ class DataIntegrity {
                             AND pr.stato = 'attiva'
                             AND COALESCE(pr.data_inizio_richiesta, DATE(pr.data_scadenza_prenotazione)) IS NOT NULL
                             AND COALESCE(pr.data_inizio_richiesta, DATE(pr.data_scadenza_prenotazione)) <= '{$today}'
-                            AND COALESCE(pr.data_fine_richiesta, DATE(pr.data_scadenza_prenotazione), pr.data_inizio_richiesta) >= '{$today}'
+                            AND {$reservationStillHolds}
                         ),
                         0
                     ) > 0 THEN 'disponibile'
@@ -212,6 +213,44 @@ class DataIntegrity {
         }
 
         return $results;
+    }
+
+    /** Extend the counter's SQL predicate only for reservations reaching today after a closure. */
+    private function reservationEndTodaySql(string $today, ?int $bookId = null): string
+    {
+        $end = 'COALESCE(pr.data_fine_richiesta, DATE(pr.data_scadenza_prenotazione), pr.data_inizio_richiesta)';
+        $raw = "{$end} >= '{$today}'";
+        $calendar = LibraryCalendar::forDb($this->db);
+        if (!$calendar->hasRules()) {
+            return $raw;
+        }
+        $bookFilter = $bookId === null ? '' : ' AND pr.libro_id = ?';
+        $stmt = $this->db->prepare(
+            "SELECT pr.id, pr.libro_id, {$end} AS due
+             FROM prenotazioni pr WHERE pr.stato = 'attiva'
+               AND COALESCE(pr.data_inizio_richiesta, DATE(pr.data_scadenza_prenotazione)) <= ?
+               AND {$end} < ?{$bookFilter} FOR UPDATE"
+        );
+        if ($bookId === null) {
+            $stmt->bind_param('ss', $today, $today);
+        } else {
+            $stmt->bind_param('ssi', $today, $today, $bookId);
+        }
+        $stmt->execute();
+        $rows = $stmt->get_result();
+        $branches = [];
+        $extended = [];
+        while ($row = $rows->fetch_assoc()) {
+            $id = (int) $row['libro_id'];
+            if (!array_key_exists($id, $branches)) {
+                $branches[$id] = LibraryCalendar::requestBranch($this->db, $id, lockingRead: true);
+            }
+            if ($calendar->nextOpenDay((string) $row['due'], $branches[$id]) >= $today) {
+                $extended[] = (int) $row['id'];
+            }
+        }
+        $stmt->close();
+        return $extended === [] ? $raw : "({$raw} OR pr.id IN (" . implode(',', $extended) . '))';
     }
 
     /**
@@ -368,6 +407,7 @@ class DataIntegrity {
             $stmt->execute();
             $stmt->close();
 
+            $reservationStillHolds = $this->reservationEndTodaySql($today, $bookId);
             // Aggiorna copie_disponibili e stato del libro dalla tabella copie
             // Conta le copie fisicamente disponibili OGGI:
             // - Include copie 'disponibile' e 'prenotato' (fisicamente in biblioteca)
@@ -403,7 +443,7 @@ class DataIntegrity {
                         AND pr.stato = 'attiva'
                         AND COALESCE(pr.data_inizio_richiesta, DATE(pr.data_scadenza_prenotazione)) IS NOT NULL
                         AND COALESCE(pr.data_inizio_richiesta, DATE(pr.data_scadenza_prenotazione)) <= '{$today}'
-                        AND COALESCE(pr.data_fine_richiesta, DATE(pr.data_scadenza_prenotazione), pr.data_inizio_richiesta) >= '{$today}'
+                        AND {$reservationStillHolds}
                     ),
                     0
                 ),
@@ -437,7 +477,7 @@ class DataIntegrity {
                             AND pr.stato = 'attiva'
                             AND COALESCE(pr.data_inizio_richiesta, DATE(pr.data_scadenza_prenotazione)) IS NOT NULL
                             AND COALESCE(pr.data_inizio_richiesta, DATE(pr.data_scadenza_prenotazione)) <= '{$today}'
-                            AND COALESCE(pr.data_fine_richiesta, DATE(pr.data_scadenza_prenotazione), pr.data_inizio_richiesta) >= '{$today}'
+                            AND {$reservationStillHolds}
                         ),
                         0
                     ) > 0 THEN 'disponibile'
