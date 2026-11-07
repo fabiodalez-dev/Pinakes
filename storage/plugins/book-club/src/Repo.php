@@ -917,8 +917,7 @@ class Repo
 
     /**
      * Drop the derived ISBN form when an archived book already holds it.
-     * Called after activeCatalogueBookIdByIsbn() found no active match, so
-     * any row holding the key here is soft-deleted.
+     * Called after activeCatalogueBookIdByIsbn() found no active match.
      *
      * @return array{0:?string,1:?string}
      */
@@ -933,7 +932,7 @@ class Repo
         // CI-SOFT-DELETE-EXEMPT: a unique-key probe, not a read for display;
         // the archived rows are exactly the ones that can collide.
         // @include-soft-deleted (tests/code-quality.spec.js, check 5).
-        $taken = $this->row("SELECT id FROM libri WHERE {$derivedColumn} = ? LIMIT 1", 's', [$derived]);
+        $taken = $this->row("SELECT id FROM libri WHERE {$derivedColumn} = ? AND deleted_at IS NOT NULL LIMIT 1 FOR UPDATE", 's', [$derived]);
         if ($taken === null) {
             return [$isbn13, $isbn10];
         }
@@ -943,22 +942,10 @@ class Repo
     /** @return array{0:?string,1:?string} */
     private function normalizedIsbnParts(?string $isbn): array
     {
-        // Only digits, X and the usual ISBN separators: stripping any other
-        // character would turn text such as "CDP 0306406152" into a key.
-        if ($isbn === null || preg_match('/^[0-9Xx\s-]+$/D', trim($isbn)) !== 1) {
-            return [null, null];
-        }
-        $digits = strtoupper((string) preg_replace('/[^0-9Xx]/', '', $isbn));
-        // A valid UPC/EAN checksum alone does not make a barcode an ISBN.
-        // Check the shape before getAllVariants(), whose permissive cleaner
-        // also removes misplaced X characters from arbitrary input.
-        if (preg_match('/^(?:[0-9]{9}[0-9X]|97[89][0-9]{10})$/D', $digits) !== 1) {
-            return [null, null];
-        }
         // Use both checksum-valid variants: an ISBN-10 proposal must find a
         // catalogue record carrying only its ISBN-13, and vice versa. 979
         // publications have no ISBN-10 and retain only the 13-digit key.
-        $variants = IsbnFormatter::getAllVariants($digits);
+        $variants = IsbnFormatter::bookVariants($isbn ?? '');
         return [$variants['isbn13'] ?? null, $variants['isbn10'] ?? null];
     }
 

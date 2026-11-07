@@ -430,15 +430,19 @@ class ApiBookScraperPlugin
         return (10 - $sum % 10) % 10 === (int) substr($digits, -1) ? $digits : null;
     }
 
-    /** First provider value that is not null or blank. */
-    private static function firstFilled(mixed ...$values): mixed
+    /** @return array{isbn10?: string, isbn13?: string} */
+    private static function providerIsbnVariants(array $data): array
     {
-        foreach ($values as $value) {
-            if ($value !== null && (!is_string($value) || trim($value) !== '')) {
-                return $value;
+        foreach (['isbn13', 'isbn_13', 'isbn10', 'isbn_10'] as $field) {
+            $value = $data[$field] ?? null;
+            if (is_string($value) || is_int($value)) {
+                $variants = \App\Support\IsbnFormatter::bookVariants((string) $value);
+                if ($variants !== []) {
+                    return $variants;
+                }
             }
         }
-        return null;
+        return [];
     }
 
     /**
@@ -459,7 +463,7 @@ class ApiBookScraperPlugin
         }
 
         try {
-            $bookData = $this->callApi($isbn);
+            $bookData = $this->callApi(self::checksumBarcode($isbn) ?? $isbn);
 
             if ($bookData) {
                 $this->log('info', "Dati recuperati per ISBN: $isbn", ['isbn' => $isbn]);
@@ -576,11 +580,12 @@ class ApiBookScraperPlugin
         // A lookup can be an ISBN-10, an ISBN-13 or a music barcode. Never
         // copy the raw input into isbn13/EAN: an ISBN-10 needs conversion,
         // and UPC/EANs without a Bookland prefix are not book identifiers.
-        $identifier = strtoupper(preg_replace('/[-\s]/', '', $isbn) ?? '');
-        $variants = preg_match('/^(?:[0-9]{9}[0-9X]|97[89][0-9]{10})$/D', $identifier) === 1
-            ? \App\Support\IsbnFormatter::getAllVariants($identifier)
-            : [];
-        $barcode = $variants['isbn13'] ?? self::checksumBarcode($identifier);
+        if (!is_array($data)) {
+            return null;
+        }
+        $variants = self::providerIsbnVariants($data) ?: \App\Support\IsbnFormatter::bookVariants($isbn);
+        $providerEan = $data['ean'] ?? null;
+        $barcode = is_string($providerEan) || is_int($providerEan) ? self::checksumBarcode((string) $providerEan) : null;
 
         $mappedData = [
             'title' => $data['title'] ?? $data['titolo'] ?? null,
@@ -588,10 +593,9 @@ class ApiBookScraperPlugin
             'authors' => $this->parseAuthors($data),
             'publisher' => $data['publisher'] ?? $data['editore'] ?? null,
             'publish_date' => $data['publish_date'] ?? $data['data_pubblicazione'] ?? null,
-            // A blank provider identifier counts as missing, not as a value.
-            'isbn13' => self::firstFilled($data['isbn13'] ?? null, $data['isbn_13'] ?? null, $variants['isbn13'] ?? null),
-            'isbn10' => self::firstFilled($data['isbn10'] ?? null, $data['isbn_10'] ?? null, $variants['isbn10'] ?? null),
-            'ean' => self::firstFilled($data['ean'] ?? null, $barcode),
+            'isbn13' => $variants['isbn13'] ?? null,
+            'isbn10' => $variants['isbn10'] ?? null,
+            'ean' => $barcode ?? $variants['isbn13'] ?? self::checksumBarcode($isbn),
             'pages' => $data['pages'] ?? $data['numero_pagine'] ?? null,
             // No language from the API means unknown, not Italian.
             'language' => $this->languageName($data['language'] ?? $data['lingua'] ?? null),
@@ -599,6 +603,7 @@ class ApiBookScraperPlugin
             'cover_url' => $data['cover_url'] ?? $data['copertina_url'] ?? $data['image'] ?? null,
             'series' => $data['series'] ?? $data['collana'] ?? null,
             'format' => $data['format'] ?? $data['formato'] ?? null,
+            'tipo_media' => $data['tipo_media'] ?? null,
             'price' => $data['price'] ?? $data['prezzo'] ?? null,
             'weight' => $data['weight'] ?? $data['peso'] ?? null,
             'dimensions' => $data['dimensions'] ?? $data['dimensioni'] ?? null,

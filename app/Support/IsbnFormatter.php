@@ -205,6 +205,19 @@ class IsbnFormatter
     }
 
     /**
+     * Variants for identifiers that must be actual ISBNs. The legacy cleaner
+     * also accepts non-Bookland EANs and removes letters from catalogue codes.
+     */
+    public static function bookVariants(string $input): array
+    {
+        $isbn = strtoupper(preg_replace('/[-\s]/', '', $input) ?? '');
+        if (preg_match('/\A(?:[0-9]{9}[0-9X]|97[89][0-9]{10})\z/', $isbn) !== 1) {
+            return [];
+        }
+        return self::getAllVariants($isbn);
+    }
+
+    /**
      * Detect format based on length: 'isbn10', 'isbn13', or null
      *
      * Note: This method only checks length, not validity.

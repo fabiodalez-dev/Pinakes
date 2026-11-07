@@ -43,7 +43,7 @@ $httpProperty->setValue(null, new Client(['handler' => HandlerStack::create($rem
 
 Hooks::add('scrape.isbn.validate', static function ($valid, $raw) use (&$events) {
     $events[] = 'validate';
-    return $valid || $raw === 'CDP 7912682';
+    return $valid || in_array($raw, ['CDP 7912682', '0720642442524', 'CDP 9780306406157'], true);
 });
 Hooks::add('scrape.sources', static function ($sources, $identifier) use (&$seenIdentifiers) {
     $seenIdentifiers[] = $identifier;
@@ -106,13 +106,16 @@ try {
     $events = []; $calls = 0;
     $fetch = static fn() => ['image' => 'https://example.test/partial.jpg'];
     $remote->append(new RemoteResponse(200, [], json_encode(['items' => [['volumeInfo' => ['title' => ' Built-in  fallback ']]]])));
-    $fallback = ScrapingService::scrapeBookData('9780306406157', 2);
+    $fallback = ScrapingService::scrapeBookData('0306406152', 2);
     $check($calls === 2, 'exhausting retries does not fetch plugins an extra time during fallback');
     $check(($fallback['title'] ?? null) === 'Built-in fallback' && ($fallback['image'] ?? null) === 'https://example.test/partial.jpg', 'built-in fallback retains the partial plugin cover');
+    $check(($fallback['ean'] ?? null) === '9780306406157', 'a built-in ISBN-10 result returns the 13-digit EAN');
     $check(($fallback['final_hook_seen'] ?? false) && $events === ['validate', 'fetch', 'fetch', 'modify', 'response'], 'fallback uses the same final hooks once');
 
     $events = []; $calls = 0;
-    $fetch = static fn(int $attempt) => $attempt === 1 ? ['image' => 'https://example.test/first.jpg'] : ['title' => ' Late  title ', 'image' => ''];
+    $fetch = static fn(int $attempt) => $attempt === 1
+        ? ['title' => '   ', 'image' => 'https://example.test/first.jpg']
+        : ['title' => ' Late  title ', 'image' => '   '];
     $merged = ScrapingService::scrapeBookData('9780306406157', 2);
     $check(($merged['title'] ?? null) === 'Late title' && ($merged['image'] ?? null) === 'https://example.test/first.jpg', 'a later attempt keeps the cover an earlier attempt found');
 
@@ -130,6 +133,12 @@ try {
     $music = ScrapingService::scrapeBookData('CDP 7912682', 1);
     $check(($music['queried_identifier'] ?? null) === 'CDP 7912682' && ($music['tipo_media'] ?? null) === 'disco', 'plugin-accepted catalogue numbers retain their original identifier and media type');
     $check(!isset($music['isbn10']) && !isset($music['isbn13']), 'non-book identifiers are not converted to ISBNs');
+
+    $fetch = static fn(int $attempt, string $identifier) => ['title' => 'No media hint', 'ean' => $identifier];
+    $barcode = ScrapingService::scrapeBookData('0720642442524', 1);
+    $check(($barcode['ean'] ?? null) === '0720642442524' && !isset($barcode['isbn13']), 'a bare EAN is not restored as an ISBN by the shared pipeline');
+    $catalogueCode = ScrapingService::scrapeBookData('CDP 9780306406157', 1);
+    $check(end($seenIdentifiers) === 'CDP 9780306406157' && !isset($catalogueCode['isbn13']), 'a catalogue code with a checksum-valid numeric suffix remains opaque');
 
     $events = []; $calls = 0;
     $fetch = static fn() => null;

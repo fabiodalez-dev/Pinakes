@@ -44,6 +44,11 @@ $check($book['isbn13'] === '9780140328721' && $book['isbn10'] === '0140328726' &
 $book = $map('0306406152', ['isbn13' => '', 'isbn10' => ' ', 'ean' => '']);
 $check($book['isbn13'] === '9780306406157' && $book['isbn10'] === '0306406152' && $book['ean'] === '9780306406157', 'blank provider identifiers fall back to the derived ones');
 
+$book = $map('0306406152', ['isbn_13' => '978-0-140-32872-1', 'ean' => '0306406152']);
+$check($book['isbn13'] === '9780140328721' && $book['isbn10'] === '0140328726' && $book['ean'] === '9780140328721', 'a provider edition supplies a coherent ISBN pair and replaces an invalid EAN');
+$book = $map('0720642442524', ['isbn13' => '0720642442524', 'isbn10' => ['invalid'], 'ean' => '0720642442525']);
+$check(!isset($book['isbn13']) && !isset($book['isbn10']) && $book['ean'] === '0720642442524', 'malformed provider identifiers fall back to the valid lookup barcode');
+
 foreach (['720642442524', '0720642442524', '0777 7836 4627'] as $barcode) {
     $check($plugin->validateIsbn(false, $barcode), "$barcode is accepted for the API as a checksum-valid barcode");
 }
