@@ -2,6 +2,27 @@
 
 Full version-by-version history for Pinakes. The README shows only the last three releases; everything older lives here.
 
+## [0.9.3]
+
+A patch release: reservations follow the closures calendar everywhere, and scraping and imports share one pipeline. No migration.
+
+### Reservations and the closures calendar
+
+- **Nothing expires on a closed day.** A pickup deadline or a queue deadline that falls on a closed day gives the reader the whole first open day after it. Maintenance, the integrity audit and its repair use the same rule (`LibraryCalendar::reservationExpired()`), so the audit no longer reports as expired a reservation maintenance rightly keeps.
+- **Dates offered are dates that work.** The request calendar proposes the first open day with a free copy; for a title with copies in several branches at least one of those branches must be open. Admin create and edit move explicit start and return dates off closed days, as the reader's own request does.
+- **Capacity reads the effective end.** Capacity, the public calendar and the request calendar count a loan or reservation until its usable return day, as moved by a later closure, so a second promise cannot take the days a closure added. A booking with no copy yet ends on the first day a branch of the title reopens, in every reader.
+- **Approval, activation and reassignment check the chosen copy.** The copy's branch must be open and its effective return window free before the loan is committed. When maintenance moves a booking to a copy in another branch, the loan keeps the return day the reader was promised, and waits instead when the title no longer has room for it. Promotion follows FIFO on the promised period but does not stretch it into another reader's promise; the integrity audit shows that conflict to the staff.
+- **Pickup, expiry and cancellation use the usable deadline.** Pickup confirmation is refused while the branch is closed or after the effective deadline. NCIP, the web and mobile calendar feeds and the pickup notifications report the same dates.
+- **Waiting pickups are reconciled on every maintenance pass.** A pickup whose book is locked by another operation is retried on the next pass while every other pickup still moves, so a retroactive closure cannot make a pickup expire before the reader could collect it.
+- **Year-coverage guard.** The "at least one open day every year" check includes the holiday rules, scans the full 400-year Gregorian cycle plus any explicit holiday years, and also runs when a custom holiday is re-activated or edited.
+
+### Scraping and imports
+
+- **Imports use the web pipeline.** CSV import, LibraryThing import, bulk enrichment and cover sync go through the same `ScrapeController::byIsbn()` path as the scraping form: identifier normalization, the `scrape.data.modify` enrichment, the SBN Dewey lookup and the final hooks now run for them too. Bulk enrichment and cover sync keep their three plugin attempts; CSV and LibraryThing imports make one plugin attempt per book, as their chunk timeout requires (in 0.9.2 the built-in fallback called the plugin a second time after a failure).
+- **The scraping form accepts an ISBN as typed.** An `ISBN`/`ISBN-13:` label, dots, non-breaking spaces and Unicode dashes are stripped before the lookup; sources receive the compact ISBN.
+- **ISBN-10 lookups keep their real identifiers.** The API book scraper maps `isbn13`/`isbn10` to the converted variants of the looked-up ISBN, and `ean` only takes a checksum-valid barcode; a provider's own identifiers still win.
+- **Book club reconcile matches ISBN-10 and ISBN-13 of the same edition**, and never uses codes that are not ISBNs (e.g. a music UPC) as match keys.
+
 ## [0.9.2]
 
 A patch release for the Android app's visitor log. No migration.
