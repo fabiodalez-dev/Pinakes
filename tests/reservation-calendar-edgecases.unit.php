@@ -292,9 +292,9 @@ try {
         $check($db->query("SELECT stato FROM prestiti WHERE id={$loan}")->fetch_row()[0] === 'in_corso', 'successful pickup starts the loan');
 
         // Maintenance alone (no calendar save) must reconcile pickups before
-        // expiring them: when the reconciliation fails on another book, the
-        // pickup expiry waits for the next pass instead of cancelling a pickup
-        // whose deadline the closure should have moved.
+        // expiring them. A book locked elsewhere fails only its own pickup:
+        // the others are still moved, the sweep still expires what is really
+        // late, and the locked one is not cancelled on its reopening day.
         $reset();
         $pickupLoan = static function (int $bookId, int $copyId, int $userId) use ($db, $d): int {
             $db->query("INSERT INTO prestiti (libro_id,copia_id,utente_id,data_prestito,data_scadenza,stato,origine,attivo,pickup_deadline)
@@ -323,12 +323,14 @@ try {
         }
         $pickupRow = static fn (int $id): array => $db->query("SELECT stato, pickup_deadline FROM prestiti WHERE id={$id}")->fetch_assoc();
         $check((bool) array_filter($run['errors'], static fn ($e): bool => str_starts_with((string) $e, 'extendPickupDeadlines')), 'maintenance reports the failed pickup reconciliation');
-        $check($pickupRow($waitingLoan)['stato'] === 'da_ritirare', 'a failed reconciliation defers pickup expiry instead of cancelling the pickup');
-        $check($pickupRow($expiredLoan)['stato'] === 'da_ritirare', 'a failed reconciliation skips even the independently expired pickup');
+        $check($pickupRow($waitingLoan)['stato'] === 'da_ritirare' && $pickupRow($waitingLoan)['pickup_deadline'] === $today,
+            'one locked book does not stop the other pickups from moving to the reopening day');
+        $check($pickupRow($blockedLoan)['stato'] === 'da_ritirare' && $pickupRow($blockedLoan)['pickup_deadline'] === $d(-1),
+            'the pickup of the locked book is neither moved nor cancelled on its reopening day');
+        $check($pickupRow($expiredLoan)['stato'] === 'scaduto', 'a contended book does not hold back the expiry of a pickup that is really late');
         $run = (new MaintenanceService($db))->runAll();
-        $check($pickupRow($waitingLoan)['stato'] === 'da_ritirare' && $pickupRow($waitingLoan)['pickup_deadline'] === $today
-            && $pickupRow($blockedLoan)['pickup_deadline'] === $today, 'the next maintenance pass moves both pickup deadlines to the reopening day');
-        $check($pickupRow($expiredLoan)['stato'] === 'scaduto', 'a successful reconciliation resumes the deferred expiry sweep');
+        $check($run['errors'] === [] && $pickupRow($blockedLoan)['stato'] === 'da_ritirare' && $pickupRow($blockedLoan)['pickup_deadline'] === $today,
+            'the next maintenance pass moves the remaining pickup deadline to the reopening day');
 
         $reset();
         $calendarAdmin->store($post(['data_inizio' => '2026-01-01', 'data_fine' => '2026-12-29', 'ricorrente_annuale' => '1', 'descrizione' => 'Annual closure']), new Response(), $db);
