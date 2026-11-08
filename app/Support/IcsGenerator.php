@@ -80,7 +80,7 @@ class IcsGenerator
         // loan on a record must keep being able to add it to their calendar,
         // even in the legacy case of a flagged title that still carries one.
 
-        $stmt = $this->db->prepare("SELECT p.id, p.stato, p.attivo, p.copia_id, p.data_prestito, p.data_scadenza, p.updated_at,
+        $stmt = $this->db->prepare("SELECT p.id, p.libro_id, p.stato, p.attivo, p.copia_id, p.data_prestito, p.data_scadenza, p.updated_at,
                        l.titolo, CONCAT(u.nome, ' ', u.cognome) AS utente_nome
                 FROM prestiti p
                 JOIN libri l ON p.libro_id = l.id AND l.deleted_at IS NULL
@@ -195,12 +195,14 @@ class IcsGenerator
     {
         $events = [];
         $today = DateHelper::today();
+        $calendar = LibraryCalendar::forDb($this->db);
+        $candidateFloor = $calendar->hasRules() ? '1000-01-01' : $today;
         $visible = $catalogueOnly
             ? ' AND ' . \App\Support\BookVisibility::catalogue($this->db, 'l')
             : '';
 
         // Fetch active/scheduled loans
-        $loanSql = "SELECT p.id, p.stato, p.copia_id, p.data_prestito, p.data_scadenza, p.pickup_deadline,
+        $loanSql = "SELECT p.id, p.libro_id, p.stato, p.copia_id, p.data_prestito, p.data_scadenza, p.pickup_deadline,
                            l.titolo, CONCAT(u.nome, ' ', u.cognome) AS utente_nome,
                            u.email, p.updated_at
                     FROM prestiti p
@@ -221,7 +223,7 @@ class IcsGenerator
         if ($stmt === false) {
             return $events; // Return empty array on prepare failure
         }
-        if (!$stmt->bind_param('s', $today) || !$stmt->execute()) {
+        if (!$stmt->bind_param('s', $candidateFloor) || !$stmt->execute()) {
             $stmt->close();
             return $events;
         }
@@ -230,18 +232,17 @@ class IcsGenerator
         LibraryCalendar::primeCopyBranches($this->db, array_map(static fn (array $r): int => (int) ($r['copia_id'] ?? 0), $loans));
         foreach ($loans as $row) {
             $dates = LibraryCalendar::loanDates($this->db, $row, $today);
-            // A booked loan ends on its usable day, which a closure can put after the stored one.
-            if ($row['stato'] === 'prenotato' && (string) ($dates['effective_due_at'] ?? $row['data_scadenza']) < $today) {
-                continue;
-            }
             if (in_array($row['stato'], ['in_corso', 'in_ritardo'], true)) {
                 $row['stato'] = $dates['is_overdue'] ? 'in_ritardo' : 'in_corso';
             }
-            // For da_ritirare state, use pickup_deadline as end date (shows pickup window)
-            // For other states, use data_scadenza (shows full loan period)
-            $endDate = ($row['stato'] === 'da_ritirare' && !empty($row['pickup_deadline']))
-                ? $row['pickup_deadline']
-                : ($dates['effective_due_at'] ?? $row['data_scadenza']);
+            $copyId = $row['copia_id'] !== null ? (int) $row['copia_id'] : null;
+            $endDate = $row['stato'] === 'da_ritirare'
+                ? LibraryCalendar::effectivePickupDeadline($this->db, $row['pickup_deadline'], $row['data_scadenza'], $copyId)
+                : null;
+            $endDate ??= $dates['effective_due_at'] ?? $row['data_scadenza'];
+            if (in_array($row['stato'], ['prenotato', 'da_ritirare'], true) && $endDate < $today) {
+                continue;
+            }
             if ($row['stato'] === 'in_ritardo') {
                 // The copy remains physically occupied through today; ending the
                 // event on the missed due date falsely shows it as available.
@@ -262,7 +263,7 @@ class IcsGenerator
         $stmt->close();
 
         // Fetch active reservations
-        $resSql = "SELECT r.id, r.stato, r.data_prenotazione, r.data_scadenza_prenotazione,
+        $resSql = "SELECT r.id, r.libro_id, r.stato, r.data_prenotazione, r.data_scadenza_prenotazione,
                           r.data_inizio_richiesta, r.data_fine_richiesta,
                           l.titolo, CONCAT(u.nome, ' ', u.cognome) AS utente_nome,
                           u.email, r.updated_at
@@ -276,7 +277,7 @@ class IcsGenerator
         if ($stmt === false) {
             return $events;
         }
-        if (!$stmt->bind_param('s', $today) || !$stmt->execute()) {
+        if (!$stmt->bind_param('s', $candidateFloor) || !$stmt->execute()) {
             $stmt->close();
             return $events;
         }
@@ -288,6 +289,10 @@ class IcsGenerator
             $endDate = $row['data_fine_richiesta']
                 ?? ($row['data_scadenza_prenotazione'] ? substr((string) $row['data_scadenza_prenotazione'], 0, 10) : null)
                 ?? $startDate;
+            [$startDate, $endDate] = LibraryCalendar::reservationCalendarDates($this->db, (int) $row['libro_id'], $startDate, $endDate);
+            if ($endDate < $today) {
+                continue;
+            }
             $events[] = [
                 'uid' => 'reservation-' . $row['id'] . '@pinakes',
                 'title' => '📅 ' . __('Prenotazione') . ': ' . $row['titolo'],

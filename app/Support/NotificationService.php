@@ -2330,18 +2330,20 @@ class NotificationService {
             $days = $endDate->diff($startDate)->days;
 
             $recipientLocale = $this->resolveRecipientLocale((string) $loan['utente_email']);
+            $copyId = $loan['copia_id'] !== null ? (int) $loan['copia_id'] : null;
+            $pickupDeadline = LibraryCalendar::effectivePickupDeadline($this->db, $loan['pickup_deadline'], $loan['data_scadenza'], $copyId);
             $variables = [
                 'utente_nome' => $loan['utente_nome'],
                 'libro_titolo' => $loan['libro_titolo'],
                 'data_inizio' => $this->formatEmailDate($loan['data_prestito'], false, $recipientLocale),
                 'data_fine' => $this->formatEmailDate($this->usableDueDate($loan), false, $recipientLocale),
                 'giorni_prestito' => $days,
-                'giorni_ritiro' => $this->effectivePickupDays((string) $loan['data_prestito'], $loan['pickup_deadline'] ? (string) $loan['pickup_deadline'] : null, !empty($loan['copia_id']) ? (int) $loan['copia_id'] : null),
-                'scadenza_ritiro' => $loan['pickup_deadline'] ? $this->formatEmailDate($loan['pickup_deadline'], false, $recipientLocale) : '',
+                'giorni_ritiro' => $this->effectivePickupDays((string) $loan['data_prestito'], $pickupDeadline, $copyId),
+                'scadenza_ritiro' => $pickupDeadline !== null ? $this->formatEmailDate($pickupDeadline, false, $recipientLocale) : '',
                 // #304: alias under the DB column name so a customised template using
                 // {{pickup_deadline}} (the natural name a user copies from the schema)
                 // resolves as well as the canonical {{scadenza_ritiro}}.
-                'pickup_deadline' => $loan['pickup_deadline'] ? $this->formatEmailDate($loan['pickup_deadline'], false, $recipientLocale) : '',
+                'pickup_deadline' => $pickupDeadline !== null ? $this->formatEmailDate($pickupDeadline, false, $recipientLocale) : '',
                 'pickup_instructions' => $this->translateInLocale('Recati in biblioteca durante gli orari di apertura per ritirare il libro.', $recipientLocale),
                 'sezione_calendario' => $this->buildCalendarSection((int)$loan['id'], (string)$loan['libro_titolo'], (string)$loan['data_prestito'], $this->usableDueDate($loan), $recipientLocale)
             ];

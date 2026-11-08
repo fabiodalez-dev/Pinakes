@@ -1166,16 +1166,11 @@ class NcipServerPlugin
         }
 
         $requestId = (string) ($message?->RequestId->RequestIdentifierValue ?? '');
-        $today = \App\Support\DateHelper::today();
-        // A request is capped like the website and app ones: the loan length,
-        // but never past the longest request window of the patron type.
-        $loanDays = (new \App\Services\CirculationPolicy($this->db))->forLoan($userId, $itemId)->requestDurationDays();
-        $dueDate = \App\Services\CirculationPolicy::dueDateFor($today, $loanDays, $this->db);
         $failureReason = 'db_error';
         $requestOutcome = $this->createRequestItemNcip(
             $itemId,
             $userId,
-            $dueDate,
+            null,
             $requestId !== '' ? $requestId : null,
             $failureReason
         );
@@ -1196,7 +1191,7 @@ class NcipServerPlugin
             );
         }
 
-        return $this->xmlResponse($response, $this->buildRequestItemResponse($itemId, $userId, $dueDate));
+        return $this->xmlResponse($response, $this->buildRequestItemResponse($itemId, $userId, $requestOutcome['due_date']));
     }
 
     /**
@@ -2109,19 +2104,19 @@ class NcipServerPlugin
 
     /**
      * @param-out string $failureReason Stable rejection reason for RequestItem.
-     * @return array{loan_id:?int,reservation_id:?int}|null
+     * @return array{loan_id:?int,reservation_id:?int,due_date:string}|null
      */
     private function createRequestItemNcip(
         int $bookId,
         int $userId,
-        string $dueDate,
+        ?string $dueDate,
         ?string $requestId,
         ?string &$failureReason = null
     ): ?array
     {
         $failureReason = 'db_error';
         $today = \App\Support\DateHelper::today();
-        if (!\App\Support\DateHelper::isISODateFormat($dueDate) || $dueDate < $today) {
+        if ($dueDate !== null && (!\App\Support\DateHelper::isISODateFormat($dueDate) || $dueDate < $today)) {
             $failureReason = 'invalid_due';
             return null;
         }
@@ -2191,10 +2186,14 @@ class NcipServerPlugin
                 return null;
             }
 
+            $startDate = \App\Support\LibraryCalendar::requestStartDay($this->db, $today, $bookId);
+            $dueDate = $dueDate === null
+                ? \App\Support\LibraryCalendar::requestDueDate($this->db, $startDate, $requestPolicy->requestDurationDays(), $bookId)
+                : \App\Support\LibraryCalendar::requestDueDate($this->db, max($startDate, $dueDate), 0, $bookId);
             $routing = (new \App\Services\LoanRequestGate($this->db))->route(
                 $bookId,
                 $userId,
-                $today,
+                $startDate,
                 $dueDate,
                 inCallerTransaction: true
             );
@@ -2214,7 +2213,7 @@ class NcipServerPlugin
                     throw new \RuntimeException('Failed to audit NCIP reservation request.');
                 }
                 $this->db->commit();
-                return ['loan_id' => null, 'reservation_id' => $reservationId];
+                return ['loan_id' => null, 'reservation_id' => $reservationId, 'due_date' => $dueDate];
             }
 
             // A waitlist reservation does not consume an active-loan slot.
@@ -2241,7 +2240,7 @@ class NcipServerPlugin
                  VALUES (?, ?, ?, ?, 'pendente', 'ncip', ?, 0, NOW(), NOW())"
             );
             if ($stmt === false) { $this->db->rollback(); return null; }
-            $stmt->bind_param('iisss', $bookId, $userId, $today, $dueDate, $requestId);
+            $stmt->bind_param('iisss', $bookId, $userId, $startDate, $dueDate, $requestId);
             if (!$stmt->execute()) { $stmt->close(); $this->db->rollback(); return null; }
             $id = (int) $stmt->insert_id;
             $stmt->close();
@@ -2261,7 +2260,7 @@ class NcipServerPlugin
                     ]);
                 }
             }
-            return $id > 0 ? ['loan_id' => $id, 'reservation_id' => null] : null;
+            return $id > 0 ? ['loan_id' => $id, 'reservation_id' => null, 'due_date' => $dueDate] : null;
         } catch (\Throwable $e) {
             $this->db->rollback();
             SecureLogger::error('[NcipServer] createRequestItemNcip failed: ' . $e->getMessage());

@@ -264,7 +264,13 @@ class LoanApprovalController
             // guardia nascerebbe un 'da_ritirare' con deadline già passata (mai
             // ritirabile) e, con :fine nel passato, i predicati di overlap sotto
             // diventerebbero ciechi ai prestiti correnti.
-            if ($dataScadenza !== null && $dataScadenza !== '' && $dataScadenza < $today) {
+            $calendar = \App\Support\LibraryCalendar::forDb($db);
+            $capacity = new \App\Services\CapacityService($db, lockingReads: true);
+            // The preliminary check uses the earliest return day across the
+            // book's branches. A pinned copy may fail and have to be replaced.
+            $branch = $calendar->hasRules() ? \App\Support\LibraryCalendar::requestScope($db, $libroId, lockingRead: true) : null;
+            $usableDue = $dataScadenza !== null ? $calendar->nextOpenDay($dataScadenza, $branch) : null;
+            if (!$calendar->hasRules() && $usableDue !== null && $usableDue !== '' && $usableDue < $today) {
                 $db->rollback();
                 $response->getBody()->write(json_encode([
                     'success' => false,
@@ -360,29 +366,6 @@ class LoanApprovalController
                 }
             }
 
-            // Determine state: 'prenotato' if future loan, 'da_ritirare' if immediate
-            // User must confirm pickup before loan becomes 'in_corso'
-            $isFutureLoan = ($dataPrestito > $today);
-            $newState = $isFutureLoan ? 'prenotato' : 'da_ritirare';
-
-            // Calculate pickup deadline for immediate loans (da_ritirare state)
-            $pickupDeadline = null;
-            if (!$isFutureLoan) {
-                $settingsRepo = new \App\Models\SettingsRepository($db);
-                $pickupDays = (int) ($settingsRepo->get('loans', 'pickup_expiry_days', '3') ?? 3);
-                // Base su $today (timezone applicativo) per coerenza con la
-                // classificazione immediato/futuro a cavallo della mezzanotte.
-                // Open days only (closures calendar); identical to +N days without closures.
-                $pickupDeadline = \App\Support\LibraryCalendar::pickupDeadline($db, $today, $pickupDays);
-                // Cap alla fine della finestra del prestito (L1): una deadline oltre
-                // data_scadenza permetterebbe di confermare il ritiro di un prestito
-                // già scaduto e terrebbe la copia impegnata oltre la finestra.
-                if ($dataScadenza !== null && $dataScadenza !== '' && $pickupDeadline > $dataScadenza) {
-                    $pickupDeadline = $dataScadenza;
-                }
-            }
-
-            // Step 1: Try to use pre-assigned copy first (avoids false rejection when slots are at capacity)
             // If loan already has a valid assigned copy, we can skip global slot counting
             $selectedCopy = null;
 
@@ -416,6 +399,12 @@ class LoanApprovalController
                 $existingCopyResult = $existingCopyStmt->get_result();
                 $selectedCopy = $existingCopyResult ? $existingCopyResult->fetch_assoc() : null;
                 $existingCopyStmt->close();
+                if ($selectedCopy !== null) {
+                    $window = $this->approvalWindow($db, $calendar, $capacity, $libroId, $loanId, (int) $selectedCopy['id'], (string) $dataPrestito, (string) $dataScadenza, $today);
+                    if ($window === null) {
+                        $selectedCopy = null;
+                    }
+                }
             }
 
             // Step 2: If no valid pre-assigned copy, check global availability and find a new copy
@@ -425,8 +414,11 @@ class LoanApprovalController
                 // end, not only the requested window: a fully occupied earlier day
                 // means this loan would depend on a preceding loan/reservation being
                 // collected and returned on time, which is the bypass fixed by #384.
-                $capacity = new \App\Services\CapacityService($db);
-                if (!$capacity->hasFreeCapacity($libroId, $today, $dataScadenza, excludePrestitoId: $loanId)) {
+                // An open sibling can make the earliest effective due date
+                // fall in the past while another copy can still be collected
+                // today. The per-copy check handles its actual due date below.
+                $minimumDue = max($today, (string) $usableDue);
+                if (!$capacity->hasFreeCapacity($libroId, $today, $minimumDue, excludePrestitoId: $loanId)) {
                     $db->rollback();
                     // Name the longest loan still possible from today when a
                     // later commitment is what blocks the approval, so staff
@@ -436,7 +428,7 @@ class LoanApprovalController
                     // return), but the loan itself starts on data_prestito:
                     // the figures count from there, and a conflict before it
                     // cannot be fixed by shortening, so no figures then.
-                    $blocked = array_filter([$capacity->firstUnavailableDateInRange($libroId, $today, $dataScadenza, null, $loanId)]);
+                    $blocked = array_filter([$capacity->firstUnavailableDateInRange($libroId, $today, $minimumDue, null, $loanId)]);
                     $cap = ($blocked !== [] && min($blocked) > $dataPrestito)
                         ? \App\Support\LoanWindow::cap($dataPrestito, $blocked)
                         : null;
@@ -508,20 +500,26 @@ class LoanApprovalController
                           )
                     ), '9999-12-31') DESC,
                     c.id ASC
-                    LIMIT 1
                 ");
                 $overlapStmt->bind_param('iiiisssiss', $libroId, $libroId, $utenteId, $loanId, $dataScadenza, $today, $dataPrestito, $loanId, $dataScadenza, $dataScadenza);
                 $overlapStmt->execute();
                 $overlapResult = $overlapStmt->get_result();
-                $selectedCopy = $overlapResult ? $overlapResult->fetch_assoc() : null;
+                $candidates = $overlapResult ? $overlapResult->fetch_all(MYSQLI_ASSOC) : [];
                 $overlapStmt->close();
+                foreach ($candidates as $copy) {
+                    $window = $this->approvalWindow($db, $calendar, $capacity, $libroId, $loanId, (int) $copy['id'], (string) $dataPrestito, (string) $dataScadenza, $today);
+                    if ($window !== null) {
+                        $selectedCopy = $copy;
+                        break;
+                    }
+                }
             }
 
             // Step 3: Step 2 is the authoritative allocator. The historical
             // CopyRepository fallback only repeated a looser date-overlap query;
             // after #384 it could reintroduce the exact preceding-return candidate
             // deliberately rejected above.
-            if (!$selectedCopy) {
+            if (!$selectedCopy || !isset($window)) {
                 $db->rollback();
                 $response->getBody()->write(json_encode([
                     'success' => false,
@@ -536,36 +534,9 @@ class LoanApprovalController
             $lockCopyStmt->execute();
             $lockCopyStmt->close();
 
-            // The copy is known only now: a due date closed at its branch moves
-            // to the branch's next open day when the longer window still fits
-            // (otherwise the requested date stays, as before the calendar).
-            if ($dataScadenza !== null && $dataScadenza !== '') {
-                $branchDue = \App\Services\CirculationPolicy::dueDateFor((string) $dataScadenza, 0, $db, (int) $selectedCopy['id']);
-                if ($branchDue !== $dataScadenza
-                    && (new \App\Services\CapacityService($db))->hasFreeCapacity($libroId, (string) $dataPrestito, $branchDue, excludePrestitoId: $loanId)) {
-                    // The selected copy must be free on the added days too
-                    // (same occupancy predicate as the recheck below).
-                    $extraStart = \App\Support\LibraryCalendar::shift((string) $dataScadenza, 1);
-                    $extraStmt = $db->prepare("
-                        SELECT 1 FROM prestiti
-                        WHERE copia_id = ? AND id != ?
-                        AND data_prestito <= ?
-                        AND (stato = 'in_ritardo' OR (stato = 'in_corso' AND data_scadenza < ?) OR data_scadenza >= ?)
-                        AND (
-                            (attivo = 1 AND stato IN ('in_corso','prenotato','da_ritirare','in_ritardo'))
-                            OR (stato = 'pendente' AND copia_id IS NOT NULL)
-                        )
-                        LIMIT 1
-                    ");
-                    $extraStmt->bind_param('iisss', $selectedCopy['id'], $loanId, $branchDue, $today, $extraStart);
-                    $extraStmt->execute();
-                    $extraBusy = (bool) $extraStmt->get_result()->fetch_row();
-                    $extraStmt->close();
-                    if (!$extraBusy) {
-                        $dataScadenza = $branchDue;
-                    }
-                }
-            }
+            [$dataPrestito, $dataScadenza] = $window;
+            $isFutureLoan = $dataPrestito > $today;
+            $newState = $isFutureLoan ? 'prenotato' : 'da_ritirare';
 
             // Occupazione canonica #157: la copia è tenuta da un prestito attivo
             // OPPURE da un pending di conversione prenotazione che ha già una
@@ -632,30 +603,18 @@ class LoanApprovalController
                 throw new \RuntimeException(__('Impossibile aggiornare lo stato della copia'));
             }
 
-            // The pickup days count the open days of the chosen copy's branch.
-            if ($pickupDeadline !== null) {
-                $pickupDeadline = \App\Support\LibraryCalendar::pickupDeadline($db, $today, $pickupDays, null, (int) $selectedCopy['id']);
-                if ($dataScadenza !== null && $dataScadenza !== '' && $pickupDeadline > $dataScadenza) {
-                    $pickupDeadline = $dataScadenza;
-                }
+            // A scheduled approval never announces a pickup on a closed day.
+            $pickupDeadline = null;
+            if ($newState === 'da_ritirare') {
+                $pickupDays = (int) ((new \App\Models\SettingsRepository($db))->get('loans', 'pickup_expiry_days', '3') ?? 3);
+                $pickupDeadline = \App\Support\LibraryCalendar::pickupDeadline($db, $today, $pickupDays, $dataScadenza, (int) $selectedCopy['id']);
             }
-
-            // Assegna la copia al prestito con lo stato corretto e pickup_deadline se applicabile
-            if ($pickupDeadline !== null) {
-                $stmt = $db->prepare("
-                    UPDATE prestiti
-                    SET stato = ?, attivo = 1, copia_id = ?, pickup_deadline = ?, data_scadenza = ?{$pickupNotificationResetSql}
-                    WHERE id = ? AND stato = 'pendente'
-                ");
-                $stmt->bind_param('sissi', $newState, $selectedCopy['id'], $pickupDeadline, $dataScadenza, $loanId);
-            } else {
-                $stmt = $db->prepare("
-                    UPDATE prestiti
-                    SET stato = ?, attivo = 1, copia_id = ?, pickup_deadline = NULL, data_scadenza = ?{$pickupNotificationResetSql}
-                    WHERE id = ? AND stato = 'pendente'
-                ");
-                $stmt->bind_param('sisi', $newState, $selectedCopy['id'], $dataScadenza, $loanId);
-            }
+            $stmt = $db->prepare("
+                UPDATE prestiti
+                SET stato = ?, attivo = 1, copia_id = ?, pickup_deadline = ?, data_prestito = ?, data_scadenza = ?{$pickupNotificationResetSql}
+                WHERE id = ? AND stato = 'pendente'
+            ");
+            $stmt->bind_param('sisssi', $newState, $selectedCopy['id'], $pickupDeadline, $dataPrestito, $dataScadenza, $loanId);
             $stmt->execute();
             $stmt->close();
 
@@ -725,6 +684,25 @@ class LoanApprovalController
             ]));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
         }
+    }
+
+    /** @return array{string,string}|null */
+    private function approvalWindow(mysqli $db, \App\Support\LibraryCalendar $calendar, \App\Services\CapacityService $capacity, int $bookId, int $loanId, int $copyId, string $start, string $due, string $today): ?array
+    {
+        if (!$calendar->hasRules()) {
+            // The calendar branch refuses a return day before the start; so does this one.
+            return $due < $start ? null : [$start, $due];
+        }
+        $branch = \App\Support\LibraryCalendar::branchOfCopy($db, $copyId);
+        $start = $calendar->nextOpenDay($start, $branch);
+        if ($start <= $today && !$calendar->isOpen($today, $branch)) {
+            $start = $calendar->nextOpenDay($today, $branch);
+        }
+        if (!$calendar->isOpen($start, $branch)) {
+            return null;
+        }
+        $usableDue = $capacity->reservationDueDateForCopy($bookId, $copyId, max($start, $today), $due, $loanId);
+        return $usableDue === null ? null : [$start, $usableDue];
     }
 
     public function rejectLoan(Request $request, Response $response, mysqli $db): Response
@@ -1054,8 +1032,21 @@ class LoanApprovalController
                 return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
             }
 
-            // Check if pickup deadline has passed
-            if (!empty($loan['pickup_deadline']) && $today > $loan['pickup_deadline']) {
+            $copiaId = (int) $loan['copia_id'];
+            $calendar = \App\Support\LibraryCalendar::forDb($db);
+            if ($calendar->hasRules() && !$calendar->isOpen($today, \App\Support\LibraryCalendar::branchOfCopy($db, $copiaId))) {
+                $db->rollback();
+                $response->getBody()->write(json_encode([
+                    'success' => false,
+                    'message' => __('La sede è chiusa oggi. Riprova il prossimo giorno di apertura.'),
+                ]));
+                return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+            }
+
+            // A closure may have been imported before the maintenance pass
+            // had a chance to persist the new pickup deadline.
+            $pickupDeadline = \App\Support\LibraryCalendar::effectivePickupDeadline($db, $loan['pickup_deadline'], $loan['data_scadenza'], $copiaId);
+            if ($pickupDeadline !== null && $today > $pickupDeadline) {
                 $db->rollback();
                 $response->getBody()->write(json_encode([
                     'success' => false,
@@ -1064,10 +1055,15 @@ class LoanApprovalController
                 return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
             }
 
-            // Guardia L1: pickup_deadline (per prestiti storici, pre-cap) può superare
-            // data_scadenza. Non avviare un 'in_corso' la cui finestra è già interamente
-            // trascorsa: nascerebbe scaduto.
-            if (!empty($loan['data_scadenza']) && $loan['data_scadenza'] < $today) {
+            // On reopening, a still-unreconciled return date can move under
+            // this same book lock. Do not start a loan if the extended
+            // window is already promised to another reader.
+            $dueDate = $loan['data_scadenza'];
+            if ($dueDate !== null && $dueDate < $today) {
+                $capacity = new \App\Services\CapacityService($db, lockingReads: true);
+                $dueDate = $capacity->reservationDueDateForCopy($libroId, $copiaId, $today, $dueDate, $loanId);
+            }
+            if (!empty($loan['data_scadenza']) && ($dueDate === null || $dueDate < $today)) {
                 $db->rollback();
                 $response->getBody()->write(json_encode([
                     'success' => false,
@@ -1076,15 +1072,13 @@ class LoanApprovalController
                 return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
             }
 
-            $copiaId = $loan['copia_id'] ? (int) $loan['copia_id'] : null;
-
             // Update loan state to 'in_corso'
             $updateStmt = $db->prepare("
                 UPDATE prestiti
-                SET stato = 'in_corso', pickup_deadline = NULL
+                SET stato = 'in_corso', pickup_deadline = NULL, data_scadenza = ?
                 WHERE id = ?
             ");
-            $updateStmt->bind_param('i', $loanId);
+            $updateStmt->bind_param('si', $dueDate, $loanId);
             $updateStmt->execute();
             $updateStmt->close();
 
@@ -1253,7 +1247,7 @@ class LoanApprovalController
             // Poi lock + ri-verifica del prestito con le guardie di stato.
             // Accept 'da_ritirare' OR 'prenotato' if data_prestito <= today
             $stmt = $db->prepare("
-                SELECT id, libro_id, copia_id, utente_id, stato, pickup_deadline
+                SELECT id, libro_id, copia_id, utente_id, stato, pickup_deadline, data_scadenza
                 FROM prestiti
                 WHERE id = ? AND attivo = 1
                 AND (stato = 'da_ritirare' OR (stato = 'prenotato' AND data_prestito <= ?))
@@ -1297,7 +1291,7 @@ class LoanApprovalController
             // reporting semantics (annullato = cancelled, scaduto = expired).
             // Legacy rows without a deadline are necessarily treated as a manual
             // cancellation because there is no expiry fact to assert.
-            $pickupDeadline = !empty($loan['pickup_deadline']) ? (string) $loan['pickup_deadline'] : null;
+            $pickupDeadline = \App\Support\LibraryCalendar::effectivePickupDeadline($db, $loan['pickup_deadline'], $loan['data_scadenza'], $copiaId);
             $terminalState = $pickupDeadline !== null && $pickupDeadline < $today
                 ? 'scaduto'
                 : 'annullato';

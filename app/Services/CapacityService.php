@@ -183,7 +183,7 @@ final class CapacityService
             return null;
         }
         $calendar = \App\Support\LibraryCalendar::forDb($this->db);
-        $branch = $calendar->hasRules() ? \App\Support\LibraryCalendar::requestBranch($this->db, $libroId) : null;
+        $branch = $calendar->hasRules() ? \App\Support\LibraryCalendar::requestScope($this->db, $libroId) : null;
         $copyBranches = $calendar->hasRules() ? $this->mixedLendingCopyBranches($libroId) : [];
         $copyIntervals = [];
         $trackCopy = $copyBranches === [] ? null : static function (int $copyId, string $start, string $end) use (&$copyIntervals): void {
@@ -506,9 +506,30 @@ final class CapacityService
     }
 
     /** Whether this physical copy has a commitment in the inclusive window. */
-    public function copyHasHoldingLoan(int $libroId, int $copyId, string $start, string $end): bool
+    public function copyHasHoldingLoan(int $libroId, int $copyId, string $start, string $end, ?int $excludeLoanId = null): bool
     {
-        return $this->holdingLoanIntervals($libroId, $start, $end, null, null, $copyId) !== [];
+        return $this->holdingLoanIntervals($libroId, $start, $end, $excludeLoanId, null, $copyId) !== [];
+    }
+
+    /** Effective due day when both this copy and the title can honor the window. */
+    public function reservationDueDateForCopy(int $bookId, int $copyId, string $start, string $storedDue, ?int $excludeLoanId = null): ?string
+    {
+        $calendar = \App\Support\LibraryCalendar::forDb($this->db);
+        if (!$calendar->hasRules()) {
+            // Without rules nextOpenDay() is the identity: the same inverted
+            // window the calendar branch refuses below is refused here too.
+            return $storedDue < $start ? null : $storedDue;
+        }
+        $branch = \App\Support\LibraryCalendar::branchOfCopy($this->db, $copyId);
+        $due = $calendar->nextOpenDay($storedDue, $branch);
+        if ($due < $start || !$calendar->isOpen($due, $branch)
+            || $this->copyHasHoldingLoan($bookId, $copyId, $start, $due, $excludeLoanId)) {
+            return null;
+        }
+        if ($due > $storedDue && !$this->hasFreeCapacity($bookId, \App\Support\LibraryCalendar::shift($storedDue, 1), $due, excludePrestitoId: $excludeLoanId)) {
+            return null;
+        }
+        return $due;
     }
 
     /**
@@ -679,7 +700,7 @@ final class CapacityService
         $out = [];
         $calendar = \App\Support\LibraryCalendar::forDb($this->db);
         $branch = $reservationBookId !== null && $calendar->hasRules()
-            ? \App\Support\LibraryCalendar::requestBranch($this->db, $reservationBookId, $this->lockingReads)
+            ? \App\Support\LibraryCalendar::requestScope($this->db, $reservationBookId, $this->lockingReads)
             : null;
         while ($row = $res->fetch_assoc()) {
             $s = (string) $row['s'];
