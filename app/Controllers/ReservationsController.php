@@ -45,7 +45,7 @@ class ReservationsController
     // suo payload esponeva gli utente_id dei prenotanti (le rotte reali passano
     // da getBookAvailabilityData(), che filtra i campi sensibili).
 
-    private function calculateAvailability($currentLoans, $existingReservations, int $totalCopies, ?string $startDate = null, int $days = 730, ?int $excludeUserId = null)
+    private function calculateAvailability($currentLoans, $existingReservations, int $totalCopies, ?string $startDate = null, int $days = 730, ?int $excludeUserId = null, ?array $capacityReservationIntervals = null)
     {
         // Default start = "today" in the APP timezone (DateHelper), not the PHP
         // process TZ (usually UTC): a bare `new DateTime()` made the mobile
@@ -126,6 +126,9 @@ class ReservationsController
                 $hasActiveReservation = true;
                 continue;
             }
+            if ($capacityReservationIntervals !== null) {
+                continue;
+            }
 
             // Occupancy start mirrors CapacityService's COALESCE fallback: a legacy
             // 'attiva' row whose data_inizio_richiesta is NULL still occupies its
@@ -149,6 +152,7 @@ class ReservationsController
             }
             $reservationIntervals[] = [$resStart, $resEnd];
         }
+        $reservationIntervals = $capacityReservationIntervals ?? $reservationIntervals;
 
         $unavailableDates = [];
         $daysData = [];
@@ -861,7 +865,10 @@ class ReservationsController
                 \App\Support\LibraryCalendar::shift($from, $closedHorizon),
                 \App\Support\LibraryCalendar::requestBranch($this->db, (int) $bookId)
             );
-        return $this->calculateAvailability($currentLoans, $existingReservations, $totalCopies, $startDate, $days, $excludeUserId) + [
+        $reservationIntervals = (new \App\Services\CapacityService($this->db))->reservationIntervalsInRange(
+            (int) $bookId, $from, \App\Support\LibraryCalendar::shift($from, max(0, $days - 1)), $excludeUserId
+        );
+        return $this->calculateAvailability($currentLoans, $existingReservations, $totalCopies, $startDate, $days, $excludeUserId, $reservationIntervals) + [
             'loan_duration_days' => $policy->requestDurationDays(),
             'max_loan_duration_days' => $policy->maxRequestDays,
             'staff_loan_duration_days' => $policy->durationDays,

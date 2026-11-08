@@ -130,18 +130,36 @@ class ReservationsAdminController
             }
         }
 
+        $lookupStmt = $db->prepare("SELECT libro_id FROM prenotazioni WHERE id = ?");
+        $lookupStmt->bind_param('i', $id);
+        $lookupStmt->execute();
+        $lookupResult = $lookupStmt->get_result()->fetch_assoc();
+        $lookupStmt->close();
+        if (!$lookupResult) {
+            return $response->withHeader('Location', url('/admin/reservations') . '?error=not_found')->withStatus(302);
+        }
+        $libroId = (int) $lookupResult['libro_id'];
+
         $today = \App\Support\DateHelper::today();
         if ($start === '') {
             $start = $today;
         }
+        if ($stato === 'attiva') {
+            $start = \App\Support\LibraryCalendar::requestStartDay($db, $start, $libroId);
+        }
         if ($end === '') {
             $loanDays = (new \App\Services\CirculationPolicy($db))->forReservation($id)->durationDays;
-            $end = \App\Services\CirculationPolicy::dueDateFor($start, $loanDays, $db);
+            $end = $stato === 'attiva'
+                ? \App\Support\LibraryCalendar::requestDueDate($db, $start, $loanDays, $libroId)
+                : \App\Services\CirculationPolicy::dueDateFor($start, $loanDays);
         }
         // Normalize an inverted range on the reservation dates too (form can post
         // end < start), mirroring the data_*_richiesta clamp below (#252).
         if ($end < $start) {
             $end = $start;
+        }
+        if ($stato === 'attiva') {
+            $end = \App\Support\LibraryCalendar::requestDueDate($db, $end, 0, $libroId);
         }
 
         // Derive data_inizio_richiesta from data_prenotazione (start) if not explicitly provided
@@ -158,6 +176,10 @@ class ReservationsAdminController
         if ($dataFineRichiesta < $dataInizioRichiesta) {
             $dataFineRichiesta = $dataInizioRichiesta;
         }
+        if ($stato === 'attiva') {
+            $dataInizioRichiesta = \App\Support\LibraryCalendar::requestStartDay($db, $dataInizioRichiesta, $libroId);
+            $dataFineRichiesta = \App\Support\LibraryCalendar::requestDueDate($db, max($dataInizioRichiesta, $dataFineRichiesta), 0, $libroId);
+        }
 
         $startDt = $start . ' 00:00:00';
         $endDt = $end . ' 23:59:59';
@@ -168,17 +190,6 @@ class ReservationsAdminController
         if (!in_array($stato, ['attiva', 'completata', 'annullata'], true)) {
             return $response->withHeader('Location', url('/admin/reservations/edit/' . $id) . '?error=invalid_status')->withStatus(302);
         }
-
-        $lookupStmt = $db->prepare("SELECT libro_id FROM prenotazioni WHERE id = ?");
-        $lookupStmt->bind_param('i', $id);
-        $lookupStmt->execute();
-        $lookupResult = $lookupStmt->get_result()->fetch_assoc();
-        $lookupStmt->close();
-        if (!$lookupResult) {
-            return $response->withHeader('Location', url('/admin/reservations') . '?error=not_found')->withStatus(302);
-        }
-
-        $libroId = (int) $lookupResult['libro_id'];
 
         $cancelNotification = null;
         $db->begin_transaction();
@@ -498,17 +509,10 @@ class ReservationsAdminController
         // Set default dates in the application timezone.
         $today = \App\Support\DateHelper::today();
 
-        // Parse form dates (date only, without time)
-        $dataPrenotazioneDate = $dataPrenotazione;
+        // The same open start day and return day as the reader's request.
+        $dataPrenotazioneDate = \App\Support\LibraryCalendar::requestStartDay($db, $dataPrenotazione ?: $today, $libroId);
         $dataScadenzaDate = $dataScadenza;
-
-        if (empty($dataPrenotazione)) {
-            $dataPrenotazione = $today . ' 00:00:00';
-            $dataPrenotazioneDate = $today;
-        } else {
-            $dataPrenotazioneDate = $dataPrenotazione; // Keep date only for loan period
-            $dataPrenotazione = $dataPrenotazione . ' 00:00:00';
-        }
+        $dataPrenotazione = $dataPrenotazioneDate . ' 00:00:00';
 
         if (empty($dataScadenza)) {
             // Durata di default allineata all'impostazione admin loan_duration_days
@@ -525,6 +529,7 @@ class ReservationsAdminController
             if ($dataScadenzaDate < $dataPrenotazioneDate) {
                 $dataScadenzaDate = $dataPrenotazioneDate;
             }
+            $dataScadenzaDate = \App\Support\LibraryCalendar::requestDueDate($db, $dataScadenzaDate, 0, $libroId);
             $dataScadenza = $dataScadenzaDate . ' 23:59:59';
         }
 
@@ -543,6 +548,8 @@ class ReservationsAdminController
         if ($dataFineRichiesta < $dataInizioRichiesta) {
             $dataFineRichiesta = $dataInizioRichiesta;
         }
+        $dataInizioRichiesta = \App\Support\LibraryCalendar::requestStartDay($db, $dataInizioRichiesta, $libroId);
+        $dataFineRichiesta = \App\Support\LibraryCalendar::requestDueDate($db, max($dataInizioRichiesta, $dataFineRichiesta), 0, $libroId);
 
         $db->begin_transaction();
         try {

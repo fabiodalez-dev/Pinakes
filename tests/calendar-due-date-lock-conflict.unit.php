@@ -114,8 +114,10 @@ try {
     try {
         LibraryCalendar::extendPickupDeadlines($db);
         $pickupError = 0;
-    } catch (\mysqli_sql_exception $e) {
-        $pickupError = $e->getCode();
+    } catch (\RuntimeException $e) {
+        // Each pickup is reconciled on its own: the lock wait is reported in
+        // the run's summary, with the server error as its cause.
+        $pickupError = $e->getPrevious() instanceof \mysqli_sql_exception ? $e->getPrevious()->getCode() : -1;
     }
     $check($pickupError === 1205 && substr($pickupOf(), 0, 10) === $due, 'moving a pickup day waits for it too (' . $pickupError . ')');
     $other->rollback();
