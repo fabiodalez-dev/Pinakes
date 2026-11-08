@@ -516,7 +516,9 @@ final class CapacityService
     {
         $calendar = \App\Support\LibraryCalendar::forDb($this->db);
         if (!$calendar->hasRules()) {
-            return $storedDue;
+            // Without rules nextOpenDay() is the identity: the same inverted
+            // window the calendar branch refuses below is refused here too.
+            return $storedDue < $start ? null : $storedDue;
         }
         $branch = \App\Support\LibraryCalendar::branchOfCopy($this->db, $copyId);
         $due = $calendar->nextOpenDay($storedDue, $branch);

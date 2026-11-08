@@ -1012,6 +1012,12 @@ class MaintenanceService
                 // confirmPickup(), which correctly refuses a copy-less loan.
                 $copiaId = !empty($loan['copia_id']) ? (int) $loan['copia_id'] : 0;
                 $dueDate = null;
+                // The return day the reader was promised: the effective due of
+                // the pinned copy's branch (or of the title's branches when
+                // unpinned). A sibling copy elsewhere must still cover it.
+                $promisedDue = $calendar->hasRules()
+                    ? $calendar->nextOpenDay($oldDue, LibraryCalendar::reservationBranch($this->db, $bookId, $copiaId > 0 ? $copiaId : null))
+                    : $oldDue;
                 if ($copiaId > 0 && in_array($copiaId, $committedCopyIds, true)) {
                     // Repair legacy/reassigned rows that share a copy with another
                     // open loan for this borrower/title: activation must choose a
@@ -1112,7 +1118,7 @@ class MaintenanceService
                     $freeCopy->close();
                     foreach ($freeCopyRows as $freeCopyRow) {
                         $candidateId = (int) $freeCopyRow['id'];
-                        $candidateDue = $this->activationDueDate($calendar, $loanId, $bookId, $candidateId, (string) $loan['data_prestito'], $oldDue, $today);
+                        $candidateDue = $this->activationDueDate($calendar, $loanId, $bookId, $candidateId, (string) $loan['data_prestito'], $promisedDue, $today);
                         if ($candidateDue !== null) {
                             $copiaId = $candidateId;
                             $dueDate = $candidateDue;

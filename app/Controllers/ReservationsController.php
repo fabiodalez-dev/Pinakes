@@ -736,7 +736,10 @@ class ReservationsController
     private function holdingEnd(array $loan): string
     {
         $copyId = !empty($loan['copia_id']) ? (int) $loan['copia_id'] : null;
-        return \App\Support\LibraryCalendar::holdingEnd($this->db, substr((string) $loan['data_scadenza'], 0, 10), $copyId);
+        // A scheduled hold without a copy reads the title's branches, as
+        // CapacityService and DataIntegrity do, so both see the same end.
+        $scheduledBookId = ($loan['stato'] ?? '') === 'prenotato' && isset($loan['libro_id']) ? (int) $loan['libro_id'] : null;
+        return \App\Support\LibraryCalendar::holdingEnd($this->db, substr((string) $loan['data_scadenza'], 0, 10), $copyId, $scheduledBookId);
     }
 
     /**
@@ -771,7 +774,7 @@ class ReservationsController
         // copia_id) also holds its copy until pickup confirmation (#157, model
         // A-refined). Bare 'pendente' requests with no copy are excluded.
         $stmt = $this->db->prepare("
-            SELECT data_prestito, data_scadenza, data_restituzione, pickup_deadline, stato, copia_id
+            SELECT libro_id, data_prestito, data_scadenza, data_restituzione, pickup_deadline, stato, copia_id
             FROM prestiti
             WHERE libro_id = ? AND (
                 (attivo = 1 AND stato IN ('in_corso', 'in_ritardo', 'da_ritirare', 'prenotato'))
