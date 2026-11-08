@@ -96,7 +96,7 @@ final class ActionsController
             // Active loans (scheduled / to-pickup / in-progress / overdue).
             // CI-SOFT-DELETE-EXEMPT: an ACTIVE loan on an archived title must stay visible — the user still holds the copy and receives overdue recalls for it (M3). LEFT JOIN + COALESCE keep the row (with its real title, still present on soft-deleted rows) even if the book row ever vanished.
             $sql = "SELECT pr.id, pr.libro_id, pr.data_prestito, pr.data_scadenza, pr.data_restituzione,
-                           pr.stato, pr.copia_id, pr.renewals, pr.created_at,
+                           pr.stato, pr.copia_id, pr.pickup_deadline, pr.renewals, pr.created_at,
                            COALESCE(l.titolo, '') AS titolo, l.copertina_url
                     FROM prestiti pr
                     LEFT JOIN libri l ON l.id = pr.libro_id
@@ -1220,6 +1220,17 @@ final class ActionsController
             // from LocalDate.now(). Clients can also reconcile the status badge
             // with is_overdue when the persisted status has not caught up yet.
             'due_attention' => $dates['due_attention'],
+            // Additive since 1.12.0: the last day to collect a ready loan, moved
+            // to the next open day of the copy branch like the staff desk shows it.
+            // Null for every other state.
+            'pickup_deadline' => $status === 'da_ritirare'
+                ? \App\Support\LibraryCalendar::effectivePickupDeadline(
+                    $this->db,
+                    $this->nullableString($r['pickup_deadline'] ?? null),
+                    $dueAt,
+                    isset($r['copia_id']) ? (int) $r['copia_id'] : null
+                )
+                : null,
             'returned_at'  => $this->nullableString($r['data_restituzione'] ?? null),
             'renewals'     => isset($r['renewals']) ? (int) $r['renewals'] : null,
             // Additive since 1.4.4: drives the native cancel affordance. The
