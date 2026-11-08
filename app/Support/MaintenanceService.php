@@ -1116,6 +1116,14 @@ class MaintenanceService
                     $freeCopy->execute();
                     $freeCopyRows = $freeCopy->get_result()->fetch_all(MYSQLI_ASSOC);
                     $freeCopy->close();
+                    // The days the promise adds past the stored due were held
+                    // through the pinned copy; on a sibling they must still fit
+                    // the title, or two readers would share the reopening day.
+                    if ($promisedDue > $oldDue
+                        && !(new \App\Services\CapacityService($this->db, lockingReads: true))
+                            ->hasFreeCapacity($bookId, LibraryCalendar::shift($oldDue, 1), $promisedDue, excludePrestitoId: $loanId)) {
+                        $freeCopyRows = [];
+                    }
                     foreach ($freeCopyRows as $freeCopyRow) {
                         $candidateId = (int) $freeCopyRow['id'];
                         $candidateDue = $this->activationDueDate($calendar, $loanId, $bookId, $candidateId, (string) $loan['data_prestito'], $promisedDue, $today);

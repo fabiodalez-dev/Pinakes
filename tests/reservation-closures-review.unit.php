@@ -52,6 +52,20 @@ $cases['a sibling copy in another branch keeps the promised return day'] = stati
     $row = $t->db->query("SELECT copia_id, data_scadenza FROM prestiti WHERE id={$loan}")->fetch_row();
     SettingsReview25::eq([(int) $row[0], $row[1]], [$sibling, $t->day(5)], 'The sibling stores the promised return day, not its own earlier one');
 };
+$cases['a sibling copy does not take a promised day the title has already given away'] = static function (SettingsReview25 $t): void {
+    $b = $t->book($t->branchA);
+    $sibling = reviewCopy($t, $b, $t->branchB);
+    $loan = reviewLoan($t, $b, $b['copies'][0], $t->today, $t->day(4));
+    $t->loan($b, $t->day(8), ['copy' => $b['copies'][0], 'reader' => $t->secondReader, 'start' => $t->day(5), 'status' => 'prenotato']);
+    // A copyless booking of a third reader starts on the reopening day: with
+    // two copies, the second reader and this one already fill it.
+    $t->db->query("INSERT INTO prestiti (libro_id,copia_id,utente_id,data_prestito,data_scadenza,stato,origine,attivo) VALUES ({$b['id']},NULL,{$t->operator},'{$t->day(5)}','{$t->day(7)}','prenotato','richiesta',1)");
+    reviewHoliday($t, $t->day(4), 1, $t->branchA);
+    SettingsReview25::eq((new MaintenanceService($t->db))->activateScheduledLoans(), 0, 'Activation is deferred rather than overbooking the reopening day');
+    $row = $t->db->query("SELECT copia_id, stato FROM prestiti WHERE id={$loan}")->fetch_row();
+    SettingsReview25::eq([(int) $row[0], $row[1]], [$b['copies'][0], 'prenotato'], 'The booking keeps its pinned copy and waits');
+    SettingsReview25::check($sibling > 0, 'The sibling exists but cannot keep the promise');
+};
 $cases['an inverted window is refused also without calendar rules'] = static function (SettingsReview25 $t): void {
     $b = $t->book($t->branchA);
     $capacity = new CapacityService($t->db);
