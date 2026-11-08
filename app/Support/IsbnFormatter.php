@@ -205,6 +205,32 @@ class IsbnFormatter
     }
 
     /**
+     * Variants for identifiers that must be actual ISBNs. The legacy cleaner
+     * also accepts non-Bookland EANs and removes letters from catalogue codes.
+     */
+    public static function bookVariants(string $input): array
+    {
+        $isbn = strtoupper(preg_replace('/[-\s]/', '', $input) ?? '');
+        if (preg_match('/\A(?:[0-9]{9}[0-9X]|97[89][0-9]{10})\z/', $isbn) !== 1) {
+            return [];
+        }
+        return self::getAllVariants($isbn);
+    }
+
+    /**
+     * The compact ISBN in what a person typed or pasted, or null when it is
+     * not one. Accepts what the scraping form always accepted: an "ISBN",
+     * "ISBN-13:" (etc.) label, dots, Unicode dashes and Unicode/no-break
+     * spaces. bookVariants() stays strict for stored and provider values.
+     */
+    public static function typedIsbn(string $input): ?string
+    {
+        $isbn = preg_replace('/\A[\s\x{00A0}]*ISBN(?:-?1[03])?[\s\x{00A0}]*:?/iu', '', $input) ?? '';
+        $isbn = strtoupper(preg_replace('/[\p{Pd}\p{Z}\s.\x{00AD}]/u', '', $isbn) ?? '');
+        return self::bookVariants($isbn) !== [] ? $isbn : null;
+    }
+
+    /**
      * Detect format based on length: 'isbn10', 'isbn13', or null
      *
      * Note: This method only checks length, not validity.

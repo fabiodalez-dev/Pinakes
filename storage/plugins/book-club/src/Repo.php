@@ -915,19 +915,38 @@ class Repo
         return $row !== null ? (int) $row['id'] : null;
     }
 
+    /**
+     * Drop the derived ISBN form when an archived book already holds it.
+     * Called after activeCatalogueBookIdByIsbn() found no active match.
+     *
+     * @return array{0:?string,1:?string}
+     */
+    private function withoutArchivedDerivedIsbn(string $proposalIsbn, ?string $isbn13, ?string $isbn10): array
+    {
+        $ownLength = strlen((string) preg_replace('/[^0-9Xx]/', '', $proposalIsbn));
+        $derivedColumn = $ownLength === 10 ? 'isbn13' : ($ownLength === 13 ? 'isbn10' : null);
+        $derived = $derivedColumn === 'isbn13' ? $isbn13 : ($derivedColumn === 'isbn10' ? $isbn10 : null);
+        if ($derivedColumn === null || $derived === null) {
+            return [$isbn13, $isbn10];
+        }
+        // CI-SOFT-DELETE-EXEMPT: a unique-key probe, not a read for display;
+        // the archived rows are exactly the ones that can collide.
+        // @include-soft-deleted (tests/code-quality.spec.js, check 5).
+        $taken = $this->row("SELECT id FROM libri WHERE {$derivedColumn} = ? AND deleted_at IS NOT NULL LIMIT 1 FOR UPDATE", 's', [$derived]);
+        if ($taken === null) {
+            return [$isbn13, $isbn10];
+        }
+        return $derivedColumn === 'isbn13' ? [null, $isbn10] : [$isbn13, null];
+    }
+
     /** @return array{0:?string,1:?string} */
     private function normalizedIsbnParts(?string $isbn): array
     {
-        $digits = $isbn !== null
-            ? strtoupper((string) preg_replace('/[^0-9Xx]/', '', $isbn))
-            : '';
-        // Only keep a part whose checksum is valid. A 13/10-length run of
-        // otherwise-arbitrary digits must never become a reconcile match key,
-        // or two unrelated books sharing a malformed code would get linked.
-        return [
-            (strlen($digits) === 13 && IsbnFormatter::isValidIsbn13($digits)) ? $digits : null,
-            (strlen($digits) === 10 && IsbnFormatter::isValidIsbn10($digits)) ? $digits : null,
-        ];
+        // Use both checksum-valid variants: an ISBN-10 proposal must find a
+        // catalogue record carrying only its ISBN-13, and vice versa. 979
+        // publications have no ISBN-10 and retain only the 13-digit key.
+        $variants = IsbnFormatter::bookVariants($isbn ?? '');
+        return [$variants['isbn13'] ?? null, $variants['isbn10'] ?? null];
     }
 
     /**
@@ -1171,6 +1190,11 @@ class Repo
                 // authors and publisher, so create nothing new.
                 $libroId = $existingId;
             } else {
+                // The variant derived from the proposal's ISBN can belong to an
+                // archived book (one deleted before ISBNs were cleared on
+                // delete). Never link or revive it, and never let the unique
+                // key fail the acquisition: store only the proposal's own form.
+                [$isbn13, $isbn10] = $this->withoutArchivedDerivedIsbn((string) ($row['isbn'] ?? ''), $isbn13, $isbn10);
                 $libroId = $this->createCatalogueBookFromExternal($row, $titolo, $anno, $isbn13, $isbn10, $cover);
             }
 

@@ -410,8 +410,39 @@ class ApiBookScraperPlugin
      */
     public function validateIsbn(bool $isValid, string $isbn): bool
     {
-        // Mantiene la validazione esistente
-        return $isValid;
+        // The API also answers music barcodes: a checksum-valid UPC-A/EAN-13
+        // reaches it (hooks are registered only when the plugin is usable).
+        // Anything else keeps the core ISBN verdict.
+        return $isValid || self::checksumBarcode($isbn) !== null;
+    }
+
+    /** The digits of a checksum-valid 12/13-digit barcode, otherwise null. */
+    private static function checksumBarcode(string $input): ?string
+    {
+        $digits = preg_replace('/[-\s]/', '', trim($input)) ?? '';
+        if (!ctype_digit($digits) || !in_array(strlen($digits), [12, 13], true)) {
+            return null;
+        }
+        $sum = 0;
+        for ($i = strlen($digits) - 2, $weight = 3; $i >= 0; $i--, $weight = 4 - $weight) {
+            $sum += (int) $digits[$i] * $weight;
+        }
+        return (10 - $sum % 10) % 10 === (int) substr($digits, -1) ? $digits : null;
+    }
+
+    /** @return array{isbn10?: string, isbn13?: string} */
+    private static function providerIsbnVariants(array $data): array
+    {
+        foreach (['isbn13', 'isbn_13', 'isbn10', 'isbn_10'] as $field) {
+            $value = $data[$field] ?? null;
+            if (is_string($value) || is_int($value)) {
+                $variants = \App\Support\IsbnFormatter::bookVariants((string) $value);
+                if ($variants !== []) {
+                    return $variants;
+                }
+            }
+        }
+        return [];
     }
 
     /**
@@ -432,7 +463,7 @@ class ApiBookScraperPlugin
         }
 
         try {
-            $bookData = $this->callApi($isbn);
+            $bookData = $this->callApi(self::checksumBarcode($isbn) ?? $isbn);
 
             if ($bookData) {
                 $this->log('info', "Dati recuperati per ISBN: $isbn", ['isbn' => $isbn]);
@@ -546,15 +577,25 @@ class ApiBookScraperPlugin
 
         $data = $apiData['data'] ?? $apiData;
 
+        // A lookup can be an ISBN-10, an ISBN-13 or a music barcode. Never
+        // copy the raw input into isbn13/EAN: an ISBN-10 needs conversion,
+        // and UPC/EANs without a Bookland prefix are not book identifiers.
+        if (!is_array($data)) {
+            return null;
+        }
+        $variants = self::providerIsbnVariants($data) ?: \App\Support\IsbnFormatter::bookVariants($isbn);
+        $providerEan = $data['ean'] ?? null;
+        $barcode = is_string($providerEan) || is_int($providerEan) ? self::checksumBarcode((string) $providerEan) : null;
+
         $mappedData = [
             'title' => $data['title'] ?? $data['titolo'] ?? null,
             'subtitle' => $data['subtitle'] ?? $data['sottotitolo'] ?? null,
             'authors' => $this->parseAuthors($data),
             'publisher' => $data['publisher'] ?? $data['editore'] ?? null,
             'publish_date' => $data['publish_date'] ?? $data['data_pubblicazione'] ?? null,
-            'isbn13' => $data['isbn13'] ?? $data['isbn_13'] ?? $isbn,
-            'isbn10' => $data['isbn10'] ?? $data['isbn_10'] ?? null,
-            'ean' => $data['ean'] ?? $isbn,
+            'isbn13' => $variants['isbn13'] ?? null,
+            'isbn10' => $variants['isbn10'] ?? null,
+            'ean' => $barcode ?? $variants['isbn13'] ?? self::checksumBarcode($isbn),
             'pages' => $data['pages'] ?? $data['numero_pagine'] ?? null,
             // No language from the API means unknown, not Italian.
             'language' => $this->languageName($data['language'] ?? $data['lingua'] ?? null),
@@ -562,6 +603,7 @@ class ApiBookScraperPlugin
             'cover_url' => $data['cover_url'] ?? $data['copertina_url'] ?? $data['image'] ?? null,
             'series' => $data['series'] ?? $data['collana'] ?? null,
             'format' => $data['format'] ?? $data['formato'] ?? null,
+            'tipo_media' => $data['tipo_media'] ?? null,
             'price' => $data['price'] ?? $data['prezzo'] ?? null,
             'weight' => $data['weight'] ?? $data['peso'] ?? null,
             'dimensions' => $data['dimensions'] ?? $data['dimensioni'] ?? null,

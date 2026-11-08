@@ -201,6 +201,23 @@ try {
     $check($res4 === null, 'A18 refuses an ISBN still owned by a soft-deleted book');
     $check((int) $scalar("SELECT external_book_id IS NOT NULL FROM bookclub_books WHERE id={$cb4}") === 1, 'A19 failed acquisition leaves the external proposal intact');
 
+    // A4b (edge): only the DERIVED form belongs to an archived book. A legacy
+    // row deleted before ISBNs were cleared keeps an ISBN-10; a proposal with
+    // its ISBN-13 must still be acquired as a new book, storing only its own
+    // form, never linking the archived row nor tripping the unique isbn10 key.
+    $archived13 = $mkIsbn13('9780001' . $rand5());
+    $archived10 = \App\Support\IsbnFormatter::isbn13ToIsbn10($archived13);
+    $q("INSERT INTO libri (titolo, isbn10, deleted_at) VALUES ('{$TOKEN} Archived10', '{$archived10}', NOW())");
+    $archivedLibro = (int) $db->insert_id; $createdLibri[] = $archivedLibro;
+    [$cb4b] = $seedExternal("{$TOKEN} Prop A4b Derived", $archived13);
+    $res4b = $repo->acquireExternalBook($cb4b);
+    $check(is_int($res4b) && $res4b !== $archivedLibro, 'A18b a derived ISBN-10 held by an archived book does not block the acquisition');
+    if (is_int($res4b)) {
+        $createdLibri[] = $res4b;
+        $check((string) $scalar("SELECT CONCAT(isbn13, '|', COALESCE(isbn10, '-')) FROM libri WHERE id={$res4b}") === $archived13 . '|-', 'A18c the new book keeps its own ISBN-13 and leaves the archived ISBN-10 alone');
+        $check($scalar("SELECT deleted_at IS NOT NULL FROM libri WHERE id={$archivedLibro}") == 1, 'A18d the archived book stays archived');
+    }
+
     // A5 (edge): ISBN matches nothing → creates new.
     [$cb5] = $seedExternal("{$TOKEN} Prop A5", '9782222' . random_int(100000, 999999));
     $res5 = $repo->acquireExternalBook($cb5);
@@ -212,6 +229,29 @@ try {
     [$cbDuplicate, $extDuplicate] = $seedExternal("{$TOKEN} Prop Duplicate", $isbn10);
     $check($repo->reconcileExternalBooksWithCatalogue($clubId) === 0, 'A21 automatic pass refuses an ambiguous same-club duplicate');
     $check((int) $scalar("SELECT external_book_id FROM bookclub_books WHERE id={$cbDuplicate}") === $extDuplicate, 'A22 ambiguous proposal remains external with its history intact');
+
+    // A catalogue may carry only one ISBN shape (manual entry, legacy import).
+    // Both explicit acquisition and the save hook must match the other shape,
+    // rather than inserting a second catalogue record for the same publication.
+    foreach ([['isbn13', 'acquire'], ['isbn10', 'acquire'], ['isbn13', 'save'], ['isbn10', 'save']] as $i => [$column, $path]) {
+        $cross13 = $mkIsbn13('978555' . $i . $rand5());
+        $cross10 = \App\Support\IsbnFormatter::isbn13ToIsbn10($cross13);
+        $catalogueCode = $column === 'isbn13' ? $cross13 : $cross10;
+        $proposalCode = $column === 'isbn13' ? $cross10 : $cross13;
+        $q("INSERT INTO libri (titolo, {$column}) VALUES ('{$TOKEN} Cross {$i}', '{$catalogueCode}')");
+        $crossBook = (int) $db->insert_id; $createdLibri[] = $crossBook;
+        [$crossProposal, $crossExternal] = $seedExternal("{$TOKEN} Cross proposal {$i}", $proposalCode);
+        $countBefore = (int) $scalar('SELECT COUNT(*) FROM libri');
+        if ($path === 'acquire') {
+            $check($repo->acquireExternalBook($crossProposal) === $crossBook, "cross-shape $column explicit acquisition reuses the existing book");
+        } else {
+            $plugin->onCatalogueBookSaved($crossBook);
+            $check((int) $scalar("SELECT libro_id FROM bookclub_books WHERE id={$crossProposal}") === $crossBook, "cross-shape $column save hook links the existing book");
+        }
+        $check((int) $scalar('SELECT COUNT(*) FROM libri') === $countBefore, "cross-shape $column $path creates no catalogue duplicate");
+        $check((int) $scalar("SELECT acquired_libro_id FROM bookclub_external_books WHERE id={$crossExternal}") === $crossBook, "cross-shape $column $path stamps the external record");
+        $check($repo->reconcileExternalBooksForCatalogueBook($crossBook) === 0, "cross-shape $column $path is idempotent");
+    }
 
     echo "B. neverChosenProposals — proposed-but-not-chosen archive (#138 feature)\n";
 

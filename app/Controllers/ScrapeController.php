@@ -211,7 +211,8 @@ class ScrapeController
         return $data;
     }
 
-    public function byIsbn(Request $request, Response $response): Response
+    /** Internal callers can retry plugin fetches; HTTP routes keep a single attempt. */
+    public function byIsbn(Request $request, Response $response, int $maxAttempts = 1, string $context = 'Scraping'): Response
     {
         // FIX F003: Only release the PHP session lock when this is the top-level
         // HTTP entry point (route /api/scrape/isbn). In-process callers like
@@ -262,10 +263,15 @@ class ScrapeController
             }
         }
         // SSRF Protection: Validate ISBN format before constructing URL
-        $cleanIsbn = preg_replace('/[^0-9X]/', '', strtoupper($rawIdentifier));
+        // A typed ISBN keeps working with an "ISBN" label, dots or Unicode
+        // dashes/spaces; its compact form is what every source receives.
+        $typedIsbn = IsbnFormatter::typedIsbn($rawIdentifier);
+        $cleanIsbn = $typedIsbn ?? preg_replace('/[^0-9X]/', '', strtoupper($rawIdentifier));
 
         // Validate ISBN format (ISBN-10 or ISBN-13)
-        $isValid = $this->isValidIsbn($cleanIsbn);
+        $bookVariants = $typedIsbn !== null ? IsbnFormatter::bookVariants($typedIsbn) : [];
+        $isBookIsbn = $bookVariants !== [];
+        $isValid = $isBookIsbn;
 
         // Hook: scrape.isbn.validate — Allow custom ISBN validation.
         //
@@ -297,7 +303,7 @@ class ScrapeController
         // Plugin-accepted identifiers (Discogs Cat#, UPC/EAN barcodes, etc.)
         // must preserve the original user input so plugins can route/search
         // by the correct external parameter.
-        $searchIdentifier = $this->isValidIsbn($cleanIsbn) ? $cleanIsbn : $rawIdentifier;
+        $searchIdentifier = $isBookIsbn ? $cleanIsbn : $rawIdentifier;
 
         // Get available scraping sources
         $sources = $this->getDefaultSources();
@@ -317,10 +323,10 @@ class ScrapeController
         SecureLogger::debug('[ScrapeController] Available sources', ['sources' => array_keys($sources)]);
 
         // Hook: scrape.fetch.custom - Allow plugins to completely replace scraping logic
-        $customResult = \App\Support\Hooks::apply('scrape.fetch.custom', null, [$sources, $searchIdentifier]);
+        $customResult = $this->fetchPluginData($sources, $searchIdentifier, $maxAttempts, $context);
 
         // Check if plugin result has a title (complete data) or only partial data (e.g., cover only)
-        $hasCompleteData = is_array($customResult) && !empty($customResult['title']);
+        $hasCompleteData = self::hasTitle($customResult);
 
         if ($hasCompleteData) {
             SecureLogger::debug('[ScrapeController] ISBN found via plugins', ['isbn' => $searchIdentifier]);
@@ -329,9 +335,15 @@ class ScrapeController
             $payload = $customResult;
 
             // Plugin returned metadata but no cover image — try built-in sources for cover
-            if (empty($payload['image'])) {
+            if ($isBookIsbn && empty($payload['image'])) {
                 SecureLogger::debug('[ScrapeController] Plugin data has no cover, trying built-in sources', ['isbn' => $searchIdentifier]);
-                $coverUrl = $this->findCoverFromBuiltinSources($searchIdentifier);
+                // The cover is optional: a failing lookup keeps the metadata.
+                try {
+                    $coverUrl = $this->findCoverFromBuiltinSources($searchIdentifier);
+                } catch (\Throwable $coverError) {
+                    $coverUrl = null;
+                    SecureLogger::warning('[ScrapeController] Built-in cover lookup failed', ['isbn' => $searchIdentifier, 'error' => $coverError->getMessage()]);
+                }
                 if ($coverUrl !== null) {
                     $payload['image'] = $coverUrl;
                     SecureLogger::debug('[ScrapeController] Cover found from built-in source', ['isbn' => $searchIdentifier]);
@@ -388,23 +400,21 @@ class ScrapeController
         SecureLogger::debug('[ScrapeController] Trying built-in fallbacks', ['isbn' => $searchIdentifier]);
 
         // Built-in fallback: try Google Books (no key or env GOOGLE_BOOKS_API_KEY) then Open Library
-        $fallbackData = $this->fallbackFromGoogleBooks($searchIdentifier);
-        if ($fallbackData === null) {
+        $fallbackData = $isBookIsbn ? $this->fallbackFromGoogleBooks($searchIdentifier) : null;
+        if ($isBookIsbn && !self::hasTitle($fallbackData)) {
             $fallbackData = $this->fallbackFromOpenLibrary($searchIdentifier);
         }
 
-        if ($fallbackData !== null) {
+        if ($fallbackData !== null && self::hasTitle($fallbackData)) {
             // Merge partial plugin data into fallback data
             if (is_array($customResult)) {
                 // Fallback data is the base, plugin data fills gaps (like cover)
                 foreach ($customResult as $key => $value) {
-                    // Check if value from plugin is not empty (handles strings, arrays, null)
-                    $valueNotEmpty = $value !== '' && $value !== null && $value !== [];
                     // Check if fallback value is empty or missing
                     $fallbackEmpty = !isset($fallbackData[$key])
                         || $fallbackData[$key] === ''
                         || $fallbackData[$key] === [];
-                    if ($valueNotEmpty && $fallbackEmpty) {
+                    if ($fallbackEmpty) {
                         $fallbackData[$key] = $value;
                     }
                 }
@@ -464,7 +474,7 @@ class ScrapeController
         ];
 
         // Add calculated ISBN variants so form can populate isbn10/isbn13 fields
-        $variants = IsbnFormatter::getAllVariants($cleanIsbn);
+        $variants = $bookVariants;
         if (!empty($variants['isbn10'])) {
             $errorData['isbn10'] = $variants['isbn10'];
         }
@@ -476,6 +486,61 @@ class ScrapeController
 
         return $response->withStatus(404)->withHeader('Content-Type', 'application/json');
     }
+
+    /**
+     * Retry plugin fetches before built-in fallback. Finalization happens once,
+     * after a complete result or after fallback has filled partial plugin data.
+     * HTTP callers use one attempt; imports retain their retry/backoff policy.
+     */
+    private function fetchPluginData(array $sources, string $identifier, int $maxAttempts, string $context): ?array
+    {
+        if (!\App\Support\Hooks::has('scrape.fetch.custom')) {
+            return null;
+        }
+
+        $maxAttempts = max(1, $maxAttempts);
+        $delaySeconds = 1;
+        $partial = null;
+        for ($attempt = 1; $attempt <= $maxAttempts; $attempt++) {
+            try {
+                $result = \App\Support\Hooks::apply('scrape.fetch.custom', null, [$sources, $identifier]);
+                if (is_array($result)) {
+                    // A later attempt only adds what it actually found: an
+                    // empty or thinner retry must not drop the cover (or any
+                    // other field) an earlier attempt already returned.
+                    $partial = array_merge($partial ?? [], array_filter(
+                        $result,
+                        static fn ($value): bool => $value !== null && $value !== [] && (!is_string($value) || trim($value) !== '')
+                    ));
+                    if (self::hasTitle($partial)) {
+                        return $partial;
+                    }
+                }
+            } catch (\Throwable $e) {
+                SecureLogger::warning('Scraping plugin: tentativo fallito', [
+                    'context' => $context,
+                    'isbn' => $identifier,
+                    'attempt' => $attempt,
+                    'maxAttempts' => $maxAttempts,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+
+            if ($attempt < $maxAttempts) {
+                sleep($delaySeconds);
+                $delaySeconds = min($delaySeconds * 2, 8);
+            }
+        }
+
+        return $partial === [] ? null : $partial;
+    }
+
+    private static function hasTitle(?array $data): bool
+    {
+        $title = $data['title'] ?? null;
+        return is_string($title) && trim($title) !== '';
+    }
+
     /**
      * Get default scraping sources
      *
@@ -501,44 +566,6 @@ class ScrapeController
     }
 
     /**
-     * Validate ISBN format (ISBN-10 or ISBN-13)
-     */
-    private function isValidIsbn(string $isbn): bool
-    {
-        $isbn = preg_replace('/[^0-9X]/', '', strtoupper($isbn));
-
-        // Check ISBN-13 format
-        if (strlen($isbn) === 13) {
-            if (!ctype_digit($isbn)) {
-                return false;
-            }
-            $sum = 0;
-            for ($i = 0; $i < 12; $i++) {
-                $sum += (int)$isbn[$i] * (($i % 2) === 0 ? 1 : 3);
-            }
-            $checkDigit = (10 - ($sum % 10)) % 10;
-            return ((int)$isbn[12]) === $checkDigit;
-        }
-
-        // Check ISBN-10 format
-        if (strlen($isbn) === 10) {
-            $sum = 0;
-            for ($i = 0; $i < 9; $i++) {
-                if (!ctype_digit($isbn[$i])) {
-                    return false;
-                }
-                $sum += (int)$isbn[$i] * (10 - $i);
-            }
-            $checkChar = $isbn[9];
-            $checkDigit = (11 - ($sum % 11)) % 11;
-            $expectedCheck = ($checkDigit === 10) ? 'X' : (string)$checkDigit;
-            return $checkChar === $expectedCheck;
-        }
-
-        return false;
-    }
-
-    /**
      * Minimal Google Books fallback when no plugin handled the ISBN.
      */
     private function fallbackFromGoogleBooks(string $isbn): ?array
@@ -561,12 +588,12 @@ class ScrapeController
         }
 
         $payload = json_decode($json, true);
-        if (!is_array($payload) || empty($payload['items'][0]['volumeInfo'])) {
+        $item = is_array($payload) ? ($payload['items'][0] ?? null) : null;
+        $info = is_array($item) ? ($item['volumeInfo'] ?? null) : null;
+        if (!is_array($info)) {
             return null;
         }
 
-        $item = $payload['items'][0];  // Full item with volumeInfo and saleInfo
-        $info = $item['volumeInfo'];
         $authors = isset($info['authors']) && is_array($info['authors']) ? $info['authors'] : [];
 
         // Extract best quality image
@@ -664,7 +691,7 @@ class ScrapeController
             'isbn' => $isbnField ?: $isbn,
             'isbn10' => $isbn10,
             'isbn13' => $isbn13,
-            'ean' => $isbnField ?: $isbn,
+            'ean' => self::scrapedBookVariants(['isbn13' => $isbn13, 'isbn10' => $isbn10, 'isbn' => $isbn])['isbn13'] ?? null,
             'description' => $info['description'] ?? '',
             'image' => $image,
             'language' => $language,
@@ -862,14 +889,7 @@ class ScrapeController
     private function enrichWithSbnData(array $data, string $originalIsbn): array
     {
         // Get all ISBN variants (including from scraped data)
-        $variants = IsbnFormatter::getAllVariants($originalIsbn);
-
-        if (!empty($data['isbn13'])) {
-            $variants['isbn13'] = IsbnFormatter::clean($data['isbn13']);
-        }
-        if (!empty($data['isbn10'])) {
-            $variants['isbn10'] = IsbnFormatter::clean($data['isbn10']);
-        }
+        $variants = self::scrapedBookVariants($data) ?: IsbnFormatter::bookVariants($originalIsbn);
 
         // No variants to try
         if (empty($variants)) {
@@ -948,7 +968,9 @@ class ScrapeController
         // partial — skip backfill to avoid the music-as-book regression.
         $hasFormatSignal    = $formatRaw !== null && $formatRaw !== '';
         $hasTipoMediaSignal = $tipoMediaRaw !== null && $tipoMediaRaw !== '';
-        $isValidatedIsbn    = IsbnFormatter::isValid($originalIsbn);
+        $requestedVariants = IsbnFormatter::bookVariants($originalIsbn);
+        $scrapedVariants   = self::scrapedBookVariants($data);
+        $isValidatedIsbn   = $requestedVariants !== [] || $scrapedVariants !== [];
         if (!$hasFormatSignal && !$hasTipoMediaSignal && !$isValidatedIsbn) {
             // Barcode-only request (no ISBN format) AND no media signal from
             // the plugin → can't safely decide. Warning because either the
@@ -971,45 +993,36 @@ class ScrapeController
             return $data;
         }
 
-        // First, try to get variants from original search term
-        $variants = IsbnFormatter::getAllVariants($originalIsbn);
+        // The provider may identify a different edition. Derive missing fields
+        // from that edition instead of mixing them with the lookup ISBN.
+        $variants = $scrapedVariants ?: $requestedVariants;
 
-        // Also check if data already has ISBNs we can use
-        if (!empty($data['isbn13']) && empty($variants['isbn13'])) {
-            $isbn13Variants = IsbnFormatter::getAllVariants($data['isbn13']);
-            $variants = array_merge($variants, $isbn13Variants);
-        }
-        if (!empty($data['isbn10']) && empty($variants['isbn10'])) {
-            $isbn10Variants = IsbnFormatter::getAllVariants($data['isbn10']);
-            $variants = array_merge($variants, $isbn10Variants);
-        }
-
-        // Also check generic 'isbn' field
-        if (!empty($data['isbn'])) {
-            $isbnVariants = IsbnFormatter::getAllVariants($data['isbn']);
-            $variants = array_merge($variants, $isbnVariants);
-        }
-
-        // Populate missing ISBN fields
-        if (!empty($variants['isbn13']) && empty($data['isbn13'])) {
-            $data['isbn13'] = $variants['isbn13'];
-            SecureLogger::debug('[ScrapeController] Auto-populated isbn13', ['isbn13' => $variants['isbn13']]);
-        }
-        if (!empty($variants['isbn10']) && empty($data['isbn10'])) {
-            $data['isbn10'] = $variants['isbn10'];
-            SecureLogger::debug('[ScrapeController] Auto-populated isbn10', ['isbn10' => $variants['isbn10']]);
-        }
-
-        // Also ensure generic 'isbn' field is set (prefer ISBN-13)
-        if (empty($data['isbn'])) {
-            if (!empty($data['isbn13'])) {
-                $data['isbn'] = $data['isbn13'];
-            } elseif (!empty($data['isbn10'])) {
-                $data['isbn'] = $data['isbn10'];
+        foreach (['isbn13', 'isbn10'] as $field) {
+            if (isset($variants[$field])) {
+                $data[$field] = $variants[$field];
+            } else {
+                unset($data[$field]);
             }
+        }
+        if ($variants !== []) {
+            $data['isbn'] = $variants['isbn13'] ?? $variants['isbn10'];
         }
 
         return $data;
+    }
+
+    private static function scrapedBookVariants(array $data): array
+    {
+        foreach (['isbn13', 'isbn10', 'isbn'] as $field) {
+            $value = $data[$field] ?? null;
+            if (is_string($value) || is_int($value)) {
+                $variants = IsbnFormatter::bookVariants((string) $value);
+                if ($variants !== []) {
+                    return $variants;
+                }
+            }
+        }
+        return [];
     }
 
     private function ensureTipoMedia(array $payload): array

@@ -21,54 +21,9 @@ class ScrapingService
      */
     public static function scrapeBookData(string $isbn, int $maxAttempts = 3, string $context = 'Scraping'): array
     {
-        // Try plugin-based scraping first
-        if (\App\Support\Hooks::has('scrape.fetch.custom')) {
-            $delaySeconds = 1;
-            $lastError = null;
-            $sources = \App\Support\Hooks::apply('scrape.sources', [], [$isbn]);
-
-            for ($attempt = 1; $attempt <= $maxAttempts; $attempt++) {
-                try {
-                    $result = \App\Support\Hooks::apply('scrape.fetch.custom', null, [$sources, $isbn]);
-
-                    if (is_array($result) && !empty($result['title'])) {
-                        // Plugin returned metadata — check if it also has a cover
-                        if (empty($result['image'])) {
-                            // Try built-in sources for cover image only
-                            try {
-                                $scrapeController = new \App\Controllers\ScrapeController();
-                                $coverUrl = $scrapeController->findCoverFromBuiltinSources($isbn);
-                                if ($coverUrl !== null) {
-                                    $result['image'] = $coverUrl;
-                                }
-                            } catch (\Throwable $coverErr) {
-                                // Cover fallback is optional, don't block on failure
-                            }
-                        }
-                        return $result;
-                    }
-                } catch (\Throwable $e) {
-                    $lastError = $e;
-                }
-
-                if ($attempt < $maxAttempts) {
-                    sleep($delaySeconds);
-                    $delaySeconds = min($delaySeconds * 2, 8);
-                }
-            }
-
-            if ($lastError !== null) {
-                \App\Support\SecureLogger::warning('Scraping plugin fallito dopo tutti i tentativi', [
-                    'context' => $context,
-                    'isbn' => $isbn,
-                    'maxAttempts' => $maxAttempts,
-                    'error' => $lastError->getMessage()
-                ]);
-            }
-        }
-
-        // Built-in fallback: use ScrapeController's byIsbn which includes
-        // Google Books and Open Library fallbacks (works without any plugin)
+        // Use the web pipeline for plugin results as well as built-in fallbacks:
+        // validation, normalized identifiers, enrichment and final hooks must
+        // not depend on whether the caller is an import, a job or the web form.
         try {
             $scrapeController = new \App\Controllers\ScrapeController();
             $mockRequest = (new \Slim\Psr7\Factory\ServerRequestFactory())
@@ -76,7 +31,8 @@ class ScrapingService
                 ->withQueryParams(['isbn' => $isbn]);
             $mockResponse = new \Slim\Psr7\Response();
 
-            $scrapeResponse = $scrapeController->byIsbn($mockRequest, $mockResponse);
+            // No scrape.http_entry attribute: the caller still owns its session.
+            $scrapeResponse = $scrapeController->byIsbn($mockRequest, $mockResponse, $maxAttempts, $context);
 
             if ($scrapeResponse->getStatusCode() === 200) {
                 $body = (string) $scrapeResponse->getBody();
@@ -86,7 +42,7 @@ class ScrapingService
                 }
             }
         } catch (\Throwable $e) {
-            \App\Support\SecureLogger::warning('Scraping built-in fallback fallito', [
+            \App\Support\SecureLogger::warning('Scraping fallito', [
                 'context' => $context,
                 'isbn' => $isbn,
                 'error' => $e->getMessage()
