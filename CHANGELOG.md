@@ -18,7 +18,7 @@ A patch release: reservations follow the closures calendar everywhere, and scrap
 
 ### Scraping and imports
 
-- **Imports use the web pipeline.** CSV import, LibraryThing import, bulk enrichment and cover sync go through the same `ScrapeController::byIsbn()` path as the scraping form: identifier normalization, the `scrape.data.modify` enrichment, the SBN Dewey lookup and the final hooks now run for them too. Imports keep their retry attempts.
+- **Imports use the web pipeline.** CSV import, LibraryThing import, bulk enrichment and cover sync go through the same `ScrapeController::byIsbn()` path as the scraping form: identifier normalization, the `scrape.data.modify` enrichment, the SBN Dewey lookup and the final hooks now run for them too. Bulk enrichment and cover sync keep their three plugin attempts; CSV and LibraryThing imports make one plugin attempt per book, as their chunk timeout requires (in 0.9.2 the built-in fallback called the plugin a second time after a failure).
 - **The scraping form accepts an ISBN as typed.** An `ISBN`/`ISBN-13:` label, dots, non-breaking spaces and Unicode dashes are stripped before the lookup; sources receive the compact ISBN.
 - **ISBN-10 lookups keep their real identifiers.** The API book scraper maps `isbn13`/`isbn10` to the converted variants of the looked-up ISBN, and `ean` only takes a checksum-valid barcode; a provider's own identifiers still win.
 - **Book club reconcile matches ISBN-10 and ISBN-13 of the same edition**, and never uses codes that are not ISBNs (e.g. a music UPC) as match keys.
