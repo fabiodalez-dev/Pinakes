@@ -73,6 +73,16 @@ $cases['an inverted window is refused also without calendar rules'] = static fun
     SettingsReview25::eq($capacity->reservationDueDateForCopy($b['id'], $b['copies'][0], $t->day(3), $t->day(1)), null, 'A return day before the start is unusable');
     SettingsReview25::eq($capacity->reservationDueDateForCopy($b['id'], $b['copies'][0], $t->day(1), $t->day(3)), $t->day(3), 'A valid window keeps its stored return day');
 };
+$cases['approval refuses an inverted window also without calendar rules'] = static function (SettingsReview25 $t): void {
+    $b = $t->book($t->branchA);
+    $window = new ReflectionMethod(\App\Controllers\LoanApprovalController::class, 'approvalWindow');
+    $controller = (new ReflectionClass(\App\Controllers\LoanApprovalController::class))->newInstanceWithoutConstructor();
+    $calendar = LibraryCalendar::forDb($t->db);
+    SettingsReview25::check(!$calendar->hasRules(), 'The fixture has no calendar rules');
+    $capacity = new CapacityService($t->db);
+    SettingsReview25::eq($window->invoke($controller, $t->db, $calendar, $capacity, $b['id'], 0, $b['copies'][0], $t->day(3), $t->day(1), $t->today), null, 'A return day before the start is not approved');
+    SettingsReview25::eq($window->invoke($controller, $t->db, $calendar, $capacity, $b['id'], 0, $b['copies'][0], $t->day(1), $t->day(3), $t->today), [$t->day(1), $t->day(3)], 'A valid window is approved as stored');
+};
 $cases['the request calendar ends a copyless booking where capacity does'] = static function (SettingsReview25 $t): void {
     $b = $t->book($t->branchA);
     reviewLoan($t, $b, null, $t->day(1), $t->day(3));

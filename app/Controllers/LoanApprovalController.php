@@ -690,7 +690,8 @@ class LoanApprovalController
     private function approvalWindow(mysqli $db, \App\Support\LibraryCalendar $calendar, \App\Services\CapacityService $capacity, int $bookId, int $loanId, int $copyId, string $start, string $due, string $today): ?array
     {
         if (!$calendar->hasRules()) {
-            return [$start, $due];
+            // The calendar branch refuses a return day before the start; so does this one.
+            return $due < $start ? null : [$start, $due];
         }
         $branch = \App\Support\LibraryCalendar::branchOfCopy($db, $copyId);
         $start = $calendar->nextOpenDay($start, $branch);
