@@ -232,6 +232,19 @@ class MaintenanceService
             SecureLogger::error('MaintenanceService: due dates not moved', ['error' => $e->getMessage()]);
         }
 
+        // Reconcile waiting pickups on every pass, even if an unrelated loan
+        // could not move. A pickup left unreconciled (its book was locked) is
+        // still safe from expiry: checkExpiredPickups() rechecks the effective
+        // deadline under the loan's lock, so the sweep does not wait on it.
+        try {
+            if (Features::enabled('closures_calendar')) {
+                LibraryCalendar::extendPickupDeadlines($this->db);
+            }
+        } catch (\Throwable $e) {
+            $results['errors'][] = 'extendPickupDeadlines: ' . $e->getMessage();
+            SecureLogger::error('MaintenanceService: pickup deadlines not reconciled', ['error' => $e->getMessage()]);
+        }
+
         // Overdue flip FIRST (#366 residual): flip date-overdue 'in_corso' loans
         // to 'in_ritardo' BEFORE expiries/activations/promotions, so every gate
         // in this same pass that special-cases 'in_ritardo' (capacity clamps,
@@ -847,6 +860,13 @@ class MaintenanceService
         // dipende dalla session timezone del client DB, che differiva tra cron
         // (UTC forzato) e web (nessuna impostazione).
         $today = DateHelper::today();
+        $calendar = LibraryCalendar::forDb($this->db);
+        if (!$calendar->isOpen($today)) {
+            return 0;
+        }
+        // A stored end before today can still reach reopening. The scan
+        // accepts those candidates only when the locked calendar check agrees.
+        $candidateFloor = $calendar->hasRules() ? '1000-01-01' : $today;
 
         // Find all scheduled loans that should be activated. data_scadenza >= today
         // guard (BUG8/D13): never promote a reservation whose whole window is already
@@ -863,7 +883,7 @@ class MaintenanceService
             throw new \RuntimeException('Failed to prepare scheduled loans query');
         }
 
-        $stmt->bind_param('ss', $today, $today);
+        $stmt->bind_param('ss', $today, $candidateFloor);
         $stmt->execute();
         $result = $stmt->get_result();
         $scheduledLoans = $result ? $result->fetch_all(MYSQLI_ASSOC) : [];
@@ -906,7 +926,7 @@ class MaintenanceService
                       AND data_prestito <= ? AND data_scadenza >= ?
                     FOR UPDATE
                 ");
-                $lockLoan->bind_param('iss', $loanId, $today, $today);
+                $lockLoan->bind_param('iss', $loanId, $today, $candidateFloor);
                 $lockLoan->execute();
                 $lockedLoan = $lockLoan->get_result()->fetch_assoc();
                 $lockLoan->close();
@@ -915,6 +935,13 @@ class MaintenanceService
                     continue;
                 }
                 $loan = $lockedLoan;
+                $oldDue = (string) $loan['data_scadenza'];
+                $pinnedCopy = $loan['copia_id'] !== null ? (int) $loan['copia_id'] : null;
+                $branch = $calendar->hasRules() ? LibraryCalendar::reservationBranch($this->db, $bookId, $pinnedCopy) : null;
+                if (!$calendar->isOpen($today, $branch) || $calendar->nextOpenDay($oldDue, $branch) < $today) {
+                    $this->db->rollback();
+                    continue;
+                }
 
                 // A scheduled commitment can become collectible days or weeks
                 // after approval. Recheck mutable account/card eligibility at
@@ -984,6 +1011,13 @@ class MaintenanceService
                 // promoting them with copia_id=NULL only moves the failure to
                 // confirmPickup(), which correctly refuses a copy-less loan.
                 $copiaId = !empty($loan['copia_id']) ? (int) $loan['copia_id'] : 0;
+                $dueDate = null;
+                // The return day the reader was promised: the effective due of
+                // the pinned copy's branch (or of the title's branches when
+                // unpinned). A sibling copy elsewhere must still cover it.
+                $promisedDue = $calendar->hasRules()
+                    ? $calendar->nextOpenDay($oldDue, LibraryCalendar::reservationBranch($this->db, $bookId, $copiaId > 0 ? $copiaId : null))
+                    : $oldDue;
                 if ($copiaId > 0 && in_array($copiaId, $committedCopyIds, true)) {
                     // Repair legacy/reassigned rows that share a copy with another
                     // open loan for this borrower/title: activation must choose a
@@ -1029,6 +1063,13 @@ class MaintenanceService
                             'copia_impegnata' => $copyHeld,
                         ]);
                         $copiaId = 0;
+                    } else {
+                        $dueDate = $this->activationDueDate($calendar, $loanId, $bookId, $copiaId, (string) $loan['data_prestito'], $oldDue, $today);
+                        if ($dueDate === null) {
+                            // The pinned copy cannot honor its effective return
+                            // window. Try an open sibling before deferring.
+                            $copiaId = 0;
+                        }
                     }
                 }
                 if ($copiaId <= 0) {
@@ -1060,7 +1101,6 @@ class MaintenanceService
                                           AND p.data_prestito <= ? AND p.data_scadenza >= ?) )
                           )
                         ORDER BY c.id
-                        LIMIT 1
                         FOR UPDATE
                     ");
                     $freeCopy->bind_param(
@@ -1074,9 +1114,25 @@ class MaintenanceService
                         $loan['data_prestito']
                     );
                     $freeCopy->execute();
-                    $freeCopyRow = $freeCopy->get_result()->fetch_assoc();
+                    $freeCopyRows = $freeCopy->get_result()->fetch_all(MYSQLI_ASSOC);
                     $freeCopy->close();
-                    $copiaId = (int) ($freeCopyRow['id'] ?? 0);
+                    // The days the promise adds past the stored due were held
+                    // through the pinned copy; on a sibling they must still fit
+                    // the title, or two readers would share the reopening day.
+                    if ($promisedDue > $oldDue
+                        && !(new \App\Services\CapacityService($this->db, lockingReads: true))
+                            ->hasFreeCapacity($bookId, LibraryCalendar::shift($oldDue, 1), $promisedDue, excludePrestitoId: $loanId)) {
+                        $freeCopyRows = [];
+                    }
+                    foreach ($freeCopyRows as $freeCopyRow) {
+                        $candidateId = (int) $freeCopyRow['id'];
+                        $candidateDue = $this->activationDueDate($calendar, $loanId, $bookId, $candidateId, (string) $loan['data_prestito'], $promisedDue, $today);
+                        if ($candidateDue !== null) {
+                            $copiaId = $candidateId;
+                            $dueDate = $candidateDue;
+                            break;
+                        }
+                    }
                     if ($copiaId <= 0) {
                         $this->db->rollback();
                         SecureLogger::info(__('Attivazione prestito rinviata: nessuna copia fisica assegnabile'), [
@@ -1095,19 +1151,9 @@ class MaintenanceService
                 // on a day that branch is closed moves to its next open day now,
                 // before the pickup deadline is capped at it and the reader is
                 // told both (the pickup-ready e-mail below).
-                $dueDate = (string) $loan['data_scadenza'];
-                if ($dueDate !== '') {
-                    $oldDue = substr($dueDate, 0, 10);
-                    $dueDate = LibraryCalendar::dueDate($this->db, $oldDue, $copiaId);
-                    // Only when the added days are free, as extendDueDates()
-                    // decides: no other commitment of this copy reaches them
-                    // (the overlap trigger would refuse the whole activation,
-                    // on every pass) and the title has room for them. Otherwise
-                    // the loan is activated with its date, which the late-day
-                    // count already treats as the first open day after it.
-                    if ($dueDate > $oldDue && !$this->addedDaysFree((int) $loan['id'], $bookId, $copiaId, $oldDue, $dueDate)) {
-                        $dueDate = $oldDue;
-                    }
+                if ($dueDate === null) {
+                    $this->db->rollback();
+                    continue;
                 }
                 // Open days only (closures calendar); identical to +N days without closures.
                 $pickupDeadline = LibraryCalendar::pickupDeadline($this->db, $today, $pickupDays, null, $copiaId);
@@ -1125,8 +1171,7 @@ class MaintenanceService
                         data_scadenza = COALESCE(?, data_scadenza){$pickupColumnReset}
                     WHERE id = ? AND stato = 'prenotato' AND attivo = 1 AND data_scadenza >= ?
                 ");
-                $newDue = $dueDate !== '' ? $dueDate : null;
-                $updateStmt->bind_param('sisis', $pickupDeadline, $copiaId, $newDue, $loan['id'], $today);
+                $updateStmt->bind_param('sisis', $pickupDeadline, $copiaId, $dueDate, $loan['id'], $candidateFloor);
                 $updateStmt->execute();
                 $affectedRows = $updateStmt->affected_rows;
                 $updateStmt->close();
@@ -1187,31 +1232,18 @@ class MaintenanceService
         return $activatedCount;
     }
 
-    /**
-     * Whether a loan's due date can grow from $oldDue to $newDue at activation:
-     * no other active commitment of $copiaId overlaps the added days (the
-     * per-copy overlap trigger would refuse the UPDATE), and the title has a
-     * free copy for them besides this loan (copyless bookings, CapacityService).
-     */
-    private function addedDaysFree(int $loanId, int $bookId, int $copiaId, string $oldDue, string $newDue): bool
+    /** A closed or already promised copy cannot be announced as ready. */
+    private function activationDueDate(LibraryCalendar $calendar, int $loanId, int $bookId, int $copyId, string $start, string $storedDue, string $today): ?string
     {
-        $from = LibraryCalendar::shift($oldDue, 1);
-        $stmt = $this->db->prepare("
-            SELECT 1 FROM prestiti
-            WHERE copia_id = ? AND id <> ?
-              AND ((attivo = 1 AND stato IN ('prenotato','da_ritirare','in_corso','in_ritardo'))
-                   OR (attivo = 0 AND stato = 'pendente'))
-              AND data_prestito <= ? AND data_scadenza >= ?
-            LIMIT 1
-        ");
-        $stmt->bind_param('iiss', $copiaId, $loanId, $newDue, $from);
-        $stmt->execute();
-        $taken = $stmt->get_result()->num_rows > 0;
-        $stmt->close();
-        if ($taken) {
-            return false;
+        if (!$calendar->hasRules()) {
+            return $storedDue;
         }
-        return (new \App\Services\CapacityService($this->db))->hasFreeCapacity($bookId, $from, $newDue, excludePrestitoId: $loanId);
+        $branch = LibraryCalendar::branchOfCopy($this->db, $copyId);
+        if (!$calendar->isOpen($today, $branch)) {
+            return null;
+        }
+        $capacity = new \App\Services\CapacityService($this->db, lockingReads: true);
+        return $capacity->reservationDueDateForCopy($bookId, $copyId, max($start, $today), $storedDue, $loanId);
     }
 
     /**
@@ -1247,7 +1279,10 @@ class MaintenanceService
             throw new \RuntimeException('Failed to prepare scheduled reservations query');
         }
 
-        $stmt->bind_param('sss', $today, $today, $today);
+        // Legacy deadlines can be extended by any branch calendar. The
+        // per-book promotion query computes the exact cutoff under its lock.
+        $legacyFloor = LibraryCalendar::forDb($this->db)->hasRules() ? '1000-01-01' : $today;
+        $stmt->bind_param('sss', $today, $legacyFloor, $today);
         $stmt->execute();
         $result = $stmt->get_result();
         $reservations = $result ? $result->fetch_all(MYSQLI_ASSOC) : [];
@@ -1341,7 +1376,8 @@ class MaintenanceService
     {
         $today = DateHelper::today();
         // Closures calendar: nothing expires on a day the library is closed.
-        if (!LibraryCalendar::forDb($this->db)->isOpen($today)) {
+        $calendar = LibraryCalendar::forDb($this->db);
+        if (!$calendar->isOpen($today)) {
             return 0;
         }
 
@@ -1403,7 +1439,7 @@ class MaintenanceService
                 }
 
                 $lockLoan = $this->db->prepare("
-                    SELECT id, libro_id, copia_id, utente_id
+                    SELECT id, libro_id, copia_id, utente_id, data_scadenza
                     FROM prestiti
                     WHERE id = ?
                       AND (
@@ -1422,9 +1458,11 @@ class MaintenanceService
                     continue;
                 }
                 $copiaId = $lockedReservation['copia_id'] ? (int) $lockedReservation['copia_id'] : null;
-                // A closure of the assigned copy's branch counts too: the
-                // reader could not come in there today either.
-                if ($copiaId !== null && !LibraryCalendar::forDb($this->db)->isOpen($today, LibraryCalendar::branchOfCopy($this->db, $copiaId))) {
+                // Reopening is still usable even if the stored date could
+                // not be moved, for both pinned and unassigned commitments.
+                $branch = $calendar->hasRules() ? LibraryCalendar::reservationBranch($this->db, $libroId, $copiaId) : null;
+                if (!$calendar->isOpen($today, $branch)
+                    || $calendar->nextOpenDay((string) $lockedReservation['data_scadenza'], $branch) >= $today) {
                     $this->db->rollback();
                     continue;
                 }
@@ -1588,10 +1626,8 @@ class MaintenanceService
         $result = $stmt->get_result();
         $expiredPickups = $result ? $result->fetch_all(MYSQLI_ASSOC) : [];
         $stmt->close();
-        // A deadline that fell on a day later declared closed was already moved
-        // to the next open day when the calendar changed
-        // (LibraryCalendar::extendPickupDeadlines()), so the stored deadline is
-        // the one rule every path reads.
+        // Recheck the effective deadline after locking the current loan: the
+        // candidate scan may run before a calendar or copy change is reconciled.
 
         $expiredCount = 0;
         $integrity = new DataIntegrity($this->db);
@@ -1623,7 +1659,7 @@ class MaintenanceService
                 }
 
                 $lockLoan = $this->db->prepare("
-                    SELECT id, libro_id, copia_id, utente_id, pickup_deadline
+                    SELECT id, libro_id, copia_id, utente_id, pickup_deadline, data_scadenza
                     FROM prestiti
                     WHERE id = ? AND stato = 'da_ritirare' AND attivo = 1
                       AND pickup_deadline IS NOT NULL AND pickup_deadline < ?
@@ -1640,7 +1676,10 @@ class MaintenanceService
                 $copiaId = $lockedPickup['copia_id'] ? (int) $lockedPickup['copia_id'] : null;
                 // A closure of the copy's branch today: the pickup cannot
                 // expire on a day the reader could not come in.
-                if ($copiaId !== null && !$calendar->isOpen($today, LibraryCalendar::branchOfCopy($this->db, $copiaId))) {
+                $branch = LibraryCalendar::branchOfCopy($this->db, $copiaId);
+                if (!$calendar->isOpen($today, $branch) || $calendar->pickupDeadlineOnReopening(
+                    (string) $lockedPickup['pickup_deadline'], $lockedPickup['data_scadenza'], $branch
+                ) >= $today) {
                     $this->db->rollback();
                     continue;
                 }

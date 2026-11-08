@@ -59,7 +59,7 @@ $cases = [
         SettingsReview25::eq($notice->invoke(new ReservationManager($t->db), $row), $t->day(11), 'A retried e-mail names the loan\'s day, not the requested one');
         SettingsReview25::eq($notice->invoke(new ReservationManager($t->db), $row + ['prestito_id' => (int) $loan['id']]), $t->day(11), 'The first e-mail names the same day');
     },
-    'promotion keeps the requested end when the copy is promised on the added day' => static function (SettingsReview25 $t): void {
+    'promotion defers when the only assignable copy is promised on its reopening day' => static function (SettingsReview25 $t): void {
         $book = $t->book($t->branchA);
         $copyB = finalGapsCopy($t, $book, $t->branchB);
         $t->closure($t->day(10), branch: $t->branchA);
@@ -70,12 +70,15 @@ $cases = [
         $t->loan($book, $t->day(8), ['copy' => $copyC, 'reader' => $t->patron(), 'start' => $t->day(-2)]);
         // Copy A itself is promised to another reader from day 11.
         $third = $t->patron();
-        $t->loan($book, $t->day(15), ['copy' => $book['copies'][0], 'reader' => $third, 'start' => $t->day(11), 'status' => 'prenotato']);
+        $future = $t->loan($book, $t->day(15), ['copy' => $book['copies'][0], 'reader' => $third, 'start' => $t->day(11), 'status' => 'prenotato']);
         SettingsReview25::check((new \App\Services\CapacityService($t->db))->hasFreeCapacity($book['id'], $t->today, $t->day(11)), 'The book has room through day 11: only the copy decides');
-        finalGapsReserve($t, $book, $t->reader, $t->today, $t->day(10));
-        SettingsReview25::check((new ReservationManager($t->db))->processBookAvailability($book['id']), 'The reservation is promoted');
+        $reservation = finalGapsReserve($t, $book, $t->reader, $t->today, $t->day(10));
+        SettingsReview25::check(!(new ReservationManager($t->db))->processBookAvailability($book['id']), 'The closed stored date cannot hide an overlap on the reopening day');
+        SettingsReview25::eq($t->scalar("SELECT stato FROM prenotazioni WHERE id={$reservation}"), 'attiva', 'The reader keeps their place in the queue');
+        $t->db->query("UPDATE prestiti SET stato='annullato', attivo=0 WHERE id={$future}");
+        SettingsReview25::check((new ReservationManager($t->db))->processBookAvailability($book['id']), 'The same reservation promotes once the conflict is gone');
         $loan = $t->db->query("SELECT copia_id, data_scadenza FROM prestiti WHERE libro_id={$book['id']} AND utente_id={$t->reader}")->fetch_assoc();
-        SettingsReview25::eq([(int) $loan['copia_id'], (string) $loan['data_scadenza']], [$book['copies'][0], $t->day(10)], 'The loan takes copy A and ends on day 10: day 11 belongs to that copy\'s next reader');
+        SettingsReview25::eq([(int) $loan['copia_id'], (string) $loan['data_scadenza']], [$book['copies'][0], $t->day(11)], 'The loan takes copy A and ends on its open return day');
     },
     'a refused move re-arms the due-soon e-mail once, for the new day' => static function (SettingsReview25 $t): void {
         SettingsReview25::check(LibraryCalendar::hasWarningSentFor($t->db), 'The install schema has prestiti.warning_sent_for');

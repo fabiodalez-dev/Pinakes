@@ -131,7 +131,8 @@ class LoanEligibility
      * time — OR a legacy no-start row while its deadline is still today or in
      * the future.
      *
-     * Requires TWO positional placeholders bound in order (today, today).
+     * Requires TWO positional placeholders: today, then the oldest legacy
+     * deadline that could still be usable (normally today).
      * $alias is the `prenotazioni` table alias: a fixed literal, never user input.
      */
     public static function promotableReservationWhere(string $alias): string

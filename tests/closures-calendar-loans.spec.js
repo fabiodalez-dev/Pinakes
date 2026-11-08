@@ -347,7 +347,7 @@ test.describe('Closures calendar — circulation', () => {
     }
   });
 
-  test('Admin 9: the approval keeps the requested due date when the copy is taken right after it', async ({ page }) => {
+  test('Admin 9: approval chooses another copy if the pinned one is promised on reopening', async ({ page }) => {
     db(`INSERT INTO sedi (nome) VALUES ('${TAG} sede piena')`);
     const sede = parseInt(db(`SELECT id FROM sedi WHERE nome='${TAG} sede piena'`), 10);
     const book = books.approvebusy;
@@ -356,6 +356,7 @@ test.describe('Closures calendar — circulation', () => {
       const copyA = parseInt(db(`SELECT id FROM copie WHERE libro_id=${book.id} LIMIT 1`), 10);
       // A second copy keeps the title-level capacity free on the extra day.
       db(`INSERT INTO copie (libro_id, stato, numero_inventario, created_at) VALUES (${book.id}, 'disponibile', 'CAL-approvebusy2-${RUN}', NOW())`);
+      const copyB = parseInt(db(`SELECT id FROM copie WHERE numero_inventario='CAL-approvebusy2-${RUN}'`), 10);
       db(`UPDATE libri SET copie_totali=2, copie_disponibili=2 WHERE id=${book.id}`);
       db(`UPDATE copie SET sede_id=${sede} WHERE id=${copyA}`);
       const due = addDays(today, 10);
@@ -377,7 +378,7 @@ test.describe('Closures calendar — circulation', () => {
       await page.locator('.swal2-confirm').click();
       const body = await (await reply).json();
       expect(body.success, JSON.stringify(body)).toBe(true);
-      expect(db(`SELECT CONCAT(stato,'|',copia_id,'|',data_scadenza) FROM prestiti WHERE id=${loanId}`)).toBe(`da_ritirare|${copyA}|${due}`);
+      expect(db(`SELECT CONCAT(stato,'|',copia_id,'|',data_scadenza) FROM prestiti WHERE id=${loanId}`)).toBe(`da_ritirare|${copyB}|${due}`);
     } finally {
       db(`DELETE FROM calendario_chiusure WHERE sede_id=${sede}`);
       db(`UPDATE copie SET sede_id=NULL WHERE libro_id=${book.id}`);

@@ -45,7 +45,7 @@ class ReservationsController
     // suo payload esponeva gli utente_id dei prenotanti (le rotte reali passano
     // da getBookAvailabilityData(), che filtra i campi sensibili).
 
-    private function calculateAvailability($currentLoans, $existingReservations, int $totalCopies, ?string $startDate = null, int $days = 730, ?int $excludeUserId = null)
+    private function calculateAvailability(array $currentLoans, array $reservationIntervals, int $totalCopies, ?string $startDate, int $days, bool $hasActiveReservation, array $closedDates, string $startUntil)
     {
         // Default start = "today" in the APP timezone (DateHelper), not the PHP
         // process TZ (usually UTC): a bare `new DateTime()` made the mobile
@@ -112,43 +112,7 @@ class ReservationsController
             $loanIntervals[] = [$startDateLoan, $endDateLoan];
         }
 
-        // F040: does the excluded user already hold an active reservation on this
-        // book? Same predicate as the date-less duplicate guard in
-        // createReservation (prenotazioni WHERE libro_id AND utente_id AND
-        // stato='attiva'). Surfaced so the picker can warn instead of showing an
-        // all-green calendar that the guard would reject for every date.
-        $hasActiveReservation = false;
-
-        $reservationIntervals = [];
-        foreach ($existingReservations as $reservation) {
-            // Skip reservation if it belongs to the excluded user (e.g. the user making the request)
-            if ($excludeUserId !== null && isset($reservation['utente_id']) && (int) $reservation['utente_id'] === $excludeUserId) {
-                $hasActiveReservation = true;
-                continue;
-            }
-
-            // Occupancy start mirrors CapacityService's COALESCE fallback: a legacy
-            // 'attiva' row whose data_inizio_richiesta is NULL still occupies its
-            // copy, using the reservation deadline (data_scadenza_prenotazione) as
-            // the start. It must NOT be skipped — otherwise the calendars would
-            // free a slot the canonical capacity gate still counts. Only drop the
-            // row if neither a start nor a deadline is known.
-            $resStart = $reservation['data_inizio_richiesta'] ?? null;
-            if (!$resStart && !empty($reservation['data_scadenza_prenotazione'])) {
-                $resStart = substr((string) $reservation['data_scadenza_prenotazione'], 0, 10);
-            }
-            if (!$resStart) {
-                continue;
-            }
-            $resEnd = $reservation['data_fine_richiesta'] ?? null;
-            if (!$resEnd && !empty($reservation['data_scadenza_prenotazione'])) {
-                $resEnd = substr((string) $reservation['data_scadenza_prenotazione'], 0, 10);
-            }
-            if (!$resEnd || $resEnd < $resStart) {
-                $resEnd = $resStart;
-            }
-            $reservationIntervals[] = [$resStart, $resEnd];
-        }
+        $closedDays = array_fill_keys($closedDates, true);
 
         $unavailableDates = [];
         $daysData = [];
@@ -180,10 +144,8 @@ class ReservationsController
             if ($available <= 0) {
                 $state = $loaned > 0 ? 'borrowed' : 'reserved';
                 $unavailableDates[] = $d;
-            } else {
-                if ($earliestAvailable === null) {
-                    $earliestAvailable = $d;
-                }
+            } elseif ($earliestAvailable === null && $d <= $startUntil && !isset($closedDays[$d])) {
+                $earliestAvailable = $d;
             }
 
             $daysData[] = [
@@ -774,7 +736,10 @@ class ReservationsController
     private function holdingEnd(array $loan): string
     {
         $copyId = !empty($loan['copia_id']) ? (int) $loan['copia_id'] : null;
-        return \App\Support\LibraryCalendar::holdingEnd($this->db, substr((string) $loan['data_scadenza'], 0, 10), $copyId);
+        // A scheduled hold without a copy reads the title's branches, as
+        // CapacityService and DataIntegrity do, so both see the same end.
+        $scheduledBookId = ($loan['stato'] ?? '') === 'prenotato' && isset($loan['libro_id']) ? (int) $loan['libro_id'] : null;
+        return \App\Support\LibraryCalendar::holdingEnd($this->db, substr((string) $loan['data_scadenza'], 0, 10), $copyId, $scheduledBookId);
     }
 
     /**
@@ -809,7 +774,7 @@ class ReservationsController
         // copia_id) also holds its copy until pickup confirmation (#157, model
         // A-refined). Bare 'pendente' requests with no copy are excluded.
         $stmt = $this->db->prepare("
-            SELECT data_prestito, data_scadenza, data_restituzione, pickup_deadline, stato, copia_id
+            SELECT libro_id, data_prestito, data_scadenza, data_restituzione, pickup_deadline, stato, copia_id
             FROM prestiti
             WHERE libro_id = ? AND (
                 (attivo = 1 AND stato IN ('in_corso', 'in_ritardo', 'da_ritirare', 'prenotato'))
@@ -822,17 +787,16 @@ class ReservationsController
         $loansResult = $stmt->get_result();
         $currentLoans = $loansResult->fetch_all(MYSQLI_ASSOC);
 
-        // Get existing reservations
-        $stmt = $this->db->prepare("
-            SELECT data_inizio_richiesta, data_fine_richiesta, data_scadenza_prenotazione, stato, queue_position, utente_id
-            FROM prenotazioni
-            WHERE libro_id = ? AND stato = 'attiva'
-            ORDER BY queue_position ASC
-        ");
-        $stmt->bind_param('i', $bookId);
-        $stmt->execute();
-        $reservationsResult = $stmt->get_result();
-        $existingReservations = $reservationsResult->fetch_all(MYSQLI_ASSOC);
+        // Surface the same duplicate guard used by createReservation even
+        // when the requesting patron's commitment is excluded from capacity.
+        $hasActiveReservation = false;
+        if ($excludeUserId !== null) {
+            $stmt = $this->db->prepare("SELECT 1 FROM prenotazioni WHERE libro_id = ? AND utente_id = ? AND stato = 'attiva' LIMIT 1");
+            $stmt->bind_param('ii', $bookId, $excludeUserId);
+            $stmt->execute();
+            $hasActiveReservation = $stmt->get_result()->num_rows > 0;
+            $stmt->close();
+        }
 
         // The durations every calendar proposes with (public book page, admin
         // loan and reservation forms, the app): the configured default, capped
@@ -859,9 +823,13 @@ class ReservationsController
             ->closedDatesBetween(
                 $from,
                 \App\Support\LibraryCalendar::shift($from, $closedHorizon),
-                \App\Support\LibraryCalendar::requestBranch($this->db, (int) $bookId)
+                \App\Support\LibraryCalendar::requestScope($this->db, (int) $bookId),
+                $closedHorizon + 1
             );
-        return $this->calculateAvailability($currentLoans, $existingReservations, $totalCopies, $startDate, $days, $excludeUserId) + [
+        $reservationIntervals = (new \App\Services\CapacityService($this->db))->reservationIntervalsInRange(
+            (int) $bookId, $from, \App\Support\LibraryCalendar::shift($from, max(0, $days - 1)), $excludeUserId
+        );
+        return $this->calculateAvailability($currentLoans, $reservationIntervals, $totalCopies, $startDate, $days, $hasActiveReservation, $closedDates, $startUntil) + [
             'loan_duration_days' => $policy->requestDurationDays(),
             'max_loan_duration_days' => $policy->maxRequestDays,
             'staff_loan_duration_days' => $policy->durationDays,

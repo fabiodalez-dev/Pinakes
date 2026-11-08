@@ -75,10 +75,12 @@ assertNotContainsText(
 
 $integrity = readFileOrFail($root . '/app/Support/DataIntegrity.php');
 assertContainsText('overbooked_circulation_period', $integrity, 'DataIntegrity must report capacity-aware overbooking');
+// The audit reads reservations through CapacityService, whose intervals keep
+// legacy NULL-start rows (checked on CapacityService below).
 assertContainsText(
-    'DATE(COALESCE(data_inizio_richiesta, DATE(data_scadenza_prenotazione))) AS start_date',
+    '$capacityService->reservationIntervalsInRange(',
     $integrity,
-    'DataIntegrity overbooking audit must retain legacy NULL-start reservations'
+    'DataIntegrity overbooking audit must count reservations exactly as CapacityService does (legacy NULL-start rows included)'
 );
 assertContainsText('duplicate_user_circulation_request', $integrity, 'DataIntegrity must report cross-table user/book duplicates');
 assertNotContainsText('overlap_reservation_loan', $integrity, 'DataIntegrity must not flag any reservation/loan overlap without checking capacity');
