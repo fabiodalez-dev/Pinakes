@@ -68,6 +68,13 @@ $cases['without calendar rules the stored pickup day is shown as is'] = static f
     SettingsReview25::check(!LibraryCalendar::forDb($t->db)->hasRules(), 'The fixture has no calendar rules');
     SettingsReview25::eq(readerLoan($t, $loan)['pickup_deadline'], $t->day(2), 'The stored day');
 };
+$cases['a ready loan without a stored pickup day carries null, never its return day'] = static function (SettingsReview25 $t): void {
+    $loan = $t->loan($t->book($t->branchA), $t->day(14), ['start' => $t->today, 'status' => 'da_ritirare']);
+    pickupHoliday($t, $t->day(2), $t->branchA);
+    SettingsReview25::eq($t->scalar("SELECT pickup_deadline FROM prestiti WHERE id={$loan}"), null, 'The fixture stores no pickup day');
+    $row = readerLoan($t, $loan);
+    SettingsReview25::eq([$row['pickup_deadline'], $row['due_at']], [null, $t->day(14)], 'The return day is not offered as the pickup day');
+};
 $cases['loans that are not waiting for pickup carry no pickup day'] = static function (SettingsReview25 $t): void {
     $out = $t->loan($t->book($t->branchA), $t->day(5));
     $t->db->query("UPDATE prestiti SET pickup_deadline='{$t->day(-3)}' WHERE id={$out}");
