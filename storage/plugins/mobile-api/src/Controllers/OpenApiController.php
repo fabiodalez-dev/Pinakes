@@ -1451,6 +1451,7 @@ final class OpenApiController
                     'type' => 'boolean',
                     'description' => 'True when the effective return day of an active in-progress/overdue loan is today or earlier in the application timezone.',
                 ],
+                'pickup_deadline' => ['type' => ['string', 'null'], 'format' => 'date', 'description' => 'Last day to collect a ready-for-pickup (da_ritirare) loan, moved to the next open day of the copy branch (since 1.12.0). Null when no pickup day is stored, and for every other state.'],
                 'returned_at' => ['type' => 'string', 'format' => 'date', 'nullable' => true],
                 'renewals'    => ['type' => 'integer', 'nullable' => true],
                 'cancellable' => ['type' => 'boolean', 'description' => 'Presentation hint: true for owned pending, scheduled, or ready-for-pickup rows accepted by DELETE /loans/{id} (since 1.4.4).'],
