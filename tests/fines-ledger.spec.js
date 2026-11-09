@@ -421,6 +421,9 @@ test.describe.serial('Fines and patron ledger', () => {
     await saveFineSettings(page, { email: true });
     expect(readSetting('loans', 'fine_charged_email')).toBe('1');
 
+    // Loan C was seeded 3 days late by an earlier test: if the library's midnight
+    // passed since then it is 4 days late now. Re-anchor it on today's date.
+    dbQuery(`UPDATE prestiti SET data_prestito='${appDateOffsetISO(-17)}', data_scadenza='${appDateOffsetISO(-3)}' WHERE id=${state.loans.C}`);
     await returnFromDesk(page, state.loans.C);
     expect(dbQuery(`SELECT importo FROM movimenti_lettore WHERE prestito_id=${state.loans.C} AND tipo='multa_ritardo'`)).toBe('1.50');
 
