@@ -422,10 +422,14 @@ test.describe.serial('Fines and patron ledger', () => {
     expect(readSetting('loans', 'fine_charged_email')).toBe('1');
 
     // Loan C was seeded 3 days late by an earlier test: if the library's midnight
-    // passed since then it is 4 days late now. Re-anchor it on today's date.
+    // passed since then it is 4 days late now. Re-anchor it on today's date, and
+    // price the fine on the return day the desk recorded, in case midnight falls
+    // during the return itself (0,50 a day, every day charged past the grace).
     dbQuery(`UPDATE prestiti SET data_prestito='${appDateOffsetISO(-17)}', data_scadenza='${appDateOffsetISO(-3)}' WHERE id=${state.loans.C}`);
     await returnFromDesk(page, state.loans.C);
-    expect(dbQuery(`SELECT importo FROM movimenti_lettore WHERE prestito_id=${state.loans.C} AND tipo='multa_ritardo'`)).toBe('1.50');
+    const daysLate = Number(dbQuery(`SELECT DATEDIFF(data_restituzione, data_scadenza) FROM prestiti WHERE id=${state.loans.C}`));
+    expect([3, 4]).toContain(daysLate);
+    expect(dbQuery(`SELECT importo FROM movimenti_lettore WHERE prestito_id=${state.loans.C} AND tipo='multa_ritardo'`)).toBe((daysLate * 0.5).toFixed(2));
 
     const query = `to:${PATRON_EMAIL} subject:"Multa per ritardo"`;
     let message = null;
@@ -437,10 +441,10 @@ test.describe.serial('Fines and patron ledger', () => {
     }
     expect(message, 'fine_charged email in Mailpit').not.toBeNull();
     const full = await (await fetch(`${MAILPIT_API}/message/${message.ID}`)).json();
-    expect(full.Subject).toContain(euro(150));
+    expect(full.Subject).toContain(euro(daysLate * 50));
     expect(full.HTML).toContain(`${TITLE_PREFIX}_C`);
-    expect(full.HTML).toContain('3'); // days late
-    expect(full.HTML).toContain(euro(650)); // balance: 5,00 + 1,50
+    expect(full.HTML).toContain(String(daysLate)); // days late
+    expect(full.HTML).toContain(euro(500 + daysLate * 50)); // balance: 5,00 + this fine
   });
 
   test('13b. a fine waived at the desk: the return email has no fine line and no fine email is sent (Mailpit)', async () => {
