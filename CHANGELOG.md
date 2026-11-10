@@ -2,6 +2,15 @@
 
 Full version-by-version history for Pinakes. The README shows only the last three releases; everything older lives here.
 
+## [0.9.4]
+
+A patch release for the reader app. No migration.
+
+### Mobile API 1.12.0
+
+- **`GET /me/loans` tells the reader the last day to collect a ready loan.** Each loan carries `pickup_deadline` (`YYYY-MM-DD`) while it is `da_ritirare`: the stored pickup day moved to the next open day of the copy's branch by `LibraryCalendar::effectivePickupDeadline()`, the same day the staff loan reader shows at the desk. The stored day is left as written. The field is `null` for every other state, and for a ready loan without a stored pickup day: the return day is never offered in its place. The OpenAPI `LoanItem` schema documents it.
+- The plugin requires Pinakes 0.9.3 or later (`requires_app`), the first version with the effective pickup deadline.
+
 ## [0.9.3]
 
 A patch release: reservations follow the closures calendar everywhere, and scraping and imports share one pipeline. No migration.
