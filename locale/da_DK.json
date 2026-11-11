@@ -9336,5 +9336,7 @@
   "Copia ancora fuori per un ritardo: da questo giorno puoi metterti in coda": "Eksemplaret er stadig udlånt med forsinkelse: fra denne dag kan du stille dig i kø",
   "Eliminare la chiusura e anticipare le scadenze che aveva prorogato?": "Slet lukningen, og fremryk de afleveringsfrister, den forlængede?",
   "Correggi chiusura errata": "Ret en fejlagtig lukning",
-  "Elimina e ripristina le scadenze": "Slet og gendan afleveringsfrister"
+  "Elimina e ripristina le scadenze": "Slet og gendan afleveringsfrister",
+  "La restituzione deve avvenire il giorno stesso (%s).": "Bogen skal afleveres samme dag (%s).",
+  "Scadenza confermata dopo la riapertura": "Afleveringsdato bekræftet efter genåbning"
 }

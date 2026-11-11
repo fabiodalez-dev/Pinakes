@@ -18,10 +18,10 @@ use Slim\Psr7\Response;
 
 require __DIR__ . '/settings-pr-independent-25.unit.php';
 
-$removeClosure = static function (SettingsReview25 $t, int $id): void {
+$removeClosure = static function (SettingsReview25 $t, int $id, bool $undo = true): void {
     unset($_SESSION['error_message']);
     (new LibraryCalendarController())->delete(
-        $t->request('/admin/calendar/closures/' . $id . '/delete', ['undo_extensions' => '1']),
+        $t->request('/admin/calendar/closures/' . $id . '/delete', $undo ? ['undo_extensions' => '1'] : []),
         new Response(),
         $t->db,
         $id
@@ -29,6 +29,21 @@ $removeClosure = static function (SettingsReview25 $t, int $id): void {
 };
 
 $cases = [
+    'undo preserves a due date confirmed when an earlier closure was removed normally' => static function (SettingsReview25 $t) use ($removeClosure): void {
+        foreach ([false, true] as $overlap) {
+            $t->reset();
+            $loan = $t->loan($t->book(), $t->day(5));
+            $first = $t->closure($t->day(5), $t->day(6));
+            SettingsReview25::eq($t->due($loan), $t->day(7), 'The first closure grants two days');
+            $last = $overlap ? $t->closure($t->day(5), $t->day(8)) : null;
+            $removeClosure($t, $first, undo: false);
+            SettingsReview25::eq($t->due($loan), $t->day($overlap ? 9 : 7), 'Ordinary removal keeps the promised due date');
+            $last ??= $t->closure($t->day(5), $t->day(8));
+            SettingsReview25::eq($t->due($loan), $t->day(9), 'The second closure extends the loan');
+            $removeClosure($t, $last);
+            SettingsReview25::eq($t->due($loan), $t->day(7), 'Undo retracts only the second extension');
+        }
+    },
     'undoing overlapping erroneous closures keeps the original due date' => static function (SettingsReview25 $t) use ($removeClosure): void {
         $loan = $t->loan($t->book(), $t->day(5));
         $first = $t->closure($t->day(5), $t->day(6));

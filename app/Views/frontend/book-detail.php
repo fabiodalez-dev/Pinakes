@@ -1725,6 +1725,7 @@ document.addEventListener('DOMContentLoaded', function() {
         endDate,
         maxEndDate,
         maxDays: daysBetweenIso(startIso, maxEndDate),
+        hasWindow: maxEndDate >= startIso,
         firstBlocked,
         capped
       };
@@ -1863,21 +1864,25 @@ document.addEventListener('DOMContentLoaded', function() {
         // here, as successRangeTpl is.
         const loanLimitTpl = <?php echo json_encode(__('Durata massima del prestito: %1$d giorni (restituzione entro il %2$s). Dal %3$s il libro è già prenotato.'), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG); ?>;
         const loanLimitOneTpl = <?php echo json_encode(__('Durata massima del prestito: 1 giorno (restituzione entro il %1$s). Dal %2$s il libro è già prenotato.'), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG); ?>;
+        const sameDayTpl = <?php echo json_encode(__('La restituzione deve avvenire il giorno stesso (%s).'), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG); ?>;
         const noWindowTpl = <?php echo json_encode(__('Da questa data di inizio non è possibile alcun prestito: dal %s il libro è già prenotato. Scegli un\'altra data.'), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG); ?>;
         const blockedDayTpl = <?php echo json_encode(__('Giorno non disponibile (%1$s): %2$s'), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG); ?>;
         const maxDurationText = <?php echo json_encode(__('Il periodo richiesto supera la durata massima consentita di %d giorni', (int) max($maxRequestDays, $defaultRequestLoanDays)), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG); ?>;
         const endBeforeStartText = <?php echo json_encode(__('La data di fine non può precedere la data di inizio'), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG); ?>;
-        const loanLimitText = (loanWindow) => loanWindow.maxDays === 1
-          ? loanLimitOneTpl
+        const loanLimitText = (loanWindow) => {
+          if (loanWindow.maxDays === 0) {
+            return sameDayTpl.replace('%s', formatDateIT(loanWindow.maxEndDate));
+          }
+          return loanWindow.maxDays === 1 ? loanLimitOneTpl
               .replace('%1$s', formatDateIT(loanWindow.maxEndDate))
               .replace('%2$s', formatDateIT(loanWindow.firstBlocked))
           : loanLimitTpl
               .replace('%1$d', String(loanWindow.maxDays))
               .replace('%2$s', formatDateIT(loanWindow.maxEndDate))
               .replace('%3$s', formatDateIT(loanWindow.firstBlocked));
-        // The next day is blocked: no loan of at least one day from this start.
+        };
         const noWindowText = (loanWindow) => noWindowTpl.replace('%s', formatDateIT(loanWindow.firstBlocked));
-        const windowText = (loanWindow) => loanWindow.maxDays < 1 ? noWindowText(loanWindow) : loanLimitText(loanWindow);
+        const windowText = (loanWindow) => loanWindow.hasWindow ? loanLimitText(loanWindow) : noWindowText(loanWindow);
         const blockedDayText = (isoDate, state) => blockedDayTpl
           .replace('%1$s', formatDateIT(isoDate))
           .replace('%2$s', tooltipTexts[state] || tooltipTexts.borrowed);
@@ -2089,7 +2094,7 @@ document.addEventListener('DOMContentLoaded', function() {
               return false;
             }
             const loanWindow = loanWindowFrom(startDate, availabilityByDate, defaultRequestLoanDays, maxRequestLoanDays, closedDaySet);
-            if (loanWindow.firstBlocked !== null && loanWindow.maxDays < 1) {
+            if (loanWindow.firstBlocked !== null && !loanWindow.hasWindow) {
               Swal.showValidationMessage(noWindowText(loanWindow));
               return false;
             }

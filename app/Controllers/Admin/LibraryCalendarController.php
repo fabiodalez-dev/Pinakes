@@ -272,7 +272,7 @@ class LibraryCalendarController
             $deleted = $stmt->affected_rows > 0;
             $stmt->close();
             return $deleted ? null : __('Chiusura non trovata.');
-        }, undoClosureId: $undoExtensions ? $id : null);
+        }, removedClosureId: $id, undoExtensions: $undoExtensions);
         if ($error !== null) {
             $_SESSION['error_message'] = $error;
             return $this->back($response);
@@ -604,7 +604,7 @@ class LibraryCalendarController
      *
      * @param callable(): ?string $write
      */
-    private function commitChange(\mysqli $db, callable $write, ?int $undoClosureId = null): ?string
+    private function commitChange(\mysqli $db, callable $write, ?int $removedClosureId = null, bool $undoExtensions = false): ?string
     {
         $lockName = $this->lockName($db);
         try {
@@ -623,22 +623,24 @@ class LibraryCalendarController
         try {
             $db->begin_transaction();
             try {
-                $previous = null;
-                if ($undoClosureId !== null) {
-                    $stmt = $db->prepare('SELECT data_inizio, data_fine, ricorrente_annuale, sede_id FROM calendario_chiusure WHERE id = ?');
-                    $stmt->bind_param('i', $undoClosureId);
+                $previous = $removed = null;
+                if ($removedClosureId !== null) {
+                    $stmt = $db->prepare('SELECT data_inizio, data_fine, ricorrente_annuale, sede_id, created_at FROM calendario_chiusure WHERE id = ?');
+                    $stmt->bind_param('i', $removedClosureId);
                     $stmt->execute();
                     $closure = $stmt->get_result()->fetch_assoc();
                     $stmt->close();
                     if ($closure !== null) {
-                        // Also compare against a closure that was suspended
-                        // before staff chose to undo its extensions.
-                        $previous = LibraryCalendar::forDb($db)->withAdditionalClosure([
+                        $removed = [
                             'data_inizio' => (string) $closure['data_inizio'],
                             'data_fine' => (string) $closure['data_fine'],
                             'ricorrente_annuale' => (int) $closure['ricorrente_annuale'],
                             'sede_id' => $closure['sede_id'] === null ? null : (int) $closure['sede_id'],
-                        ]);
+                        ];
+                        if ($undoExtensions) {
+                            // A suspended closure can still have outstanding extensions.
+                            $previous = LibraryCalendar::forDb($db)->withAdditionalClosure($removed);
+                        }
                     }
                 }
                 $error = $write();
@@ -646,7 +648,9 @@ class LibraryCalendarController
                     // The due date and deadline moves read the new calendar.
                     LibraryCalendar::reset();
                     if ($previous !== null) {
-                        LibraryCalendar::restoreDueDates($db, $previous);
+                        LibraryCalendar::reconcileRemovedClosure($db, $previous, undo: true);
+                    } elseif ($removed !== null) {
+                        LibraryCalendar::reconcileRemovedClosure($db, new LibraryCalendar([], [$removed]), undo: false, closureCreatedAt: (string) $closure['created_at']);
                     }
                     LibraryCalendar::extendDueDates($db);
                     LibraryCalendar::extendPickupDeadlines($db);

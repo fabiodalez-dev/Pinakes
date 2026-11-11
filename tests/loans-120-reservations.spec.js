@@ -137,6 +137,20 @@ test.describe('Loans 120 · reservations and the queue', () => {
     expect(q(book)).toBe('');
   });
 
+  test('R31: the reader can reserve the only open day in the queue', async () => {
+    const book = lab.book('one-day-queue');
+    const day = addDays(lab.today, 1);
+    const blocked = addDays(day, 1);
+    lab.seedLoan(book, holder, { start: addDays(lab.today, -40), due: addDays(lab.today, -5), stato: 'in_ritardo' });
+    lab.seedReservation(book, bruno, { start: blocked, end: blocked, position: 1 });
+
+    const result = await lab.readerRequest(pages.anna, book, { start: day });
+    expect(result.ok, JSON.stringify(result.body)).toBe(true);
+    expect(result.body.status).toBe('reserved');
+    expect(result.pickedEnd).toBe(day);
+    expect(lab.reservation(lab.lastReservationId(book, anna))).toMatchObject({ start: day, end: day });
+  });
+
   // ── Leaving the queue ────────────────────────────────────────────────────
   test('R08: the first in line cancels from her page and everyone moves up', async () => {
     const { book } = outBook('cancel-head');

@@ -9336,5 +9336,7 @@
   "Copia ancora fuori per un ritardo: da questo giorno puoi metterti in coda": "Exemplar wegen Verspätung noch ausgeliehen: ab diesem Tag können Sie sich vormerken",
   "Eliminare la chiusura e anticipare le scadenze che aveva prorogato?": "Die Schließung löschen und die dadurch verlängerten Rückgabefristen vorziehen?",
   "Correggi chiusura errata": "Fehlerhafte Schließung korrigieren",
-  "Elimina e ripristina le scadenze": "Löschen und Rückgabefristen wiederherstellen"
+  "Elimina e ripristina le scadenze": "Löschen und Rückgabefristen wiederherstellen",
+  "La restituzione deve avvenire il giorno stesso (%s).": "Das Buch muss noch am selben Tag zurückgegeben werden (%s).",
+  "Scadenza confermata dopo la riapertura": "Fälligkeit nach Wiedereröffnung bestätigt"
 }

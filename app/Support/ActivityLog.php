@@ -78,6 +78,7 @@ final class ActivityLog
         'loan.expired' => 'Ritiro del prestito scaduto',
         'loan.overdue' => 'Prestito in ritardo',
         'loan.due_moved' => 'Scadenza spostata: la biblioteca è chiusa quel giorno',
+        'loan.due_preserved' => 'Scadenza confermata dopo la riapertura',
         'loan.due_restored' => 'Scadenza ripristinata: la chiusura che l\'aveva spostata non c\'è più',
         'loan.lost' => 'Copia dichiarata persa',
         'loan.damaged' => 'Copia dichiarata danneggiata',
@@ -198,7 +199,8 @@ final class ActivityLog
         ?string $bookTitle = null,
         ?string $source = null,
         bool $strict = false,
-        ?int $promotedLoanId = null
+        ?int $promotedLoanId = null,
+        ?string $calendarDueFloor = null
     ): bool {
         if ($bookId <= 0 || !in_array($action, ['inserimento', 'aggiornamento', 'cancellazione'], true)) {
             return false;
@@ -221,6 +223,7 @@ final class ActivityLog
             'operator_name' => $operatorName,
             'source' => $source,
             'promoted_loan_id' => $promotedLoanId,
+            'calendar_due_floor' => $calendarDueFloor,
         ];
         $after['_activity'] = array_filter($meta, static fn(mixed $value): bool => $value !== null && $value !== '');
 
@@ -599,7 +602,8 @@ final class ActivityLog
         string $action = 'aggiornamento',
         ?string $source = 'circulation',
         ?int $operatorId = null,
-        bool $strict = false
+        bool $strict = false,
+        ?string $calendarDueFloor = null
     ): bool {
         $after = self::loadLoanSnapshot($db, $loanId, lockingRead: $strict, strict: $strict);
         $bookId = (int) ($after['libro_id'] ?? $before['libro_id'] ?? 0);
@@ -622,7 +626,8 @@ final class ActivityLog
             entityId: $loanId,
             bookTitle: $bookTitle,
             source: $source,
-            strict: $strict
+            strict: $strict,
+            calendarDueFloor: $calendarDueFloor
         );
     }
 
