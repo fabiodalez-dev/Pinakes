@@ -296,10 +296,10 @@ function createLab(prefix) {
     if (id && model && !yearly && !branch) lab.markClosed(start, end || start);
     return { id, desc, saved: id > 0 };
   };
-  lab.deleteClosure = async (page, closure) => {
+  lab.deleteClosure = async (page, closure, { undoExtensions = false } = {}) => {
     await page.goto(`${F.BASE}/admin/calendar#calendar-closures`);
     const row = page.locator('#calendar-closures tr, #calendar-closures li, #calendar-closures > div').filter({ hasText: closure.desc }).last();
-    await row.locator('[data-action="delete-closure"]').click();
+    await row.locator(undoExtensions ? '[data-action="undo-closure"]' : '[data-action="delete-closure"]').click();
     await page.waitForSelector('.swal2-popup', { timeout: 8000 });
     await Promise.all([page.waitForURL(/\/admin\/calendar/, { timeout: 20000 }), page.locator('.swal2-confirm').click()]);
     await expect.poll(() => dbInt(`SELECT COUNT(*) FROM calendario_chiusure WHERE id=${closure.id}`), { timeout: 8000 }).toBe(0);

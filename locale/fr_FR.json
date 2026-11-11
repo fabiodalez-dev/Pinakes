@@ -9333,5 +9333,8 @@
   "Scadenza ripristinata: la chiusura che l'aveva spostata non c'è più": "Échéance rétablie : la fermeture qui l'avait déplacée n'existe plus",
   "Errore: il libro è già in prestito, la data di inizio non può essere spostata dopo oggi.": "Erreur : le livre est déjà prêté, sa date de début ne peut pas être déplacée après aujourd'hui.",
   "Da ritirare entro il %s": "À retirer avant le %s",
-  "Copia ancora fuori per un ritardo: da questo giorno puoi metterti in coda": "Exemplaire toujours sorti, le lecteur est en retard : à partir de ce jour vous pouvez vous inscrire dans la file"
+  "Copia ancora fuori per un ritardo: da questo giorno puoi metterti in coda": "Exemplaire toujours sorti, le lecteur est en retard : à partir de ce jour vous pouvez vous inscrire dans la file",
+  "Eliminare la chiusura e anticipare le scadenze che aveva prorogato?": "Supprimer la fermeture et avancer les dates de retour qu’elle a prolongées ?",
+  "Correggi chiusura errata": "Corriger une fermeture erronée",
+  "Elimina e ripristina le scadenze": "Supprimer et rétablir les dates de retour"
 }

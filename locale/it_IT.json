@@ -9333,5 +9333,8 @@
   "Scadenza ripristinata: la chiusura che l'aveva spostata non c'è più": "Scadenza ripristinata: la chiusura che l'aveva spostata non c'è più",
   "Errore: il libro è già in prestito, la data di inizio non può essere spostata dopo oggi.": "Errore: il libro è già in prestito, la data di inizio non può essere spostata dopo oggi.",
   "Da ritirare entro il %s": "Da ritirare entro il %s",
-  "Copia ancora fuori per un ritardo: da questo giorno puoi metterti in coda": "Copia ancora fuori per un ritardo: da questo giorno puoi metterti in coda"
+  "Copia ancora fuori per un ritardo: da questo giorno puoi metterti in coda": "Copia ancora fuori per un ritardo: da questo giorno puoi metterti in coda",
+  "Eliminare la chiusura e anticipare le scadenze che aveva prorogato?": "Eliminare la chiusura e anticipare le scadenze che aveva prorogato?",
+  "Correggi chiusura errata": "Correggi chiusura errata",
+  "Elimina e ripristina le scadenze": "Elimina e ripristina le scadenze"
 }

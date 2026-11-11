@@ -9333,5 +9333,8 @@
   "Scadenza ripristinata: la chiusura che l'aveva spostata non c'è più": "Afleveringsdato gendannet: lukningen, der havde flyttet den, findes ikke længere",
   "Errore: il libro è già in prestito, la data di inizio non può essere spostata dopo oggi.": "Fejl: bogen er allerede udlånt, startdatoen kan ikke flyttes til efter i dag.",
   "Da ritirare entro il %s": "Skal hentes senest %s",
-  "Copia ancora fuori per un ritardo: da questo giorno puoi metterti in coda": "Eksemplaret er stadig udlånt med forsinkelse: fra denne dag kan du stille dig i kø"
+  "Copia ancora fuori per un ritardo: da questo giorno puoi metterti in coda": "Eksemplaret er stadig udlånt med forsinkelse: fra denne dag kan du stille dig i kø",
+  "Eliminare la chiusura e anticipare le scadenze che aveva prorogato?": "Slet lukningen, og fremryk de afleveringsfrister, den forlængede?",
+  "Correggi chiusura errata": "Ret en fejlagtig lukning",
+  "Elimina e ripristina le scadenze": "Slet og gendan afleveringsfrister"
 }

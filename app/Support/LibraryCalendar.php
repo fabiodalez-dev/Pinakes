@@ -360,10 +360,6 @@ final class LibraryCalendar
     public static function extendDueDates(\mysqli $db, ?int $operatorId = null): int
     {
         $calendar = self::forDb($db);
-        // A closure removed (or a weekday reopened) gives back the days it
-        // had added: loans moved by the calendar return to the first open
-        // day after their original due date under the current calendar.
-        self::restoreDueDates($db, $calendar, DateHelper::today(), $operatorId);
         if (!$calendar->hasRules()) {
             // The last closure was removed: no date moves, but a reminder
             // that announced a later usable day must announce the stored one.
@@ -556,120 +552,132 @@ final class LibraryCalendar
     }
 
     /**
-     * The inverse of the moves above. A loan whose current due date is the
-     * last of an unbroken chain of calendar moves ('loan.due_moved' history
-     * entries, each starting where the previous one ended) is set back to the
-     * first open day after the chain's original due date, when the current
-     * calendar gives an earlier day than the stored one and that day is today
-     * or later. So a closure typed by mistake and deleted at once does not
-     * leave the reader with a loan due a year later. A renewal or an edit in
-     * between breaks the chain and the date is kept. Nothing runs while the
-     * closures module is off: its stored closures still count when it is
-     * switched back on. Returns the number of loans set back.
+     * Undo the effect of an erroneous closure, only when staff explicitly
+     * requests it. Ordinary calendar edits leave granted return dates intact.
+     * Compare the old and new calendars so deleting one closure cannot retract
+     * an extension granted for an unrelated change.
      */
-    private static function restoreDueDates(\mysqli $db, self $calendar, string $today, ?int $operatorId): int
+    public static function restoreDueDates(\mysqli $db, self $previous, ?int $operatorId = null): void
     {
-        if (!Features::enabled('closures_calendar')) {
-            return 0;
-        }
+        $calendar = self::forDb($db);
+        $today = DateHelper::today();
         $stmt = $db->prepare(
             "SELECT p.id, p.libro_id, p.data_scadenza, c.sede_id
              FROM prestiti p
              LEFT JOIN copie c ON c.id = p.copia_id
              WHERE p.attivo = 1 AND p.stato IN ('in_corso', 'da_ritirare', 'prenotato')
-               AND p.data_scadenza IS NOT NULL AND p.data_scadenza > ?
+               AND p.data_scadenza > ?
                AND EXISTS (
                    SELECT 1 FROM log_modifiche l
                    WHERE l.tabella = 'libri' AND l.record_id = p.libro_id
                      AND l.dati_nuovi LIKE '%loan.due_moved%'
-               )"
+               )
+             ORDER BY p.libro_id, p.id"
         );
-        if ($stmt === false) {
-            return 0;
-        }
         $stmt->bind_param('s', $today);
         $stmt->execute();
         $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
         $stmt->close();
 
-        $restored = 0;
+        $withWarningDay = self::hasWarningSentFor($db);
         foreach ($rows as $row) {
             $id = (int) $row['id'];
             $bookId = (int) $row['libro_id'];
-            $due = substr((string) $row['data_scadenza'], 0, 10);
+            $branch = $row['sede_id'] === null ? null : (int) $row['sede_id'];
+            $due = (string) $row['data_scadenza'];
             $original = self::originalDueDate($db, $bookId, $id, $due);
-            if ($original === null) {
+            if ($original === null || $calendar->nextOpenDay($original, $branch) >= $previous->nextOpenDay($original, $branch)) {
                 continue;
             }
-            $target = $calendar->nextOpenDay($original, $row['sede_id'] !== null ? (int) $row['sede_id'] : null);
-            if ($target >= $due || $target < $today) {
-                continue;
-            }
-            self::withBookLock($db, $bookId, static function () use ($db, $id, $due, $target, $operatorId, &$restored): void {
-                $before = ActivityLog::loadLoanSnapshot($db, $id, lockingRead: true);
-                // A pickup deadline never runs past the due date.
-                $update = $db->prepare(
-                    "UPDATE prestiti SET data_scadenza = ?, warning_sent = 0,
-                            pickup_deadline = IF(pickup_deadline IS NOT NULL AND pickup_deadline > ?, ?, pickup_deadline)
-                     WHERE id = ? AND attivo = 1 AND data_scadenza = ? AND stato IN ('in_corso', 'da_ritirare', 'prenotato')"
+
+            self::withBookLock($db, $bookId, static function () use ($db, $calendar, $previous, $today, $id, $bookId, $operatorId, $withWarningDay): void {
+                // A failed current read must abort the transaction. In
+                // particular, MariaDB 1020 may have already rolled it back.
+                $stmt = $db->prepare(
+                    "SELECT p.data_prestito, p.data_scadenza, c.sede_id
+                     FROM prestiti p LEFT JOIN copie c ON c.id = p.copia_id
+                     WHERE p.id = ? AND p.libro_id = ? AND p.attivo = 1 AND p.data_scadenza > ?
+                       AND p.stato IN ('in_corso', 'da_ritirare', 'prenotato') FOR UPDATE"
                 );
-                $update->bind_param('sssis', $target, $target, $target, $id, $due);
-                $update->execute();
-                $changed = $update->affected_rows > 0;
-                $update->close();
-                if ($changed) {
-                    ActivityLog::recordLoanEvent($db, $id, 'loan.due_restored', $before, 'aggiornamento', 'calendar', $operatorId);
-                    $restored++;
+                $stmt->bind_param('iis', $id, $bookId, $today);
+                $stmt->execute();
+                $current = $stmt->get_result()->fetch_assoc();
+                $stmt->close();
+                if ($current === null) {
+                    return;
                 }
+                $due = (string) $current['data_scadenza'];
+                $original = self::originalDueDate($db, $bookId, $id, $due, lockingRead: true);
+                if ($original === null) {
+                    return;
+                }
+                $branch = $current['sede_id'] === null ? null : (int) $current['sede_id'];
+                $target = $calendar->nextOpenDay($original, $branch);
+                if ($target >= $due || $target >= $previous->nextOpenDay($original, $branch)
+                    || $target < max($today, (string) $current['data_prestito']) || !$calendar->isOpen($target, $branch)) {
+                    return;
+                }
+
+                $before = ActivityLog::loadLoanSnapshot($db, $id, lockingRead: true, strict: true);
+                $warning = $withWarningDay
+                    ? 'warning_sent = IF(warning_sent_for <=> ?, warning_sent, 0), warning_sent_for = IF(warning_sent_for <=> ?, warning_sent_for, NULL)'
+                    : 'warning_sent = 0';
+                $update = $db->prepare(
+                    "UPDATE prestiti SET data_scadenza = ?, {$warning},
+                            pickup_deadline = LEAST(pickup_deadline, ?)
+                     WHERE id = ?"
+                );
+                if ($withWarningDay) {
+                    $update->bind_param('ssssi', $target, $target, $target, $target, $id);
+                } else {
+                    $update->bind_param('ssi', $target, $target, $id);
+                }
+                $update->execute();
+                $update->close();
+                ActivityLog::recordLoanEvent($db, $id, 'loan.due_restored', $before, source: 'calendar', operatorId: $operatorId, strict: true);
             });
         }
-        return $restored;
     }
 
     /**
-     * The due date a loan had before the calendar moved it: the start of the
-     * unbroken chain of 'loan.due_moved' entries ending on $due, newest
-     * first. Null when the last change to the due date was not a calendar
-     * move (or the history cannot be read).
+     * Walk backwards through both moves and partial restores. An unrelated
+     * change to the due date breaks the chain, even if it changed back later.
      */
-    private static function originalDueDate(\mysqli $db, int $bookId, int $loanId, string $due): ?string
+    private static function originalDueDate(\mysqli $db, int $bookId, int $loanId, string $due, bool $lockingRead = false): ?string
     {
-        try {
-            $stmt = $db->prepare(
-                "SELECT dati_precedenti, dati_nuovi FROM log_modifiche
-                 WHERE tabella = 'libri' AND record_id = ?
-                   AND (dati_nuovi LIKE '%loan.due_moved%' OR dati_nuovi LIKE '%loan.due_restored%')
-                 ORDER BY id DESC"
-            );
-            $stmt->bind_param('i', $bookId);
-            $stmt->execute();
-            $entries = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
-            $stmt->close();
-        } catch (\Throwable $e) {
-            SecureLogger::warning('Calendar: history of loan ' . $loanId . ' not read: ' . $e->getMessage());
-            return null;
-        }
+        $stmt = $db->prepare(
+            "SELECT dati_precedenti, dati_nuovi FROM log_modifiche
+             WHERE tabella = 'libri' AND record_id = ? AND dati_nuovi LIKE '%loan.%'
+             ORDER BY id DESC" . ($lockingRead ? ' LOCK IN SHARE MODE' : '')
+        );
+        $stmt->bind_param('i', $bookId);
+        $stmt->execute();
+        $entries = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+        $stmt->close();
         $current = $due;
-        $original = null;
+        $moved = false;
         foreach ($entries as $entry) {
             $after = json_decode((string) $entry['dati_nuovi'], true);
             $prior = json_decode((string) $entry['dati_precedenti'], true);
-            if (!is_array($after) || (int) ($after['_activity']['entity_id'] ?? 0) !== $loanId) {
+            $event = $after['_activity']['event'] ?? '';
+            if (!str_starts_with((string) $event, 'loan.') || (int) ($after['_activity']['entity_id'] ?? 0) !== $loanId) {
                 continue;
             }
-            // A restore ends the chain: what came before it is already undone.
-            if (($after['_activity']['event'] ?? '') !== 'loan.due_moved') {
+            $to = (string) ($after['data_scadenza'] ?? '');
+            $from = (string) ($prior['data_scadenza'] ?? '');
+            if ($to !== $current || !DateHelper::isISODateFormat($from)) {
                 break;
             }
-            $to = substr((string) ($after['data_scadenza'] ?? ''), 0, 10);
-            $from = is_array($prior) ? substr((string) ($prior['data_scadenza'] ?? ''), 0, 10) : '';
-            if ($to !== $current || !DateHelper::isISODateFormat($from) || $from >= $to) {
+            if ($from === $to) {
+                continue;
+            }
+            if (!(($event === 'loan.due_moved' && $from < $to) || ($event === 'loan.due_restored' && $from > $to))) {
                 break;
             }
-            $original = $from;
+            $moved = $moved || $event === 'loan.due_moved';
             $current = $from;
         }
-        return $original;
+        return $moved && $current < $due ? $current : null;
     }
 
     /**
@@ -956,6 +964,17 @@ final class LibraryCalendar
      */
     public static function requestScope(\mysqli $db, int $bookId, bool $lockingRead = false): int|array|null
     {
+        $branches = self::requestCopyBranches($db, $bookId, $lockingRead);
+        if ($branches === [] || in_array(null, $branches, true)) {
+            return null;
+        }
+        $branches = array_map('intval', $branches);
+        return count($branches) === 1 ? $branches[0] : $branches;
+    }
+
+    /** @return list<?int> Branches of lendable copies, including unlocated copies. */
+    public static function requestCopyBranches(\mysqli $db, int $bookId, bool $lockingRead = false): array
+    {
         $lendable = (new \App\Services\CirculationPolicy($db))->lendableCopySql('');
         $distinct = $lockingRead ? '' : 'DISTINCT ';
         $lock = $lockingRead ? ' FOR UPDATE' : '';
@@ -965,12 +984,9 @@ final class LibraryCalendar
         );
         $stmt->bind_param('i', $bookId);
         $stmt->execute();
-        $branches = array_values(array_unique(array_column($stmt->get_result()->fetch_all(MYSQLI_NUM), 0), SORT_REGULAR));
+        $branches = array_unique(array_column($stmt->get_result()->fetch_all(MYSQLI_NUM), 0), SORT_STRING);
         $stmt->close();
-        if ($branches === [] || in_array(null, $branches, true)) {
-            return null;
-        }
-        return count($branches) === 1 ? (int) $branches[0] : array_map('intval', $branches);
+        return array_values(array_map(static fn (mixed $branch): ?int => $branch === null ? null : (int) $branch, $branches));
     }
 
     /**

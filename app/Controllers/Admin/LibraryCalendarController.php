@@ -262,6 +262,8 @@ class LibraryCalendarController
             $_SESSION['error_message'] = __('Le festività si modificano dalla selezione delle festività nazionali.');
             return $this->back($response);
         }
+        $data = (array) $request->getParsedBody();
+        $undoExtensions = ($data['undo_extensions'] ?? null) === '1';
         $deleted = false;
         $error = $this->commitChange($db, static function () use ($db, $id, &$deleted): ?string {
             $stmt = $db->prepare('DELETE FROM calendario_chiusure WHERE id = ?');
@@ -269,8 +271,8 @@ class LibraryCalendarController
             $stmt->execute();
             $deleted = $stmt->affected_rows > 0;
             $stmt->close();
-            return null;
-        });
+            return $deleted ? null : __('Chiusura non trovata.');
+        }, undoExtensions: $undoExtensions);
         if ($error !== null) {
             $_SESSION['error_message'] = $error;
             return $this->back($response);
@@ -602,7 +604,7 @@ class LibraryCalendarController
      *
      * @param callable(): ?string $write
      */
-    private function commitChange(\mysqli $db, callable $write): ?string
+    private function commitChange(\mysqli $db, callable $write, bool $undoExtensions = false): ?string
     {
         $lockName = $this->lockName($db);
         try {
@@ -621,10 +623,14 @@ class LibraryCalendarController
         try {
             $db->begin_transaction();
             try {
+                $previous = $undoExtensions ? LibraryCalendar::forDb($db) : null;
                 $error = $write();
                 if ($error === null) {
                     // The due date and deadline moves read the new calendar.
                     LibraryCalendar::reset();
+                    if ($previous !== null) {
+                        LibraryCalendar::restoreDueDates($db, $previous);
+                    }
                     LibraryCalendar::extendDueDates($db);
                     LibraryCalendar::extendPickupDeadlines($db);
                     LibraryCalendar::bumpRevision($db);

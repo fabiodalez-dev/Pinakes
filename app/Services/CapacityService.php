@@ -48,32 +48,7 @@ final class CapacityService
      * Current reads must see commitments confirmed after an earlier calendar
      * read established a REPEATABLE READ snapshot on the same connection.
      */
-    /**
-     * When true, an unreturned overdue loan counts until today only (see
-     * hasFreeQueueCapacity()). Off for every gate that binds a copy.
-     */
-    private bool $overdueUntilToday = false;
-
     public function __construct(private mysqli $db, private bool $lockingReads = false) {}
-
-    /**
-     * hasFreeCapacity() for a place in the waiting queue. A queue reservation
-     * holds no copy: it is promoted only when a copy is really back. So an
-     * overdue loan, whose return date nobody knows, blocks the queue until
-     * today and not for ever — otherwise nobody could ever queue for a book
-     * whose reader is late, which is when the queue is needed most. Every
-     * other commitment (loans, scheduled loans, other queued windows) counts
-     * exactly as in hasFreeCapacity().
-     */
-    public function hasFreeQueueCapacity(int $libroId, string $start, string $end, ?int $excludeUserId = null): bool
-    {
-        $this->overdueUntilToday = true;
-        try {
-            return $this->hasFreeCapacity($libroId, $start, $end, excludeUserId: $excludeUserId);
-        } finally {
-            $this->overdueUntilToday = false;
-        }
-    }
 
     /**
      * Lendable physical copies of a book (the capacity ceiling). If the book has
@@ -150,10 +125,11 @@ final class CapacityService
         ?int $excludeReservationId = null,
         ?int $excludeUserId = null,
         ?int $excludeReservationsAfterQueuePos = null,
-        ?string $excludeQueueTailStartingBy = null
+        ?string $excludeQueueTailStartingBy = null,
+        bool $forQueue = false
     ): int {
         $intervals = array_merge(
-            $this->holdingLoanIntervals($libroId, $start, $end, $excludePrestitoId, $excludeUserId),
+            $this->holdingLoanIntervals($libroId, $start, $end, $excludePrestitoId, $excludeUserId, forQueue: $forQueue),
             $this->activeReservationIntervals($libroId, $start, $end, $excludeReservationId, $excludeUserId, $excludeReservationsAfterQueuePos, $excludeQueueTailStartingBy)
         );
         return $this->sweepPeak($intervals);
@@ -161,6 +137,8 @@ final class CapacityService
 
     /**
      * True iff OCC(b,[s,e]) < totalCopies(b) for every day in [s,e].
+     * A queue entry never binds a copy; forQueue counts a late copy through
+     * today only. Promotion and lending still block that copy until return.
      *
      * @phpstan-impure Reads live prestiti/prenotazioni/copie state: two identical
      * calls can legitimately differ (e.g. a pre-lock check vs a post-lock recheck
@@ -174,13 +152,14 @@ final class CapacityService
         ?int $excludeReservationId = null,
         ?int $excludeUserId = null,
         ?int $excludeReservationsAfterQueuePos = null,
-        ?string $excludeQueueTailStartingBy = null
+        ?string $excludeQueueTailStartingBy = null,
+        bool $forQueue = false
     ): bool {
         $total = $this->totalCopies($libroId);
         if ($total <= 0) {
             return false;
         }
-        $occ = $this->occupiedCount($libroId, $start, $end, $excludePrestitoId, $excludeReservationId, $excludeUserId, $excludeReservationsAfterQueuePos, $excludeQueueTailStartingBy);
+        $occ = $this->occupiedCount($libroId, $start, $end, $excludePrestitoId, $excludeReservationId, $excludeUserId, $excludeReservationsAfterQueuePos, $excludeQueueTailStartingBy, $forQueue);
         return $occ < $total;
     }
 
@@ -324,7 +303,8 @@ final class CapacityService
         string $end,
         ?int $excludeUserId = null,
         ?int $excludePrestitoId = null,
-        ?int $excludeReservationId = null
+        ?int $excludeReservationId = null,
+        bool $forQueue = false
     ): array {
         $days = $this->enumerateDays($start, $end);
         if ($days === []) {
@@ -339,7 +319,7 @@ final class CapacityService
         // from this list (LoanWindow) never counts the row being approved,
         // edited or moved as its own conflict.
         $intervals = array_merge(
-            $this->holdingLoanIntervals($libroId, $start, $end, $excludePrestitoId, $excludeUserId),
+            $this->holdingLoanIntervals($libroId, $start, $end, $excludePrestitoId, $excludeUserId, forQueue: $forQueue),
             $this->activeReservationIntervals($libroId, $start, $end, $excludeReservationId, $excludeUserId)
         );
 
@@ -416,7 +396,8 @@ final class CapacityService
         string $end,
         ?int $excludeUserId = null,
         ?int $excludePrestitoId = null,
-        ?int $excludeReservationId = null
+        ?int $excludeReservationId = null,
+        bool $forQueue = false
     ): ?string {
         if ($end < $start) {
             return null;
@@ -426,7 +407,7 @@ final class CapacityService
             return $start;
         }
         $intervals = array_merge(
-            $this->holdingLoanIntervals($libroId, $start, $end, $excludePrestitoId, $excludeUserId),
+            $this->holdingLoanIntervals($libroId, $start, $end, $excludePrestitoId, $excludeUserId, forQueue: $forQueue),
             $this->activeReservationIntervals($libroId, $start, $end, $excludeReservationId, $excludeUserId)
         );
         $events = [];
@@ -478,7 +459,7 @@ final class CapacityService
      * @param (callable(int, string, string): void)|null $onCopyInterval
      * @return list<array{0:string,1:string}>
      */
-    private function holdingLoanIntervals(int $libroId, string $start, string $end, ?int $excludePrestitoId, ?int $excludeUserId, ?int $copyId = null, ?callable $onCopyInterval = null): array
+    private function holdingLoanIntervals(int $libroId, string $start, string $end, ?int $excludePrestitoId, ?int $excludeUserId, ?int $copyId = null, ?callable $onCopyInterval = null, bool $forQueue = false): array
     {
         // An unreturned overdue loan has no known end yet. Its contractual due
         // date is in the past, but the physical copy remains out of the library:
@@ -511,7 +492,7 @@ final class CapacityService
         // A loan whose stored day is closed ends on the next open day, which the
         // reader is told, even when the move was refused and the row kept its
         // date. With a calendar, a stored day before the window can still reach it.
-        $params = [$start, $today, $this->overdueUntilToday ? $today : $end, $end, $libroId, $end, $today, $hasCalendar ? '1000-01-01' : $start];
+        $params = [$start, $today, $forQueue ? $today : $end, $end, $libroId, $end, $today, $hasCalendar ? '1000-01-01' : $start];
         if ($excludePrestitoId !== null) {
             $sql .= ' AND p.id <> ?';
             $types .= 'i';
@@ -527,7 +508,7 @@ final class CapacityService
             $types .= 'i';
             $params[] = $copyId;
         }
-        return $this->fetchIntervals($sql, $types, $params, $end, today: $today, onCopyInterval: $onCopyInterval);
+        return $this->fetchIntervals($sql, $types, $params, $end, today: $today, onCopyInterval: $onCopyInterval, forQueue: $forQueue);
     }
 
     /** Whether this physical copy has a commitment in the inclusive window. */
@@ -709,7 +690,7 @@ final class CapacityService
      * @param (callable(int, string, string): void)|null $onCopyInterval
      * @return list<array{0:string,1:string}>
      */
-    private function fetchIntervals(string $sql, string $types, array $params, ?string $windowEnd = null, ?int $reservationBookId = null, ?string $today = null, ?callable $onCopyInterval = null): array
+    private function fetchIntervals(string $sql, string $types, array $params, ?string $windowEnd = null, ?int $reservationBookId = null, ?string $today = null, ?callable $onCopyInterval = null, bool $forQueue = false): array
     {
         if ($this->lockingReads) {
             $sql .= ' FOR UPDATE';
@@ -735,7 +716,7 @@ final class CapacityService
                 $copyId = $row['stored_copy'] !== null ? (int) $row['stored_copy'] : null;
                 $scheduledBookId = $row['loan_state'] === 'prenotato' ? (int) $row['loan_book'] : null;
                 $e = $row['loan_state'] === 'in_corso' && $today !== null && \App\Support\LibraryCalendar::isPastDue($this->db, $storedDue, $copyId, $today)
-                    ? $windowEnd
+                    ? ($forQueue ? min($today, $windowEnd) : $windowEnd)
                     : min(\App\Support\LibraryCalendar::holdingEnd($this->db, $storedDue, $copyId, $scheduledBookId, $this->lockingReads), $windowEnd);
             }
             if ($windowEnd !== null && isset($row['reservation_due'])) {

@@ -391,7 +391,14 @@ test.describe('Loans 120 · reservations and the queue', () => {
     lab.recount(book);
     const start = addDays(monday, -6);
     const first = await lab.readerRequest(pages.anna, book, { start });
-    test.skip(first.ok, 'the calendar already shortened the period by itself');
+    if (first.ok) {
+      expect(first.pickedEnd).toBeTruthy();
+      expect(lab.isOpen(first.pickedEnd), 'the calendar proposes an open return day').toBe(true);
+      expect(first.pickedEnd < monday, 'the accepted period ends before the next loan').toBe(true);
+      expect(first.body.end_date).toBe(first.pickedEnd);
+      lab.expectCoherent(book);
+      return;
+    }
     const proposed = first.body.max_end_date || '';
     expect(proposed, `refusal carries no proposal: ${JSON.stringify(first.body)}`).not.toBe('');
     expect(lab.isOpen(proposed), `the proposed last day ${proposed} is a day the library is closed`).toBe(true);

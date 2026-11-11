@@ -349,7 +349,7 @@ unset($workspaceHeader);
     for (let i = 1; i <= defaultLoanDays; i++) {
       const day = addDaysToIso(startIso, i);
       const info = availabilityByDate[day];
-      if (info && info.state !== 'free') { firstBlocked = day; break; }
+      if (info && info.state !== 'free' && info.state !== 'waitlist') { firstBlocked = day; break; }
     }
     if (firstBlocked === null) {
       return { endDate: addDaysToIso(startIso, defaultLoanDays), maxDays: defaultLoanDays, firstBlocked: null, capped: false };

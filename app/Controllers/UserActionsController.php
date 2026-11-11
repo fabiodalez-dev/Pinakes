@@ -625,12 +625,12 @@ class UserActionsController
 
             // Canonical peak-capacity check, excluding the row being moved.
             $capacity = new \App\Services\CapacityService($db);
-            if (!$capacity->hasFreeCapacity($libroId, $startDate, $endDate, excludeReservationId: $rid, excludeUserId: $uid)) {
+            if (!$capacity->hasFreeCapacity($libroId, $startDate, $endDate, excludeReservationId: $rid, excludeUserId: $uid, forQueue: true)) {
                 $db->rollback();
                 // Say how long a loan from the new date could be (LoanWindow),
                 // as every other capacity refusal does. excludeUserId leaves
                 // out the moved row itself, which belongs to this user.
-                $blocked = $capacity->unavailableDatesInRange($libroId, $startDate, $endDate, $uid, null, $rid);
+                $blocked = $capacity->unavailableDatesInRange($libroId, $startDate, $endDate, $uid, null, $rid, forQueue: true);
                 $query = http_build_query(['error' => 'not_available'] + \App\Support\LoanWindow::redirectParams($startDate, $blocked));
                 return $response->withHeader('Location', RouteTranslator::route('reservations') . '?' . $query)->withStatus(302);
             }
@@ -1086,9 +1086,9 @@ class UserActionsController
                 $db->rollback();
                 return $this->back($response, ['reserve_error' => 'not_available']);
             }
-            if (!$capacity->hasFreeCapacity($libroId, $start, $end, excludeUserId: $utenteId)) {
+            if (!$capacity->hasFreeCapacity($libroId, $start, $end, excludeUserId: $utenteId, forQueue: true)) {
                 $db->rollback();
-                $blocked = $capacity->unavailableDatesInRange($libroId, $start, $end, $utenteId);
+                $blocked = $capacity->unavailableDatesInRange($libroId, $start, $end, $utenteId, forQueue: true);
                 return $this->back($response, ['reserve_error' => 'not_available']
                     + \App\Support\LoanWindow::redirectParams($start, $blocked));
             }

@@ -412,7 +412,8 @@ class ReservationManager
                         'reservation.promoted',
                         $activityBefore,
                         source: 'promotion',
-                        operatorId: \App\Support\ActivityLog::SYSTEM_OPERATOR
+                        operatorId: \App\Support\ActivityLog::SYSTEM_OPERATOR,
+                        promotedLoanId: (int) $loanCreated
                     );
 
                     $this->commitIfOwned($ownTransaction);
@@ -991,24 +992,40 @@ class ReservationManager
         // "Adesso" applicativo (M9) come base della finestra di recupero
         $cutoff = date('Y-m-d H:i:s', strtotime(\App\Support\DateHelper::now() . ' -7 days'));
 
+        // A retry must come from a real transition of this reservation, not
+        // another loan for the same reader/title. New promotions record the
+        // exact loan ID; older ones can be retried only if their timestamp
+        // identifies a single possible loan. An unrelated metadata edit on
+        // the completed reservation does not replace its status transition.
         $stmt = $this->db->prepare("
-            SELECT r.*, u.email, u.nome, u.cognome
+            SELECT r.*, u.email, u.nome, u.cognome, pr.id AS prestito_id
             FROM prenotazioni r
             JOIN utenti u ON r.utente_id = u.id
-            WHERE r.stato = 'completata'
-            AND r.notifica_inviata = 0
-            AND COALESCE(r.data_inizio_richiesta, DATE(r.data_scadenza_prenotazione)) IS NOT NULL
-            -- Solo una prenotazione davvero promossa ha un libro da ritirare:
-            -- una 'completata' impostata a mano dall'admin, senza prestito
-            -- dietro, non deve annunciare al lettore un libro ancora fuori.
-            AND EXISTS (
-                SELECT 1 FROM prestiti pr
-                WHERE pr.libro_id = r.libro_id AND pr.utente_id = r.utente_id
-                  AND pr.origine = 'prenotazione'
-                  AND ((pr.attivo = 0 AND pr.stato = 'pendente')
-                       OR (pr.attivo = 1 AND pr.stato IN ('prenotato', 'da_ritirare', 'in_corso', 'in_ritardo')))
-            )
-            AND r.updated_at >= ?
+            JOIN log_modifiche promoted ON promoted.id = (
+                SELECT l.id FROM log_modifiche l
+                WHERE l.tabella = 'libri' AND l.record_id = r.libro_id
+                  AND JSON_UNQUOTE(JSON_EXTRACT(IF(JSON_VALID(l.dati_nuovi), l.dati_nuovi, '{}'), '$._activity.event')) LIKE 'reservation.%'
+                  AND JSON_UNQUOTE(JSON_EXTRACT(IF(JSON_VALID(l.dati_nuovi), l.dati_nuovi, '{}'), '$._activity.entity_id')) = CAST(r.id AS CHAR)
+                  AND NOT (
+                      JSON_UNQUOTE(JSON_EXTRACT(IF(JSON_VALID(l.dati_precedenti), l.dati_precedenti, '{}'), '$.stato'))
+                      <=> JSON_UNQUOTE(JSON_EXTRACT(IF(JSON_VALID(l.dati_nuovi), l.dati_nuovi, '{}'), '$.stato'))
+                  )
+                ORDER BY l.id DESC LIMIT 1
+            ) AND JSON_UNQUOTE(JSON_EXTRACT(IF(JSON_VALID(promoted.dati_nuovi), promoted.dati_nuovi, '{}'), '$._activity.event')) = 'reservation.promoted'
+            JOIN prestiti pr ON pr.id = COALESCE(
+                CAST(JSON_UNQUOTE(JSON_EXTRACT(IF(JSON_VALID(promoted.dati_nuovi), promoted.dati_nuovi, '{}'), '$._activity.promoted_loan_id')) AS UNSIGNED),
+                (
+                    SELECT IF(COUNT(*) = 1, MAX(legacy.id), NULL) FROM prestiti legacy
+                    WHERE legacy.libro_id = r.libro_id AND legacy.utente_id = r.utente_id AND legacy.origine = 'prenotazione'
+                      AND legacy.created_at BETWEEN GREATEST(r.created_at, promoted.data_modifica - INTERVAL 10 MINUTE)
+                                                AND promoted.data_modifica
+                )
+            ) AND pr.libro_id = r.libro_id AND pr.utente_id = r.utente_id AND pr.origine = 'prenotazione'
+            WHERE r.stato = 'completata' AND r.notifica_inviata = 0
+              AND ((pr.attivo = 0 AND pr.stato = 'pendente')
+                   OR (pr.attivo = 1 AND pr.stato IN ('prenotato', 'da_ritirare', 'in_corso', 'in_ritardo')))
+              AND COALESCE(r.data_inizio_richiesta, DATE(r.data_scadenza_prenotazione)) IS NOT NULL
+              AND r.updated_at >= ?
             ORDER BY r.updated_at ASC
             LIMIT ?
         ");

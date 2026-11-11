@@ -675,7 +675,10 @@ Locale-aware variant registered per active locale via
 `RouteTranslator::getRouteForLocale('api_book', $locale)` (e.g.
 `/api/libro/{id}/availability` in Italian, `/api/book/{id}/availability` in
 English). Returns `unavailable_dates`, `earliest_available` and the per-day
-`days` array over a 180-day window.
+`days` array over a 180-day window. A day with state `waitlist` still has no
+physical copy available and remains in `unavailable_dates`, but a reader can
+request a place in the queue for that day. `earliest_queue` gives the first
+such start date, or `null`.
 
 ### Calendar export: `GET /calendar/events.ics`
 

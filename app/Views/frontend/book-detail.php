@@ -1805,6 +1805,7 @@ document.addEventListener('DOMContentLoaded', function() {
                   }
                   return acc;
                 }, {});
+                disabledDates = disabledDates.filter(day => availabilityByDate[day]?.state !== 'waitlist');
                 // The last start day sets maxDate: the days run past it so a
                 // late start still has data for its whole loan window.
                 const startUntil = String(availData.availability.start_until || '');

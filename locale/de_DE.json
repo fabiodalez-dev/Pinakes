@@ -9333,5 +9333,8 @@
   "Scadenza ripristinata: la chiusura che l'aveva spostata non c'è più": "Fälligkeit wiederhergestellt: Die Schließung, die sie verschoben hatte, gibt es nicht mehr",
   "Errore: il libro è già in prestito, la data di inizio non può essere spostata dopo oggi.": "Fehler: Das Buch ist bereits ausgeliehen, das Startdatum kann nicht nach heute verschoben werden.",
   "Da ritirare entro il %s": "Abzuholen bis %s",
-  "Copia ancora fuori per un ritardo: da questo giorno puoi metterti in coda": "Exemplar wegen Verspätung noch ausgeliehen: ab diesem Tag können Sie sich vormerken"
+  "Copia ancora fuori per un ritardo: da questo giorno puoi metterti in coda": "Exemplar wegen Verspätung noch ausgeliehen: ab diesem Tag können Sie sich vormerken",
+  "Eliminare la chiusura e anticipare le scadenze che aveva prorogato?": "Die Schließung löschen und die dadurch verlängerten Rückgabefristen vorziehen?",
+  "Correggi chiusura errata": "Fehlerhafte Schließung korrigieren",
+  "Elimina e ripristina le scadenze": "Löschen und Rückgabefristen wiederherstellen"
 }

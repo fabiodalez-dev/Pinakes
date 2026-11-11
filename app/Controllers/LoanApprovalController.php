@@ -270,11 +270,18 @@ class LoanApprovalController
             // book's branches. A pinned copy may fail and have to be replaced.
             $branch = $calendar->hasRules() ? \App\Support\LibraryCalendar::requestScope($db, $libroId, lockingRead: true) : null;
             $usableDue = $dataScadenza !== null ? $calendar->nextOpenDay($dataScadenza, $branch) : null;
-            // With closures the usable return day is the earliest open day
-            // across the book's branches: past even there, the window is over
-            // whatever copy is picked, and the reader is told so rather than
-            // "no copy available".
-            if ($usableDue !== null && $usableDue !== '' && $usableDue < $today) {
+            // The earliest return day is useful for capacity below, but
+            // cannot expire the request while a different branch can serve it.
+            $expired = $usableDue !== null && $usableDue !== '' && $usableDue < $today;
+            if ($expired && $calendar->hasRules()) {
+                foreach (\App\Support\LibraryCalendar::requestCopyBranches($db, $libroId, lockingRead: true) as $copyBranch) {
+                    if ($calendar->nextOpenDay((string) $dataScadenza, $copyBranch) >= $today) {
+                        $expired = false;
+                        break;
+                    }
+                }
+            }
+            if ($expired) {
                 $db->rollback();
                 $response->getBody()->write(json_encode([
                     'success' => false,

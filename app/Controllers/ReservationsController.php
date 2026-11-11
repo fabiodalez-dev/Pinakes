@@ -91,7 +91,9 @@ class ReservationsController
                     $loanStatus === 'in_ritardo'
                     || ($loanStatus === 'in_corso'
                         && !empty($loan['data_scadenza'])
-                        && $loan['data_scadenza'] < $today)
+                        && \App\Support\LibraryCalendar::isPastDue(
+                            $this->db, (string) $loan['data_scadenza'], $loan['copia_id'] !== null ? (int) $loan['copia_id'] : null, $today
+                        ))
                 )
             ) {
                 // Overdue and not yet returned: the copy is physically still out and its
@@ -112,9 +114,9 @@ class ReservationsController
             }
 
             // Third element: the end that counts for a place in the queue. An
-            // overdue copy is expected back now, so the queue sees it out until
-            // today (CapacityService::hasFreeQueueCapacity()).
-            $loanIntervals[] = [$startDateLoan, $endDateLoan, $overdueOpenEnded ? max($today, (string) $startDateLoan) : $endDateLoan];
+            // overdue copy blocks the queue through today, even though it
+            // blocks the physical copy until it actually comes back.
+            $loanIntervals[] = [$startDateLoan, $endDateLoan, $overdueOpenEnded ? $today : $endDateLoan];
         }
 
         $closedDays = array_fill_keys($closedDates, true);
@@ -151,6 +153,9 @@ class ReservationsController
 
             $available = max(0, $totalCopies - $loaned - $reserved);
             $state = 'free';
+            if ($available <= 0) {
+                $unavailableDates[] = $d;
+            }
             if ($available <= 0 && $d > $today && $totalCopies - $loanedForQueue - $reserved > 0) {
                 // No copy for a loan (an overdue reader still has it), but a
                 // place in the queue from this day: the reader can choose it.
@@ -160,7 +165,6 @@ class ReservationsController
                 }
             } elseif ($available <= 0) {
                 $state = $loaned > 0 ? 'borrowed' : 'reserved';
-                $unavailableDates[] = $d;
             } elseif ($earliestAvailable === null && $d <= $startUntil && !isset($closedDays[$d])) {
                 $earliestAvailable = $d;
             }
@@ -252,8 +256,7 @@ class ReservationsController
 
         // Date validation BEFORE any computation (H2). Without these guards the
         // route accepted past start dates (approved loans born already expired),
-        // inverted ranges (getDateRange() returns [] -> zero conflict checks and
-        // a row with data_scadenza < data_prestito) and unbounded durations (a
+        // inverted ranges (a row with data_scadenza < data_prestito) and unbounded durations (a
         // far end_date makes calculateAvailability iterate per-day for millions
         // of days: memory-exhaustion DoS on an authenticated request).
         $isValidDate = static function ($value): bool {
@@ -312,14 +315,13 @@ class ReservationsController
         // the previous hand-rolled behaviour of not letting the user's own
         // commitments block them.
         $capacity = new \App\Services\CapacityService($this->db);
-        $requestedDates = $this->getDateRange($startDate, $endDate);
+        $forQueue = $capacity->hasPhysicalCopies($bookId);
 
         // A copy out with an overdue reader blocks loans for ever, but not a
         // place in the queue from tomorrow: LoanRequestGate then queues it,
         // since no copy is in the library for the window.
-        if (!$capacity->hasFreeCapacity($bookId, $startDate, $endDate, excludeUserId: $userId)
-            && !$capacity->hasFreeQueueCapacity($bookId, $startDate, $endDate, excludeUserId: $userId)) {
-            $conflictDates = $this->capacityConflictDates($capacity, $bookId, $requestedDates, $userId);
+        if (!$capacity->hasFreeCapacity($bookId, $startDate, $endDate, excludeUserId: $userId, forQueue: $forQueue)) {
+            $conflictDates = $capacity->unavailableDatesInRange($bookId, $startDate, $endDate, $userId, forQueue: $forQueue);
             $response->getBody()->write(json_encode($this->capacityConflictPayload($startDate, $conflictDates)));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
         }
@@ -389,9 +391,10 @@ class ReservationsController
             // Re-check availability after acquiring the canonical book lock.
             // The pre-lock check is only a fast fail; this one closes the race
             // with returns, approvals, cancellations and other reservations.
-            if (!$capacity->hasFreeCapacity($bookId, $startDate, $endDate, excludeUserId: $userId)
-                && !$capacity->hasFreeQueueCapacity($bookId, $startDate, $endDate, excludeUserId: $userId)) {
-                $postLockConflicts = $this->capacityConflictDates($capacity, $bookId, $requestedDates, $userId);
+            $capacity = new \App\Services\CapacityService($this->db, lockingReads: true);
+            $forQueue = $capacity->hasPhysicalCopies($bookId);
+            if (!$capacity->hasFreeCapacity($bookId, $startDate, $endDate, excludeUserId: $userId, forQueue: $forQueue)) {
+                $postLockConflicts = $capacity->unavailableDatesInRange($bookId, $startDate, $endDate, $userId, forQueue: $forQueue);
                 $this->db->rollback();
                 $response->getBody()->write(json_encode($this->capacityConflictPayload($startDate, $postLockConflicts)));
                 return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
@@ -895,44 +898,6 @@ class ReservationsController
             $cap['first_conflict_date']
         );
         return $payload + $cap;
-    }
-
-    /**
-     * Days within $requestedDates for which the book has no free capacity, per the
-     * canonical CapacityService gate. Used only to enrich the client error payload
-     * after the whole-range hasFreeCapacity() decision has already failed, so the
-     * response keeps its previous conflict_dates shape.
-     *
-     * @param list<string> $requestedDates
-     * @return list<string>
-     */
-    private function capacityConflictDates(\App\Services\CapacityService $capacity, int $bookId, array $requestedDates, int $userId): array
-    {
-        if ($requestedDates === []) {
-            return [];
-        }
-        // One interval load for the whole span instead of a per-day query storm.
-        $unavailable = $capacity->unavailableDatesInRange($bookId, min($requestedDates), max($requestedDates), $userId);
-        // Restrict to the actually-requested days (the request set may be sparse).
-        $requestedSet = array_flip($requestedDates);
-        return array_values(array_filter(
-            $unavailable,
-            static fn (string $date): bool => isset($requestedSet[$date])
-        ));
-    }
-
-    private function getDateRange($startDate, $endDate)
-    {
-        $dates = [];
-        $current = new DateTime($startDate);
-        $end = new DateTime($endDate);
-
-        while ($current <= $end) {
-            $dates[] = $current->format('Y-m-d');
-            $current->add(new DateInterval('P1D'));
-        }
-
-        return $dates;
     }
 
     private function getBookTotalCopies(int $bookId): int
