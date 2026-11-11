@@ -25,9 +25,9 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 [![Documentation](https://img.shields.io/badge/Documentazione-Docsify-4285f4?style=for-the-badge&logo=readthedocs&logoColor=white)](https://fabiodalez-dev.github.io/Pinakes/)
 [![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-ffdd00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black)](https://buymeacoffee.com/fabiodalez)
 
-## What's New in v0.9.4
+## What's New in v0.9.5
 
-**The reader app shows the last day to collect a ready loan.** Mobile API 1.12.0: each loan in `GET /me/loans` carries `pickup_deadline` while it waits for pickup, the same day the loan desk shows: the stored pickup day moved to the next open day of the copy's branch, so a closure never shortens it. It is `null` for every other state, and when no pickup day is stored. The Android app 1.14.0 shows it on the reader's loan row. No migration. Full details in **[CHANGELOG.md](CHANGELOG.md)**.
+**Loans and reservations, audited with 120 new browser scenarios.** A book whose reader is late can now be reserved: the days after today are offered as a place in the queue, while the copy stays unavailable for loans. The staff page to edit a reservation works again, a reservation the staff adds for a book on the shelf becomes a loan request at once, and staff can cancel a loan booked for a later date. A closure deleted by mistake can give back the days it added to the loans. The reader's pages show the last day to collect a ready loan ([#533](https://github.com/fabiodalez-dev/Pinakes/pull/533)). Mobile API 1.12.1. No migration. Full details in **[CHANGELOG.md](CHANGELOG.md)**.
 
 ---
 
@@ -53,13 +53,13 @@ The showcase contains 50 catalogue books, 8 desiderata, 3 periodicals with 10 is
 
 Highlights of the two releases before the current one are below; the README never lists more than the last three versions. The full version-by-version history lives in **[CHANGELOG.md](CHANGELOG.md)**.
 
+### v0.9.4
+
+**The reader app shows the last day to collect a ready loan.** Mobile API 1.12.0: each loan in `GET /me/loans` carries `pickup_deadline` while it waits for pickup, the day the loan desk shows, moved to the next open day of the copy's branch. No migration. Full details in **[CHANGELOG.md](CHANGELOG.md)**.
+
 ### v0.9.3
 
 **Reservations follow the closures calendar everywhere, and imports use the scraping pipeline.** A pickup or queue deadline on a closed day gives the reader the whole first open day after it; capacity, the request calendar, approval, activation and pickup all read the same effective return day, so a closure can no longer hand the same days to two readers. CSV and LibraryThing imports, bulk enrichment and cover sync now go through the same lookup as the scraping form, which also accepts an ISBN as typed. No migration. Full details in **[CHANGELOG.md](CHANGELOG.md)**.
-
-### v0.9.2
-
-**The app's visitor log finds a member by name.** Mobile API 1.11.0: `POST /staff/attendance/check-ins` also accepts `user_id`, a member picked from `GET /staff/users` (the borrower search of the loan desk), with the same reach as a scanned card, so a reader who forgot the card can be checked in from the phone as on the web page since 0.9.0. `/health` advertises it as `staff_attendance_member_pick`. No migration. Full details in **[CHANGELOG.md](CHANGELOG.md)**.
 
 Older releases are in **[CHANGELOG.md](CHANGELOG.md)**.
 
