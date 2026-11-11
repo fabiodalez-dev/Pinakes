@@ -9327,5 +9327,16 @@
   "Utente importato, ma l'invito potrebbe essere già stato inviato: se non è arrivato, invialo di nuovo dalla scheda dell'utente.": "User imported, but the invitation may already have been sent: if it did not arrive, send it again from the user record.",
   "Questa ricerca ha raggiunto il numero massimo di importazioni: ripeti la ricerca per continuare.": "This search has reached the maximum number of imports: search again to continue.",
   "Tessera o nome del socio": "Card or member name",
-  "Passa la tessera, digita il codice o cerca il socio per nome": "Scan the card, type its code or search for the member by name"
+  "Passa la tessera, digita il codice o cerca il socio per nome": "Scan the card, type its code or search for the member by name",
+  "Il periodo scelto è già trascorso: una prenotazione attiva deve finire oggi o in un giorno successivo.": "The chosen period has already passed: an active reservation must end today or later.",
+  "Data non valida: modifica non salvata.": "Invalid date: the change was not saved.",
+  "Scadenza ripristinata: la chiusura che l'aveva spostata non c'è più": "Due date restored: the closure that had moved it no longer exists",
+  "Errore: il libro è già in prestito, la data di inizio non può essere spostata dopo oggi.": "Error: the book is already on loan, its start date cannot be moved after today.",
+  "Da ritirare entro il %s": "To collect by %s",
+  "Copia ancora fuori per un ritardo: da questo giorno puoi metterti in coda": "Copy still out with a late reader: from this day you can join the queue",
+  "Eliminare la chiusura e anticipare le scadenze che aveva prorogato?": "Delete the closure and bring forward the due dates it extended?",
+  "Correggi chiusura errata": "Correct an erroneous closure",
+  "Elimina e ripristina le scadenze": "Delete and restore due dates",
+  "La restituzione deve avvenire il giorno stesso (%s).": "Return the book on the same day (%s).",
+  "Scadenza confermata dopo la riapertura": "Due date confirmed after reopening"
 }

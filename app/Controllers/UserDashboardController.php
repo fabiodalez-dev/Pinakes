@@ -153,7 +153,7 @@ class UserDashboardController
 
             // Active loans
             $stmt = $db->prepare("
-                SELECT pr.id, pr.libro_id, pr.copia_id, pr.data_prestito, pr.data_scadenza, pr.stato,
+                SELECT pr.id, pr.libro_id, pr.copia_id, pr.data_prestito, pr.data_scadenza, pr.stato, pr.pickup_deadline,
                        l.titolo, l.copertina_url,
                        EXISTS(SELECT 1 FROM recensioni r WHERE r.libro_id = pr.libro_id AND r.utente_id = ?) AS has_review
                 FROM prestiti pr
@@ -165,6 +165,15 @@ class UserDashboardController
             $stmt->execute();
             $result = $stmt->get_result();
             while ($row = $result->fetch_assoc()) {
+                // The last day to collect a ready loan, as the reader app shows it.
+                $row['effective_pickup_deadline'] = $row['stato'] === 'da_ritirare'
+                    ? \App\Support\LibraryCalendar::effectivePickupDeadline(
+                        $db,
+                        $row['pickup_deadline'] !== null ? (string) $row['pickup_deadline'] : null,
+                        $row['data_scadenza'] !== null ? (string) $row['data_scadenza'] : null,
+                        $row['copia_id'] !== null ? (int) $row['copia_id'] : null
+                    )
+                    : null;
                 $activePrestiti[] = $row + \App\Support\LibraryCalendar::loanDates($db, $row);
             }
             $stmt->close();

@@ -29,6 +29,23 @@ class ReservationManager
         $this->db = $db;
     }
 
+    /** @var \WeakMap<mysqli, bool>|null */
+    private static ?\WeakMap $promotionLinkAvailable = null;
+
+    /**
+     * Updater's SchemaRepair adds this nullable column to existing installs.
+     * Keep the legacy retry path while a database has the older schema.
+     */
+    public static function hasPromotionLink(mysqli $db): bool
+    {
+        self::$promotionLinkAvailable ??= new \WeakMap();
+        return self::$promotionLinkAvailable[$db] ??= $db->query(
+            "SELECT 1 FROM information_schema.COLUMNS
+             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'prenotazioni'
+               AND COLUMN_NAME = 'prestito_promosso_id'"
+        )->num_rows === 1;
+    }
+
     /** @var bool Internal flag tracking whether we own the current transaction */
     private bool $inTransaction = false;
 
@@ -376,6 +393,12 @@ class ReservationManager
                     }
                     // The e-mail states this loan's day, not a recomputed one.
                     $nextReservation['prestito_id'] = (int) $loanCreated;
+                    if (self::hasPromotionLink($this->db)) {
+                        $link = $this->db->prepare('UPDATE prenotazioni SET prestito_promosso_id = ? WHERE id = ?');
+                        $link->bind_param('ii', $loanCreated, $nextReservation['id']);
+                        $link->execute();
+                        $link->close();
+                    }
 
                     // BUG9/D4 double-subtraction fix: the reservation is claimed
                     // 'completata' BEFORE createLoanFromReservation() recalcs, so
@@ -412,7 +435,8 @@ class ReservationManager
                         'reservation.promoted',
                         $activityBefore,
                         source: 'promotion',
-                        operatorId: \App\Support\ActivityLog::SYSTEM_OPERATOR
+                        operatorId: \App\Support\ActivityLog::SYSTEM_OPERATOR,
+                        promotedLoanId: (int) $loanCreated
                     );
 
                     $this->commitIfOwned($ownTransaction);
@@ -991,14 +1015,40 @@ class ReservationManager
         // "Adesso" applicativo (M9) come base della finestra di recupero
         $cutoff = date('Y-m-d H:i:s', strtotime(\App\Support\DateHelper::now() . ' -7 days'));
 
+        // New promotions persist the link in the same transaction as the
+        // loan, even if the optional audit write fails. Use audit only to
+        // identify a legacy promotion, never a manual completion.
+        $linkedLoan = self::hasPromotionLink($this->db) ? 'r.prestito_promosso_id' : 'NULL';
         $stmt = $this->db->prepare("
-            SELECT r.*, u.email, u.nome, u.cognome
+            SELECT r.*, u.email, u.nome, u.cognome, pr.id AS prestito_id
             FROM prenotazioni r
             JOIN utenti u ON r.utente_id = u.id
-            WHERE r.stato = 'completata'
-            AND r.notifica_inviata = 0
-            AND COALESCE(r.data_inizio_richiesta, DATE(r.data_scadenza_prenotazione)) IS NOT NULL
-            AND r.updated_at >= ?
+            LEFT JOIN log_modifiche promoted ON {$linkedLoan} IS NULL AND promoted.id = (
+                SELECT l.id FROM log_modifiche l
+                WHERE l.tabella = 'libri' AND l.record_id = r.libro_id
+                  AND JSON_UNQUOTE(JSON_EXTRACT(IF(JSON_VALID(l.dati_nuovi), l.dati_nuovi, '{}'), '$._activity.event')) LIKE 'reservation.%'
+                  AND JSON_UNQUOTE(JSON_EXTRACT(IF(JSON_VALID(l.dati_nuovi), l.dati_nuovi, '{}'), '$._activity.entity_id')) = CAST(r.id AS CHAR)
+                  AND NOT (
+                      JSON_UNQUOTE(JSON_EXTRACT(IF(JSON_VALID(l.dati_precedenti), l.dati_precedenti, '{}'), '$.stato'))
+                      <=> JSON_UNQUOTE(JSON_EXTRACT(IF(JSON_VALID(l.dati_nuovi), l.dati_nuovi, '{}'), '$.stato'))
+                  )
+                ORDER BY l.id DESC LIMIT 1
+            ) AND JSON_UNQUOTE(JSON_EXTRACT(IF(JSON_VALID(promoted.dati_nuovi), promoted.dati_nuovi, '{}'), '$._activity.event')) = 'reservation.promoted'
+            JOIN prestiti pr ON pr.id = COALESCE(
+                {$linkedLoan},
+                CAST(JSON_UNQUOTE(JSON_EXTRACT(IF(JSON_VALID(promoted.dati_nuovi), promoted.dati_nuovi, '{}'), '$._activity.promoted_loan_id')) AS UNSIGNED),
+                (
+                    SELECT IF(COUNT(*) = 1, MAX(legacy.id), NULL) FROM prestiti legacy
+                    WHERE legacy.libro_id = r.libro_id AND legacy.utente_id = r.utente_id AND legacy.origine = 'prenotazione'
+                      AND legacy.created_at BETWEEN GREATEST(r.created_at, promoted.data_modifica - INTERVAL 10 MINUTE)
+                                                AND promoted.data_modifica
+                )
+            ) AND pr.libro_id = r.libro_id AND pr.utente_id = r.utente_id AND pr.origine = 'prenotazione'
+            WHERE r.stato = 'completata' AND r.notifica_inviata = 0
+              AND ((pr.attivo = 0 AND pr.stato = 'pendente')
+                   OR (pr.attivo = 1 AND pr.stato IN ('prenotato', 'da_ritirare', 'in_corso', 'in_ritardo')))
+              AND COALESCE(r.data_inizio_richiesta, DATE(r.data_scadenza_prenotazione)) IS NOT NULL
+              AND r.updated_at >= ?
             ORDER BY r.updated_at ASC
             LIMIT ?
         ");

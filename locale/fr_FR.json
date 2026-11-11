@@ -9327,5 +9327,16 @@
   "Utente importato, ma l'invito potrebbe essere già stato inviato: se non è arrivato, invialo di nuovo dalla scheda dell'utente.": "Utilisateur importé, mais l'invitation a peut-être déjà été envoyée : si elle n'est pas arrivée, renvoyez-la depuis la fiche de l'utilisateur.",
   "Questa ricerca ha raggiunto il numero massimo di importazioni: ripeti la ricerca per continuare.": "Cette recherche a atteint le nombre maximal d'importations : relancez la recherche pour continuer.",
   "Tessera o nome del socio": "Carte ou nom du membre",
-  "Passa la tessera, digita il codice o cerca il socio per nome": "Passez la carte, saisissez son code ou cherchez le membre par son nom"
+  "Passa la tessera, digita il codice o cerca il socio per nome": "Passez la carte, saisissez son code ou cherchez le membre par son nom",
+  "Il periodo scelto è già trascorso: una prenotazione attiva deve finire oggi o in un giorno successivo.": "La période choisie est déjà passée : une réservation active doit se terminer aujourd'hui ou plus tard.",
+  "Data non valida: modifica non salvata.": "Date non valide : la modification n'a pas été enregistrée.",
+  "Scadenza ripristinata: la chiusura che l'aveva spostata non c'è più": "Échéance rétablie : la fermeture qui l'avait déplacée n'existe plus",
+  "Errore: il libro è già in prestito, la data di inizio non può essere spostata dopo oggi.": "Erreur : le livre est déjà prêté, sa date de début ne peut pas être déplacée après aujourd'hui.",
+  "Da ritirare entro il %s": "À retirer avant le %s",
+  "Copia ancora fuori per un ritardo: da questo giorno puoi metterti in coda": "Exemplaire toujours sorti, le lecteur est en retard : à partir de ce jour vous pouvez vous inscrire dans la file",
+  "Eliminare la chiusura e anticipare le scadenze che aveva prorogato?": "Supprimer la fermeture et avancer les dates de retour qu’elle a prolongées ?",
+  "Correggi chiusura errata": "Corriger une fermeture erronée",
+  "Elimina e ripristina le scadenze": "Supprimer et rétablir les dates de retour",
+  "La restituzione deve avvenire il giorno stesso (%s).": "Le livre doit être rendu le jour même (%s).",
+  "Scadenza confermata dopo la riapertura": "Échéance confirmée après la réouverture"
 }

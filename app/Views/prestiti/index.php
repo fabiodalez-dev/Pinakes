@@ -56,6 +56,9 @@ $applicationToday = \App\Support\DateHelper::today();
                     // La parità (prestito a giornata singola) è lecita: solo il range invertito è rifiutato.
                     echo __('Errore: la data di scadenza non può essere precedente alla data di prestito.');
                     break;
+                case 'future_start_out':
+                    echo __('Errore: il libro è già in prestito, la data di inizio non può essere spostata dopo oggi.');
+                    break;
                 case 'expired_window':
                     echo __('Errore: la nuova data di scadenza non può essere nel passato.');
                     break;

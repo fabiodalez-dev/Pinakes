@@ -935,6 +935,7 @@ CREATE TABLE `prenotazioni` (
   `data_scadenza_prenotazione` datetime DEFAULT NULL,
   `queue_position` int DEFAULT NULL,
   `notifica_inviata` tinyint(1) DEFAULT '0',
+  `prestito_promosso_id` int DEFAULT NULL,
   `stato` enum('attiva','completata','annullata') COLLATE utf8mb4_unicode_ci DEFAULT 'attiva',
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,

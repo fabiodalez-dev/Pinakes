@@ -1501,7 +1501,8 @@ $jsTranslationKeys = [
     'Errore nella prenotazione',
     'Tutte le copie in prestito',
     'Tutte le copie prenotate',
-    'Copie disponibili'
+    'Copie disponibili',
+    'Copia ancora fuori per un ritardo: da questo giorno puoi metterti in coda'
 ];
 $jsTranslations = [];
 foreach ($jsTranslationKeys as $key) {
@@ -1691,10 +1692,15 @@ document.addEventListener('DOMContentLoaded', function() {
       // conflict search has to reach that day too.
       const searchDays = daysBetweenIso(startIso, toOpenDayIso(addDaysToIso(startIso, lookAhead), 1, closedSet));
       let firstBlocked = null;
+      // A period that starts on a 'waitlist' day is a place in the queue: the
+      // other waitlist days are open to it. A loan starting on a free day
+      // stops before them, so the reader gets the copy that is there.
+      const startInfo = availabilityByDate[startIso];
+      const queueStart = !!(startInfo && startInfo.state === 'waitlist');
       for (let i = 1; i <= searchDays; i++) {
         const day = addDaysToIso(startIso, i);
         const info = availabilityByDate[day];
-        if (info && info.state !== 'free') {
+        if (info && info.state !== 'free' && !(queueStart && info.state === 'waitlist')) {
           firstBlocked = day;
           break;
         }
@@ -1719,6 +1725,7 @@ document.addEventListener('DOMContentLoaded', function() {
         endDate,
         maxEndDate,
         maxDays: daysBetweenIso(startIso, maxEndDate),
+        hasWindow: maxEndDate >= startIso,
         firstBlocked,
         capped
       };
@@ -1786,6 +1793,11 @@ document.addEventListener('DOMContentLoaded', function() {
               if (availData.availability.earliest_available) {
                 const earliest = String(availData.availability.earliest_available);
                 suggestedDate = /^\d{4}-\d{2}-\d{2}$/.test(earliest) ? earliest : appToday;
+              } else if (availData.availability.earliest_queue) {
+                // No copy free for a loan, but a place in the queue (the reader
+                // who has it is late): suggest its first day.
+                const earliestQueue = String(availData.availability.earliest_queue);
+                suggestedDate = /^\d{4}-\d{2}-\d{2}$/.test(earliestQueue) ? earliestQueue : appToday;
               }
               if (Array.isArray(availData.availability.days)) {
                 availabilityByDate = availData.availability.days.reduce((acc, day) => {
@@ -1794,6 +1806,7 @@ document.addEventListener('DOMContentLoaded', function() {
                   }
                   return acc;
                 }, {});
+                disabledDates = disabledDates.filter(day => availabilityByDate[day]?.state !== 'waitlist');
                 // The last start day sets maxDate: the days run past it so a
                 // late start still has data for its whole loan window.
                 const startUntil = String(availData.availability.start_until || '');
@@ -1841,7 +1854,8 @@ document.addEventListener('DOMContentLoaded', function() {
         const tooltipTexts = {
           borrowed: __('Tutte le copie in prestito'),
           reserved: __('Tutte le copie prenotate'),
-          free: __('Copie disponibili')
+          free: __('Copie disponibili'),
+          waitlist: __('Copia ancora fuori per un ritardo: da questo giorno puoi metterti in coda')
         };
 
         const infoText = __('Le date rosse o arancioni non sono disponibili. La richiesta verrà valutata da un amministratore.');
@@ -1850,21 +1864,25 @@ document.addEventListener('DOMContentLoaded', function() {
         // here, as successRangeTpl is.
         const loanLimitTpl = <?php echo json_encode(__('Durata massima del prestito: %1$d giorni (restituzione entro il %2$s). Dal %3$s il libro è già prenotato.'), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG); ?>;
         const loanLimitOneTpl = <?php echo json_encode(__('Durata massima del prestito: 1 giorno (restituzione entro il %1$s). Dal %2$s il libro è già prenotato.'), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG); ?>;
+        const sameDayTpl = <?php echo json_encode(__('La restituzione deve avvenire il giorno stesso (%s).'), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG); ?>;
         const noWindowTpl = <?php echo json_encode(__('Da questa data di inizio non è possibile alcun prestito: dal %s il libro è già prenotato. Scegli un\'altra data.'), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG); ?>;
         const blockedDayTpl = <?php echo json_encode(__('Giorno non disponibile (%1$s): %2$s'), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG); ?>;
         const maxDurationText = <?php echo json_encode(__('Il periodo richiesto supera la durata massima consentita di %d giorni', (int) max($maxRequestDays, $defaultRequestLoanDays)), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG); ?>;
         const endBeforeStartText = <?php echo json_encode(__('La data di fine non può precedere la data di inizio'), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG); ?>;
-        const loanLimitText = (loanWindow) => loanWindow.maxDays === 1
-          ? loanLimitOneTpl
+        const loanLimitText = (loanWindow) => {
+          if (loanWindow.maxDays === 0) {
+            return sameDayTpl.replace('%s', formatDateIT(loanWindow.maxEndDate));
+          }
+          return loanWindow.maxDays === 1 ? loanLimitOneTpl
               .replace('%1$s', formatDateIT(loanWindow.maxEndDate))
               .replace('%2$s', formatDateIT(loanWindow.firstBlocked))
           : loanLimitTpl
               .replace('%1$d', String(loanWindow.maxDays))
               .replace('%2$s', formatDateIT(loanWindow.maxEndDate))
               .replace('%3$s', formatDateIT(loanWindow.firstBlocked));
-        // The next day is blocked: no loan of at least one day from this start.
+        };
         const noWindowText = (loanWindow) => noWindowTpl.replace('%s', formatDateIT(loanWindow.firstBlocked));
-        const windowText = (loanWindow) => loanWindow.maxDays < 1 ? noWindowText(loanWindow) : loanLimitText(loanWindow);
+        const windowText = (loanWindow) => loanWindow.hasWindow ? loanLimitText(loanWindow) : noWindowText(loanWindow);
         const blockedDayText = (isoDate, state) => blockedDayTpl
           .replace('%1$s', formatDateIT(isoDate))
           .replace('%2$s', tooltipTexts[state] || tooltipTexts.borrowed);
@@ -1980,7 +1998,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
                 if (info) {
                   dayElem.classList.add(`${info.state}-day`);
-                  if (info.state !== 'free') {
+                  if (info.state !== 'free' && info.state !== 'waitlist') {
                     dayElem.classList.add('flatpickr-disabled');
                     dayElem.setAttribute('aria-disabled', 'true');
                     dayElem.tabIndex = -1;
@@ -2002,6 +2020,10 @@ document.addEventListener('DOMContentLoaded', function() {
                     dayElem.style.backgroundColor = '#f0fdf4';
                     dayElem.style.borderColor = '#bbf7d0';
                     dayElem.style.color = '#166534';
+                  } else if (info.state === 'waitlist') {
+                    dayElem.style.backgroundColor = '#fffbeb';
+                    dayElem.style.borderColor = '#fef3c7';
+                    dayElem.style.color = '#b45309';
                   }
                 } else if (Object.keys(availabilityByDate).length > 0) {
                   dayElem.classList.add('available-day');
@@ -2072,7 +2094,7 @@ document.addEventListener('DOMContentLoaded', function() {
               return false;
             }
             const loanWindow = loanWindowFrom(startDate, availabilityByDate, defaultRequestLoanDays, maxRequestLoanDays, closedDaySet);
-            if (loanWindow.firstBlocked !== null && loanWindow.maxDays < 1) {
+            if (loanWindow.firstBlocked !== null && !loanWindow.hasWindow) {
               Swal.showValidationMessage(noWindowText(loanWindow));
               return false;
             }
