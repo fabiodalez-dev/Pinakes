@@ -2,6 +2,40 @@
 
 Full version-by-version history for Pinakes. The README shows only the last three releases; everything older lives here.
 
+## [0.9.5]
+
+A patch release for loans and reservations, from an audit of circulation with 120 new browser scenarios ([#533](https://github.com/fabiodalez-dev/Pinakes/pull/533)). No migration: one nullable column, `prenotazioni.prestito_promosso_id`, is added to existing installs by the schema check that runs after every update.
+
+### Reservations and the queue
+
+- **A book whose reader is late can be reserved.** An overdue copy has no known return day, so the request calendar offered no day at all and nobody could queue for the title. Days after today on which the late loan is the only obstacle are now reported as `waitlist`: the reader's calendar and the staff reservation form let them be chosen, and the request becomes a place in the queue. The copy count is unchanged (`available` stays 0, the days stay in `unavailable_dates`), a loan for those days is still refused, and promotion still waits for the real return. `GET /api/libro/{id}/availability` adds `earliest_queue`, the first such day.
+- **The staff page to edit a reservation works.** It rendered an empty form that posted to reservation 0. An active reservation can no longer be moved to a period that has already passed.
+- **A reservation added by the staff that can be served at once becomes a loan request at once**, as a reader's own request does, instead of waiting for the next maintenance pass.
+- **The "book available" notice follows the loan of the real promotion.** A reservation closed by hand, with no loan behind it, no longer sends the notice. The promotion stores its loan in `prenotazioni.prestito_promosso_id`, so a notice that failed is retried for that loan and no other.
+- **A reservation of one day is accepted**, and the calendar says when the return must be on the same day.
+
+### Loans
+
+- **Staff can cancel a loan booked for a later date** from the pending loans page. A copy held for another reader's pickup is left as it is.
+- **A loan of one day is accepted at the desk**, as it already was in the edit form and in the reader's calendar.
+- **A loan already out cannot be given a start date after today.**
+- **The quick return by copy code keeps the note written on the loan.**
+- **Approving a request whose days have passed says so**, with closures in the calendar too; with several branches the request expires only when no branch holding a copy can still take the return.
+- **The reader's pages show the last day to collect a ready loan.**
+
+### Closures calendar
+
+- **A closure deleted by mistake can give back the days it added.** Deleting a closure keeps the due dates it had moved, as before: the reader was told that day. A second button on each closure, "Elimina e ripristina le scadenze", deletes it and brings those loans back to the first open day after their original due date, never before today or before the loan's start. Both outcomes are written in the loan's history.
+
+### Integrity checks
+
+- The integrity audit tracks physical occupancy and queue occupancy separately and reports the larger of the two.
+
+### Mobile API 1.12.1
+
+- `PUT /staff/loans/{id}` answers 422 `validation_error` on `loaned_at` when a loan already out is given a start date after today; a reservation moved to a period already passed answers 422 `past_date`.
+- A reservation created by the staff and promoted in the same request is still returned by the create call.
+
 ## [0.9.4]
 
 A patch release for the reader app. No migration.
