@@ -14,8 +14,18 @@ const { test, expect } = require('@playwright/test');
 // fines, so it switches it on for its run and puts back what was there.
 const featureToggles = require('./helpers/feature-toggles');
 let featureSnapshot;
-test.beforeAll(async () => { featureSnapshot = await featureToggles.enableFeatures(['fines']); });
-test.afterAll(async () => { await featureToggles.restoreFeatures(featureSnapshot); });
+let calendarSnapshot;
+// The closures calendar is switched off for the run: with closed days the
+// ledger charges open days only, and these tests price fines on calendar
+// days. Closed days have their own suite (fines-closed-days.spec.js).
+test.beforeAll(async () => {
+  featureSnapshot = await featureToggles.enableFeatures(['fines']);
+  calendarSnapshot = await featureToggles.disableFeatures(['closures_calendar']);
+});
+test.afterAll(async () => {
+  await featureToggles.restoreFeatures(calendarSnapshot);
+  await featureToggles.restoreFeatures(featureSnapshot);
+});
 const { execFileSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
