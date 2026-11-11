@@ -19,12 +19,21 @@ let calendarSnapshot;
 // ledger charges open days only, and these tests price fines on calendar
 // days. Closed days have their own suite (fines-closed-days.spec.js).
 test.beforeAll(async () => {
-  featureSnapshot = await featureToggles.enableFeatures(['fines']);
-  calendarSnapshot = await featureToggles.disableFeatures(['closures_calendar']);
+  // Both snapshots are read before anything is written: if a switch fails
+  // half-way (the cache flush after the write), the teardown still knows
+  // what to put back.
+  featureSnapshot = featureToggles.readFeatures(['fines', 'automatic_fines', 'debt_block', 'loss_penalties']);
+  calendarSnapshot = featureToggles.readFeatures(['closures_calendar']);
+  await featureToggles.enableFeatures(['fines']);
+  await featureToggles.disableFeatures(['closures_calendar']);
 });
 test.afterAll(async () => {
-  await featureToggles.restoreFeatures(calendarSnapshot);
-  await featureToggles.restoreFeatures(featureSnapshot);
+  // The fines modules are restored even when restoring the calendar fails.
+  try {
+    await featureToggles.restoreFeatures(calendarSnapshot);
+  } finally {
+    await featureToggles.restoreFeatures(featureSnapshot);
+  }
 });
 const { execFileSync } = require('child_process');
 const fs = require('fs');
