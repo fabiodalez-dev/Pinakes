@@ -48,6 +48,7 @@ final class CirculationOutcome
     /** ② PUT /staff/loans/{id} (PrestitiController::update). */
     public const UPDATE = self::CREATE + [
         'loan_closed'        => [409, 'loan_closed', null, false],
+        'future_start_out'   => [422, 'validation_error', 'loaned_at', false],
         'concurrent_retry'   => [409, 'concurrent_retry', null, false],
         'loan_copy_conflict' => [409, 'not_available', null, true],
         'loan_update_failed' => [500, 'internal_error', null, false],
@@ -93,6 +94,7 @@ final class CirculationOutcome
     public const RESERVATION = [
         'missing_data'         => [422, 'validation_error', 'user_id', false],
         'invalid_date'         => [422, 'validation_error', 'reserved_at', false],
+        'past_dates'           => [422, 'past_date', null, false],
         'invalid_status'       => [422, 'validation_error', 'status', false],
         'book_not_found'       => [404, 'not_found', 'book_id', false],
         'not_found'            => [404, 'not_found', null, false],
@@ -268,9 +270,11 @@ final class CirculationOutcome
         return match ($coreCode) {
             'invalid_date_format', 'invalid_date' => __('Formato data non valido. Usa AAAA-MM-GG.'),
             'invalid_renewal_date'  => __('La data scelta non rientra nel periodo di rinnovo consentito. Aggiorna la pagina e riprova.'),
-            'invalid_dates'         => __('La data di scadenza deve essere successiva alla data di inizio.'),
+            'invalid_dates'         => __('Errore: la data di scadenza non può essere precedente alla data di prestito.'),
             'missing_fields', 'missing_data' => __('Utente e libro sono obbligatori.'),
             'expired_window'        => __('Il periodo indicato è già terminato.'),
+            'past_dates'            => __('Il periodo scelto è già trascorso: una prenotazione attiva deve finire oggi o in un giorno successivo.'),
+            'future_start_out'      => __('Errore: il libro è già in prestito, la data di inizio non può essere spostata dopo oggi.'),
             'book_not_found'        => __('Libro non trovato.'),
             'copy_not_found'        => __('Nessuna copia con questo codice.'),
             'copy_wrong_book'       => __('La copia indicata appartiene a un altro libro.'),
