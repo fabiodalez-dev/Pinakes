@@ -998,6 +998,16 @@ class ReservationManager
             WHERE r.stato = 'completata'
             AND r.notifica_inviata = 0
             AND COALESCE(r.data_inizio_richiesta, DATE(r.data_scadenza_prenotazione)) IS NOT NULL
+            -- Solo una prenotazione davvero promossa ha un libro da ritirare:
+            -- una 'completata' impostata a mano dall'admin, senza prestito
+            -- dietro, non deve annunciare al lettore un libro ancora fuori.
+            AND EXISTS (
+                SELECT 1 FROM prestiti pr
+                WHERE pr.libro_id = r.libro_id AND pr.utente_id = r.utente_id
+                  AND pr.origine = 'prenotazione'
+                  AND ((pr.attivo = 0 AND pr.stato = 'pendente')
+                       OR (pr.attivo = 1 AND pr.stato IN ('prenotato', 'da_ritirare', 'in_corso', 'in_ritardo')))
+            )
             AND r.updated_at >= ?
             ORDER BY r.updated_at ASC
             LIMIT ?

@@ -78,6 +78,7 @@ final class ActivityLog
         'loan.expired' => 'Ritiro del prestito scaduto',
         'loan.overdue' => 'Prestito in ritardo',
         'loan.due_moved' => 'Scadenza spostata: la biblioteca è chiusa quel giorno',
+        'loan.due_restored' => 'Scadenza ripristinata: la chiusura che l\'aveva spostata non c\'è più',
         'loan.lost' => 'Copia dichiarata persa',
         'loan.damaged' => 'Copia dichiarata danneggiata',
         'reservation.created' => 'Prenotazione creata',

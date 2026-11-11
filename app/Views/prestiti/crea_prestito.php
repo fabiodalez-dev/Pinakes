@@ -79,7 +79,7 @@ unset($workspaceHeader);
           echo __('Errore: tutti i campi obbligatori devono essere compilati.');
           break;
         case 'invalid_dates':
-          echo __('Errore: la data di scadenza deve essere successiva alla data di prestito.');
+          echo __('Errore: la data di scadenza non può essere precedente alla data di prestito.');
           break;
         case 'invalid_date_format':
           echo __('Errore: formato data non valido. Inserisci le date nel formato YYYY-MM-DD.');
@@ -594,7 +594,9 @@ unset($workspaceHeader);
 
         if (info) {
           // Apply inline styles to ensure colors show (same as frontend)
-          if (info.state === 'borrowed') {
+          // 'waitlist': a copy still out with an overdue reader — no loan
+          // can start, only a reader's place in the queue.
+          if (info.state === 'borrowed' || info.state === 'waitlist') {
             dayElem.style.backgroundColor = '#fef2f2';
             dayElem.style.borderColor = '#fecaca';
             dayElem.style.color = '#b91c1c';
@@ -622,7 +624,7 @@ unset($workspaceHeader);
         }
         const info = availabilityByDate[dateStr];
         if (info && info.state !== 'free') {
-          return info.state === 'borrowed' ? 'in_ritardo' : 'in_corso';
+          return info.state === 'borrowed' || info.state === 'waitlist' ? 'in_ritardo' : 'in_corso';
         }
         return false;
       }

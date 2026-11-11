@@ -270,7 +270,11 @@ class LoanApprovalController
             // book's branches. A pinned copy may fail and have to be replaced.
             $branch = $calendar->hasRules() ? \App\Support\LibraryCalendar::requestScope($db, $libroId, lockingRead: true) : null;
             $usableDue = $dataScadenza !== null ? $calendar->nextOpenDay($dataScadenza, $branch) : null;
-            if (!$calendar->hasRules() && $usableDue !== null && $usableDue !== '' && $usableDue < $today) {
+            // With closures the usable return day is the earliest open day
+            // across the book's branches: past even there, the window is over
+            // whatever copy is picked, and the reader is told so rather than
+            // "no copy available".
+            if ($usableDue !== null && $usableDue !== '' && $usableDue < $today) {
                 $db->rollback();
                 $response->getBody()->write(json_encode([
                     'success' => false,
@@ -1245,15 +1249,17 @@ class LoanApprovalController
             $lockBookStmt->close();
 
             // Poi lock + ri-verifica del prestito con le guardie di stato.
-            // Accept 'da_ritirare' OR 'prenotato' if data_prestito <= today
+            // Accept 'da_ritirare' and 'prenotato': a loan booked for a later
+            // date ("Prestiti Programmati") can be cancelled by the librarian
+            // too, not only by the reader.
             $stmt = $db->prepare("
-                SELECT id, libro_id, copia_id, utente_id, stato, pickup_deadline, data_scadenza
+                SELECT id, libro_id, copia_id, utente_id, stato, pickup_deadline, data_scadenza, data_prestito
                 FROM prestiti
                 WHERE id = ? AND attivo = 1
-                AND (stato = 'da_ritirare' OR (stato = 'prenotato' AND data_prestito <= ?))
+                AND stato IN ('da_ritirare', 'prenotato')
                 FOR UPDATE
             ");
-            $stmt->bind_param('is', $loanId, $today);
+            $stmt->bind_param('i', $loanId);
             $stmt->execute();
             $result = $stmt->get_result();
             $loan = $result->fetch_assoc();
@@ -1335,7 +1341,11 @@ class LoanApprovalController
             // 'prestato' copies to disjoint future windows), so flipping it to
             // 'disponibile' here would mark an out-of-library copy as available
             // until its real return. 'disponibile' (promoted pendente) is a no-op.
-            if ($copiaId) {
+            // A loan that has not started yet holds no copy on the shelf: its
+            // copy may be 'prenotato' for another reader's pickup right now,
+            // and must not be freed here.
+            $notStartedYet = $loan['stato'] === 'prenotato' && substr((string) $loan['data_prestito'], 0, 10) > $today;
+            if ($copiaId && !$notStartedYet) {
                 // FOR UPDATE prevents TOCTOU race - lock row before checking and updating
                 $copyCheckStmt = $db->prepare("SELECT stato FROM copie WHERE id = ? FOR UPDATE");
                 $copyCheckStmt->bind_param('i', $copiaId);

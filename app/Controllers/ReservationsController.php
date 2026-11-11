@@ -62,6 +62,7 @@ class ReservationsController
         // does NOT block a slot.
         $loanIntervals = [];
         foreach ($currentLoans as $loan) {
+            $overdueOpenEnded = false;
             $startDateLoan = $loan['data_prestito'] ?? null;
             $loanStatus = $loan['stato'] ?? '';
 
@@ -98,6 +99,7 @@ class ReservationsController
                 // the availability calendar and let a new request slip in (double-booking).
                 // Keep it blocked open-ended until it is actually returned.
                 $endDateLoan = '9999-12-31';
+                $overdueOpenEnded = true;
             } else {
                 // For other states: data_restituzione > data_scadenza > null
                 $endDateLoan = $loan['data_restituzione']
@@ -109,7 +111,10 @@ class ReservationsController
                 $endDateLoan = $startDateLoan;
             }
 
-            $loanIntervals[] = [$startDateLoan, $endDateLoan];
+            // Third element: the end that counts for a place in the queue. An
+            // overdue copy is expected back now, so the queue sees it out until
+            // today (CapacityService::hasFreeQueueCapacity()).
+            $loanIntervals[] = [$startDateLoan, $endDateLoan, $overdueOpenEnded ? max($today, (string) $startDateLoan) : $endDateLoan];
         }
 
         $closedDays = array_fill_keys($closedDates, true);
@@ -117,6 +122,7 @@ class ReservationsController
         $unavailableDates = [];
         $daysData = [];
         $earliestAvailable = null;
+        $earliestQueue = null;
 
         for ($i = 0; $i < $days; $i++) {
             $current = clone $start;
@@ -126,9 +132,13 @@ class ReservationsController
             $d = $current->format('Y-m-d');
 
             $loaned = 0;
-            foreach ($loanIntervals as [$s, $e]) {
+            $loanedForQueue = 0;
+            foreach ($loanIntervals as [$s, $e, $queueEnd]) {
                 if ($s <= $d && $d <= $e) {
                     $loaned++;
+                }
+                if ($s <= $d && $d <= $queueEnd) {
+                    $loanedForQueue++;
                 }
             }
 
@@ -141,7 +151,14 @@ class ReservationsController
 
             $available = max(0, $totalCopies - $loaned - $reserved);
             $state = 'free';
-            if ($available <= 0) {
+            if ($available <= 0 && $d > $today && $totalCopies - $loanedForQueue - $reserved > 0) {
+                // No copy for a loan (an overdue reader still has it), but a
+                // place in the queue from this day: the reader can choose it.
+                $state = 'waitlist';
+                if ($earliestQueue === null && $d <= $startUntil && !isset($closedDays[$d])) {
+                    $earliestQueue = $d;
+                }
+            } elseif ($available <= 0) {
                 $state = $loaned > 0 ? 'borrowed' : 'reserved';
                 $unavailableDates[] = $d;
             } elseif ($earliestAvailable === null && $d <= $startUntil && !isset($closedDays[$d])) {
@@ -161,6 +178,9 @@ class ReservationsController
             'total_copies' => $totalCopies,
             'unavailable_dates' => array_values(array_unique($unavailableDates)),
             'earliest_available' => $earliestAvailable,
+            // First day a place in the queue can start when no copy is free
+            // for a loan (state 'waitlist'); null otherwise.
+            'earliest_queue' => $earliestQueue,
             'days' => $daysData,
             'by_date' => array_column($daysData, null, 'date'),
             'has_active_reservation' => $hasActiveReservation,
@@ -294,7 +314,11 @@ class ReservationsController
         $capacity = new \App\Services\CapacityService($this->db);
         $requestedDates = $this->getDateRange($startDate, $endDate);
 
-        if (!$capacity->hasFreeCapacity($bookId, $startDate, $endDate, excludeUserId: $userId)) {
+        // A copy out with an overdue reader blocks loans for ever, but not a
+        // place in the queue from tomorrow: LoanRequestGate then queues it,
+        // since no copy is in the library for the window.
+        if (!$capacity->hasFreeCapacity($bookId, $startDate, $endDate, excludeUserId: $userId)
+            && !$capacity->hasFreeQueueCapacity($bookId, $startDate, $endDate, excludeUserId: $userId)) {
             $conflictDates = $this->capacityConflictDates($capacity, $bookId, $requestedDates, $userId);
             $response->getBody()->write(json_encode($this->capacityConflictPayload($startDate, $conflictDates)));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
@@ -365,7 +389,8 @@ class ReservationsController
             // Re-check availability after acquiring the canonical book lock.
             // The pre-lock check is only a fast fail; this one closes the race
             // with returns, approvals, cancellations and other reservations.
-            if (!$capacity->hasFreeCapacity($bookId, $startDate, $endDate, excludeUserId: $userId)) {
+            if (!$capacity->hasFreeCapacity($bookId, $startDate, $endDate, excludeUserId: $userId)
+                && !$capacity->hasFreeQueueCapacity($bookId, $startDate, $endDate, excludeUserId: $userId)) {
                 $postLockConflicts = $this->capacityConflictDates($capacity, $bookId, $requestedDates, $userId);
                 $this->db->rollback();
                 $response->getBody()->write(json_encode($this->capacityConflictPayload($startDate, $postLockConflicts)));

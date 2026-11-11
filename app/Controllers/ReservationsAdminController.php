@@ -99,6 +99,9 @@ class ReservationsAdminController
         $stmt->close();
         if (!$item)
             return $response->withStatus(404);
+        // La vista legge la riga come $p: senza questo alias il form usciva
+        // vuoto e puntava a /admin/reservations/update/0.
+        $p = $item;
         ob_start();
         require __DIR__ . '/../Views/prenotazioni/modifica_prenotazione.php';
         $content = ob_get_clean();
@@ -145,6 +148,16 @@ class ReservationsAdminController
             $start = $today;
         }
         if ($stato === 'attiva') {
+            // Una prenotazione attiva guarda avanti: una finestra già finita
+            // non può più convertirsi in un prestito valido (la promozione
+            // creerebbe una richiesta con scadenza nel passato), quindi si
+            // rifiuta; un inizio nel passato con fine futura parte da oggi.
+            if ($end !== '' && $end < $today) {
+                return $response->withHeader('Location', url('/admin/reservations/edit/' . $id) . '?error=past_dates')->withStatus(302);
+            }
+            if ($start < $today) {
+                $start = $today;
+            }
             $start = \App\Support\LibraryCalendar::requestStartDay($db, $start, $libroId);
         }
         if ($end === '') {
@@ -669,7 +682,25 @@ class ReservationsAdminController
                 action: 'inserimento',
                 source: 'admin'
             );
+
+            // A reservation that can be served now (a copy on the shelf, the
+            // window starting today) turns into a loan request at once, as a
+            // reader's own request does, instead of waiting in the queue for
+            // the next maintenance sweep.
+            $reservationManager = new \App\Controllers\ReservationManager($db);
+            $reservationManager->setExternalTransaction(true);
+            for ($promoGuard = 0; $promoGuard < 1000 && $reservationManager->processBookAvailability($libroId); $promoGuard++) {
+                // promote while capacity is free
+            }
             $db->commit();
+            try {
+                $reservationManager->flushDeferredNotifications();
+            } catch (\Throwable $flushError) {
+                \App\Support\SecureLogger::warning(
+                    "ReservationsAdminController: deferred promotion notifications failed after creating reservation {$reservationId}",
+                    ['error' => $flushError->getMessage()]
+                );
+            }
             return $response->withHeader('Location', url('/admin/reservations') . '?created=1')->withStatus(302);
 
         } catch (\Throwable $e) {

@@ -48,7 +48,32 @@ final class CapacityService
      * Current reads must see commitments confirmed after an earlier calendar
      * read established a REPEATABLE READ snapshot on the same connection.
      */
+    /**
+     * When true, an unreturned overdue loan counts until today only (see
+     * hasFreeQueueCapacity()). Off for every gate that binds a copy.
+     */
+    private bool $overdueUntilToday = false;
+
     public function __construct(private mysqli $db, private bool $lockingReads = false) {}
+
+    /**
+     * hasFreeCapacity() for a place in the waiting queue. A queue reservation
+     * holds no copy: it is promoted only when a copy is really back. So an
+     * overdue loan, whose return date nobody knows, blocks the queue until
+     * today and not for ever — otherwise nobody could ever queue for a book
+     * whose reader is late, which is when the queue is needed most. Every
+     * other commitment (loans, scheduled loans, other queued windows) counts
+     * exactly as in hasFreeCapacity().
+     */
+    public function hasFreeQueueCapacity(int $libroId, string $start, string $end, ?int $excludeUserId = null): bool
+    {
+        $this->overdueUntilToday = true;
+        try {
+            return $this->hasFreeCapacity($libroId, $start, $end, excludeUserId: $excludeUserId);
+        } finally {
+            $this->overdueUntilToday = false;
+        }
+    }
 
     /**
      * Lendable physical copies of a book (the capacity ceiling). If the book has
@@ -486,7 +511,7 @@ final class CapacityService
         // A loan whose stored day is closed ends on the next open day, which the
         // reader is told, even when the move was refused and the row kept its
         // date. With a calendar, a stored day before the window can still reach it.
-        $params = [$start, $today, $end, $end, $libroId, $end, $today, $hasCalendar ? '1000-01-01' : $start];
+        $params = [$start, $today, $this->overdueUntilToday ? $today : $end, $end, $libroId, $end, $today, $hasCalendar ? '1000-01-01' : $start];
         if ($excludePrestitoId !== null) {
             $sql .= ' AND p.id <> ?';
             $types .= 'i';

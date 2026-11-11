@@ -9327,5 +9327,11 @@
   "Utente importato, ma l'invito potrebbe essere già stato inviato: se non è arrivato, invialo di nuovo dalla scheda dell'utente.": "Utente importato, ma l'invito potrebbe essere già stato inviato: se non è arrivato, invialo di nuovo dalla scheda dell'utente.",
   "Questa ricerca ha raggiunto il numero massimo di importazioni: ripeti la ricerca per continuare.": "Questa ricerca ha raggiunto il numero massimo di importazioni: ripeti la ricerca per continuare.",
   "Tessera o nome del socio": "Tessera o nome del socio",
-  "Passa la tessera, digita il codice o cerca il socio per nome": "Passa la tessera, digita il codice o cerca il socio per nome"
+  "Passa la tessera, digita il codice o cerca il socio per nome": "Passa la tessera, digita il codice o cerca il socio per nome",
+  "Il periodo scelto è già trascorso: una prenotazione attiva deve finire oggi o in un giorno successivo.": "Il periodo scelto è già trascorso: una prenotazione attiva deve finire oggi o in un giorno successivo.",
+  "Data non valida: modifica non salvata.": "Data non valida: modifica non salvata.",
+  "Scadenza ripristinata: la chiusura che l'aveva spostata non c'è più": "Scadenza ripristinata: la chiusura che l'aveva spostata non c'è più",
+  "Errore: il libro è già in prestito, la data di inizio non può essere spostata dopo oggi.": "Errore: il libro è già in prestito, la data di inizio non può essere spostata dopo oggi.",
+  "Da ritirare entro il %s": "Da ritirare entro il %s",
+  "Copia ancora fuori per un ritardo: da questo giorno puoi metterti in coda": "Copia ancora fuori per un ritardo: da questo giorno puoi metterti in coda"
 }

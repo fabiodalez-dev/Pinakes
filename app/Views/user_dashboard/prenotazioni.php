@@ -649,6 +649,11 @@ function resolveCoverUrl(array $item, string $key = 'copertina_url'): string {
                     <span><?= __('Dal') ?> <?= format_date($startDate, false, '/'); ?></span>
                   </div>
                 <?php endif; ?>
+                <?php if ($stato === 'da_ritirare' && !empty($loan['effective_pickup_deadline'])): ?>
+                  <div class="status-badge badge-scheduled">
+                    <span><?= __('Da ritirare entro il %s', format_date((string) $loan['effective_pickup_deadline'], false, '/')) ?></span>
+                  </div>
+                <?php endif; ?>
               </div>
               <button type="button" class="btn-review" <?= $hasReview ? 'disabled' : ''; ?> data-book-id="<?= (int)$loan['libro_id']; ?>" data-book-title="<?= HtmlHelper::e($loan['titolo'] ?? ''); ?>">
                 <span><?= $hasReview ? __('Già recensito') : __('Lascia una recensione') ?></span>

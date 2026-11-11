@@ -9327,5 +9327,11 @@
   "Utente importato, ma l'invito potrebbe essere già stato inviato: se non è arrivato, invialo di nuovo dalla scheda dell'utente.": "Benutzer importiert, aber die Einladung wurde möglicherweise bereits gesendet: Falls sie nicht angekommen ist, sende sie erneut aus dem Benutzerdatensatz.",
   "Questa ricerca ha raggiunto il numero massimo di importazioni: ripeti la ricerca per continuare.": "Diese Suche hat die maximale Anzahl an Importen erreicht: Bitte erneut suchen, um fortzufahren.",
   "Tessera o nome del socio": "Ausweis oder Name des Mitglieds",
-  "Passa la tessera, digita il codice o cerca il socio per nome": "Ausweis scannen, Code eingeben oder das Mitglied nach Namen suchen"
+  "Passa la tessera, digita il codice o cerca il socio per nome": "Ausweis scannen, Code eingeben oder das Mitglied nach Namen suchen",
+  "Il periodo scelto è già trascorso: una prenotazione attiva deve finire oggi o in un giorno successivo.": "Der gewählte Zeitraum ist bereits vorbei: Eine aktive Vormerkung muss heute oder später enden.",
+  "Data non valida: modifica non salvata.": "Ungültiges Datum: Die Änderung wurde nicht gespeichert.",
+  "Scadenza ripristinata: la chiusura che l'aveva spostata non c'è più": "Fälligkeit wiederhergestellt: Die Schließung, die sie verschoben hatte, gibt es nicht mehr",
+  "Errore: il libro è già in prestito, la data di inizio non può essere spostata dopo oggi.": "Fehler: Das Buch ist bereits ausgeliehen, das Startdatum kann nicht nach heute verschoben werden.",
+  "Da ritirare entro il %s": "Abzuholen bis %s",
+  "Copia ancora fuori per un ritardo: da questo giorno puoi metterti in coda": "Exemplar wegen Verspätung noch ausgeliehen: ab diesem Tag können Sie sich vormerken"
 }

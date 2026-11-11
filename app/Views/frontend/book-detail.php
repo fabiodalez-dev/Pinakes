@@ -1501,7 +1501,8 @@ $jsTranslationKeys = [
     'Errore nella prenotazione',
     'Tutte le copie in prestito',
     'Tutte le copie prenotate',
-    'Copie disponibili'
+    'Copie disponibili',
+    'Copia ancora fuori per un ritardo: da questo giorno puoi metterti in coda'
 ];
 $jsTranslations = [];
 foreach ($jsTranslationKeys as $key) {
@@ -1691,10 +1692,15 @@ document.addEventListener('DOMContentLoaded', function() {
       // conflict search has to reach that day too.
       const searchDays = daysBetweenIso(startIso, toOpenDayIso(addDaysToIso(startIso, lookAhead), 1, closedSet));
       let firstBlocked = null;
+      // A period that starts on a 'waitlist' day is a place in the queue: the
+      // other waitlist days are open to it. A loan starting on a free day
+      // stops before them, so the reader gets the copy that is there.
+      const startInfo = availabilityByDate[startIso];
+      const queueStart = !!(startInfo && startInfo.state === 'waitlist');
       for (let i = 1; i <= searchDays; i++) {
         const day = addDaysToIso(startIso, i);
         const info = availabilityByDate[day];
-        if (info && info.state !== 'free') {
+        if (info && info.state !== 'free' && !(queueStart && info.state === 'waitlist')) {
           firstBlocked = day;
           break;
         }
@@ -1786,6 +1792,11 @@ document.addEventListener('DOMContentLoaded', function() {
               if (availData.availability.earliest_available) {
                 const earliest = String(availData.availability.earliest_available);
                 suggestedDate = /^\d{4}-\d{2}-\d{2}$/.test(earliest) ? earliest : appToday;
+              } else if (availData.availability.earliest_queue) {
+                // No copy free for a loan, but a place in the queue (the reader
+                // who has it is late): suggest its first day.
+                const earliestQueue = String(availData.availability.earliest_queue);
+                suggestedDate = /^\d{4}-\d{2}-\d{2}$/.test(earliestQueue) ? earliestQueue : appToday;
               }
               if (Array.isArray(availData.availability.days)) {
                 availabilityByDate = availData.availability.days.reduce((acc, day) => {
@@ -1841,7 +1852,8 @@ document.addEventListener('DOMContentLoaded', function() {
         const tooltipTexts = {
           borrowed: __('Tutte le copie in prestito'),
           reserved: __('Tutte le copie prenotate'),
-          free: __('Copie disponibili')
+          free: __('Copie disponibili'),
+          waitlist: __('Copia ancora fuori per un ritardo: da questo giorno puoi metterti in coda')
         };
 
         const infoText = __('Le date rosse o arancioni non sono disponibili. La richiesta verrà valutata da un amministratore.');
@@ -1980,7 +1992,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
                 if (info) {
                   dayElem.classList.add(`${info.state}-day`);
-                  if (info.state !== 'free') {
+                  if (info.state !== 'free' && info.state !== 'waitlist') {
                     dayElem.classList.add('flatpickr-disabled');
                     dayElem.setAttribute('aria-disabled', 'true');
                     dayElem.tabIndex = -1;
@@ -2002,6 +2014,10 @@ document.addEventListener('DOMContentLoaded', function() {
                     dayElem.style.backgroundColor = '#f0fdf4';
                     dayElem.style.borderColor = '#bbf7d0';
                     dayElem.style.color = '#166534';
+                  } else if (info.state === 'waitlist') {
+                    dayElem.style.backgroundColor = '#fffbeb';
+                    dayElem.style.borderColor = '#fef3c7';
+                    dayElem.style.color = '#b45309';
                   }
                 } else if (Object.keys(availabilityByDate).length > 0) {
                   dayElem.classList.add('available-day');

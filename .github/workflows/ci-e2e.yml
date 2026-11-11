@@ -428,6 +428,10 @@ jobs:
               tests/fines-patron-types.spec.js
               tests/holidays-preset.spec.js
               tests/holidays-world.spec.js
+              tests/loans-120-boundaries.spec.js
+              tests/loans-120-closures.spec.js
+              tests/loans-120-lifecycle.spec.js
+              tests/loans-120-reservations.spec.js
               tests/stack-090-integration.spec.js
               tests/stack-090-review-fixes.spec.js
               tests/stack-090-zero-config.spec.js
