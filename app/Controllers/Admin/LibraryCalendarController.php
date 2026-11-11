@@ -623,7 +623,7 @@ class LibraryCalendarController
         try {
             $db->begin_transaction();
             try {
-                $previous = $removed = null;
+                $previous = $removed = $removedCreatedAt = null;
                 if ($removedClosureId !== null) {
                     $stmt = $db->prepare('SELECT data_inizio, data_fine, ricorrente_annuale, sede_id, created_at FROM calendario_chiusure WHERE id = ?');
                     $stmt->bind_param('i', $removedClosureId);
@@ -631,6 +631,7 @@ class LibraryCalendarController
                     $closure = $stmt->get_result()->fetch_assoc();
                     $stmt->close();
                     if ($closure !== null) {
+                        $removedCreatedAt = (string) $closure['created_at'];
                         $removed = [
                             'data_inizio' => (string) $closure['data_inizio'],
                             'data_fine' => (string) $closure['data_fine'],
@@ -648,9 +649,9 @@ class LibraryCalendarController
                     // The due date and deadline moves read the new calendar.
                     LibraryCalendar::reset();
                     if ($previous !== null) {
-                        LibraryCalendar::reconcileRemovedClosure($db, $previous, undo: true);
+                        LibraryCalendar::reconcileRemovedClosure($db, $previous, undo: true, closureCreatedAt: $removedCreatedAt);
                     } elseif ($removed !== null) {
-                        LibraryCalendar::reconcileRemovedClosure($db, new LibraryCalendar([], [$removed]), undo: false, closureCreatedAt: (string) $closure['created_at']);
+                        LibraryCalendar::reconcileRemovedClosure($db, new LibraryCalendar([], [$removed]), undo: false, closureCreatedAt: $removedCreatedAt);
                     }
                     LibraryCalendar::extendDueDates($db);
                     LibraryCalendar::extendPickupDeadlines($db);

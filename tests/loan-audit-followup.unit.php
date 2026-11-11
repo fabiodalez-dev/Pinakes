@@ -56,6 +56,26 @@ $cases = [
         $removeClosure($t, $first);
         SettingsReview25::eq($t->due($loan), $t->day(5), 'The second undo recovers the original due day even after suspension');
     },
+    'undo leaves a due date that another rule had moved before the closure existed' => static function (SettingsReview25 $t) use ($removeClosure): void {
+        $book = $t->book();
+        $loan = $t->loan($book, $t->day(5));
+        // A weekly closed day moves the loan, then the library reopens on that
+        // weekday: the reader keeps the day already promised.
+        $weekday = (new DateTimeImmutable($t->day(5), new DateTimeZone('UTC')))->format('w');
+        $t->set('loans', 'closed_weekdays', $weekday);
+        LibraryCalendar::reset();
+        LibraryCalendar::extendDueDates($t->db);
+        SettingsReview25::eq($t->due($loan), $t->day(6), 'The weekly closed day moves the loan');
+        $t->set('loans', 'closed_weekdays', '');
+        LibraryCalendar::reset();
+        // The move is older than the closure added next.
+        $t->db->query("UPDATE log_modifiche SET data_modifica = data_modifica - INTERVAL 1 HOUR WHERE tabella='libri' AND record_id={$book['id']}");
+        $closure = $t->closure($t->day(5));
+        SettingsReview25::eq($t->due($loan), $t->day(6), 'A closure on a day before the due date moves nothing');
+        $removeClosure($t, $closure);
+        SettingsReview25::eq((int) $t->scalar("SELECT COUNT(*) FROM calendario_chiusure WHERE id={$closure}"), 0, 'The closure is removed');
+        SettingsReview25::eq($t->due($loan), $t->day(6), 'Undo does not retract a day the removed closure never granted');
+    },
     'undo skips a loan whose new start is after the original due date' => static function (SettingsReview25 $t) use ($removeClosure): void {
         $loan = $t->loan($t->book(), $t->day(5), ['start' => $t->day(5), 'status' => 'prenotato']);
         $closure = $t->closure($t->day(5), $t->day(6));

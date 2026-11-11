@@ -652,8 +652,9 @@ final class LibraryCalendar
 
     /**
      * Walk backwards through moves and partial restores. A manual due-date
-     * change breaks the chain. On undo return the earliest day still allowed;
-     * on ordinary removal return any new floor granted by the removed rule.
+     * change breaks the chain, and on undo so does a move older than the
+     * removed closure. On undo return the earliest day still allowed; on
+     * ordinary removal return any new floor granted by the removed rule.
      */
     private static function dueDateAnchor(
         \mysqli $db,
@@ -697,6 +698,14 @@ final class LibraryCalendar
                 continue;
             }
             if (!(($event === 'loan.due_moved' && $from < $to) || ($event === 'loan.due_restored' && $from > $to))) {
+                break;
+            }
+            // An undo retracts only what the removed closure can have granted:
+            // a move recorded before that closure existed came from another
+            // rule (a weekly closed day since reopened, an earlier closure),
+            // and the reader keeps the day that rule promised.
+            if ($removed === null && $closureCreatedAt !== null && $event === 'loan.due_moved'
+                && $entry['data_modifica'] < $closureCreatedAt) {
                 break;
             }
             $moved = $moved || $event === 'loan.due_moved';
