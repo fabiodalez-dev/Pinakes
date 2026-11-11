@@ -443,7 +443,8 @@ test.describe.serial('Fines and patron ledger', () => {
     const full = await (await fetch(`${MAILPIT_API}/message/${message.ID}`)).json();
     expect(full.Subject).toContain(euro(daysLate * 50));
     expect(full.HTML).toContain(`${TITLE_PREFIX}_C`);
-    expect(full.HTML).toContain(String(daysLate)); // days late
+    // With its label: a bare digit could match the book title or an amount.
+    expect(full.HTML).toMatch(new RegExp(`Giorni di ritardo:\\s*(?:</?[a-z]+[^>]*>\\s*)*${daysLate}(?!\\d)`));
     expect(full.HTML).toContain(euro(500 + daysLate * 50)); // balance: 5,00 + this fine
   });
 
