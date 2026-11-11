@@ -99,6 +99,9 @@ class ReservationsAdminController
         $stmt->close();
         if (!$item)
             return $response->withStatus(404);
+        // La vista legge la riga come $p: senza questo alias il form usciva
+        // vuoto e puntava a /admin/reservations/update/0.
+        $p = $item;
         ob_start();
         require __DIR__ . '/../Views/prenotazioni/modifica_prenotazione.php';
         $content = ob_get_clean();
@@ -145,6 +148,16 @@ class ReservationsAdminController
             $start = $today;
         }
         if ($stato === 'attiva') {
+            // Una prenotazione attiva guarda avanti: una finestra già finita
+            // non può più convertirsi in un prestito valido (la promozione
+            // creerebbe una richiesta con scadenza nel passato), quindi si
+            // rifiuta; un inizio nel passato con fine futura parte da oggi.
+            if ($end !== '' && $end < $today) {
+                return $response->withHeader('Location', url('/admin/reservations/edit/' . $id) . '?error=past_dates')->withStatus(302);
+            }
+            if ($start < $today) {
+                $start = $today;
+            }
             $start = \App\Support\LibraryCalendar::requestStartDay($db, $start, $libroId);
         }
         if ($end === '') {
@@ -177,7 +190,10 @@ class ReservationsAdminController
             $dataFineRichiesta = $dataInizioRichiesta;
         }
         if ($stato === 'attiva') {
-            $dataInizioRichiesta = \App\Support\LibraryCalendar::requestStartDay($db, $dataInizioRichiesta, $libroId);
+            if ($dataFineRichiesta < $today) {
+                return $response->withHeader('Location', url('/admin/reservations/edit/' . $id) . '?error=past_dates')->withStatus(302);
+            }
+            $dataInizioRichiesta = \App\Support\LibraryCalendar::requestStartDay($db, max($today, $dataInizioRichiesta), $libroId);
             $dataFineRichiesta = \App\Support\LibraryCalendar::requestDueDate($db, max($dataInizioRichiesta, $dataFineRichiesta), 0, $libroId);
         }
 
@@ -301,7 +317,7 @@ class ReservationsAdminController
             // occupies. Reject a change that would push the period over capacity,
             // excluding this reservation itself (and the user) from the count.
             if ($stato === 'attiva') {
-                $capacity = new \App\Services\CapacityService($db);
+                $capacity = new \App\Services\CapacityService($db, lockingReads: true);
                 // Riattivazione (non-attiva -> attiva): stesso gate di store() —
                 // senza righe in `copie` la promozione non può mai convertire la
                 // coda (seleziona solo copie fisiche), quindi la prenotazione
@@ -310,9 +326,9 @@ class ReservationsAdminController
                     $db->rollback();
                     return $response->withHeader('Location', url('/admin/reservations/edit/' . $id) . '?error=capacity_full')->withStatus(302);
                 }
-                if (!$capacity->hasFreeCapacity($libroId, $dataInizioRichiesta, $dataFineRichiesta, excludeReservationId: $id, excludeUserId: $utenteId)) {
+                if (!$capacity->hasFreeCapacity($libroId, $dataInizioRichiesta, $dataFineRichiesta, excludeReservationId: $id, excludeUserId: $utenteId, forQueue: true)) {
                     $db->rollback();
-                    $blocked = array_filter([$capacity->firstUnavailableDateInRange($libroId, $dataInizioRichiesta, $dataFineRichiesta, $utenteId, null, $id)]);
+                    $blocked = array_filter([$capacity->firstUnavailableDateInRange($libroId, $dataInizioRichiesta, $dataFineRichiesta, $utenteId, null, $id, forQueue: true)]);
                     $query = http_build_query(['error' => 'capacity_full'] + \App\Support\LoanWindow::redirectParams($dataInizioRichiesta, $blocked));
                     return $response->withHeader('Location', url('/admin/reservations/edit/' . $id) . '?' . $query)->withStatus(302);
                 }
@@ -329,7 +345,8 @@ class ReservationsAdminController
                 $newPosition = (int) ($posStmt->get_result()->fetch_assoc()['position'] ?? 1);
                 $posStmt->close();
 
-                $stmt = $db->prepare("UPDATE prenotazioni SET stato=?, data_prenotazione=?, data_scadenza_prenotazione=?, data_inizio_richiesta=?, data_fine_richiesta=?, queue_position=? WHERE id=?");
+                $clearPromotion = ReservationManager::hasPromotionLink($db) ? ', prestito_promosso_id=NULL' : '';
+                $stmt = $db->prepare("UPDATE prenotazioni SET stato=?, data_prenotazione=?, data_scadenza_prenotazione=?, data_inizio_richiesta=?, data_fine_richiesta=?, queue_position=?, notifica_inviata=0{$clearPromotion} WHERE id=?");
                 $stmt->bind_param('sssssii', $stato, $startDt, $endDt, $dataInizioRichiesta, $dataFineRichiesta, $newPosition, $id);
             } else {
                 $stmt = $db->prepare("UPDATE prenotazioni SET stato=?, data_prenotazione=?, data_scadenza_prenotazione=?, data_inizio_richiesta=?, data_fine_richiesta=? WHERE id=?");
@@ -624,19 +641,19 @@ class ReservationsAdminController
             // Capacity gate (the decision): a waitlist reservation occupies one
             // capacity unit for its promised period, so reject it when the book is
             // already at capacity for that window (counting other commitments).
-            // Same CapacityService predicate as the promotion gate and the auditor.
-            $capacity = new \App\Services\CapacityService($db);
+            // A place in the queue does not promise that an overdue copy is back.
+            $capacity = new \App\Services\CapacityService($db, lockingReads: true);
             // Senza righe in `copie` la promozione non può mai convertire la
             // coda (seleziona solo copie fisiche): rifiuta a monte.
             if (!$capacity->hasPhysicalCopies($libroId)) {
                 $db->rollback();
                 return $response->withHeader('Location', url('/admin/reservations/create') . '?error=capacity_full')->withStatus(302);
             }
-            if (!$capacity->hasFreeCapacity($libroId, $dataInizioRichiesta, $dataFineRichiesta, excludeUserId: $utenteId)) {
+            if (!$capacity->hasFreeCapacity($libroId, $dataInizioRichiesta, $dataFineRichiesta, excludeUserId: $utenteId, forQueue: true)) {
                 $db->rollback();
                 // The form explains the refusal with the longest window still
                 // possible from the requested start (LoanWindow).
-                $blocked = array_filter([$capacity->firstUnavailableDateInRange($libroId, $dataInizioRichiesta, $dataFineRichiesta, $utenteId)]);
+                $blocked = array_filter([$capacity->firstUnavailableDateInRange($libroId, $dataInizioRichiesta, $dataFineRichiesta, $utenteId, forQueue: true)]);
                 $query = http_build_query(['error' => 'capacity_full'] + \App\Support\LoanWindow::redirectParams($dataInizioRichiesta, $blocked));
                 return $response->withHeader('Location', url('/admin/reservations/create') . '?' . $query)->withStatus(302);
             }
@@ -669,7 +686,25 @@ class ReservationsAdminController
                 action: 'inserimento',
                 source: 'admin'
             );
+
+            // A reservation that can be served now (a copy on the shelf, the
+            // window starting today) turns into a loan request at once, as a
+            // reader's own request does, instead of waiting in the queue for
+            // the next maintenance sweep.
+            $reservationManager = new \App\Controllers\ReservationManager($db);
+            $reservationManager->setExternalTransaction(true);
+            for ($promoGuard = 0; $promoGuard < 1000 && $reservationManager->processBookAvailability($libroId); $promoGuard++) {
+                // promote while capacity is free
+            }
             $db->commit();
+            try {
+                $reservationManager->flushDeferredNotifications();
+            } catch (\Throwable $flushError) {
+                \App\Support\SecureLogger::warning(
+                    "ReservationsAdminController: deferred promotion notifications failed after creating reservation {$reservationId}",
+                    ['error' => $flushError->getMessage()]
+                );
+            }
             return $response->withHeader('Location', url('/admin/reservations') . '?created=1')->withStatus(302);
 
         } catch (\Throwable $e) {

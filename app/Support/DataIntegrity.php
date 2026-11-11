@@ -1062,13 +1062,20 @@ class DataIntegrity {
         }
         $stmt->close();
 
-        // Occupancy = the canonical OCC: HOLDING loans (active loans + the
-        // pendente-with-copy conversion holder) PLUS active waitlist reservations.
-        // Per the canonical model, a prenotazioni row (stato='attiva') occupies one
-        // capacity unit for its promised period [data_inizio_richiesta, R_END], so
-        // the auditor MUST count it — otherwise it would bless an over-capacity
-        // waitlist that the creation/promotion gates already reject.
+        // Check both commitments that hold a physical copy and the capacity
+        // promised to the queue. An overdue copy stays out until return, but
+        // does not block a future queue slot; a future loan still needs a copy.
         $eventsByBook = [];
+        $addInterval = static function (int $bookId, string $start, string $end, int $physical, int $queue) use (&$eventsByBook): void {
+            if ($start > '9999-12-30') {
+                return;
+            }
+            $endExclusive = LibraryCalendar::shift(min(max($start, $end), '9999-12-30'), 1);
+            foreach ([$start => 1, $endExclusive => -1] as $date => $sign) {
+                $eventsByBook[$bookId][$date][0] = ($eventsByBook[$bookId][$date][0] ?? 0) + $sign * $physical;
+                $eventsByBook[$bookId][$date][1] = ($eventsByBook[$bookId][$date][1] ?? 0) + $sign * $queue;
+            }
+        };
         $applicationToday = DateHelper::today();
         $stmt = $this->db->prepare("
             SELECT libro_id, copia_id, attivo, stato,
@@ -1101,24 +1108,14 @@ class DataIntegrity {
                 $due = LibraryCalendar::dueDate($this->db, $end, $copyId);
                 $end = LibraryCalendar::holdingEnd($this->db, $end, $copyId, $row['stato'] === 'prenotato' ? $bookId : null);
                 if ($row['stato'] === 'in_ritardo' || ($row['stato'] === 'in_corso' && $due < $applicationToday)) {
-                    // A genuinely overdue loan holds indefinitely. Leave one
-                    // day for the exclusive end to stay within a four-digit year.
-                    $end = '9999-12-30';
+                    $addInterval($bookId, $start, '9999-12-30', 1, 0);
+                    if ($start <= $applicationToday) {
+                        $addInterval($bookId, $start, $applicationToday, 0, 1);
+                    }
+                    continue;
                 }
             }
-            if ($end < $start) {
-                $end = $start;
-            }
-
-            $endExclusive = (new \DateTimeImmutable($end))->modify('+1 day')->format('Y-m-d');
-            // Defensive clamp: keep the sweep key a 4-digit 'YYYY-MM-DD' string so
-            // ksort's lexicographic order stays chronological (a 5-digit year like
-            // '10000-01-01' would sort before every real date and corrupt the peak).
-            if ($endExclusive > '9999-12-31') {
-                $endExclusive = '9999-12-31';
-            }
-            $eventsByBook[$bookId][$start] = ($eventsByBook[$bookId][$start] ?? 0) + 1;
-            $eventsByBook[$bookId][$endExclusive] = ($eventsByBook[$bookId][$endExclusive] ?? 0) - 1;
+            $addInterval($bookId, $start, $end, 1, 1);
         }
         $stmt->close();
 
@@ -1138,20 +1135,20 @@ class DataIntegrity {
                 continue;
             }
             foreach ($capacityService->reservationIntervalsInRange($bookId, '1000-01-01', '9999-12-30') as [$start, $end]) {
-                $endExclusive = (new \DateTimeImmutable($end))->modify('+1 day')->format('Y-m-d');
-                $eventsByBook[$bookId][$start] = ($eventsByBook[$bookId][$start] ?? 0) + 1;
-                $eventsByBook[$bookId][$endExclusive] = ($eventsByBook[$bookId][$endExclusive] ?? 0) - 1;
+                $addInterval($bookId, $start, $end, 0, 1);
             }
         }
 
         foreach ($eventsByBook as $bookId => $events) {
             ksort($events);
             $dates = array_keys($events);
-            $occupancy = 0;
+            $physical = $queue = 0;
             $reported = 0;
 
             foreach ($dates as $idx => $date) {
-                $occupancy += $events[$date];
+                $physical += $events[$date][0];
+                $queue += $events[$date][1];
+                $occupancy = max($physical, $queue);
                 $nextDate = $dates[$idx + 1] ?? null;
                 if ($nextDate === null || $occupancy <= $capacityByBook[$bookId]['capacity']) {
                     continue;

@@ -58,7 +58,8 @@ final class Review25Db extends mysqli
     public function prepare(string $query): mysqli_stmt|false
     {
         foreach ([
-            'beforeBookLock' => str_starts_with($query, 'SELECT id FROM libri WHERE id = ? FOR UPDATE'),
+            'beforeBookLock' => str_starts_with($query, 'SELECT id FROM libri WHERE id = ? FOR UPDATE')
+                || str_starts_with($query, 'SELECT id FROM libri WHERE id = ? AND deleted_at IS NULL FOR UPDATE'),
             'beforeCalendarLock' => str_contains($query, 'GET_LOCK('),
         ] as $property => $matches) {
             if ($matches && $this->$property !== null) {

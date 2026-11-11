@@ -78,6 +78,8 @@ final class ActivityLog
         'loan.expired' => 'Ritiro del prestito scaduto',
         'loan.overdue' => 'Prestito in ritardo',
         'loan.due_moved' => 'Scadenza spostata: la biblioteca è chiusa quel giorno',
+        'loan.due_preserved' => 'Scadenza confermata dopo la riapertura',
+        'loan.due_restored' => 'Scadenza ripristinata: la chiusura che l\'aveva spostata non c\'è più',
         'loan.lost' => 'Copia dichiarata persa',
         'loan.damaged' => 'Copia dichiarata danneggiata',
         'reservation.created' => 'Prenotazione creata',
@@ -195,7 +197,10 @@ final class ActivityLog
         ?int $operatorId = null,
         ?int $entityId = null,
         ?string $bookTitle = null,
-        ?string $source = null
+        ?string $source = null,
+        bool $strict = false,
+        ?int $promotedLoanId = null,
+        ?string $calendarDueFloor = null
     ): bool {
         if ($bookId <= 0 || !in_array($action, ['inserimento', 'aggiornamento', 'cancellazione'], true)) {
             return false;
@@ -217,6 +222,8 @@ final class ActivityLog
             'book_title' => $bookTitle,
             'operator_name' => $operatorName,
             'source' => $source,
+            'promoted_loan_id' => $promotedLoanId,
+            'calendar_due_floor' => $calendarDueFloor,
         ];
         $after['_activity'] = array_filter($meta, static fn(mixed $value): bool => $value !== null && $value !== '');
 
@@ -235,6 +242,9 @@ final class ActivityLog
             $stmt->close();
             return $ok;
         } catch (\Throwable $e) {
+            if ($strict) {
+                throw $e;
+            }
             SecureLogger::warning('ActivityLog write failed', [
                 'book_id' => $bookId,
                 'event' => $event,
@@ -552,7 +562,7 @@ final class ActivityLog
     }
 
     /** @return array<string,mixed> */
-    public static function loadLoanSnapshot(mysqli $db, int $loanId, bool $lockingRead = false): array
+    public static function loadLoanSnapshot(mysqli $db, int $loanId, bool $lockingRead = false, bool $strict = false): array
     {
         try {
             // $lockingRead: a current read for a caller that already holds the
@@ -575,6 +585,9 @@ final class ActivityLog
             $stmt->close();
             return is_array($row) ? $row : [];
         } catch (\Throwable $e) {
+            if ($strict) {
+                throw $e;
+            }
             SecureLogger::warning('ActivityLog loan snapshot failed', ['loan_id' => $loanId, 'error' => $e->getMessage()]);
             return [];
         }
@@ -588,9 +601,11 @@ final class ActivityLog
         array $before = [],
         string $action = 'aggiornamento',
         ?string $source = 'circulation',
-        ?int $operatorId = null
+        ?int $operatorId = null,
+        bool $strict = false,
+        ?string $calendarDueFloor = null
     ): bool {
-        $after = self::loadLoanSnapshot($db, $loanId);
+        $after = self::loadLoanSnapshot($db, $loanId, lockingRead: $strict, strict: $strict);
         $bookId = (int) ($after['libro_id'] ?? $before['libro_id'] ?? 0);
         $bookTitle = (string) ($after['book_title'] ?? $before['book_title'] ?? '');
         unset($before['book_title'], $after['book_title'], $before['id'], $after['id']);
@@ -610,7 +625,9 @@ final class ActivityLog
             operatorId: $operatorId,
             entityId: $loanId,
             bookTitle: $bookTitle,
-            source: $source
+            source: $source,
+            strict: $strict,
+            calendarDueFloor: $calendarDueFloor
         );
     }
 
@@ -647,7 +664,8 @@ final class ActivityLog
         array $before = [],
         string $action = 'aggiornamento',
         ?string $source = 'circulation',
-        ?int $operatorId = null
+        ?int $operatorId = null,
+        ?int $promotedLoanId = null
     ): bool {
         $after = self::loadReservationSnapshot($db, $reservationId);
         $bookId = (int) ($after['libro_id'] ?? $before['libro_id'] ?? 0);
@@ -669,7 +687,8 @@ final class ActivityLog
             operatorId: $operatorId,
             entityId: $reservationId,
             bookTitle: $bookTitle,
-            source: $source
+            source: $source,
+            promotedLoanId: $promotedLoanId
         );
     }
 

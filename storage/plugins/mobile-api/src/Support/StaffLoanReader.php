@@ -397,8 +397,9 @@ final class StaffLoanReader
     /** The single active reservation above the high-water mark for this user + title, else null. */
     public function resolveNewReservationId(int $before, int $userId, int $bookId): ?int
     {
+        // The desk can create and promote a reservation in one transaction.
         $rows = $this->all(
-            "SELECT id FROM prenotazioni WHERE id > ? AND utente_id = ? AND libro_id = ? AND stato = 'attiva'
+            "SELECT id FROM prenotazioni WHERE id > ? AND utente_id = ? AND libro_id = ?
               ORDER BY id DESC LIMIT 2",
             'iii',
             [$before, $userId, $bookId]

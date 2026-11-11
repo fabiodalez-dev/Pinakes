@@ -298,9 +298,11 @@ class PrestitiController
             return $response->withHeader('Location', url('/admin/loans/create') . '?error=invalid_date_format')->withStatus(302);
         }
 
-        // Verifica che la data di scadenza sia successiva alla data di prestito
-        // (confronto lessicografico sicuro: entrambe validate Y-m-d qui sopra)
-        if ($data_scadenza <= $data_prestito) {
+        // La scadenza non può precedere la data di prestito (confronto
+        // lessicografico sicuro: entrambe validate Y-m-d qui sopra). Un
+        // prestito di un giorno (scadenza = inizio) è lecito, come nel form
+        // di modifica e nel calendario del lettore.
+        if ($data_scadenza < $data_prestito) {
             return $response->withHeader('Location', url('/admin/loans/create') . '?error=invalid_dates')->withStatus(302);
         }
         if ($typedDueDate) {
@@ -1027,6 +1029,16 @@ class PrestitiController
                 $db->rollback();
                 return $response->withHeader('Location', url('/admin/loans') . '?error=invalid_dates')->withStatus(302);
             }
+            // A loan already out (the reader has the book) started in the past
+            // or today: a start date after today would make it "in corso" for a
+            // period that has not begun. Only a loan not yet collected
+            // ('prenotato', 'da_ritirare') can be moved to a later start.
+            if (in_array((string) $locked['stato'], ['in_corso', 'in_ritardo'], true)
+                && $newPrestito !== substr((string) $locked['data_prestito'], 0, 10)
+                && $newPrestito > \App\Support\DateHelper::today()) {
+                $db->rollback();
+                return $response->withHeader('Location', url('/admin/loans') . '?error=future_start_out')->withStatus(302);
+            }
             // F1: actively backdating the due date into the past makes an active
             // 'in_corso' row open-ended for the per-copy overlap trigger, which
             // then rejects the UPDATE with an opaque 'loan_update_failed'. Guard
@@ -1443,6 +1455,10 @@ class PrestitiController
 
         $nuovo_stato = $data['stato'] ?? '';
         $note = trim((string) ($data['note'] ?? '')) ?: null;
+        // The return form posts the note field (prefilled with the stored
+        // note); a return without it (quick return by copy code) keeps the
+        // note the loan already has instead of erasing it.
+        $noteProvided = array_key_exists('note', $data) ? 1 : 0;
         $redirectTo = $this->sanitizeRedirect($data['redirect_to'] ?? null);
 
         // 'in_ritardo' NON è più un esito di restituzione: un rientro tardivo è
@@ -1591,8 +1607,8 @@ class PrestitiController
             $ritardo = ($loan_stato === 'restituito' && \App\Support\LibraryCalendar::isPastDue($db, $scadenza, $loan['copia_id'] !== null ? (int) $loan['copia_id'] : null, (string) $data_restituzione)) ? 1 : 0;
 
             // Aggiorna il prestito (state-guard sull'attivo per evitare doppie restituzioni)
-            $stmt = $db->prepare("UPDATE prestiti SET stato = ?, data_restituzione = ?, note = ?, sanzione = ?, attivo = 0, restituito_in_ritardo = ? WHERE id = ? AND attivo = 1");
-            $stmt->bind_param("ssssii", $loan_stato, $data_restituzione, $note, $sanzione, $ritardo, $id);
+            $stmt = $db->prepare("UPDATE prestiti SET stato = ?, data_restituzione = ?, note = IF(? = 1, ?, note), sanzione = ?, attivo = 0, restituito_in_ritardo = ? WHERE id = ? AND attivo = 1");
+            $stmt->bind_param("ssissii", $loan_stato, $data_restituzione, $noteProvided, $note, $sanzione, $ritardo, $id);
             $stmt->execute();
             $loanAffected = $stmt->affected_rows;
             $stmt->close();

@@ -9327,5 +9327,16 @@
   "Utente importato, ma l'invito potrebbe essere già stato inviato: se non è arrivato, invialo di nuovo dalla scheda dell'utente.": "Bruger importeret, men invitationen er muligvis allerede sendt: hvis den ikke er nået frem, så send den igen fra brugerens side.",
   "Questa ricerca ha raggiunto il numero massimo di importazioni: ripeti la ricerca per continuare.": "Denne søgning har nået det maksimale antal importer: søg igen for at fortsætte.",
   "Tessera o nome del socio": "Lånerkort eller medlemmets navn",
-  "Passa la tessera, digita il codice o cerca il socio per nome": "Scan kortet, indtast koden eller søg efter medlemmet ved navn"
+  "Passa la tessera, digita il codice o cerca il socio per nome": "Scan kortet, indtast koden eller søg efter medlemmet ved navn",
+  "Il periodo scelto è già trascorso: una prenotazione attiva deve finire oggi o in un giorno successivo.": "Den valgte periode er allerede overstået: en aktiv reservation skal slutte i dag eller senere.",
+  "Data non valida: modifica non salvata.": "Ugyldig dato: ændringen blev ikke gemt.",
+  "Scadenza ripristinata: la chiusura che l'aveva spostata non c'è più": "Afleveringsdato gendannet: lukningen, der havde flyttet den, findes ikke længere",
+  "Errore: il libro è già in prestito, la data di inizio non può essere spostata dopo oggi.": "Fejl: bogen er allerede udlånt, startdatoen kan ikke flyttes til efter i dag.",
+  "Da ritirare entro il %s": "Skal hentes senest %s",
+  "Copia ancora fuori per un ritardo: da questo giorno puoi metterti in coda": "Eksemplaret er stadig udlånt med forsinkelse: fra denne dag kan du stille dig i kø",
+  "Eliminare la chiusura e anticipare le scadenze che aveva prorogato?": "Slet lukningen, og fremryk de afleveringsfrister, den forlængede?",
+  "Correggi chiusura errata": "Ret en fejlagtig lukning",
+  "Elimina e ripristina le scadenze": "Slet og gendan afleveringsfrister",
+  "La restituzione deve avvenire il giorno stesso (%s).": "Bogen skal afleveres samme dag (%s).",
+  "Scadenza confermata dopo la riapertura": "Afleveringsdato bekræftet efter genåbning"
 }

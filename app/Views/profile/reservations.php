@@ -459,6 +459,12 @@ $profileReservationCoverUrl = static function (array $item): string {
                   <span><?= sprintf('%s %s', __('Dal'), format_date($dataPrestito, false, '/')) ?></span>
                 </div>
                 <?php endif; ?>
+                <?php if ($stato === 'da_ritirare' && !empty($p['effective_pickup_deadline'])): ?>
+                <div class="status-badge badge-scheduled">
+                  <i class="fas fa-hourglass-half"></i>
+                  <span><?= __('Da ritirare entro il %s', format_date((string) $p['effective_pickup_deadline'], false, '/')) ?></span>
+                </div>
+                <?php endif; ?>
               </div>
               <?php if ($hasReview): ?>
               <button class="btn-review" disabled>

@@ -285,23 +285,43 @@ $response = (new ReservationsAdminController())->store($post('/admin/reservation
     'data_inizio_richiesta' => $today,
     'data_fine_richiesta' => $expectedMaxEnd,
 ]), new SlimResponse(), $db);
+$reservationRow = $db->query("SELECT stato FROM prenotazioni WHERE libro_id = {$book} AND utente_id = {$requester} ORDER BY id DESC LIMIT 1")->fetch_assoc();
+$promotedLoan = $db->query("SELECT stato, origine, data_scadenza FROM prestiti WHERE libro_id = {$book} AND utente_id = {$requester} LIMIT 1")->fetch_assoc();
+$check(($redirectParams($response)['created'] ?? null) === '1'
+    && ($reservationRow['stato'] ?? null) === 'completata'
+    && ($promotedLoan['stato'] ?? null) === 'pendente'
+    && ($promotedLoan['origine'] ?? null) === 'prenotazione'
+    && ($promotedLoan['data_scadenza'] ?? null) === $expectedMaxEnd,
+    "6 a reservation ending {$expectedMaxEnd} is created and promoted when it can start today",
+    $response->getHeaderLine('Location'));
+$resetPatron($book, $requester, $copies);
+
+// A future reservation stays in the queue, so staff and reader can edit it.
+$futureStart = $addDays($today, 1);
+$response = (new ReservationsAdminController())->store($post('/admin/reservations/store', [
+    'libro_id' => (string) $book,
+    'utente_id' => (string) $requester,
+    'data_prenotazione' => $futureStart,
+    'data_scadenza' => $expectedMaxEnd,
+]), new SlimResponse(), $db);
 $reservationRow = $db->query("SELECT id FROM prenotazioni WHERE libro_id = {$book} AND utente_id = {$requester} AND stato = 'attiva' ORDER BY id DESC LIMIT 1")->fetch_assoc();
 $reservationId = (int) ($reservationRow['id'] ?? 0);
-$check($reservationId > 0 && !isset($redirectParams($response)['error']),
-    "6 the same reservation ending {$expectedMaxEnd} is created",
+$check($reservationId > 0 && ($redirectParams($response)['created'] ?? null) === '1',
+    '6b a future reservation remains active in the queue',
     $response->getHeaderLine('Location'));
 
 $response = (new ReservationsAdminController())->update($post("/admin/reservations/update/{$reservationId}", [
     'stato' => 'attiva',
-    'data_prenotazione' => $today,
+    'data_prenotazione' => $futureStart,
     'data_scadenza_prenotazione' => $addDays($today, $offset + 2),
-    'data_inizio_richiesta' => $today,
+    'data_inizio_richiesta' => $futureStart,
     'data_fine_richiesta' => $addDays($today, $offset + 2),
 ]), new SlimResponse(), $db, $reservationId);
 $params = $redirectParams($response);
 $check(($params['error'] ?? null) === 'capacity_full'
     && ($params['max_end_date'] ?? null) === $expectedMaxEnd
-    && ($params['blocked_from'] ?? null) === $conflictStart,
+    && ($params['blocked_from'] ?? null) === $conflictStart
+    && (int) ($params['max_loan_days'] ?? -1) === $expectedMaxDays - 1,
     '7 extending that reservation across the scheduled loan: capacity_full with the figures, own row excluded (cap still from the start)',
     $response->getHeaderLine('Location'));
 
@@ -364,15 +384,20 @@ $check(is_array($availability)
     "13 the availability payload carries loan_duration_days ({$defaultDays}, capped by the maximum) and max_loan_duration_days ({$maxDays})",
     json_encode([$availability['loan_duration_days'] ?? null, $availability['max_loan_duration_days'] ?? null]));
 
-// The HTTP route the calendars fetch whitelists the payload keys: the two
-// durations must be among them, or the forms silently keep their rendered
-// default (the controller method alone cannot catch that).
-$routeSrc = (string) file_get_contents($root . '/app/Routes/web.php');
-$routeAt = strpos($routeSrc, "/{id:\\d+}/availability', function");
-$routeSlice = $routeAt === false ? '' : substr($routeSrc, $routeAt, 3000);
-$check($routeSlice !== ''
-    && str_contains($routeSlice, "'loan_duration_days' => \$availability['loan_duration_days']")
-    && str_contains($routeSlice, "'max_loan_duration_days' => \$availability['max_loan_duration_days']"),
+// Verify the actual JSON returned by the localized route the calendar uses.
+$container = new \DI\Container([
+    'db' => $db,
+    'hookManager' => new \App\Support\HookManager($db),
+]);
+$app = new \Slim\App(new \Slim\Psr7\Factory\ResponseFactory(), $container);
+(require $root . '/app/Routes/web.php')($app);
+$availabilityPath = \App\Support\RouteTranslator::getRouteForLocale('api_book', \App\Support\I18n::getInstallationLocale());
+$availabilityRequest = (new ServerRequestFactory())->createServerRequest('GET', "{$availabilityPath}/{$book}/availability");
+$availabilityResponse = $app->handle($availabilityRequest);
+$routeAvailability = $jsonBody($availabilityResponse)['availability'] ?? [];
+$check($availabilityResponse->getStatusCode() === 200
+    && ($routeAvailability['loan_duration_days'] ?? null) === $defaultDays
+    && ($routeAvailability['max_loan_duration_days'] ?? null) === $maxDays,
     '13b the localized availability route passes both durations through to the calendars');
 
 $blocked = (new CapacityService($db))->unavailableDatesInRange($book, $today, $addDays($today, $defaultDays), $requester);

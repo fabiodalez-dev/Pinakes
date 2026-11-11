@@ -3174,6 +3174,9 @@ return function (App $app): void {
                 'availability' => [
                     'unavailable_dates' => $availability['unavailable_dates'] ?? [],
                     'earliest_available' => $availability['earliest_available'] ?? null,
+                    // First day of a place in the queue when no copy is free
+                    // for a loan (days in state 'waitlist').
+                    'earliest_queue' => $availability['earliest_queue'] ?? null,
                     'days' => $availability['days'] ?? [],
                     // F040: true when the excluded user already holds an active
                     // reservation on this book — the picker would otherwise show
