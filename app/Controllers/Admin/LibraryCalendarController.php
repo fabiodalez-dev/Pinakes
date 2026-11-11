@@ -272,7 +272,7 @@ class LibraryCalendarController
             $deleted = $stmt->affected_rows > 0;
             $stmt->close();
             return $deleted ? null : __('Chiusura non trovata.');
-        }, undoExtensions: $undoExtensions);
+        }, undoClosureId: $undoExtensions ? $id : null);
         if ($error !== null) {
             $_SESSION['error_message'] = $error;
             return $this->back($response);
@@ -604,7 +604,7 @@ class LibraryCalendarController
      *
      * @param callable(): ?string $write
      */
-    private function commitChange(\mysqli $db, callable $write, bool $undoExtensions = false): ?string
+    private function commitChange(\mysqli $db, callable $write, ?int $undoClosureId = null): ?string
     {
         $lockName = $this->lockName($db);
         try {
@@ -623,7 +623,24 @@ class LibraryCalendarController
         try {
             $db->begin_transaction();
             try {
-                $previous = $undoExtensions ? LibraryCalendar::forDb($db) : null;
+                $previous = null;
+                if ($undoClosureId !== null) {
+                    $stmt = $db->prepare('SELECT data_inizio, data_fine, ricorrente_annuale, sede_id FROM calendario_chiusure WHERE id = ?');
+                    $stmt->bind_param('i', $undoClosureId);
+                    $stmt->execute();
+                    $closure = $stmt->get_result()->fetch_assoc();
+                    $stmt->close();
+                    if ($closure !== null) {
+                        // Also compare against a closure that was suspended
+                        // before staff chose to undo its extensions.
+                        $previous = LibraryCalendar::forDb($db)->withAdditionalClosure([
+                            'data_inizio' => (string) $closure['data_inizio'],
+                            'data_fine' => (string) $closure['data_fine'],
+                            'ricorrente_annuale' => (int) $closure['ricorrente_annuale'],
+                            'sede_id' => $closure['sede_id'] === null ? null : (int) $closure['sede_id'],
+                        ]);
+                    }
+                }
                 $error = $write();
                 if ($error === null) {
                     // The due date and deadline moves read the new calendar.

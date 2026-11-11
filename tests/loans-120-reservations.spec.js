@@ -217,11 +217,17 @@ test.describe('Loans 120 · reservations and the queue', () => {
     lab.expectCoherent(book);
   });
 
-  test('R14: a reservation for later days is not turned into a loan when the book comes back early', async () => {
+  test('R14: a return promotes the current reservation and preserves a disjoint future one', async () => {
     const { book, loanId, due } = outBook('early');
-    await lab.readerRequest(pages.anna, book, { start: addDays(due, 1) });
+    const [first] = queueOf(book, [bruno]);
+    const futureStart = addDays(lab.reservation(first).end, 1);
+    expect(futureStart > due).toBe(true);
+    const result = await lab.readerRequest(pages.anna, book, { start: futureStart });
+    expect(result.ok, JSON.stringify(result.body)).toBe(true);
     const resId = lab.lastReservationId(book, anna);
     await lab.returnLoan(admin, loanId);
+    expect(lab.reservation(first).stato).toBe('completata');
+    expect(lab.lastLoanId(book, bruno)).toBeGreaterThan(0);
     expect(lab.reservation(resId).stato).toBe('attiva');
     expect(lab.lastLoanId(book, anna)).toBe(0);
     expect(q(book)).toBe(pos([anna, 1]));
@@ -363,7 +369,7 @@ test.describe('Loans 120 · reservations and the queue', () => {
     const { book, due } = outBook('admin-completed');
     const resId = lab.seedReservation(book, anna, { start: addDays(due, 1), end: addDays(due, 15), position: 1 });
     const edit = await lab.adminEditReservation(admin, resId, { stato: 'completata' });
-    test.skip(!edit.ok, `the edit form refuses the change (${edit.error})`);
+    expect(edit.ok, edit.error).toBe(true);
     lab.runMaintenance();
     expect(lab.lastLoanId(book, anna)).toBe(0);
     expect(db(`SELECT notifica_inviata FROM prenotazioni WHERE id=${resId}`), 'the "book available" notice went out for a book that is still out').toBe('0');
@@ -415,8 +421,10 @@ test.describe('Loans 120 · reservations and the queue', () => {
     expect(a.ok, JSON.stringify(a.body)).toBe(true);
     const annaLoan = lab.lastLoanId(book, anna);
     expect((await lab.approve(admin, annaLoan)).ok).toBe(true);
-    if (b.ok && lab.lastLoanId(book, bruno)) {
+    if (b.ok) {
+      expect(b.body.status).toBe('pending_approval');
       const brunoLoan = lab.lastLoanId(book, bruno);
+      expect(brunoLoan).toBeGreaterThan(0);
       const second = await lab.noServerErrors(admin, () => lab.approve(admin, brunoLoan));
       expect(second.ok, 'both requests for the only copy were approved').toBe(false);
       expect(['pendente', 'annullato', 'scaduto']).toContain(lab.loan(brunoLoan).stato);

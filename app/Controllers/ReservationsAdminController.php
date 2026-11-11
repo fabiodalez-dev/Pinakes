@@ -345,7 +345,8 @@ class ReservationsAdminController
                 $newPosition = (int) ($posStmt->get_result()->fetch_assoc()['position'] ?? 1);
                 $posStmt->close();
 
-                $stmt = $db->prepare("UPDATE prenotazioni SET stato=?, data_prenotazione=?, data_scadenza_prenotazione=?, data_inizio_richiesta=?, data_fine_richiesta=?, queue_position=?, notifica_inviata=0 WHERE id=?");
+                $clearPromotion = ReservationManager::hasPromotionLink($db) ? ', prestito_promosso_id=NULL' : '';
+                $stmt = $db->prepare("UPDATE prenotazioni SET stato=?, data_prenotazione=?, data_scadenza_prenotazione=?, data_inizio_richiesta=?, data_fine_richiesta=?, queue_position=?, notifica_inviata=0{$clearPromotion} WHERE id=?");
                 $stmt->bind_param('sssssii', $stato, $startDt, $endDt, $dataInizioRichiesta, $dataFineRichiesta, $newPosition, $id);
             } else {
                 $stmt = $db->prepare("UPDATE prenotazioni SET stato=?, data_prenotazione=?, data_scadenza_prenotazione=?, data_inizio_richiesta=?, data_fine_richiesta=? WHERE id=?");

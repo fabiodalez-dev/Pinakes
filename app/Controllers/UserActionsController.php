@@ -571,32 +571,20 @@ class UserActionsController
         }
 
         $uid = (int) $user['id'];
-        $startDate = $date;
-
-        $db->begin_transaction();
-
         try {
-            // Resolve without locking, then follow the canonical book->reservation
-            // lock order used by create/cancel/promotion.
+            // Resolve the book before starting the transaction. The first
+            // consistent read inside it must happen after the book lock.
             $getStmt = $db->prepare("SELECT libro_id FROM prenotazioni WHERE id = ? AND utente_id = ? AND stato = 'attiva'");
             $getStmt->bind_param('ii', $rid, $uid);
             $getStmt->execute();
-            $result = $getStmt->get_result();
-            $reservation = $result->fetch_assoc();
+            $reservation = $getStmt->get_result()->fetch_assoc();
             $getStmt->close();
-
             if (!$reservation) {
-                $db->rollback();
                 return $response->withHeader('Location', RouteTranslator::route('reservations') . '?error=not_found')->withStatus(302);
             }
 
             $libroId = (int) $reservation['libro_id'];
-            // A closed start day moves to the next open day (see reserve()).
-            $date = \App\Support\LibraryCalendar::requestStartDay($db, $date, $libroId);
-            $startDate = $date;
-            $loanDays = (new \App\Services\CirculationPolicy($db))->forLoan($uid, $libroId)->requestDurationDays();
-            $endDate = \App\Support\LibraryCalendar::requestDueDate($db, $date, $loanDays, $libroId);
-
+            $db->begin_transaction();
             // Lock book row first to serialize every capacity decision.
             $lockStmt = $db->prepare("SELECT id FROM libri WHERE id = ? AND deleted_at IS NULL FOR UPDATE");
             $lockStmt->bind_param('i', $libroId);
@@ -619,18 +607,22 @@ class UserActionsController
                 return $response->withHeader('Location', RouteTranslator::route('reservations') . '?error=not_found')->withStatus(302);
             }
 
+            $startDate = \App\Support\LibraryCalendar::requestStartDay($db, $date, $libroId);
+            $loanDays = (new \App\Services\CirculationPolicy($db))->forLoan($uid, $libroId)->requestDurationDays();
+            $endDate = \App\Support\LibraryCalendar::requestDueDate($db, $startDate, $loanDays, $libroId);
+
             // Snapshot AFTER the FOR UPDATE lock: taken earlier it could
             // capture a concurrent transition and misattribute the diff.
             $activityBefore = \App\Support\ActivityLog::loadReservationSnapshot($db, $rid);
 
             // Canonical peak-capacity check, excluding the row being moved.
-            $capacity = new \App\Services\CapacityService($db);
+            $capacity = new \App\Services\CapacityService($db, lockingReads: true);
             if (!$capacity->hasFreeCapacity($libroId, $startDate, $endDate, excludeReservationId: $rid, excludeUserId: $uid, forQueue: true)) {
-                $db->rollback();
                 // Say how long a loan from the new date could be (LoanWindow),
                 // as every other capacity refusal does. excludeUserId leaves
                 // out the moved row itself, which belongs to this user.
                 $blocked = $capacity->unavailableDatesInRange($libroId, $startDate, $endDate, $uid, null, $rid, forQueue: true);
+                $db->rollback();
                 $query = http_build_query(['error' => 'not_available'] + \App\Support\LoanWindow::redirectParams($startDate, $blocked));
                 return $response->withHeader('Location', RouteTranslator::route('reservations') . '?' . $query)->withStatus(302);
             }

@@ -29,4 +29,4 @@ function appDateOffsetISO(days) {
   return date.toISOString().slice(0, 10);
 }
 
-module.exports = { appTodayISO, appDateOffsetISO };
+module.exports = { appTodayISO, appDateOffsetISO, INSTALL_ROOT };

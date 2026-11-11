@@ -746,19 +746,17 @@ unset($workspaceHeader);
                             <i class="fas fa-trash"></i>
                           </button>
                         </form>
-                        <?php if ($activeRow): ?>
-                          <form method="POST" action="<?= $e(url('/admin/calendar/closures/' . $cid . '/delete')) ?>" class="inline"
-                                data-swal-confirm="<?= $e(__('Eliminare la chiusura e anticipare le scadenze che aveva prorogato?')) ?>"
-                                data-swal-confirm-title="<?= $e(__('Correggi chiusura errata')) ?>"
-                                data-swal-confirm-button="<?= $e(__('Elimina e ripristina le scadenze')) ?>">
-                            <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
-                            <input type="hidden" name="undo_extensions" value="1">
-                            <button type="submit" class="btn-icon btn-secondary" data-action="undo-closure"
-                                    title="<?= $e(__('Elimina e ripristina le scadenze')) ?>" aria-label="<?= $e(__('Elimina e ripristina le scadenze')) ?>">
-                              <i class="fas fa-undo"></i>
-                            </button>
-                          </form>
-                        <?php endif; ?>
+                        <form method="POST" action="<?= $e(url('/admin/calendar/closures/' . $cid . '/delete')) ?>" class="inline"
+                              data-swal-confirm="<?= $e(__('Eliminare la chiusura e anticipare le scadenze che aveva prorogato?')) ?>"
+                              data-swal-confirm-title="<?= $e(__('Correggi chiusura errata')) ?>"
+                              data-swal-confirm-button="<?= $e(__('Elimina e ripristina le scadenze')) ?>">
+                          <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
+                          <input type="hidden" name="undo_extensions" value="1">
+                          <button type="submit" class="btn-icon btn-secondary" data-action="undo-closure"
+                                  title="<?= $e(__('Elimina e ripristina le scadenze')) ?>" aria-label="<?= $e(__('Elimina e ripristina le scadenze')) ?>">
+                            <i class="fas fa-undo"></i>
+                          </button>
+                        </form>
                       </div>
                       <?php endif; ?>
                     </td>

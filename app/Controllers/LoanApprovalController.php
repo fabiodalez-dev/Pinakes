@@ -1371,6 +1371,12 @@ class LoanApprovalController
                 }
             }
 
+            // A future cancellation frees this copy's dates, not its
+            // present shelf state. Let the allocator check each commitment.
+            if ($notStartedYet && $copiaId !== null) {
+                $reassignmentService->reassignOnReturn($copiaId);
+            }
+
             // Promote the waitlist (Layer 2): a cancelled pickup frees capacity for
             // queued reservations. Loop until none convert. Both queues (D5/BUG10).
             $reservationManager = new \App\Controllers\ReservationManager($db);

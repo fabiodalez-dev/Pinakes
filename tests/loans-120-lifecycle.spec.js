@@ -430,17 +430,21 @@ test.describe('Loans 120 · the life of a loan', () => {
     const control = lab.book('oneday-edit');
     const made = await lab.deskLoan(admin, bruno, control);
     const edit = await lab.editLoan(admin, made.id, { due: lab.today });
-    const deskAccepts = desk.ok && lab.loan(desk.id).due === lab.today;
-    const editAccepts = !edit.refusedByCalendar && edit.error === '' && lab.loan(made.id).due === lab.today;
-    expect(editAccepts, `desk ${deskAccepts ? 'accepts' : `refuses (${desk.error || 'calendar'})`} a one-day loan, the edit form ${editAccepts ? 'accepts' : 'refuses'} it`).toBe(deskAccepts);
+    expect(desk.ok, desk.error).toBe(true);
+    expect(lab.loan(desk.id).due).toBe(lab.today);
+    expect(edit.refusedByCalendar).toBe(false);
+    expect(edit.error).toBe('');
+    expect(lab.loan(made.id).due).toBe(lab.today);
   });
 
   test('L30: a book already out cannot be given a start date in the future', async () => {
     const book = lab.book('edit-future');
-    const id = lab.seedLoan(book, anna, { start: addDays(lab.today, -5), due: addDays(lab.today, 20) });
+    const originalStart = addDays(lab.today, -5);
+    const id = lab.seedLoan(book, anna, { start: originalStart, due: addDays(lab.today, 20) });
     const edit = await lab.noServerErrors(admin, () => lab.editLoan(admin, id, { start: addDays(lab.today, 5) }));
+    expect(edit.error).toBe('future_start_out');
     const loan = lab.loan(id);
-    expect(loan.stato === 'in_corso' && loan.start > lab.today,
-      `the loan is "in corso" (the reader has the book) with start ${loan.start}, after today; edit answered "${edit.error || 'ok'}"`).toBe(false);
+    expect(loan.stato).toBe('in_corso');
+    expect(loan.start).toBe(originalStart);
   });
 });

@@ -29,6 +29,23 @@ class ReservationManager
         $this->db = $db;
     }
 
+    /** @var \WeakMap<mysqli, bool>|null */
+    private static ?\WeakMap $promotionLinkAvailable = null;
+
+    /**
+     * Updater's SchemaRepair adds this nullable column to existing installs.
+     * Keep the legacy retry path while a database has the older schema.
+     */
+    public static function hasPromotionLink(mysqli $db): bool
+    {
+        self::$promotionLinkAvailable ??= new \WeakMap();
+        return self::$promotionLinkAvailable[$db] ??= $db->query(
+            "SELECT 1 FROM information_schema.COLUMNS
+             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'prenotazioni'
+               AND COLUMN_NAME = 'prestito_promosso_id'"
+        )->num_rows === 1;
+    }
+
     /** @var bool Internal flag tracking whether we own the current transaction */
     private bool $inTransaction = false;
 
@@ -376,6 +393,12 @@ class ReservationManager
                     }
                     // The e-mail states this loan's day, not a recomputed one.
                     $nextReservation['prestito_id'] = (int) $loanCreated;
+                    if (self::hasPromotionLink($this->db)) {
+                        $link = $this->db->prepare('UPDATE prenotazioni SET prestito_promosso_id = ? WHERE id = ?');
+                        $link->bind_param('ii', $loanCreated, $nextReservation['id']);
+                        $link->execute();
+                        $link->close();
+                    }
 
                     // BUG9/D4 double-subtraction fix: the reservation is claimed
                     // 'completata' BEFORE createLoanFromReservation() recalcs, so
@@ -992,16 +1015,15 @@ class ReservationManager
         // "Adesso" applicativo (M9) come base della finestra di recupero
         $cutoff = date('Y-m-d H:i:s', strtotime(\App\Support\DateHelper::now() . ' -7 days'));
 
-        // A retry must come from a real transition of this reservation, not
-        // another loan for the same reader/title. New promotions record the
-        // exact loan ID; older ones can be retried only if their timestamp
-        // identifies a single possible loan. An unrelated metadata edit on
-        // the completed reservation does not replace its status transition.
+        // New promotions persist the link in the same transaction as the
+        // loan, even if the optional audit write fails. Use audit only to
+        // identify a legacy promotion, never a manual completion.
+        $linkedLoan = self::hasPromotionLink($this->db) ? 'r.prestito_promosso_id' : 'NULL';
         $stmt = $this->db->prepare("
             SELECT r.*, u.email, u.nome, u.cognome, pr.id AS prestito_id
             FROM prenotazioni r
             JOIN utenti u ON r.utente_id = u.id
-            JOIN log_modifiche promoted ON promoted.id = (
+            LEFT JOIN log_modifiche promoted ON {$linkedLoan} IS NULL AND promoted.id = (
                 SELECT l.id FROM log_modifiche l
                 WHERE l.tabella = 'libri' AND l.record_id = r.libro_id
                   AND JSON_UNQUOTE(JSON_EXTRACT(IF(JSON_VALID(l.dati_nuovi), l.dati_nuovi, '{}'), '$._activity.event')) LIKE 'reservation.%'
@@ -1013,6 +1035,7 @@ class ReservationManager
                 ORDER BY l.id DESC LIMIT 1
             ) AND JSON_UNQUOTE(JSON_EXTRACT(IF(JSON_VALID(promoted.dati_nuovi), promoted.dati_nuovi, '{}'), '$._activity.event')) = 'reservation.promoted'
             JOIN prestiti pr ON pr.id = COALESCE(
+                {$linkedLoan},
                 CAST(JSON_UNQUOTE(JSON_EXTRACT(IF(JSON_VALID(promoted.dati_nuovi), promoted.dati_nuovi, '{}'), '$._activity.promoted_loan_id')) AS UNSIGNED),
                 (
                     SELECT IF(COUNT(*) = 1, MAX(legacy.id), NULL) FROM prestiti legacy

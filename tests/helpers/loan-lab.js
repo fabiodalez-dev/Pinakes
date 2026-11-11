@@ -23,7 +23,7 @@ const ft = require('./feature-toggles');
 const { flushCache } = require('./flush-cache');
 const { snapshotLoans, restoreLoans } = require('./calendar-loan-snapshot');
 
-const ROOT = path.resolve(__dirname, '../..');
+const { INSTALL_ROOT } = require('./app-date');
 const db = F.dbQuery;
 const dbInt = F.dbInt;
 
@@ -635,9 +635,9 @@ function createLab(prefix) {
   // ── Time passing ─────────────────────────────────────────────────────────
   /** The nightly maintenance (cron/full-maintenance.php): sweeps, activations, promotions. */
   lab.runMaintenance = () => {
-    try { fs.unlinkSync(path.join(ROOT, 'storage/cache/full-maintenance.lock')); } catch { /* no lock */ }
+    try { fs.unlinkSync(path.join(INSTALL_ROOT, 'storage/cache/full-maintenance.lock')); } catch { /* no lock */ }
     try {
-      return execFileSync('php', [path.join(ROOT, 'cron/full-maintenance.php')], { cwd: ROOT, encoding: 'utf-8', timeout: 180000 });
+      return execFileSync('php', [path.join(INSTALL_ROOT, 'cron/full-maintenance.php')], { cwd: INSTALL_ROOT, encoding: 'utf-8', timeout: 180000 });
     } catch (e) {
       // Exit status 2 = finished with non-fatal warnings (e.g. no SMTP).
       if (/** @type {any} */ (e).status === 2) return String(/** @type {any} */ (e).stdout || '');

@@ -105,7 +105,7 @@ test.describe('Loans 120 · boundaries, deadlines and automatic approval', () =>
     const book = lab.book('singleday');
     const day = addDays(lab.today, 2);
     const r = await lab.noServerErrors(reader, () => lab.readerRequest(reader, book, { start: day, end: day }));
-    test.skip(r.pickedEnd !== day, 'the calendar does not let the reader pick the same day twice');
+    expect(r.pickedEnd).toBe(day);
     expect(r.ok, JSON.stringify(r.body)).toBe(true);
     const loan = lab.loan(lab.lastLoanId(book, anna));
     expect([loan.start, loan.due]).toEqual([day, day]);
