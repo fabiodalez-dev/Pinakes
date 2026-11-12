@@ -81,8 +81,23 @@ async function disableFeatures(keys) {
   return snapshot;
 }
 
+/**
+ * Put back a snapshot from readFeatures() exactly as it was stored: a row
+ * that held 'true', 'yes' or 'on' (all read as on by Features::stored()) is
+ * not normalized to '0', and a key that had no row loses the one the spec
+ * wrote. Then flush the app cache.
+ */
 async function restoreFeatures(snapshot) {
-  if (snapshot) await writeFeatures(snapshot);
+  if (!snapshot) return;
+  for (const [key, value] of Object.entries(snapshot)) {
+    assertKey(key);
+    if (value === null || value === undefined) {
+      dbQuery(`DELETE FROM system_settings WHERE category='features' AND setting_key='${key}'`);
+    } else {
+      dbQuery(`INSERT INTO system_settings (category, setting_key, setting_value) VALUES ('features', '${key}', ${sqlString(String(value))}) ON DUPLICATE KEY UPDATE setting_value=VALUES(setting_value)`);
+    }
+  }
+  await flushCache();
 }
 
 /**
