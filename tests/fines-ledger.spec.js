@@ -14,8 +14,27 @@ const { test, expect } = require('@playwright/test');
 // fines, so it switches it on for its run and puts back what was there.
 const featureToggles = require('./helpers/feature-toggles');
 let featureSnapshot;
-test.beforeAll(async () => { featureSnapshot = await featureToggles.enableFeatures(['fines']); });
-test.afterAll(async () => { await featureToggles.restoreFeatures(featureSnapshot); });
+let calendarSnapshot;
+// The closures calendar is switched off for the run: with closed days the
+// ledger charges open days only, and these tests price fines on calendar
+// days. Closed days have their own suite (fines-closed-days.spec.js).
+test.beforeAll(async () => {
+  // Both snapshots are read before anything is written: if a switch fails
+  // half-way (the cache flush after the write), the teardown still knows
+  // what to put back.
+  featureSnapshot = featureToggles.readFeatures(['fines', 'automatic_fines', 'debt_block', 'loss_penalties']);
+  calendarSnapshot = featureToggles.readFeatures(['closures_calendar']);
+  await featureToggles.enableFeatures(['fines']);
+  await featureToggles.disableFeatures(['closures_calendar']);
+});
+test.afterAll(async () => {
+  // The fines modules are restored even when restoring the calendar fails.
+  try {
+    await featureToggles.restoreFeatures(calendarSnapshot);
+  } finally {
+    await featureToggles.restoreFeatures(featureSnapshot);
+  }
+});
 const { execFileSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
@@ -421,8 +440,15 @@ test.describe.serial('Fines and patron ledger', () => {
     await saveFineSettings(page, { email: true });
     expect(readSetting('loans', 'fine_charged_email')).toBe('1');
 
+    // Loan C was seeded 3 days late by an earlier test: if the library's midnight
+    // passed since then it is 4 days late now. Re-anchor it on today's date, and
+    // price the fine on the return day the desk recorded, in case midnight falls
+    // during the return itself (0,50 a day, every day charged past the grace).
+    dbQuery(`UPDATE prestiti SET data_prestito='${appDateOffsetISO(-17)}', data_scadenza='${appDateOffsetISO(-3)}' WHERE id=${state.loans.C}`);
     await returnFromDesk(page, state.loans.C);
-    expect(dbQuery(`SELECT importo FROM movimenti_lettore WHERE prestito_id=${state.loans.C} AND tipo='multa_ritardo'`)).toBe('1.50');
+    const daysLate = Number(dbQuery(`SELECT DATEDIFF(data_restituzione, data_scadenza) FROM prestiti WHERE id=${state.loans.C}`));
+    expect([3, 4]).toContain(daysLate);
+    expect(dbQuery(`SELECT importo FROM movimenti_lettore WHERE prestito_id=${state.loans.C} AND tipo='multa_ritardo'`)).toBe((daysLate * 0.5).toFixed(2));
 
     const query = `to:${PATRON_EMAIL} subject:"Multa per ritardo"`;
     let message = null;
@@ -434,10 +460,11 @@ test.describe.serial('Fines and patron ledger', () => {
     }
     expect(message, 'fine_charged email in Mailpit').not.toBeNull();
     const full = await (await fetch(`${MAILPIT_API}/message/${message.ID}`)).json();
-    expect(full.Subject).toContain(euro(150));
+    expect(full.Subject).toContain(euro(daysLate * 50));
     expect(full.HTML).toContain(`${TITLE_PREFIX}_C`);
-    expect(full.HTML).toContain('3'); // days late
-    expect(full.HTML).toContain(euro(650)); // balance: 5,00 + 1,50
+    // With its label: a bare digit could match the book title or an amount.
+    expect(full.HTML).toMatch(new RegExp(`Giorni di ritardo:\\s*(?:</?[a-z]+[^>]*>\\s*)*${daysLate}(?!\\d)`));
+    expect(full.HTML).toContain(euro(500 + daysLate * 50)); // balance: 5,00 + this fine
   });
 
   test('13b. a fine waived at the desk: the return email has no fine line and no fine email is sent (Mailpit)', async () => {
