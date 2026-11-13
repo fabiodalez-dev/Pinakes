@@ -1500,6 +1500,25 @@ HTACCESS;
     }
 
     /** End the install-in-progress binding (called once .installed exists). */
+    /**
+     * After step 2 wrote a new .env: drop every progress flag that described the
+     * previous database (schema/data import, admin, finalisation, later steps).
+     * Otherwise a reinstall in the same session would skip step 3's import on
+     * the new, empty database and fail at step 4. Steps 0-2 stay done.
+     */
+    public function resetProgressAfterEnvWrite(): void {
+        foreach (['schema_imported', 'data_imported', 'installation_complete', 'installation_finalized',
+            'admin_user', 'installed_plugins', 'trigger_warnings', 'openlibrary_plugin_id'] as $key) {
+            unset($_SESSION[$key]);
+        }
+        if (isset($_SESSION['completed_steps']) && is_array($_SESSION['completed_steps'])) {
+            $_SESSION['completed_steps'] = array_values(array_filter(
+                $_SESSION['completed_steps'],
+                static fn ($step): bool => (int) $step <= 2
+            ));
+        }
+    }
+
     public function releaseInstallOwnership(): void {
         $marker = $this->installOwnerMarkerPath();
         if (is_file($marker)) {

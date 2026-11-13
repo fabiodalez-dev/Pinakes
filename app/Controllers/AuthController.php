@@ -175,6 +175,12 @@ class AuthController
                 // costs its owner only this device, which is the one being
                 // handed over.
                 $rememberMeService->revokeCurrentToken();
+                // session_regenerate_id() keeps the session data, so a row id from an
+                // earlier sign-in in this browser (possibly another account) would
+                // survive: if binding this sign-in then failed, pinIfUnbound() would
+                // see that stale id and skip the pin, and revocation would target the
+                // wrong row. Start this sign-in unbound.
+                unset($_SESSION[RememberMeService::SESSION_ROW_KEY]);
 
                 if ($remember) {
                     $rememberMeService->createToken((int) $row['id']);

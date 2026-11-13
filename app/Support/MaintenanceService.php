@@ -484,24 +484,36 @@ class MaintenanceService
         if (!is_file($path)) {
             return false;
         }
-        if (self::privateModeEnabled($db)) {
-            // No public copy at all while private mode is on (see generateIcsCalendar()).
+        // Same publish lock the private-mode switch holds while it sets the flag
+        // and withdraws the copies: the flag check and the rewrite cannot
+        // interleave with it (a copy written after the withdrawal would be public).
+        if (!\App\Support\SitemapCache::acquirePublishLock()) {
+            // Cannot coordinate with the private-mode switch: removing the copy
+            // is always safe (the next pass regenerates it), keeping it is not.
             return self::removePublicIcsFile($path);
         }
-        $content = @file_get_contents($path);
-        if (!is_string($content) || !self::icsHasPersonalData($content)) {
-            return false;
-        }
         try {
-            if ((new IcsGenerator($db))->saveToFile($path, true, false)) {
-                return true;
+            if (self::privateModeEnabled($db)) {
+                // No public copy at all while private mode is on (see generateIcsCalendar()).
+                return self::removePublicIcsFile($path);
             }
-        } catch (\Throwable $e) {
-            SecureLogger::error('Public ICS file rewrite failed', ['error' => $e->getMessage()]);
+            $content = @file_get_contents($path);
+            if (!is_string($content) || !self::icsHasPersonalData($content)) {
+                return false;
+            }
+            try {
+                if ((new IcsGenerator($db))->saveToFile($path, true, false)) {
+                    return true;
+                }
+            } catch (\Throwable $e) {
+                SecureLogger::error('Public ICS file rewrite failed', ['error' => $e->getMessage()]);
+            }
+            // nosemgrep: php.lang.security.unlink-use.unlink-use -- fixed internal path under storage/calendar, not user input
+            @unlink($path);
+            return true;
+        } finally {
+            \App\Support\SitemapCache::releasePublishLock();
         }
-        // nosemgrep: php.lang.security.unlink-use.unlink-use -- fixed internal path under storage/calendar, not user input
-        @unlink($path);
-        return true;
     }
 
     /**
@@ -613,6 +625,23 @@ class MaintenanceService
         // web server serves it directly. Write nothing while it is on and drop any
         // copy written before; the app's /calendar/events.ics route (and the legacy
         // /storage/calendar/library-calendar.ics route) still answer signed-in users.
+        // Held across the flag check AND the write: the private-mode switch takes
+        // the same lock while it sets the flag and withdraws the copy, so a
+        // calendar generated just before cannot be renamed into place after it.
+        // No lock, no publication (fail closed).
+        if (!\App\Support\SitemapCache::acquirePublishLock()) {
+            SecureLogger::error('MaintenanceService: publish lock unavailable, public calendar file not written');
+            return false;
+        }
+        try {
+            return $this->generateIcsCalendarLocked();
+        } finally {
+            \App\Support\SitemapCache::releasePublishLock();
+        }
+    }
+
+    private function generateIcsCalendarLocked(): bool
+    {
         if (self::privateModeEnabled($this->db)) {
             // Success means "no public copy left": a copy that cannot be
             // removed is still served, so runAllLocked() must record an error.

@@ -28,8 +28,19 @@ session_start();
 
 // Only destroy session on explicit reset request
 if (isset($_GET['reset'])) {
+    // Keep the install-ownership binding (token + import proof): it is what lets
+    // this browser go on with a claimed install. Dropping it would leave the
+    // on-disk claim pointing at no session, and the wizard shut out until it
+    // expires. The token is still checked against the hash on disk and its TTL.
+    // (Literal keys: the Installer class is not loaded yet.)
+    $keptBinding = array_intersect_key($_SESSION ?? [], array_flip(['installer_owner_token', 'installer_populated_by_owner']));
     session_destroy();
     session_start(); // Start a fresh session
+    foreach ($keptBinding as $bindingKey => $bindingValue) {
+        if (is_string($bindingValue) && $bindingValue !== '') {
+            $_SESSION[$bindingKey] = $bindingValue;
+        }
+    }
 }
 
 // Normalize locale to canonical form (it_IT, en_US, de_DE, fr_FR, da_DK)

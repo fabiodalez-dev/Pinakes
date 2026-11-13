@@ -41,6 +41,9 @@ if (($argv[1] ?? '') === '--request') {
     ini_set('session.use_strict_mode', '0');
     ini_set('session.cache_limiter', '');
     session_id($sid);
+    // Report the session id the response ends with, as the Set-Cookie header
+    // would: ?reset starts a new session and a browser follows the new id.
+    register_shutdown_function(static function (): void { echo '[SID ' . session_id() . ']'; });
     require $site . '/installer/index.php';
     exit(0);
 }
@@ -195,6 +198,22 @@ $check(!str_contains($request($site, 'step=3', $admin), '[STEP 3]'), '...also wi
 $flag($site, '.test_admin_ok', '1');
 $check(str_contains($request($site, 'step=3&force=1', $admin), '[STEP 3]'),
     'with a valid admin of the configured database the reinstall goes on');
+
+// ---------------------------------------------------------------------------
+echo "D. ?reset after step 2 keeps the owner's binding\n";
+// ---------------------------------------------------------------------------
+$site = $mkSite();
+$flag($site, '.test_db_empty', '1');
+$owner = $sid();
+$out = $walk($site, $owner, [0 => 'step=0', 1 => 'step=1', 2 => 'step=2']);
+$check(str_contains($out[2], '[STEP 2]') && is_file($site . '/storage/.install_in_progress'), 'setup: the owner wrote .env and holds the claim');
+$afterReset = $request($site, 'reset=1', $owner);
+$check(str_contains($afterReset, '[STEP 0]'), 'after ?reset the owner gets the wizard again (not the installed-state page)');
+// The browser follows the new session id the reset issued.
+$owner = preg_match('/\[SID ([A-Za-z0-9,-]+)\]/', $afterReset, $m) === 1 ? $m[1] : $owner;
+$out = $walk($site, $owner, [1 => 'step=1', 2 => 'step=2']);
+$check(str_contains($out[1], '[STEP 1]') && str_contains($out[2], '[STEP 2]'), 'and can walk the steps again after the reset');
+$check(!str_contains($request($site, 'step=0', $sid()), '[STEP 0]'), 'another session is still shut out after the reset');
 
 // ---------------------------------------------------------------------------
 // Cleanup: only the private temp tree created above.

@@ -291,6 +291,22 @@ $inst11->releaseInstallOwnership();
 $check(!isset($_SESSION[$popKey]) && !isset($_SESSION[$forceKey]) && !isset($_SESSION[Installer::INSTALL_OWNER_SESSION_KEY]),
     'releaseInstallOwnership() also drops the import proof and the reinstall routing hint');
 
+// A new .env voids everything recorded about the previous database.
+$_SESSION = ['schema_imported' => true, 'data_imported' => true, 'installation_complete' => true,
+    'installation_finalized' => true, 'admin_user' => ['id' => 1], 'completed_steps' => [0, 1, 2, 3, 4, 5, 6],
+    'app_locale' => 'it_IT'];
+(new Installer($mkSite()))->resetProgressAfterEnvWrite();
+$check(!isset($_SESSION['schema_imported'], $_SESSION['data_imported'], $_SESSION['installation_complete'],
+        $_SESSION['installation_finalized'], $_SESSION['admin_user'])
+    && $_SESSION['completed_steps'] === [0, 1, 2] && ($_SESSION['app_locale'] ?? '') === 'it_IT',
+    'resetProgressAfterEnvWrite() drops the previous database\'s progress, keeps steps 0-2 and the language');
+$step2 = (string) file_get_contents($ROOT . '/installer/steps/step2.php');
+$envPos = strpos($step2, '$installer->createEnvFile(');
+$resetPos = strpos($step2, '$installer->resetProgressAfterEnvWrite();');
+$check($envPos !== false && $resetPos !== false && $resetPos > $envPos && $resetPos < (int) strpos($step2, 'completeStep(2)'),
+    'step 2 resets the progress right after a successful .env write, before marking step 2 done');
+$_SESSION = [];
+
 $step3 = (string) file_get_contents($ROOT . '/installer/steps/step3.php');
 $recPos = strpos($step3, '$installer->recordSchemaImportByOwner();');
 $impPos = strpos($step3, '$installer->importSchema();');

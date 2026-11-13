@@ -94,6 +94,17 @@ $_SESSION = ['user' => ['id' => 5, 'auth_via' => 'mobile_token']];
 $check($resolveWith($newHash) === SessionRoleRevalidator::OK, 'a Mobile API token request is not subject to the browser pin');
 SessionRoleRevalidator::reset();
 
+// A sign-in starts unbound: a row id left by an earlier sign-in in this browser
+// (session_regenerate_id() keeps the data) must not make pinIfUnbound() skip.
+$auth = (string) file_get_contents($root . '/app/Controllers/AuthController.php');
+$unsetPos = strpos($auth, 'unset($_SESSION[RememberMeService::SESSION_ROW_KEY]);');
+$bindPos = strpos($auth, '$rememberMeService->bindPlainSession(');
+$check($unsetPos !== false && $bindPos !== false && $unsetPos < $bindPos, 'login drops a stale row binding before binding the new sign-in');
+$_SESSION = ['user' => ['id' => 5], RememberMeService::SESSION_ROW_KEY => 99];
+unset($_SESSION[RememberMeService::SESSION_ROW_KEY]);
+RememberMeService::pinIfUnbound($oldHash);
+$check(RememberMeService::currentPin() === RememberMeService::pinValue(5, $oldHash), 'so a sign-in whose binding fails is pinned to its own account');
+
 echo "B. revokeAll() re-pins the device it keeps\n";
 $env = [];
 foreach (preg_split('/\r?\n/', (string) @file_get_contents($root . '/.env')) ?: [] as $line) {
@@ -150,6 +161,13 @@ if (!$db instanceof mysqli) {
         CredentialRevoker::revokeAll($db, $ghostId, true);
         $check((RememberMeService::currentPin() ?? '') === RememberMeService::pinValue(1, $oldHash),
             "revoking ANOTHER account's credentials leaves this session's pin alone");
+
+        // A Mobile API token request carries the token user in $_SESSION['user']
+        // for its length: a password change made there never re-pins anything.
+        $_SESSION = ['user' => ['id' => $ghostId, 'auth_via' => 'mobile_token', RememberMeService::UNBOUND_CREDENTIAL_KEY => RememberMeService::pinValue($ghostId, $oldHash)]];
+        CredentialRevoker::revokeAll($db, $ghostId, true);
+        $check(RememberMeService::currentPin() === RememberMeService::pinValue($ghostId, $oldHash),
+            'a password change through the Mobile API does not re-pin');
 
         $_SESSION = ['user' => ['id' => $ghostId]];
         RememberMeService::pinIfUnbound($oldHash);

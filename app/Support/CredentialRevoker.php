@@ -66,6 +66,7 @@ final class CredentialRevoker
         // password (RememberMeService::UNBOUND_CREDENTIAL_KEY): re-pin it to the
         // new one, or the person who just changed it would be signed out.
         if ($keepCurrentDevice && (int) ($_SESSION['user']['id'] ?? 0) === $userId
+            && ($_SESSION['user']['auth_via'] ?? '') !== 'mobile_token'
             && RememberMeService::currentPin() !== null) {
             $stmt = $db->prepare('SELECT password FROM utenti WHERE id = ? LIMIT 1');
             if ($stmt !== false) {

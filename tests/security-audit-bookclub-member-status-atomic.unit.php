@@ -205,7 +205,7 @@ try {
         $m = $add($uid++, 'active');
         $t0 = $token();
         if ($mode === 'sql') {
-            $db->query('ALTER TABLE bookclub_clubs RENAME COLUMN ics_token TO ics_token_hidden');
+            $db->query('ALTER TABLE bookclub_clubs CHANGE COLUMN ics_token ics_token_hidden CHAR(32) NOT NULL');
             $repo->mode = 'ok';
         } else {
             $repo->mode = $mode;
@@ -214,7 +214,7 @@ try {
             $ok = $repo->setMemberStatus($m, 'banned');
         } finally {
             if ($mode === 'sql') {
-                $db->query('ALTER TABLE bookclub_clubs RENAME COLUMN ics_token_hidden TO ics_token');
+                $db->query('ALTER TABLE bookclub_clubs CHANGE COLUMN ics_token_hidden ics_token CHAR(32) NOT NULL');
             }
         }
         $check($ok === false, "{$label}: setMemberStatus() returns false");

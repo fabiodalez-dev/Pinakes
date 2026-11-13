@@ -78,6 +78,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
 
         // Create .env file with language setting
         if ($installer->createEnvFile($finalHost, $username, $password, $database, $port, $socket, $locale)) {
+            // Everything recorded about the previous database is void now.
+            $installer->resetProgressAfterEnvWrite();
             $_SESSION['db_config'] = compact('finalHost', 'username', 'database', 'port', 'socket');
             completeStep(2);
             header('Location: index.php?step=3');

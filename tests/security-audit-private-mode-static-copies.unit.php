@@ -397,5 +397,20 @@ echo json_encode(["published" => $published, "reason" => method_exists($g, "getL
 
 $runtimeCache->setValue(null, $previousCache);
 
+// The ICS writers take the publish lock the private-mode switch holds, across
+// the flag check AND the write; no lock means no publication.
+$maint = (string) file_get_contents(dirname(__DIR__) . '/app/Support/MaintenanceService.php');
+$gen = (string) strstr($maint, 'public function generateIcsCalendar(): bool');
+$gen = substr($gen, 0, (int) strpos($gen, 'private function generateIcsCalendarLocked'));
+$check(str_contains($gen, 'SitemapCache::acquirePublishLock()') && str_contains($gen, 'return false;')
+    && str_contains($gen, 'finally') && str_contains($gen, 'releasePublishLock()') && str_contains($gen, 'generateIcsCalendarLocked()'),
+    'generateIcsCalendar() checks private mode and writes only under the publish lock (fails closed without it)');
+$heal = (string) strstr($maint, 'public static function healPublicIcsFile(');
+$heal = substr($heal, 0, (int) strpos($heal, "\n    }\n"));
+$lockPos = strpos($heal, 'acquirePublishLock()');
+$flagPos = strpos($heal, 'privateModeEnabled(');
+$check($lockPos !== false && $flagPos !== false && $lockPos < $flagPos && str_contains($heal, 'releasePublishLock()'),
+    'healPublicIcsFile() reads the flag and rewrites under the same lock');
+
 echo "\n" . ($failed === 0 ? "ALL {$passed} PASS\n" : "{$passed} PASS, {$failed} FAIL\n");
 exit($failed === 0 ? 0 : 1);
