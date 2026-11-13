@@ -233,6 +233,14 @@ class ReservationsAdminController
             $utenteId = (int) $libroResult['utente_id'];
             $oldStato = (string) $libroResult['stato'];
 
+            // Borrower scope on the write (Permissions::mayActOnBorrower): a
+            // custom role edits reservations of reader accounts only. The
+            // reservations list already hides the others; answer as if absent.
+            if (!\App\Support\Permissions::mayActOnBorrower($db, $utenteId)) {
+                $db->rollback();
+                return $response->withHeader('Location', url('/admin/reservations') . '?error=not_found')->withStatus(302);
+            }
+
             // Snapshot AFTER the FOR UPDATE lock: taken earlier, a concurrent
             // request could change the row between the read and the lock and
             // the audit diff would attribute someone else's change to this edit.
@@ -619,6 +627,13 @@ class ReservationsAdminController
             $userLockStmt->bind_param('i', $utenteId);
             $userLockStmt->execute();
             $userLockStmt->close();
+            // Borrower scope on the write, not only on the picker: a custom role
+            // queues reservations for reader accounts only (the app's create
+            // delegates here too). Same answer as an account that does not exist.
+            if (!\App\Support\Permissions::mayActOnBorrower($db, $utenteId)) {
+                $db->rollback();
+                return $response->withHeader('Location', url('/admin/reservations/create') . '?error=user_not_found')->withStatus(302);
+            }
             $eligibilityError = \App\Support\LoanEligibility::checkUser($db, $utenteId);
             if ($eligibilityError !== null) {
                 $db->rollback();

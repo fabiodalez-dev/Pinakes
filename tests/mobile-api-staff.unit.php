@@ -212,9 +212,9 @@ $check($limiter->process($tokenRequest(902), $handler)->getStatusCode() === 200,
 if ($bypass !== false) {
     putenv('PINAKES_E2E_BYPASS_RATE_LIMIT=' . $bypass);
 }
-// RateLimiter keeps its state in the system temp dir: remove this run's files.
+// Remove this run's RateLimiter state (file names are namespaced per install).
 foreach ([901, 902] as $tokenId) {
-    @unlink(sys_get_temp_dir() . '/pinakes_ratelimit/' . hash('sha256', "mobile_api_action:{$action}:token:{$tokenId}") . '.json');
+    \App\Support\RateLimiter::reset("mobile_api_action:{$action}:token:{$tokenId}");
 }
 
 echo "\n" . ($failed === 0 ? "ALL {$passed} PASS\n" : "{$passed} PASS, {$failed} FAIL\n");

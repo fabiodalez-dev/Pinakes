@@ -209,13 +209,7 @@ async function getCsrfToken(page) {
 
 /** Clear file-based rate limit state so tests don't hit 429 errors */
 function clearRateLimits() {
-  const dir = path.join(os.tmpdir(), 'pinakes_ratelimit');
-  try {
-    if (!fs.existsSync(dir)) return;
-    for (const f of fs.readdirSync(dir)) {
-      try { fs.unlinkSync(path.join(dir, f)); } catch { /* ignore races */ }
-    }
-  } catch { /* ignore missing/inaccessible directory */ }
+  require('./helpers/rate-limit-reset').clearRateLimits();
 }
 
 /** Return today's date as YYYY-MM-DD */

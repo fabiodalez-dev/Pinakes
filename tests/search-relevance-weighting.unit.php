@@ -217,14 +217,20 @@ $posDescStar  = array_search($bookDesc, $orderStar, true);
 $check($posTitleStar !== false && $posDescStar !== false && $posTitleStar < $posDescStar,
     "08 trailing-'*' query still ranks title ABOVE description (no collapse to titolo ASC)");
 
-// ── 09 · Catalog is uncapped; AJAX cap applies after normalization ─────────
-$manyWords = trim(str_repeat($term . ' ', 40));
+// ── 09 · Every path is capped at MAX_FILTER_TERMS; a caller can lower the cap
+//        but never raise it (40 words would mean 40 correlated author subqueries
+//        per row — the uncapped-term DoS fixed by the security audit) ─────────
+// Forty DISTINCT words: duplicates are folded before the cap applies.
+$manyWords = implode(' ', array_map(static fn (int $i): string => 'parola' . chr(97 + intdiv($i, 26)) . chr(97 + $i % 26), range(0, 39)));
 $relCatalog = SearchIndexBuilder::buildRelevanceOrder($db, $manyWords, 'l.');
 $relAjax = SearchIndexBuilder::buildRelevanceOrder($db, $manyWords, 'l.', 24);
+$relLow = SearchIndexBuilder::buildRelevanceOrder($db, $manyWords, 'l.', 5);
 $catalogAuthorTerms = substr_count($relCatalog['sql'], 'JOIN autori a_rel');
 $ajaxAuthorTerms = substr_count($relAjax['sql'], 'JOIN autori a_rel');
-$check($catalogAuthorTerms === 40 && $ajaxAuthorTerms === 24,
-    "09 catalog weighs all 40 words while AJAX is capped at 24");
+$lowAuthorTerms = substr_count($relLow['sql'], 'JOIN autori a_rel');
+$cap = \App\Support\ExactSearch::MAX_FILTER_TERMS;
+$check($catalogAuthorTerms === $cap && $ajaxAuthorTerms === $cap && $lowAuthorTerms === 5,
+    "09 catalog and AJAX both capped at {$cap} words (got {$catalogAuthorTerms}/{$ajaxAuthorTerms}), lower caps honoured ({$lowAuthorTerms})");
 
 $starPrefix = str_repeat('* ', 30) . $term;
 $relAfterStars = SearchIndexBuilder::buildRelevanceOrder($db, $starPrefix, 'l.', 24);

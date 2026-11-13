@@ -353,7 +353,9 @@ unset($workspaceHeader);
   </section>
   <?php endif; ?>
 
-  <?php if ($stato === 'sospeso'): ?>
+  <?php // Staff and user managers approve reader accounts only; an operator account in
+        // 'sospeso' is an administrator's lockout (UsersController::canChangeAccountState). ?>
+  <?php if ($stato === 'sospeso' && !empty($canChangeAccountState)): ?>
   <!-- Approval Actions -->
   <section class="bg-amber-50 border border-amber-200 rounded-lg p-6">
     <div class="flex items-center gap-2 mb-4">

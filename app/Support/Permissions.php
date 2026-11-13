@@ -128,7 +128,7 @@ final class Permissions
         // follows the reader record, everything below it follows the loan desk.
         if (preg_match('#^/api/v1/staff/users/\d+/ledger/#', $path) === 1) { return 'loans.manage'; }
         $groups = [
-            'catalog.manage' => ['/admin/books', '/admin/authors', '/admin/publishers', '/admin/suppliers', '/api/v1/staff/suppliers', '/api/v1/staff/marc', '/api/v1/staff/copy-cataloging', '/admin/genres', '/admin/series', '/admin/placement', '/admin/copies', '/admin/import', '/admin/imports', '/admin/imports-history', '/api/books', '/api/authors', '/api/publishers', '/api/genres', '/api/series', '/api/copies', '/api/dewey', '/api/scrape', '/api/libri', '/api/autori', '/api/editori', '/api/collane', '/api/collocazione', '/api/cover', '/admin/periodicals', '/api/v1/staff/lookups', '/api/v1/staff/isbn', '/api/v1/staff/copies', '/api/v1/staff/books', '/api/v1/staff/authors', '/api/v1/staff/publishers', '/api/v1/staff/imports', '/api/v1/staff/periodicals', '/api/v1/staff/series', '/api/v1/staff/genres', '/api/v1/staff/works', '/api/v1/staff/covers', '/api/v1/staff/enrich', '/api/v1/staff/shelves', '/api/v1/staff/archives', '/api/search/editori', '/api/search/generi', '/api/search/preview', '/api/generi', '/admin/archives', '/admin/opere', '/admin/espressioni'],
+            'catalog.manage' => ['/admin/books', '/admin/authors', '/admin/publishers', '/admin/suppliers', '/api/v1/staff/suppliers', '/api/v1/staff/marc', '/api/v1/staff/copy-cataloging', '/admin/genres', '/admin/series', '/admin/placement', '/admin/copies', '/admin/import', '/admin/imports', '/admin/imports-history', '/api/books', '/api/authors', '/api/publishers', '/api/genres', '/api/series', '/api/copies', '/api/dewey', '/api/scrape', '/api/libri', '/api/autori', '/api/editori', '/api/collane', '/api/collocazione', '/api/cover', '/admin/periodicals', '/api/v1/staff/lookups', '/api/v1/staff/isbn', '/api/v1/staff/copies', '/api/v1/staff/books', '/api/v1/staff/authors', '/api/v1/staff/publishers', '/api/v1/staff/imports', '/api/v1/staff/periodicals', '/api/v1/staff/series', '/api/v1/staff/genres', '/api/v1/staff/works', '/api/v1/staff/covers', '/api/v1/staff/enrich', '/api/v1/staff/shelves', '/api/v1/staff/archives', '/api/search/editori', '/api/search/generi', '/api/search/preview', '/api/generi', '/api/plugins/proxy-image', '/admin/archives', '/admin/opere', '/admin/espressioni'],
             'loans.manage' => ['/admin/loans', '/admin/attendance', '/admin/reservations', '/api/loans', '/api/reservations', '/api/prestiti', '/prestiti', '/api/v1/staff/loans', '/api/v1/staff/reservations', '/api/v1/staff/attendance'],
             'users.manage' => ['/admin/users', '/api/users', '/api/utenti', '/api/admin/pending-registrations', '/api/admin/pending-registrations-count', '/api/v1/staff/users', '/api/v1/staff/user-imports', '/api/search/utenti'],
             'digital.manage' => ['/admin/plugins/digital-library/upload'],
@@ -164,8 +164,26 @@ final class Permissions
         return $permission !== null && self::can($permission, $user);
     }
 
+    /** Local form of a path that cannot be authorised: no capability maps to it. */
+    private const UNROUTABLE_PATH = '/__unroutable__';
+
+    /**
+     * The path the router dispatches, relative to the install's base path.
+     *
+     * Slim rawurldecode()s the request path once before matching a route
+     * (RouteResolver::computeRoutingResults), so the decision is taken on that
+     * same decoded string: '/%61dmin/books' selects the /admin/books route and
+     * is judged as '/admin/books'. A path that is not a plain decoded path is
+     * refused instead of guessed at: an encoded '/', '\' or NUL ('%2F', '%5C',
+     * '%00'), a '%' still present after the one decode (double encoding), or a
+     * control character or backslash. Those map to no capability, so only an
+     * administrator or Staff passes. Idempotent: the result contains no '%'.
+     */
     private static function localPath(string $path): string
     {
+        if (preg_match('#%(?:2f|5c|00)#i', $path) === 1) { return self::UNROUTABLE_PATH; }
+        $path = rawurldecode($path);
+        if (str_contains($path, '%') || preg_match('/[\x00-\x1F\x7F\\\\]/', $path) === 1) { return self::UNROUTABLE_PATH; }
         $base = HtmlHelper::getBasePath();
         if ($base !== '' && str_starts_with($path, $base . '/')) { $path = substr($path, strlen($base)); }
         return '/' . trim($path, '/');
@@ -221,6 +239,39 @@ final class Permissions
             return $readers . " AND {$p}ruolo_id IS NULL AND {$p}accesso_digitale = 0";
         }
         return $readers;
+    }
+
+    /**
+     * Whether the signed-in operator may record circulation for $userId: create or
+     * reassign a loan or a reservation, assess a loss penalty, waive a fine. The
+     * borrower scope above, enforced on the write and not only on the pickers, so a
+     * custom role reaches reader accounts only, never an administrator or a Staff
+     * account. Administrators and Staff keep every account. Fails closed when the
+     * lookup cannot be made.
+     */
+    public static function mayActOnBorrower(\mysqli $db, int $userId): bool
+    {
+        $scope = self::accountScopeSql('u', self::SCOPE_BORROWER);
+        if ($scope === '') {
+            return true;
+        }
+        if ($userId <= 0) {
+            return false;
+        }
+        try {
+            $stmt = $db->prepare('SELECT 1 FROM utenti u WHERE u.id = ?' . $scope);
+            if ($stmt === false) {
+                return false;
+            }
+            $stmt->bind_param('i', $userId);
+            $stmt->execute();
+            $found = $stmt->get_result()->fetch_row() !== null;
+            $stmt->close();
+            return $found;
+        } catch (\Throwable $e) {
+            SecureLogger::error('[Permissions] borrower scope lookup failed', ['error' => $e->getMessage()]);
+            return false;
+        }
     }
 
     /** Short header label of the backend entry: the built-in role, or the custom role's name. */

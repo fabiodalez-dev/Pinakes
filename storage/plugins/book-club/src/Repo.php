@@ -8,6 +8,7 @@ use App\Support\IsbnFormatter;
 use App\Support\SearchIndexBuilder;
 use App\Support\SecureLogger;
 use App\Support\ContentCache;
+use App\Support\DbAtomic;
 use mysqli;
 
 /**
@@ -560,23 +561,145 @@ class Repo
     }
 
     /**
-     * Insert or revive a membership. A previously-left row is reused so the
-     * UNIQUE(club_id, user_id) key never blocks a re-join.
+     * Create a membership, or update an existing one that is not settled. A
+     * previously-left row is reused, so the UNIQUE(club_id, user_id) key never
+     * blocks a re-join.
+     *
+     * Join requests and accepted invitations check the member's state first and
+     * then call this, so a concurrent change can land in between. The decision
+     * is therefore taken by the database, in this one statement: a row that is
+     * already active, suspended or banned keeps its status, role and inviter.
+     * Otherwise a late join could demote an active member to pending without
+     * rotating the club's calendar token (the old URL would keep working), or
+     * lift a suspension. Changing a settled membership goes through
+     * setMemberStatus(), which locks the row and rotates the token. Only an
+     * explicit admin action passes $overrideSettled to replace one directly.
      */
-    public function upsertMember(int $clubId, int $userId, int $roleId, string $status, ?int $invitedBy = null): bool
+    public function upsertMember(int $clubId, int $userId, int $roleId, string $status, ?int $invitedBy = null, bool $overrideSettled = false): bool
     {
+        if ($overrideSettled) {
+            return $this->exec(
+                'INSERT INTO bookclub_members (club_id, user_id, role_id, status, invited_by)
+                 VALUES (?, ?, ?, ?, ?)
+                 ON DUPLICATE KEY UPDATE role_id = VALUES(role_id), status = VALUES(status), invited_by = VALUES(invited_by)',
+                'iiisi',
+                [$clubId, $userId, $roleId, $status, $invitedBy]
+            );
+        }
+
+        // MySQL evaluates the assignments left to right and each one sees the
+        // columns already updated, so status is assigned LAST: role_id and
+        // invited_by must test the row's previous status.
         return $this->exec(
-            'INSERT INTO bookclub_members (club_id, user_id, role_id, status, invited_by)
+            "INSERT INTO bookclub_members (club_id, user_id, role_id, status, invited_by)
              VALUES (?, ?, ?, ?, ?)
-             ON DUPLICATE KEY UPDATE role_id = VALUES(role_id), status = VALUES(status), invited_by = VALUES(invited_by)',
+             ON DUPLICATE KEY UPDATE
+                role_id = IF(status IN ('active', 'suspended', 'banned'), role_id, VALUES(role_id)),
+                invited_by = IF(status IN ('active', 'suspended', 'banned'), invited_by, VALUES(invited_by)),
+                status = IF(status IN ('active', 'suspended', 'banned'), status, VALUES(status))",
             'iiisi',
             [$clubId, $userId, $roleId, $status, $invitedBy]
         );
     }
 
-    public function setMemberStatus(int $memberId, string $status): bool
+    /**
+     * Change a membership's status. When an ACTIVE member stops being one
+     * (left, suspended, banned, back to pending), the club's calendar token is
+     * rotated: the tokenized iCal URL is shown to active members only and is
+     * the sole proof of membership for the session-less feed (non-public
+     * clubs, video-conference links), so the old URL must stop working for
+     * the person who just lost access. Rejecting a pending request does not
+     * rotate it — a pending requester never saw the URL — so a declined join
+     * request does not break every member's calendar subscription.
+     *
+     * The previous status is read with SELECT ... FOR UPDATE, and the status
+     * change and the token rotation run in ONE transaction: every status
+     * change (activation included) goes through here, so a concurrent
+     * activation cannot slip between the read and the write and leave a
+     * member who just lost access with a valid token, and a failed rotation
+     * rolls the status change back and returns false instead of committing a
+     * revocation that left the old URL working (a retry would then find the
+     * member already non-active and never rotate). Inside a caller's
+     * transaction it works under a SAVEPOINT, so a failure undoes only this
+     * change and the caller's transaction stays open (never a nested
+     * begin_transaction(), which would commit it implicitly).
+     *
+     * $onlyFrom, when given, makes the change conditional on the status read
+     * under the lock (e.g. approving a request only while it is still
+     * pending, leaving only while still active or pending, so a concurrent
+     * suspension is not overwritten); a mismatch changes nothing and returns
+     * false.
+     *
+     * @param list<string>|null $onlyFrom
+     */
+    public function setMemberStatus(int $memberId, string $status, ?array $onlyFrom = null): bool
     {
-        return $this->exec('UPDATE bookclub_members SET status = ? WHERE id = ?', 'si', [$status, $memberId]);
+        $nested = DbAtomic::inTransaction($this->db);
+        $savepoint = 'bookclub_member_status_' . bin2hex(random_bytes(6));
+        try {
+            $opened = $nested
+                ? $this->db->query("SAVEPOINT {$savepoint}") !== false
+                : $this->db->begin_transaction();
+        } catch (\Throwable $e) {
+            $opened = false;
+        }
+        if (!$opened) {
+            SecureLogger::error('[BookClub] setMemberStatus: could not open a transaction', ['member_id' => $memberId]);
+            return false;
+        }
+
+        $changed = false;
+        try {
+            $before = $this->row('SELECT club_id, status FROM bookclub_members WHERE id = ? FOR UPDATE', 'i', [$memberId]);
+            if ($before !== null && ($onlyFrom === null || in_array($before['status'], $onlyFrom, true))) {
+                if (!$this->exec('UPDATE bookclub_members SET status = ? WHERE id = ?', 'si', [$status, $memberId])) {
+                    throw new \RuntimeException('member status update failed');
+                }
+                if ($status !== 'active' && $before['status'] === 'active'
+                    && !$this->rotateIcsToken((int) $before['club_id'])) {
+                    throw new \RuntimeException('calendar token rotation failed');
+                }
+                $changed = true;
+            }
+            if ($changed) {
+                if ($nested) {
+                    $this->db->query("RELEASE SAVEPOINT {$savepoint}");
+                } elseif (!$this->db->commit()) {
+                    throw new \RuntimeException('commit failed');
+                }
+            } else {
+                $this->rollbackMemberStatus($nested, $savepoint);
+            }
+            return $changed;
+        } catch (\Throwable $e) {
+            $this->rollbackMemberStatus($nested, $savepoint);
+            SecureLogger::error('[BookClub] setMemberStatus rolled back', [
+                'member_id' => $memberId,
+                'status' => $status,
+                'error' => $e->getMessage(),
+            ]);
+            return false;
+        }
+    }
+
+    private function rollbackMemberStatus(bool $nested, string $savepoint): void
+    {
+        try {
+            if ($nested) {
+                $this->db->query("ROLLBACK TO SAVEPOINT {$savepoint}");
+                $this->db->query("RELEASE SAVEPOINT {$savepoint}");
+            } else {
+                $this->db->rollback();
+            }
+        } catch (\Throwable $e) {
+            SecureLogger::error('[BookClub] setMemberStatus rollback failed', ['error' => $e->getMessage()]);
+        }
+    }
+
+    /** Issue a new calendar token for the club; every previously shared iCal URL stops working. */
+    public function rotateIcsToken(int $clubId): bool
+    {
+        return $this->exec('UPDATE bookclub_clubs SET ics_token = ? WHERE id = ?', 'si', [bin2hex(random_bytes(16)), $clubId]);
     }
 
     public function setMemberRole(int $memberId, int $roleId): bool

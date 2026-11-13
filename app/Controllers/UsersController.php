@@ -389,6 +389,19 @@ class UsersController
         }
         if (!\App\Support\UserRoleAssignment::canEdit($original)) { return $response->withStatus(403); }
 
+        // Replacing one's OWN password here must prove the current one, exactly as
+        // the profile's change-password form does: an unattended or hijacked operator
+        // session must not be able to lock the owner out of the account.
+        $passwordChanged = !empty($data['password']);
+        if ($passwordChanged && $currentUserId === $id) {
+            $currentPassword = (string) ($data['current_password'] ?? '');
+            $storedHash = (string) ($original['password'] ?? '');
+            if ($currentPassword === '' || $storedHash === '' || !password_verify($currentPassword, $storedHash)) {
+                $_SESSION['error_message'] = __('Per cambiare la tua password inserisci la password attuale, oppure usa la pagina del tuo profilo.');
+                return $response->withHeader('Location', url('/admin/users/edit/' . $id . '?error=wrong_current_password'))->withStatus(302);
+            }
+        }
+
         $nome = trim(strip_tags((string) ($data['nome'] ?? '')));
         $cognome = trim(strip_tags((string) ($data['cognome'] ?? '')));
         $email = trim(strip_tags((string) ($data['email'] ?? '')));
@@ -516,7 +529,7 @@ class UsersController
         $dataTokenReset = $original['data_token_reset'] ?? null;
 
         $sendSetupEmail = false;
-        if (!empty($data['password'])) {
+        if ($passwordChanged) {
             $newPassword = (string) $data['password'];
 
             // Validate password complexity (max 72 — bcrypt silently truncates beyond)
@@ -586,10 +599,19 @@ class UsersController
             );
             // A failed type assignment must also undo the account fields,
             // password and privileges saved by this same form.
-            \App\Support\DbAtomic::run($db, static function () use ($stmt, $db, $id, $patronTypeId, $originalPatronType): void {
+            // A new password ends every persistent credential the old one
+            // authorised (remember-me sessions, Mobile API tokens, calendar feed),
+            // in the same unit as the hash write, like the profile change and the
+            // email reset do (CredentialRevoker). Only the browser of an operator
+            // editing their own account keeps its session.
+            $selfEdit = $currentUserId === $id;
+            \App\Support\DbAtomic::run($db, static function () use ($stmt, $db, $id, $patronTypeId, $originalPatronType, $passwordChanged, $selfEdit): void {
                 $stmt->execute();
                 if ($patronTypeId !== $originalPatronType) {
                     \App\Support\PatronTypeAssignment::save($db, $id, $patronTypeId);
+                }
+                if ($passwordChanged) {
+                    \App\Support\CredentialRevoker::revokeAll($db, $id, $selfEdit);
                 }
             }, 'Users.update');
         } catch (\Throwable $e) {
@@ -826,6 +848,8 @@ class UsersController
         // record and loan history. A custom users manager sees only the accounts it may edit.
         if (!in_array($_SESSION['user']['tipo_utente'] ?? '', ['admin', 'staff'], true)
             && !\App\Support\UserRoleAssignment::canEdit($utente)) { return $response->withStatus(403); }
+        // The approval forms are shown only to someone the handlers will accept.
+        $canChangeAccountState = self::canChangeAccountState($utente);
 
         $customFieldValues = \App\Support\RegistrationFields::labelledValuesForUser($db, $id);
 
@@ -965,8 +989,7 @@ class UsersController
             return $response->withHeader('Location', url('/admin/users?error=user_not_found'))->withStatus(302);
         }
 
-        if (!in_array($_SESSION['user']['tipo_utente'] ?? '', ['admin', 'staff'], true)
-            && !\App\Support\UserRoleAssignment::canEdit($user)) { return $response->withStatus(403); }
+        if (!self::canChangeAccountState($user)) { return $response->withStatus(403); }
         if ($user['stato'] !== 'sospeso') {
             return $response->withHeader('Location', url("/admin/users/details/{$userId}?error=not_suspended"))->withStatus(302);
         }
@@ -1030,8 +1053,7 @@ class UsersController
             return $response->withHeader('Location', url('/admin/users?error=user_not_found'))->withStatus(302);
         }
 
-        if (!in_array($_SESSION['user']['tipo_utente'] ?? '', ['admin', 'staff'], true)
-            && !\App\Support\UserRoleAssignment::canEdit($user)) { return $response->withStatus(403); }
+        if (!self::canChangeAccountState($user)) { return $response->withStatus(403); }
         if ($user['stato'] !== 'sospeso') {
             return $response->withHeader('Location', url("/admin/users/details/{$userId}?error=not_suspended"))->withStatus(302);
         }
@@ -1085,8 +1107,14 @@ class UsersController
         if (!$user) {
             return $response->withHeader('Location', url('/admin/users?error=user_not_found'))->withStatus(302);
         }
-        if (!in_array($_SESSION['user']['tipo_utente'] ?? '', ['admin', 'staff'], true)
-            && !\App\Support\UserRoleAssignment::canEdit($user)) {
+        // An operator account (admin, staff) holds no library card: there is
+        // nothing to renew and nothing is written, so every caller gets the same
+        // "not renewable" answer (the Mobile API maps it to 409 card_not_renewable).
+        if (!in_array((string) ($user['tipo_utente'] ?? ''), ['standard', 'premium'], true)) {
+            $_SESSION['error_message'] = __('Impossibile rinnovare la tessera di questo account.');
+            return $response->withHeader('Location', url('/admin/users/details/' . $id))->withStatus(302);
+        }
+        if (!self::canChangeAccountState($user)) {
             return $response->withStatus(403);
         }
         try {
@@ -1282,6 +1310,32 @@ class UsersController
             ->withHeader('Pragma', 'no-cache')
             ->withHeader('Expires', '0')
             ->withBody(new \Slim\Psr7\Stream($stream));
+    }
+
+    /**
+     * May the current user change the activation state of $target — approve it,
+     * activate it, renew its card?
+     *
+     * Administrators may act on any account. Everyone else who reaches these
+     * handlers (Staff, and custom roles holding users.manage) may act only on
+     * reader accounts. An operator account in 'sospeso' is usually an
+     * administrator's lockout, and lifting it would hand the account back to
+     * whoever holds its password; update() and delete() already reserve every
+     * other change to an operator account to administrators.
+     */
+    private static function canChangeAccountState(array $target): bool
+    {
+        $callerRole = (string) ($_SESSION['user']['tipo_utente'] ?? '');
+        if ($callerRole === 'admin') {
+            return true;
+        }
+        if (!in_array($target['tipo_utente'] ?? '', ['standard', 'premium'], true)) {
+            return false;
+        }
+        if ($callerRole === 'staff') {
+            return true;
+        }
+        return \App\Support\UserRoleAssignment::canEdit($target);
     }
 
     private function guardAdminStaff(Response $response): ?Response

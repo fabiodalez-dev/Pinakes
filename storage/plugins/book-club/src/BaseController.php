@@ -171,6 +171,12 @@ abstract class BaseController
      * still see the club card and ask to join); invite-only and hidden clubs
      * are members-only from the card on (canView()).
      *
+     * Every non-public club requires an ACTIVE membership for its content:
+     * canView() lets a pending requester of an invite-only or hidden club see
+     * the card, and that must not widen into the meetings, polls and module
+     * pages (e.g. after a private club with open join requests is made
+     * invite-only, or an admin sets a member back to pending).
+     *
      * @param array<string, mixed> $club
      */
     protected function canSeeContent(array $club): bool
@@ -178,7 +184,7 @@ abstract class BaseController
         if (!$this->canView($club)) {
             return false;
         }
-        if (($club['privacy'] ?? '') !== 'private' || $this->isPinakesAdmin()) {
+        if (($club['privacy'] ?? '') === 'public' || $this->isPinakesAdmin()) {
             return true;
         }
         $m = $this->membership($club);

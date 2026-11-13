@@ -89,7 +89,15 @@ class Installer {
         $envContent .= "\n# Canonical URL (auto-detected during installation)\n";
         $envContent .= "APP_CANONICAL_URL=" . $this->detectCanonicalUrl() . "\n";
 
-        return file_put_contents($envPath, $envContent) !== false;
+        // Bind the install in progress to this session BEFORE .env exists: from
+        // the moment .env is written the application is live, and only the
+        // session that wrote it may carry on without admin authentication
+        // (isInstalled()). No binding, no .env; and when .env cannot be
+        // written, the binding is put back as it was (a failed write must not
+        // leave a grant behind).
+        return $this->withInstallOwnership(
+            static fn (): bool => file_put_contents($envPath, $envContent) !== false
+        );
     }
 
     /**
@@ -102,16 +110,118 @@ class Installer {
             throw new Exception(__("File .env non trovato"));
         }
 
-        $lines = file($envPath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
-
-        foreach ($lines as $line) {
-            if (strpos($line, '=') !== false && !str_starts_with(trim($line), '#')) {
-                [$key, $value] = explode('=', $line, 2);
-                $this->config[trim($key)] = trim($value, '"\'');
-            }
+        // Same decoding as phpdotenv: a DB_PASS written as "p\$ss" by
+        // quoteEnvValue() is p$ss, not p\$ss.
+        $values = self::readEnvFile($envPath);
+        if ($values === null) {
+            throw new Exception(__("File .env non trovato"));
+        }
+        foreach ($values as $key => $value) {
+            $this->config[$key] = $value;
         }
 
         return true;
+    }
+
+    /** Escapes phpdotenv 5.6 decodes inside a double-quoted value (besides \" \\ \$). */
+    private const ENV_ESCAPES = ['f' => "\f", 'n' => "\n", 'r' => "\r", 't' => "\t", 'v' => "\v"];
+
+    /**
+     * Decode one .env value the way phpdotenv 5.6 (EntryParser) does, i.e. the
+     * inverse of quoteEnvValue():
+     *  - "double quoted": \" \\ \$ are literal, \f \n \r \t \v are control
+     *    characters, any other escape is an error;
+     *  - 'single quoted': literal, no escapes;
+     *  - unquoted: a # starts a comment, inner whitespace is an error.
+     * After a closing quote only whitespace or a comment may follow.
+     * ${VAR} references are not expanded (the installer never writes them).
+     *
+     * @return string|null null when phpdotenv would reject the value
+     */
+    public static function parseEnvValue(string $raw): ?string
+    {
+        $value = trim($raw);
+        $len = strlen($value);
+        if ($len === 0) {
+            return '';
+        }
+        $quote = $value[0];
+        if ($quote !== '"' && $quote !== "'") {
+            $hash = strpos($value, '#');
+            if ($hash !== false) {
+                $value = rtrim(substr($value, 0, $hash));
+            }
+            return preg_match('/\s/', $value) === 1 ? null : $value;
+        }
+        $out = '';
+        $closed = false;
+        $i = 1;
+        while ($i < $len) {
+            $c = $value[$i++];
+            if ($c === $quote) {
+                $closed = true;
+                break;
+            }
+            if ($quote === '"' && $c === '\\') {
+                if ($i >= $len) {
+                    return null;
+                }
+                $next = $value[$i++];
+                if ($next === '"' || $next === '\\' || $next === '$') {
+                    $out .= $next;
+                } elseif (isset(self::ENV_ESCAPES[$next])) {
+                    $out .= self::ENV_ESCAPES[$next];
+                } else {
+                    return null;
+                }
+                continue;
+            }
+            $out .= $c;
+        }
+        if (!$closed) {
+            return null;
+        }
+        $rest = ltrim(substr($value, $i));
+        if ($rest !== '' && $rest[0] !== '#') {
+            return null;
+        }
+        return $out;
+    }
+
+    /**
+     * Read a .env file into KEY => decoded value (see parseEnvValue()).
+     * Comment and blank lines are skipped, an optional "export " prefix is
+     * dropped, and a value phpdotenv would reject is left out rather than
+     * guessed. Null when the file cannot be read.
+     *
+     * @return array<string, string>|null
+     */
+    public static function readEnvFile(string $path): ?array
+    {
+        if (!is_file($path) || !is_readable($path)) {
+            return null;
+        }
+        $lines = file($path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+        if (!is_array($lines)) {
+            return null;
+        }
+        $env = [];
+        foreach ($lines as $line) {
+            $line = trim($line);
+            if ($line === '' || $line[0] === '#' || strpos($line, '=') === false) {
+                continue;
+            }
+            [$key, $raw] = explode('=', $line, 2);
+            $key = (string) preg_replace('/^export\s+/', '', trim($key));
+            if ($key === '') {
+                continue;
+            }
+            $value = self::parseEnvValue($raw);
+            if ($value !== null) {
+                $env[$key] = $value;
+            }
+        }
+        return $env;
     }
 
     /**
@@ -982,27 +1092,64 @@ class Installer {
      * fully effective for Apache/LiteSpeed — restoring routing with zero manual
      * steps. Idempotent: existing routing (ours, hand-written, or cPanel PHP
      * directives) is preserved.
+     *
+     * Also heals the exemptions written by earlier releases (our marked block
+     * and the packaged root .htaccess): they matched an "installer" segment
+     * anywhere in REQUEST_URI, so PATH_INFO after any repository PHP file
+     * (/scripts/maintenance.php/installer) skipped the rewrite to public/, and
+     * they served storage/calendar/*.ics statically, outside private mode.
      */
     public function createHtaccess() {
         $htaccessPath = $this->baseDir . '/.htaccess';
+        $pinakesBlock = self::ROUTING_BLOCK;
 
-        $pinakesBlock = <<<'HTACCESS'
+        if (file_exists($htaccessPath)) {
+            $existing = (string) @file_get_contents($htaccessPath);
+            $healed = self::healLegacyRouting($existing);
+            if ($healed !== $existing) {
+                return file_put_contents($htaccessPath, $healed) !== false;
+            }
+            // Already routed? (our marker, a hand-written rule, or the packaged one)
+            if (strpos($existing, '=== Pinakes routing') !== false
+                || strpos($existing, 'public/$1') !== false) {
+                return true;
+            }
+            // A file exists but lacks routing (e.g. cPanel only wrote its PHP
+            // directives). Append our block, preserving the existing content.
+            $merged = rtrim($existing, "\n") . "\n\n" . $pinakesBlock . "\n";
+            return file_put_contents($htaccessPath, $merged) !== false;
+        }
+
+        // No .htaccess at all — write the full routing block.
+        return file_put_contents($htaccessPath, $pinakesBlock . "\n") !== false;
+    }
+
+    /**
+     * The installer-managed routing block for a project-root document root.
+     *
+     * The exemptions are per-directory RewriteRule patterns, anchored and
+     * relative to the project root: in .htaccess context the pattern is matched
+     * against the path INCLUDING PATH_INFO, so /scripts/x.php/installer cannot
+     * satisfy ^installer(/|$). storage/calendar/*.ics is no longer exempted: the
+     * legacy subscription URL goes through public/index.php like /calendar/events.ics,
+     * so PrivateModeMiddleware applies to it.
+     */
+    public const ROUTING_BLOCK = <<<'HTACCESS'
 # === Pinakes routing (auto-managed by the installer) ===
 # Forwards all requests to the public/ subdirectory. Needed when the document
 # root is the PROJECT ROOT instead of public/. Do not remove this block.
 <IfModule mod_rewrite.c>
     RewriteEngine On
 
-    # Serve the installer and the manual-upgrade script directly
-    RewriteCond %{REQUEST_URI} (^|/)installer(/|$) [NC,OR]
-    RewriteCond %{REQUEST_URI} (^|/)scripts/manual-upgrade\.php$ [NC]
-    RewriteRule ^ - [L]
+    # Serve the installer and the manual-upgrade script directly. Anchored,
+    # directory-relative patterns: PATH_INFO appended to another file
+    # (e.g. /scripts/maintenance.php/installer) cannot match them.
+    RewriteRule ^installer(/|$) - [NC,L]
+    RewriteRule ^scripts/manual-upgrade\.php$ - [NC,L]
 
-    # Allow direct access to calendar .ics subscription files
-    RewriteCond %{REQUEST_URI} ^/storage/calendar/.*\.ics$ [NC]
-    RewriteRule ^ - [L]
-
-    # Everything else is served from public/
+    # Everything else is served from public/ (including the legacy
+    # /storage/calendar/library-calendar.ics URL, answered by the app so that
+    # private mode applies to it)
     RewriteCond %{REQUEST_URI} !^/public/
     RewriteRule ^(.*)$ public/$1 [L,QSA]
 </IfModule>
@@ -1025,39 +1172,681 @@ class Installer {
 # === end Pinakes routing ===
 HTACCESS;
 
-        if (file_exists($htaccessPath)) {
-            $existing = (string) @file_get_contents($htaccessPath);
-            // Already routed? (our marker, a hand-written rule, or the packaged one)
-            if (strpos($existing, '=== Pinakes routing') !== false
-                || strpos($existing, 'public/$1') !== false) {
-                return true;
+    /**
+     * Rewrite the legacy root-docroot exemptions to the anchored form.
+     *
+     * Touches only what earlier releases wrote: the whole marked installer
+     * block, or — in the packaged / hand-kept root .htaccess — the two
+     * unanchored REQUEST_URI exemptions and the storage/calendar .ics exemption.
+     * Anything else in the file is left byte-for-byte as it was.
+     */
+    public static function healLegacyRouting(string $content): string {
+        $legacyInstaller = '#^([ \t]*)RewriteCond %\{REQUEST_URI\} \(\^\|/\)installer\(/\|\$\) \[NC,OR\][ \t]*\r?\n'
+            . '[ \t]*RewriteCond %\{REQUEST_URI\} \(\^\|/\)scripts/manual-upgrade\\\\\.php\$ \[NC\][ \t]*\r?\n'
+            . '[ \t]*RewriteRule \^ - \[L\][ \t]*(\r?\n)#m';
+        $legacyCalendar = '#^[ \t]*(?:\#[^\r\n]*\.ics[^\r\n]*\r?\n[ \t]*)?RewriteCond %\{REQUEST_URI\} \^/storage/calendar/\.\*\\\\\.ics\$ \[NC\][ \t]*\r?\n'
+            . '[ \t]*RewriteRule \^ - \[L\][ \t]*\r?\n(?:[ \t]*\r?\n)?#m';
+
+        $start = strpos($content, '# === Pinakes routing');
+        $endMarker = '# === end Pinakes routing ===';
+        $end = $start === false ? false : strpos($content, $endMarker, $start);
+        if ($start !== false && $end !== false) {
+            $block = substr($content, $start, $end + strlen($endMarker) - $start);
+            if ($block !== self::ROUTING_BLOCK
+                && (preg_match($legacyInstaller, $block) === 1 || preg_match($legacyCalendar, $block) === 1)) {
+                return substr($content, 0, $start) . self::ROUTING_BLOCK . substr($content, $end + strlen($endMarker));
             }
-            // A file exists but lacks routing (e.g. cPanel only wrote its PHP
-            // directives). Append our block, preserving the existing content.
-            $merged = rtrim($existing, "\n") . "\n\n" . $pinakesBlock . "\n";
-            return file_put_contents($htaccessPath, $merged) !== false;
+            return $content;
         }
 
-        // No .htaccess at all — write the full routing block.
-        return file_put_contents($htaccessPath, $pinakesBlock . "\n") !== false;
+        $healed = preg_replace_callback($legacyInstaller, static function (array $m): string {
+            $indent = $m[1];
+            $eol = $m[2];
+            return $indent . 'RewriteRule ^installer(/|$) - [NC,L]' . $eol
+                . $indent . 'RewriteRule ^scripts/manual-upgrade\.php$ - [NC,L]' . $eol;
+        }, $content);
+        $healed = preg_replace($legacyCalendar, '', $healed ?? $content);
+
+        return $healed ?? $content;
     }
 
     /**
      * Create installation lock file
      */
     public function createLockFile() {
-        $lockFile = dirname(dirname(__DIR__)) . '/.installed';
+        $lockFile = $this->baseDir . '/.installed';
         $lockContent = "Installed on: " . date('Y-m-d H:i:s') . "\n";
         $lockContent .= "Do not delete this file. It prevents re-installation.\n";
 
         return file_put_contents($lockFile, $lockContent) !== false;
     }
 
+    /** True when the .installed lock file exists. */
+    public function hasLockFile(): bool {
+        return file_exists($this->baseDir . '/.installed');
+    }
+
     /**
-     * Check if installer is locked (already installed)
+     * Check if the application counts as installed for the installer.
+     *
+     * Same predicate as the front controllers, which serve the application as
+     * soon as .env exists: .installed OR .env. Two exceptions:
+     *  - the session that wrote .env during the install in progress (see
+     *    claimInstallOwnership()), which must be able to reach step 7, as
+     *    long as ownerMayContinue() holds;
+     *  - a .env whose database is reachable and holds no table at all, i.e.
+     *    nothing has been installed yet (a pre-written .env, as the Docker
+     *    image's wizard mode does). Step 2 refuses a non-empty database for the
+     *    same reason. Not while another session holds a live binding: between
+     *    its step 2 and the schema import the database is still empty, and
+     *    that window must not reopen step 2 to everyone else.
+     * Every other client, anonymous or not, gets the installed-state gates
+     * (admin authentication for ?force=1). An unreadable .env or an unreachable
+     * database counts as installed: fail closed.
      */
     public function isInstalled() {
-        return file_exists(dirname(dirname(__DIR__)) . '/.installed');
+        if ($this->hasLockFile()) {
+            return true;
+        }
+        if (!file_exists($this->baseDir . '/.env')) {
+            return false;
+        }
+        if ($this->ownsInstallInProgress()) {
+            // The owner goes on only while that is still verifiable without
+            // an account: see ownerMayContinue().
+            return !$this->ownerMayContinue();
+        }
+        if ($this->installClaimedByAnotherSession()) {
+            return true;
+        }
+        return !$this->configuredDatabaseIsEmpty();
+    }
+
+    /** @var bool|null memo of configuredDatabaseIsEmpty() for this request */
+    private $configuredDatabaseEmpty = null;
+
+    /**
+     * True only when the database named by .env can be reached and contains no
+     * table. Any failure (unreadable .env, connection or query error) is false.
+     */
+    protected function configuredDatabaseIsEmpty(): bool {
+        if ($this->configuredDatabaseEmpty !== null) {
+            return $this->configuredDatabaseEmpty;
+        }
+        $this->configuredDatabaseEmpty = false;
+        try {
+            $env = self::readEnvFile($this->baseDir . '/.env');
+            if ($env === null) {
+                return false;
+            }
+            if ((string) ($env['DB_NAME'] ?? '') === '') {
+                return false;
+            }
+            $db = $this->openProbeConnection($env);
+            try {
+                $result = $db->query('SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE()');
+                $count = $result instanceof \mysqli_result ? $result->fetch_row() : null;
+                $this->configuredDatabaseEmpty = is_array($count) && (int) $count[0] === 0;
+            } finally {
+                $db->close();
+            }
+        } catch (\Throwable $e) {
+            $this->configuredDatabaseEmpty = false;
+        }
+        return $this->configuredDatabaseEmpty;
+    }
+
+    /**
+     * Open the probe connection described by a decoded .env (readEnvFile()).
+     * Throws on failure; the caller treats any failure as "not empty".
+     *
+     * @param array<string, string> $env
+     */
+    protected function openProbeConnection(array $env): \mysqli {
+        $socket = trim((string) ($env['DB_SOCKET'] ?? ''));
+        mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
+        return new \mysqli(
+            $socket !== '' ? 'localhost' : (string) ($env['DB_HOST'] ?? '127.0.0.1'),
+            (string) ($env['DB_USER'] ?? ''),
+            (string) ($env['DB_PASS'] ?? ''),
+            (string) ($env['DB_NAME'] ?? ''),
+            $socket !== '' ? 0 : (int) ($env['DB_PORT'] ?? 3306),
+            $socket !== '' ? $socket : null
+        );
+    }
+
+    /** Lifetime of an install-in-progress binding, in seconds. */
+    public const INSTALL_OWNER_TTL = 43200;
+
+    /** Session key holding the raw ownership token. */
+    public const INSTALL_OWNER_SESSION_KEY = 'installer_owner_token';
+
+    /** Marker holding the SHA-256 of the ownership token (storage/ is denied to the web). */
+    private function installOwnerMarkerPath(): string {
+        return $this->baseDir . '/storage/.install_in_progress';
+    }
+
+    /**
+     * Current marker: whether it exists, its raw content (null = unreadable)
+     * and its mtime (null = unreadable). Never cached across calls.
+     *
+     * @return array{exists: bool, content: ?string, mtime: ?int}
+     */
+    private function readOwnerMarker(): array {
+        $marker = $this->installOwnerMarkerPath();
+        clearstatcache(true, $marker);
+        if (!is_file($marker)) {
+            return ['exists' => false, 'content' => null, 'mtime' => null];
+        }
+        $mtime = @filemtime($marker);
+        $content = is_readable($marker) ? @file_get_contents($marker) : false;
+        return [
+            'exists' => true,
+            'content' => is_string($content) ? $content : null,
+            'mtime' => $mtime === false ? null : $mtime,
+        ];
+    }
+
+    /** Replace the marker atomically (temp file + rename): readers never see it half-written. */
+    private function writeOwnerMarker(string $content): bool {
+        $marker = $this->installOwnerMarkerPath();
+        $tmp = $marker . '.' . bin2hex(random_bytes(6)) . '.tmp';
+        if (@file_put_contents($tmp, $content) === false) {
+            return false;
+        }
+        @chmod($tmp, 0600);
+        if (!@rename($tmp, $marker)) {
+            // nosemgrep: php.lang.security.unlink-use.unlink-use -- random temp name under storage/, not user input
+            @unlink($tmp);
+            return false;
+        }
+        return true;
+    }
+
+    /**
+     * Put the marker back as readOwnerMarker() saw it: same content and mtime
+     * (so the original expiry still applies), or no marker at all.
+     *
+     * @param array{exists: bool, content: ?string, mtime: ?int} $previous
+     */
+    private function restoreOwnerMarker(array $previous): void {
+        $marker = $this->installOwnerMarkerPath();
+        if ($previous['exists'] && $previous['content'] !== null && $this->writeOwnerMarker($previous['content'])) {
+            if ($previous['mtime'] !== null) {
+                @touch($marker, $previous['mtime']);
+            }
+            return;
+        }
+        // No previous marker, or one nobody could own (unreadable): none.
+        if (is_file($marker)) {
+            // nosemgrep: php.lang.security.unlink-use.unlink-use -- fixed internal path under storage/, not user input
+            @unlink($marker);
+        }
+    }
+
+    /**
+     * True when the marker binds the install to a session other than this
+     * one and has not expired. Fails closed: a marker whose content or mtime
+     * cannot be read counts as a live foreign claim.
+     */
+    public function installClaimedByAnotherSession(): bool {
+        $state = $this->readOwnerMarker();
+        if (!$state['exists']) {
+            return false;
+        }
+        if ($state['mtime'] !== null && (time() - $state['mtime']) > self::INSTALL_OWNER_TTL) {
+            return false;
+        }
+        return !$this->ownsInstallInProgress();
+    }
+
+    /**
+     * Bind the install in progress to the current session.
+     *
+     * A random token is kept in the session and only its hash on disk, so the
+     * binding cannot be obtained by reading the marker nor by starting a new
+     * session. Exclusive: refused while another session holds a live binding
+     * over an existing .env (an expired binding, or this session's own, can be
+     * taken). Returns false when the binding cannot be taken or written.
+     */
+    public function claimInstallOwnership(): bool {
+        return $this->withInstallOwnership(null);
+    }
+
+    /**
+     * Take the binding and, while holding it, run $write (the .env write).
+     *
+     * Claimers are serialised on storage/.install_in_progress.lock, so the
+     * check-then-take is atomic and two sessions cannot both pass it. When
+     * $write fails, the marker and this session's token are restored to what
+     * they were before the call: a failed write leaves no grant behind.
+     *
+     * @param (callable(): bool)|null $write
+     */
+    private function withInstallOwnership(?callable $write): bool {
+        if (session_status() !== PHP_SESSION_ACTIVE) {
+            return false;
+        }
+        $marker = $this->installOwnerMarkerPath();
+        $dir = dirname($marker);
+        if (!is_dir($dir) && !@mkdir($dir, 0775, true) && !is_dir($dir)) {
+            return false;
+        }
+        $lock = @fopen($marker . '.lock', 'c');
+        if ($lock === false) {
+            return false;
+        }
+        try {
+            if (!flock($lock, LOCK_EX)) {
+                return false;
+            }
+            // While .env does not exist the binding protects nothing (anyone may
+            // install), so a leftover claim does not block a fresh start.
+            if ($this->installClaimedByAnotherSession() && file_exists($this->baseDir . '/.env')) {
+                return false;
+            }
+            $previous = $this->readOwnerMarker();
+            $hadToken = array_key_exists(self::INSTALL_OWNER_SESSION_KEY, $_SESSION);
+            $previousToken = $_SESSION[self::INSTALL_OWNER_SESSION_KEY] ?? null;
+
+            $token = bin2hex(random_bytes(32));
+            if (!$this->writeOwnerMarker(hash('sha256', $token))) {
+                return false;
+            }
+            $_SESSION[self::INSTALL_OWNER_SESSION_KEY] = $token;
+            if ($write === null) {
+                return true;
+            }
+
+            try {
+                $written = $write() === true;
+            } catch (\Throwable $e) {
+                $written = false;
+            }
+            if ($written) {
+                return true;
+            }
+            $this->restoreOwnerMarker($previous);
+            if ($hadToken) {
+                $_SESSION[self::INSTALL_OWNER_SESSION_KEY] = $previousToken;
+            } else {
+                unset($_SESSION[self::INSTALL_OWNER_SESSION_KEY]);
+            }
+            return false;
+        } catch (\Throwable $e) {
+            return false;
+        } finally {
+            flock($lock, LOCK_UN);
+            fclose($lock);
+        }
+    }
+
+    /**
+     * True when this session is the one that wrote .env for the install in
+     * progress: its token matches the on-disk hash and the binding is younger
+     * than INSTALL_OWNER_TTL.
+     */
+    public function ownsInstallInProgress(): bool {
+        $token = $_SESSION[self::INSTALL_OWNER_SESSION_KEY] ?? '';
+        if (!is_string($token) || $token === '') {
+            return false;
+        }
+        $state = $this->readOwnerMarker();
+        if (!$state['exists'] || $state['mtime'] === null || $state['content'] === null
+            || (time() - $state['mtime']) > self::INSTALL_OWNER_TTL) {
+            return false;
+        }
+        return hash_equals(trim($state['content']), hash('sha256', $token));
+    }
+
+    /** End the install-in-progress binding (called once .installed exists). */
+    /**
+     * After step 2 wrote a new .env: drop every progress flag that described the
+     * previous database (schema/data import, admin, finalisation, later steps).
+     * Otherwise a reinstall in the same session would skip step 3's import on
+     * the new, empty database and fail at step 4. Steps 0-2 stay done.
+     */
+    public function resetProgressAfterEnvWrite(): void {
+        foreach (['schema_imported', 'data_imported', 'installation_complete', 'installation_finalized',
+            'admin_user', 'installed_plugins', 'trigger_warnings', 'openlibrary_plugin_id'] as $key) {
+            unset($_SESSION[$key]);
+        }
+        if (isset($_SESSION['completed_steps']) && is_array($_SESSION['completed_steps'])) {
+            $_SESSION['completed_steps'] = array_values(array_filter(
+                $_SESSION['completed_steps'],
+                static fn ($step): bool => (int) $step <= 2
+            ));
+        }
+    }
+
+    public function releaseInstallOwnership(): void {
+        $marker = $this->installOwnerMarkerPath();
+        if (is_file($marker)) {
+            // nosemgrep: php.lang.security.unlink-use.unlink-use -- fixed internal path under storage/, not user input
+            @unlink($marker);
+        }
+        unset(
+            $_SESSION[self::INSTALL_OWNER_SESSION_KEY],
+            $_SESSION[self::INSTALL_POPULATED_SESSION_KEY],
+            $_SESSION[self::FORCE_MODE_SESSION_KEY]
+        );
+    }
+
+    /** Session key: proof that this owner session started populating the configured database. */
+    public const INSTALL_POPULATED_SESSION_KEY = 'installer_populated_by_owner';
+
+    /**
+     * Session key routing a ?force=1 reinstall's later requests (whose links
+     * and redirects do not carry ?force) through the force gate. A routing
+     * hint only: the gate re-authenticates every request, it grants nothing.
+     */
+    public const FORCE_MODE_SESSION_KEY = 'installer_force_mode';
+
+    private function populatedProof(string $ownerToken): string {
+        return hash('sha256', 'populated:' . $ownerToken);
+    }
+
+    /**
+     * Step 3 calls this right before importing the schema: from here on the
+     * configured database is no longer empty because THIS session filled it.
+     * Bound to the current ownership token, so a new step 2 (new token, new
+     * .env) starts without it. Recorded before the import, not after its
+     * success, so a failed import can still be retried.
+     */
+    public function recordSchemaImportByOwner(): bool {
+        if (!$this->ownsInstallInProgress()) {
+            return false;
+        }
+        // A retry of a failed import keeps the proof it already earned.
+        if ($this->ownerPopulatedConfiguredDatabase()) {
+            return true;
+        }
+        // Only a database that is empty right now (a fresh probe, not the
+        // memoised answer) is one this session is about to fill. An owner that
+        // reached step 3 through an admin of an already-populated database earns
+        // no standing proof: it keeps needing that admin on every request.
+        $this->configuredDatabaseEmpty = null;
+        if (!$this->configuredDatabaseIsEmpty()) {
+            return false;
+        }
+        $_SESSION[self::INSTALL_POPULATED_SESSION_KEY] = $this->populatedProof((string) $_SESSION[self::INSTALL_OWNER_SESSION_KEY]);
+        return true;
+    }
+
+    /** True when this owner session recorded the schema import of the current binding. */
+    private function ownerPopulatedConfiguredDatabase(): bool {
+        $token = $_SESSION[self::INSTALL_OWNER_SESSION_KEY] ?? '';
+        $proof = $_SESSION[self::INSTALL_POPULATED_SESSION_KEY] ?? '';
+        return is_string($token) && $token !== '' && is_string($proof) && $proof !== ''
+            && hash_equals($this->populatedProof($token), $proof);
+    }
+
+    /**
+     * The owner of the install in progress may go on without an account only
+     * while no account can exist to check it against:
+     *  (i)  the configured database is still empty, or
+     *  (ii) this same session started the schema import into it (every
+     *       account in it was then created by this session).
+     * Otherwise (a populated database this session did not fill) the owner
+     * gets the installed-state gates like everyone else: an active admin of
+     * THAT database, re-validated on every request.
+     */
+    public function ownerMayContinue(): bool {
+        if (!$this->ownsInstallInProgress()) {
+            return false;
+        }
+        return $this->ownerPopulatedConfiguredDatabase() || $this->configuredDatabaseIsEmpty();
+    }
+
+    /**
+     * Account predicate for the reinstall door, identical to what the main
+     * login and SessionRoleRevalidator require: the row exists and is an
+     * admin, 'attivo' and email-verified.
+     *
+     * @param array<string, mixed>|null $row utenti row (tipo_utente, stato, email_verificata)
+     */
+    public static function adminRowIsActive(?array $row): bool {
+        return is_array($row)
+            && ($row['tipo_utente'] ?? null) === 'admin'
+            && ($row['stato'] ?? null) === 'attivo'
+            && (int) ($row['email_verificata'] ?? 0) === 1;
+    }
+
+    /**
+     * Same semantics as RememberMeService::boundSessionIsRevoked() for the
+     * user_sessions row a main-app session is bound to: a deleted, revoked or
+     * expired row counts as revoked. Stricter than the app on one point: a
+     * session bound to no row at all is not trusted to reinstall.
+     *
+     * @param int $boundRowId $_SESSION['remember_session_id'] (0 when absent)
+     * @param array<string, mixed>|null $row user_sessions row (is_revoked, still_valid)
+     */
+    public static function boundSessionRowIsRevoked(int $boundRowId, ?array $row): bool {
+        if ($boundRowId <= 0 || !is_array($row)) {
+            return true;
+        }
+        return (int) ($row['is_revoked'] ?? 1) === 1 || (int) ($row['still_valid'] ?? 0) !== 1;
+    }
+
+    /** Re-read an account from the database and apply adminRowIsActive(). */
+    public static function isActiveAdmin(\mysqli $db, int $userId): bool {
+        if ($userId <= 0) {
+            return false;
+        }
+        $stmt = $db->prepare('SELECT tipo_utente, stato, email_verificata FROM utenti WHERE id = ? LIMIT 1');
+        if ($stmt === false) {
+            return false;
+        }
+        $stmt->bind_param('i', $userId);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $row = $result ? $result->fetch_assoc() : null;
+        $stmt->close();
+        return self::adminRowIsActive(is_array($row) ? $row : null);
+    }
+
+    /**
+     * Fingerprint of an account's current password hash, keyed with a random
+     * per-login secret kept in the installer session. Stored at the installer
+     * login; it stops matching as soon as the password changes (every
+     * CredentialRevoker::revokeAll() caller is a password change or reset).
+     */
+    public static function installerCredentialFingerprint(string $passwordHash, string $key): string {
+        return hash_hmac('sha256', $passwordHash, $key);
+    }
+
+    /**
+     * An installer login is still good when the account passes
+     * adminRowIsActive() AND its current password hash still matches the
+     * fingerprint taken at login. A missing fingerprint or key (e.g. a
+     * session from before this check) fails closed.
+     *
+     * @param array<string, mixed>|null $row utenti row (tipo_utente, stato, email_verificata, password)
+     */
+    public static function installerLoginRowIsCurrent(?array $row, string $fingerprint, string $key): bool {
+        if (!self::adminRowIsActive($row) || $fingerprint === '' || $key === '') {
+            return false;
+        }
+        $hash = $row['password'] ?? null;
+        if (!is_string($hash) || $hash === '') {
+            return false;
+        }
+        return hash_equals(self::installerCredentialFingerprint($hash, $key), $fingerprint);
+    }
+
+    /** Re-read an account and apply installerLoginRowIsCurrent(). */
+    public static function isActiveAdminWithCredential(\mysqli $db, int $userId, string $fingerprint, string $key): bool {
+        if ($userId <= 0) {
+            return false;
+        }
+        $stmt = $db->prepare('SELECT tipo_utente, stato, email_verificata, password FROM utenti WHERE id = ? LIMIT 1');
+        if ($stmt === false) {
+            return false;
+        }
+        $stmt->bind_param('i', $userId);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $row = $result ? $result->fetch_assoc() : null;
+        $stmt->close();
+        return self::installerLoginRowIsCurrent(is_array($row) ? $row : null, $fingerprint, $key);
+    }
+
+    /** Lifetime of the user_sessions row an installer login writes, in seconds. */
+    public const INSTALLER_SESSION_ROW_TTL = 7200;
+
+    /** Session key holding that row's id (0 = the schema has no user_sessions table). */
+    public const INSTALLER_SESSION_ROW_KEY = 'installer_admin_session_row';
+
+    /** Whether the configured database has a user_sessions table; null when it cannot be told. */
+    public static function userSessionsTableExists(\mysqli $db): ?bool {
+        try {
+            $result = $db->query("SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'user_sessions'");
+            if (!$result instanceof \mysqli_result) {
+                return null;
+            }
+            $row = $result->fetch_row();
+            $result->free();
+            return is_array($row) ? ((int) $row[0] > 0) : null;
+        } catch (\Throwable $e) {
+            return null;
+        }
+    }
+
+    /**
+     * Record an installer login as a user_sessions row of the admin (same
+     * shape RememberMeService::bindPlainSession() writes, short lifetime), so
+     * that revoking that admin's sessions — "sign out everywhere", a password
+     * change, CredentialRevoker::revokeAll() — also ends the installer login.
+     *
+     * @return int|null the row id; 0 when the schema predates user_sessions
+     *         (nothing to bind to); null when the row could not be written,
+     *         and then the login must be refused.
+     */
+    public static function bindInstallerSessionRow(\mysqli $db, int $userId, string $ipAddress, ?string $userAgent): ?int {
+        if ($userId <= 0) {
+            return null;
+        }
+        $exists = self::userSessionsTableExists($db);
+        if ($exists === null) {
+            return null;
+        }
+        if ($exists === false) {
+            return 0;
+        }
+        try {
+            $tokenHash = hash('sha256', 'installer:' . bin2hex(random_bytes(32)));
+            $deviceInfo = 'Pinakes installer';
+            $ip = $ipAddress !== '' ? substr($ipAddress, 0, 45) : null;
+            $expiresAt = gmdate('Y-m-d H:i:s', time() + self::INSTALLER_SESSION_ROW_TTL);
+            $stmt = $db->prepare('INSERT INTO user_sessions (utente_id, token_hash, device_info, ip_address, user_agent, expires_at) VALUES (?, ?, ?, ?, ?, ?)');
+            if ($stmt === false) {
+                return null;
+            }
+            $stmt->bind_param('isssss', $userId, $tokenHash, $deviceInfo, $ip, $userAgent, $expiresAt);
+            $ok = $stmt->execute();
+            $rowId = (int) $db->insert_id;
+            $stmt->close();
+            return ($ok && $rowId > 0) ? $rowId : null;
+        } catch (\Throwable $e) {
+            return null;
+        }
+    }
+
+    /**
+     * Whether the row an installer login is bound to still holds:
+     *  - id > 0: the row exists, is not revoked and has not expired
+     *    (boundSessionRowIsRevoked());
+     *  - id 0: the login was made on a schema without user_sessions, and the
+     *    table still does not exist (once it does, re-login);
+     *  - missing/negative (a login from before this binding): no.
+     *
+     * @param bool|null $tableExists userSessionsTableExists() (only used for id 0)
+     * @param array<string, mixed>|null $row user_sessions row (is_revoked, still_valid) for id > 0
+     */
+    public static function installerSessionRowIsAcceptable(int $storedRowId, ?bool $tableExists, ?array $row): bool {
+        if ($storedRowId === 0) {
+            return $tableExists === false;
+        }
+        if ($storedRowId < 0) {
+            return false;
+        }
+        return !self::boundSessionRowIsRevoked($storedRowId, $row);
+    }
+
+    /** Database side of installerSessionRowIsAcceptable(). */
+    public static function installerSessionRowIsLive(\mysqli $db, int $storedRowId): bool {
+        if ($storedRowId === 0) {
+            return self::installerSessionRowIsAcceptable(0, self::userSessionsTableExists($db), null);
+        }
+        if ($storedRowId < 0) {
+            return false;
+        }
+        return !self::isBoundSessionRevoked($db, $storedRowId);
+    }
+
+    /** Look up the bound user_sessions row and apply boundSessionRowIsRevoked(). */
+    public static function isBoundSessionRevoked(\mysqli $db, int $boundRowId): bool {
+        if ($boundRowId <= 0) {
+            return true;
+        }
+        $stmt = $db->prepare('SELECT is_revoked, (expires_at > UTC_TIMESTAMP()) AS still_valid FROM user_sessions WHERE id = ? LIMIT 1');
+        if ($stmt === false) {
+            return true;
+        }
+        $stmt->bind_param('i', $boundRowId);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $row = $result ? $result->fetch_assoc() : null;
+        $stmt->close();
+        return self::boundSessionRowIsRevoked($boundRowId, is_array($row) ? $row : null);
+    }
+
+    /** Max reinstall-login attempts per IP and window: same as the main POST /login. */
+    public const FORCE_LOGIN_MAX_ATTEMPTS = 15;
+    public const FORCE_LOGIN_WINDOW = 300;
+
+    /**
+     * Record a reinstall-login attempt for $ip and say whether it may proceed.
+     *
+     * File-backed (the installer has no APCu/app rate limiter). Fails closed:
+     * when the attempt cannot be recorded the answer is false.
+     */
+    public function recordForceLoginAttempt(string $ip, ?int $now = null): bool {
+        $now ??= time();
+        $dir = $this->baseDir . '/storage/cache/installer-login';
+        if (!is_dir($dir) && !@mkdir($dir, 0775, true) && !is_dir($dir)) {
+            return false;
+        }
+        $file = $dir . '/' . hash('sha256', $ip) . '.json';
+        $handle = @fopen($file, 'c+');
+        if ($handle === false) {
+            return false;
+        }
+        try {
+            if (!flock($handle, LOCK_EX)) {
+                return false;
+            }
+            $raw = stream_get_contents($handle);
+            $hits = is_string($raw) && $raw !== '' ? json_decode($raw, true) : [];
+            if (!is_array($hits)) {
+                $hits = [];
+            }
+            $windowStart = $now - self::FORCE_LOGIN_WINDOW;
+            $hits = array_values(array_filter($hits, static fn($t) => is_int($t) && $t > $windowStart));
+            if (count($hits) >= self::FORCE_LOGIN_MAX_ATTEMPTS) {
+                return false;
+            }
+            $hits[] = $now;
+            if (!ftruncate($handle, 0) || !rewind($handle)
+                || fwrite($handle, (string) json_encode($hits)) === false) {
+                return false;
+            }
+            fflush($handle);
+            return true;
+        } finally {
+            flock($handle, LOCK_UN);
+            fclose($handle);
+        }
     }
 
     /**

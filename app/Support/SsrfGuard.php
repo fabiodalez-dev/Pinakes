@@ -18,10 +18,40 @@ namespace App\Support;
 final class SsrfGuard
 {
     /**
-     * True only for a genuinely public IP. Beyond the standard private/reserved
-     * filter this also rejects IPv4-mapped IPv6 (::ffff:a.b.c.d) and NAT64
-     * (64:ff9b::/96) which embed an IPv4 address the base filter does not re-check
-     * (e.g. 64:ff9b::a00:1 == 10.0.0.1, ::ffff:127.0.0.1 == loopback).
+     * Special-purpose ranges that FILTER_FLAG_GLOBAL_RANGE still lets through
+     * (verified on PHP 8.4 and 8.5), or that only some PHP builds reject. They are
+     * denied explicitly so the answer does not depend on the PHP version:
+     *   - fec0::/10      deprecated IPv6 site-local (RFC 3879), routed internally;
+     *   - 64:ff9b:1::/48 local-use NAT64 prefix (RFC 8215), translates to internal v4;
+     *   - 2002::/16      6to4 (RFC 3056), embeds an arbitrary IPv4 address;
+     *   - 3fff::/20      IPv6 documentation (RFC 9637);
+     *   - ff00::/8       IPv6 multicast;
+     *   - 224.0.0.0/4    IPv4 multicast;
+     *   - 100.64.0.0/10  shared address space / CGNAT (RFC 6598);
+     *   - 198.18.0.0/15  benchmarking (RFC 2544);
+     *   - 192.0.0.0/24   IETF protocol assignments (RFC 6890).
+     *
+     * @var list<string>
+     */
+    private const DENIED_CIDRS = [
+        'fec0::/10',
+        '64:ff9b:1::/48',
+        '2002::/16',
+        '3fff::/20',
+        'ff00::/8',
+        '224.0.0.0/4',
+        '100.64.0.0/10',
+        '198.18.0.0/15',
+        '192.0.0.0/24',
+    ];
+
+    /**
+     * True only for a genuinely public IP. The base test is FILTER_FLAG_GLOBAL_RANGE
+     * (RFC 6890 "globally reachable"), on top of the private/reserved filter, plus the
+     * explicit DENIED_CIDRS list for the ranges GLOBAL_RANGE misses. It also rejects
+     * IPv4-mapped IPv6 (::ffff:a.b.c.d) and NAT64 (64:ff9b::/96) whose embedded IPv4
+     * address is not public (e.g. 64:ff9b::a00:1 == 10.0.0.1, ::ffff:127.0.0.1 ==
+     * loopback).
      */
     public static function isPublicIp(string $ip): bool
     {
@@ -30,7 +60,17 @@ final class SsrfGuard
         }
 
         $packed = @inet_pton($ip);
-        if ($packed !== false && strlen($packed) === 16) {
+        if ($packed === false) {
+            return false;
+        }
+
+        foreach (self::DENIED_CIDRS as $cidr) {
+            if (self::packedInCidr($packed, $cidr)) {
+                return false;
+            }
+        }
+
+        if (strlen($packed) === 16) {
             // IPv4-mapped ::ffff:0:0/96
             if (str_starts_with($packed, "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xff\xff")) {
                 $embedded = inet_ntop(substr($packed, 12));
@@ -43,7 +83,34 @@ final class SsrfGuard
             }
         }
 
-        return true;
+        // RFC 6890 global reachability. Checked after the embedded-IPv4 branches on
+        // purpose: GLOBAL_RANGE rejects all of ::ffff:0:0/96, so a mapped public
+        // address must be judged by its embedded IPv4 above, not here.
+        return filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_GLOBAL_RANGE) !== false;
+    }
+
+    /**
+     * True when the packed address (inet_pton output) falls inside $cidr. Families
+     * never match each other: an IPv4 CIDR only matches a 4-byte address.
+     */
+    private static function packedInCidr(string $packed, string $cidr): bool
+    {
+        [$network, $bits] = explode('/', $cidr, 2);
+        $net = @inet_pton($network);
+        if ($net === false || strlen($net) !== strlen($packed)) {
+            return false;
+        }
+        $bits = (int) $bits;
+        $fullBytes = intdiv($bits, 8);
+        if ($fullBytes > 0 && substr($packed, 0, $fullBytes) !== substr($net, 0, $fullBytes)) {
+            return false;
+        }
+        $rest = $bits % 8;
+        if ($rest === 0) {
+            return true;
+        }
+        $mask = (0xFF << (8 - $rest)) & 0xFF;
+        return (ord($packed[$fullBytes]) & $mask) === (ord($net[$fullBytes]) & $mask);
     }
 
     /**
@@ -103,6 +170,15 @@ final class SsrfGuard
             if (!in_array($scheme, ['http', 'https'], true) || $host === '') {
                 return null;
             }
+            // Every hop must use a default port. CURLOPT_RESOLVE below pins only the
+            // port the hop actually uses, and cover fetches never need anything else:
+            // a hop to host:8080 would otherwise make cURL resolve the host itself
+            // after validation, which re-opens DNS rebinding to internal services.
+            $port = isset($parts['port']) ? (int) $parts['port'] : ($scheme === 'https' ? 443 : 80);
+            if ($port !== 80 && $port !== 443) {
+                SecureLogger::warning('SSRF guard: cover hop on a non-default port refused', ['host' => $host, 'port' => $port]);
+                return null;
+            }
 
             $pin = self::resolvePinnedIp($host);
             if ($pin === null) {
@@ -119,8 +195,9 @@ final class SsrfGuard
                 CURLOPT_SSL_VERIFYPEER  => true,
                 CURLOPT_SSL_VERIFYHOST  => 2,
                 CURLOPT_USERAGENT       => 'PinakesCoverBot/1.0',
-                // Pin BOTH default ports to the validated IP so cURL never re-resolves.
-                CURLOPT_RESOLVE         => ["$host:443:$pin", "$host:80:$pin"],
+                // Pin the hop's port (always 80 or 443, enforced above) to the
+                // validated IP so cURL never re-resolves the host.
+                CURLOPT_RESOLVE         => ["$host:$port:$pin"],
             ]);
             if (defined('CURLOPT_PROTOCOLS_STR')) {
                 curl_setopt($ch, CURLOPT_PROTOCOLS_STR, 'https,http');

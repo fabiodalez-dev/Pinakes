@@ -68,7 +68,7 @@ final class StaffCirculationOpenApi
         $loan = O::ok('The loan as it is now.', O::ref('StaffLoan'));
         $approvalErrors = O::notFound() + O::conflict('`conflict` (state changed, no copy, deadline passed — `message` is the server text) or `not_eligible` (user not eligible).');
         $returnBody = ['outcome' => ['type' => 'string', 'enum' => CirculationOutcome::RETURN_OUTCOMES, 'default' => 'restituito'],
-            'notes' => ['type' => 'string'], 'penalty' => ['type' => 'number', 'minimum' => 0, 'maximum' => 99999999.99, 'description' => 'Only for perso / danneggiato.'],
+            'notes' => ['type' => 'string'], 'penalty' => ['type' => 'number', 'minimum' => 0, 'maximum' => 999999.99, 'description' => 'Only for perso / danneggiato. Capped at the patron ledger maximum (999,999.99).'],
             'waive_fine' => ['type' => 'boolean', 'default' => false, 'description' => 'Mobile API 1.10.0: waive the late fine this return charges (the amount GET /staff/loans/{id} shows in late_fine.accruing_cents). Requires waive_reason.'],
             'waive_reason' => ['type' => 'string', 'maxLength' => 255, 'description' => 'Mandatory with waive_fine (422 validation_error, meta.field waive_reason).']];
         $returnErrors = O::invalid() + O::conflict('`not_returnable`, `concurrent_retry` (retry once).');
@@ -274,7 +274,7 @@ final class StaffCirculationOpenApi
                 'book' => O::object(['id' => $i, 'title' => $s, 'cover_url' => $ns]),
                 'held' => $b, 'deletable' => $b,
                 'consultation_only' => ['type' => 'boolean', 'description' => 'Kept for in-house consultation, never lent (Pinakes 0.9.0). False with features.consultation_only off.'],
-                'on_loan' => ['oneOf' => [['type' => 'null'], O::object(['loan_id' => $i, 'user_name' => $s, 'due_at' => $nd])]],
+                'on_loan' => ['oneOf' => [['type' => 'null'], O::object(['loan_id' => $i, 'user_name' => ['type' => ['string', 'null'], 'description' => 'Null unless the caller holds loans.manage.'], 'due_at' => $nd])]],
                 'created_at' => $ns, 'updated_at' => $ns,
             ]),
             'LoanCreate' => ['type' => 'object', 'required' => ['user_id', 'book_id'], 'properties' => [

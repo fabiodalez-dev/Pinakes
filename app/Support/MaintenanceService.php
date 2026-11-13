@@ -484,20 +484,84 @@ class MaintenanceService
         if (!is_file($path)) {
             return false;
         }
-        $content = @file_get_contents($path);
-        if (!is_string($content) || !self::icsHasPersonalData($content)) {
-            return false;
+        // Same publish lock the private-mode switch holds while it sets the flag
+        // and withdraws the copies: the flag check and the rewrite cannot
+        // interleave with it (a copy written after the withdrawal would be public).
+        if (!\App\Support\SitemapCache::acquirePublishLock()) {
+            // Cannot coordinate with the private-mode switch: removing the copy
+            // is always safe (the next pass regenerates it), keeping it is not.
+            return self::removePublicIcsFile($path);
         }
         try {
-            if ((new IcsGenerator($db))->saveToFile($path, true, false)) {
+            if (self::privateModeEnabled($db)) {
+                // No public copy at all while private mode is on (see generateIcsCalendar()).
+                return self::removePublicIcsFile($path);
+            }
+            $content = @file_get_contents($path);
+            if (!is_string($content) || !self::icsHasPersonalData($content)) {
+                return false;
+            }
+            try {
+                if ((new IcsGenerator($db))->saveToFile($path, true, false)) {
+                    return true;
+                }
+            } catch (\Throwable $e) {
+                SecureLogger::error('Public ICS file rewrite failed', ['error' => $e->getMessage()]);
+            }
+            // nosemgrep: php.lang.security.unlink-use.unlink-use -- fixed internal path under storage/calendar, not user input
+            @unlink($path);
+            return true;
+        } finally {
+            \App\Support\SitemapCache::releasePublishLock();
+        }
+    }
+
+    /**
+     * True when advanced.private_mode is on, read both from the settings cache
+     * the middleware uses and from the database, so a stale cache cannot make a
+     * writer publish. An unreadable setting counts as on: the static file is
+     * only a copy of what the app routes serve, so not writing it loses nothing.
+     */
+    private static function privateModeEnabled(mysqli $db): bool
+    {
+        try {
+            if ((string) ConfigStore::get('advanced.private_mode', '0') === '1') {
                 return true;
             }
+            return (new SettingsRepository($db))->get('advanced', 'private_mode', '0') === '1';
         } catch (\Throwable $e) {
-            SecureLogger::error('Public ICS file rewrite failed', ['error' => $e->getMessage()]);
+            SecureLogger::warning('MaintenanceService: private mode could not be read, public calendar file not written', ['error' => $e->getMessage()]);
+            return true;
+        }
+    }
+
+    /**
+     * Withdraw the public calendar copy now, e.g. the moment private mode is
+     * switched on, instead of waiting for the next maintenance pass.
+     *
+     * @return bool true when no copy remains (absent or removed); false when
+     *         the file is still there and the web server may keep serving it
+     */
+    public static function withdrawPublicIcsFile(?string $path = null): bool
+    {
+        $path ??= self::ICS_PATH;
+        self::removePublicIcsFile($path);
+        clearstatcache(true, $path);
+        return !is_file($path);
+    }
+
+    /** Remove the public calendar copy; true when a file was removed. */
+    private static function removePublicIcsFile(string $path): bool
+    {
+        if (!is_file($path)) {
+            return false;
         }
         // nosemgrep: php.lang.security.unlink-use.unlink-use -- fixed internal path under storage/calendar, not user input
-        @unlink($path);
-        return true;
+        if (@unlink($path)) {
+            return true;
+        }
+        SecureLogger::warning('MaintenanceService: public calendar file could not be removed while private mode is on', ['path' => basename($path)]);
+        return false;
     }
 
     /**
@@ -556,6 +620,34 @@ class MaintenanceService
      */
     public function generateIcsCalendar(): bool
     {
+        // Private mode hides the catalogue from anonymous visitors, and a static
+        // copy of the calendar is outside PrivateModeMiddleware's reach whenever a
+        // web server serves it directly. Write nothing while it is on and drop any
+        // copy written before; the app's /calendar/events.ics route (and the legacy
+        // /storage/calendar/library-calendar.ics route) still answer signed-in users.
+        // Held across the flag check AND the write: the private-mode switch takes
+        // the same lock while it sets the flag and withdraws the copy, so a
+        // calendar generated just before cannot be renamed into place after it.
+        // No lock, no publication (fail closed).
+        if (!\App\Support\SitemapCache::acquirePublishLock()) {
+            SecureLogger::error('MaintenanceService: publish lock unavailable, public calendar file not written');
+            return false;
+        }
+        try {
+            return $this->generateIcsCalendarLocked();
+        } finally {
+            \App\Support\SitemapCache::releasePublishLock();
+        }
+    }
+
+    private function generateIcsCalendarLocked(): bool
+    {
+        if (self::privateModeEnabled($this->db)) {
+            // Success means "no public copy left": a copy that cannot be
+            // removed is still served, so runAllLocked() must record an error.
+            return self::withdrawPublicIcsFile(self::ICS_PATH);
+        }
+
         $icsGenerator = new IcsGenerator($this->db);
         // IcsGenerator::saveToFile() creates the directory if needed.
         // catalogueOnly + no personal data: this file mirrors what anonymous

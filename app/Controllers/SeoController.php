@@ -51,11 +51,16 @@ class SeoController
             $lines[] = 'Disallow: ' . $basePath . $authPath;
         }
 
-        $lines[] = '';
-        $lines[] = 'Sitemap: ' . $baseUrl . '/sitemap.xml';
+        // In private mode /sitemap.xml and /llms.txt are behind the login wall
+        // (PrivateModeMiddleware), while robots.txt stays public: do not
+        // advertise them to anonymous visitors.
+        if ((string) ConfigStore::get('advanced.private_mode', '0') !== '1') {
+            $lines[] = '';
+            $lines[] = 'Sitemap: ' . $baseUrl . '/sitemap.xml';
 
-        if (ConfigStore::get('seo.llms_txt_enabled', '0') === '1') {
-            $lines[] = 'llms.txt: ' . $baseUrl . '/llms.txt';
+            if (ConfigStore::get('seo.llms_txt_enabled', '0') === '1') {
+                $lines[] = 'llms.txt: ' . $baseUrl . '/llms.txt';
+            }
         }
 
         $response->getBody()->write(implode("\n", $lines) . "\n");

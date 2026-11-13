@@ -14,15 +14,16 @@ RewriteEngine On
 # Prevent directory browsing
 Options -Indexes
 
-# Exclude installer and scripts from rewrite (allow direct access)
-RewriteCond %{REQUEST_URI} (^|/)installer(/|$) [NC,OR]
-RewriteCond %{REQUEST_URI} (^|/)scripts/manual-upgrade\.php$ [NC]
-RewriteRule ^ - [L]
+# Exclude the installer and the manual-upgrade script from the rewrite (allow
+# direct access). Anchored, directory-relative patterns: in .htaccess context
+# they are matched against the path INCLUDING PATH_INFO, so an "installer"
+# segment appended to another file (/scripts/maintenance.php/installer) cannot
+# satisfy them.
+RewriteRule ^installer(/|$) - [NC,L]
+RewriteRule ^scripts/manual-upgrade\.php$ - [NC,L]
 
-# Allow direct access to calendar files (.ics) for subscription URLs
-RewriteCond %{REQUEST_URI} ^/storage/calendar/.*\.ics$ [NC]
-RewriteRule ^ - [L]
-
-# Redirect everything else to /public/
+# Redirect everything else to /public/. This includes the legacy calendar URL
+# /storage/calendar/library-calendar.ics: the app answers it (like
+# /calendar/events.ics), so private mode applies to it.
 RewriteCond %{REQUEST_URI} !^/public/
 RewriteRule ^(.*)$ public/$1 [L,QSA]

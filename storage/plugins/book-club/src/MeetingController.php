@@ -200,7 +200,10 @@ class MeetingController extends BaseController
      * GET /book-club/{slug}/calendar.ics — public clubs serve the feed
      * openly; any other privacy requires ?token= matching the club's
      * ics_token (shown to members on the club page). Calendar apps cannot
-     * send session cookies, hence the token-in-URL design.
+     * send session cookies, hence the token-in-URL design. The token is
+     * club-wide, so Repo::setMemberStatus() rotates it whenever an active
+     * member leaves or is suspended/banned: a former member's saved URL then
+     * returns 404 instead of the members-only schedule and video links.
      */
     public function icsFeed(ServerRequestInterface $request, ResponseInterface $response, string $slug): ResponseInterface
     {

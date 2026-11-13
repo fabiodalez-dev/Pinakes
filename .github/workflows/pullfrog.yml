@@ -87,12 +87,16 @@ jobs:
           # input is declared in the action's action.yml and is not mentioned
           # in the getting-started guide.
           push: disabled
-          # Scrubs *_TOKEN / *_KEY / *_SECRET / *_PASSWORD / *_CREDENTIAL from
-          # the environment the agent's shell sees. Already the default for a
-          # public repository; set explicitly so that making this repository
-          # private some day cannot silently widen it — private repos default
-          # to `enabled`.
-          shell: restricted
+          # NO SHELL. The agent reads pull-request text a contributor wrote,
+          # while this step holds every provider key and the job can mint an
+          # OIDC identity. `restricted` only filters the shell's environment
+          # and relies on the runtime's PID-namespace sandbox, which on a
+          # GitHub-hosted runner can fall back to a tier where the runner's
+          # passwordless sudo still works — enough for a prompt-injected agent
+          # to reach the parent process and its keys. A review needs the diff,
+          # the files and the GitHub tools, never a shell, so the tool is off.
+          # The same value is set on the fallback step below.
+          shell: disabled
         env:
           # add at least one provider API key
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -165,7 +169,7 @@ jobs:
           prompt: ${{ inputs.prompt }}
           timeout: 20m
           push: disabled
-          shell: restricted
+          shell: disabled  # see the primary step: no shell next to the keys
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.PULLFROG_OAUTH_FALLBACK }}

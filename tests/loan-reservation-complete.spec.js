@@ -79,23 +79,7 @@ function dateISO(daysOffset) {
  * candidate to prevent 429s during long runs.
  */
 function clearRateLimits() {
-  try {
-    execFileSync('php', [
-      '-r',
-      'foreach ([sys_get_temp_dir(), "/var/tmp", "/tmp"] as $d) {'
-      + ' array_map("unlink", glob($d."/pinakes_ratelimit/*.json") ?: []); }',
-    ], { encoding: 'utf-8', timeout: 5_000 });
-  } catch { /* ignore */ }
-
-  // Also try the Node-side path (same host)
-  try {
-    const dir = path.join(os.tmpdir(), 'pinakes_ratelimit');
-    if (fs.existsSync(dir)) {
-      for (const f of fs.readdirSync(dir)) {
-        try { fs.unlinkSync(path.join(dir, f)); } catch { /* ignore */ }
-      }
-    }
-  } catch { /* ignore */ }
+  require('./helpers/rate-limit-reset').clearRateLimits();
 }
 
 clearRateLimits();

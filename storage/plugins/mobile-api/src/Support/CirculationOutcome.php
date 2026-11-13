@@ -60,6 +60,8 @@ final class CirculationOutcome
         'invalid_penalty'  => [422, 'validation_error', 'penalty', false],
         'waiver_reason_required' => [422, 'validation_error', 'waive_reason', false],
         'not_returnable'   => [409, 'not_returnable', null, false],
+        // A waiver or penalty on a borrower outside the operator's loan-desk scope.
+        'user_not_found'   => [404, 'not_found', 'user_id', false],
         'concurrent_retry' => [409, 'concurrent_retry', null, false],
         'update_failed'    => [500, 'internal_error', null, false],
     ];

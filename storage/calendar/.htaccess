@@ -1,19 +1,33 @@
-# Allow public access to calendar files (.ics)
-# This overrides the parent storage/.htaccess deny rule
+# Calendar files (.ics) under storage/calendar/
+#
+# The legacy subscription URL /storage/calendar/library-calendar.ics is NOT
+# served from this directory: on installs whose document root is the project
+# root, the root .htaccess rewrites it to public/, where the application
+# answers it (like /calendar/events.ics) so private mode applies to it. On
+# docroot=public installs storage/ is outside the web root.
+#
+# The grant below only lets that request pass the parent storage/.htaccess
+# deny long enough for the root rewrite to run (Apache checks access before
+# per-directory rewrites). Without mod_rewrite there is no such rewrite, so the
+# file is denied instead of being served statically.
 
 # Apache 2.4
 <IfModule mod_authz_core.c>
-    <FilesMatch "\.ics$">
-        Require all granted
-    </FilesMatch>
+    <IfModule mod_rewrite.c>
+        <FilesMatch "\.ics$">
+            Require all granted
+        </FilesMatch>
+    </IfModule>
 </IfModule>
 
 # Apache 2.2 (fallback)
 <IfModule !mod_authz_core.c>
-    <FilesMatch "\.ics$">
-        Order Allow,Deny
-        Allow from all
-    </FilesMatch>
+    <IfModule mod_rewrite.c>
+        <FilesMatch "\.ics$">
+            Order Allow,Deny
+            Allow from all
+        </FilesMatch>
+    </IfModule>
 </IfModule>
 
 # Set correct MIME type for iCalendar files

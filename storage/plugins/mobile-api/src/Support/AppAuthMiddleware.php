@@ -90,6 +90,9 @@ final class AppAuthMiddleware implements MiddlewareInterface
             'email'       => $user['email'],
             'tipo_utente' => $user['tipo_utente'],
             'name'        => trim((string) $user['nome'] . ' ' . (string) $user['cognome']),
+            // The identity is the token (revoked through mobile_app_tokens), not a
+            // browser sign-in: SessionRoleRevalidator skips its session-pin check.
+            'auth_via'    => 'mobile_token',
         ];
 
         $freshPermissions = \App\Support\Permissions::viewer((int) $user['id'], $this->db);

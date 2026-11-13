@@ -33,7 +33,10 @@ if (true) {
         $installer->loadEnvConfig();
         $debug[] = __(".env caricato OK");
 
-        // Import database schema
+        // Import database schema. Recorded first: from now on the database is
+        // not empty because this session filled it (Installer::ownerMayContinue()),
+        // and a failed import must stay retryable by this session.
+        $installer->recordSchemaImportByOwner();
         $debug[] = __("Import schema in corso...");
         $installer->importSchema();
         $_SESSION['schema_imported'] = true;

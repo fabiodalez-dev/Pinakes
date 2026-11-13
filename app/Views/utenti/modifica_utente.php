@@ -214,6 +214,13 @@ unset($workspaceHeader);
           <label for="password" class="block text-sm font-medium text-gray-700"><?= __("Nuova password") ?></label>
           <input type="password" autocomplete="new-password" id="password" name="password" class="mt-1 block w-full rounded-md border-gray-300 focus:border-gray-900 focus:ring-gray-900" placeholder="<?= htmlspecialchars(__("Lascia vuoto per non modificare"), ENT_QUOTES, 'UTF-8') ?>">
         </div>
+        <?php if ($utenteId > 0 && $utenteId === (int) ($_SESSION['user']['id'] ?? 0)): ?>
+        <div>
+          <label for="current_password" class="block text-sm font-medium text-gray-700"><?= __("Password attuale") ?></label>
+          <input type="password" autocomplete="current-password" id="current_password" name="current_password" class="mt-1 block w-full rounded-md border-gray-300 focus:border-gray-900 focus:ring-gray-900">
+          <p class="text-xs text-gray-500 mt-1"><?= __("Richiesta solo se cambi la tua password.") ?></p>
+        </div>
+        <?php endif; ?>
         <div>
           <label for="locale" class="block text-sm font-medium text-gray-700"><?= __("Lingua dell'interfaccia") ?></label>
           <select id="locale" name="locale" class="mt-1 block w-full rounded-md border-gray-300 focus:border-gray-900 focus:ring-gray-900">

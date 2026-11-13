@@ -175,12 +175,22 @@ class AuthController
                 // costs its owner only this device, which is the one being
                 // handed over.
                 $rememberMeService->revokeCurrentToken();
+                // session_regenerate_id() keeps the session data, so a row id from an
+                // earlier sign-in in this browser (possibly another account) would
+                // survive: if binding this sign-in then failed, pinIfUnbound() would
+                // see that stale id and skip the pin, and revocation would target the
+                // wrong row. Start this sign-in unbound.
+                unset($_SESSION[RememberMeService::SESSION_ROW_KEY]);
 
                 if ($remember) {
                     $rememberMeService->createToken((int) $row['id']);
                 } else {
                     $rememberMeService->bindPlainSession((int) $row['id']);
                 }
+                // If neither could write its row, a later credential revocation
+                // has nothing to revoke for this browser: pin it to the password
+                // instead (see RememberMeService::UNBOUND_CREDENTIAL_KEY).
+                RememberMeService::pinIfUnbound((string) ($row['password'] ?? ''));
 
                 // Log successful login
                 Log::security('login.success', [
@@ -254,19 +264,12 @@ class AuthController
         if ($url === null) {
             return null;
         }
-        $clean = trim(str_replace(["\r", "\n"], '', $url));
-        if ($clean === '' || !str_starts_with($clean, '/')) {
-            return null;
-        }
-        // Reject protocol-relative ('//') and backslash-authority ('/\') forms:
-        // a browser normalises the '\' to '/', turning '/\evil.com' into
-        // '//evil.com' → a cross-origin open redirect (CWE-601). Query params
-        // are already URL-decoded here, so a '%5C' payload arrives as a raw '\'
-        // and is caught too. This is the single choke point for the post-login
-        // redirect (both loginForm() and login() route return_url through here).
-        if (preg_match('#^/[\\\\/]#', $clean)) {
-            return null;
-        }
-        return $clean;
+        // Single choke point for the post-login redirect (both loginForm() and
+        // login() route return_url through here). SafeRedirect refuses
+        // protocol-relative ('//'), backslash ('/\') and control-character
+        // ('/<TAB>/host') forms that a browser turns into a cross-origin
+        // redirect (CWE-601). Query params are already URL-decoded here, so
+        // '%5C' or '%09' payloads arrive as the raw byte and are caught too.
+        return \App\Support\SafeRedirect::localPath(trim($url));
     }
 }

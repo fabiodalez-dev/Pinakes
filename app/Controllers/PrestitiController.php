@@ -386,6 +386,15 @@ class PrestitiController
             $userLockStmt->get_result();
             $userLockStmt->close();
 
+            // Borrower scope on the write, not only on the picker: a custom role
+            // records loans for reader accounts only, never for an administrator
+            // or a Staff account (the app's create delegates here too). Same
+            // answer as an account that does not exist.
+            if (!\App\Support\Permissions::mayActOnBorrower($db, $utente_id)) {
+                $db->rollback();
+                return $response->withHeader('Location', url('/admin/loans/create') . '?error=user_not_found')->withStatus(302);
+            }
+
             // Idoneità utente (M7): esistenza + stato attivo + tessera in corso di
             // validità, verificati sotto il lock della riga utente. Il codice
             // restituito (user_not_found/user_suspended/card_expired) diventa il
@@ -1065,6 +1074,14 @@ class PrestitiController
                 $newUserLock->get_result();
                 $newUserLock->close();
 
+                // The new borrower must be in the operator's borrower scope, as
+                // in store(): a custom role never hands a loan to an
+                // administrator or a Staff account.
+                if (!\App\Support\Permissions::mayActOnBorrower($db, $newUserId)) {
+                    $db->rollback();
+                    return $response->withHeader('Location', url('/admin/loans') . '?error=user_not_found')->withStatus(302);
+                }
+
                 $eligibilityError = \App\Support\LoanEligibility::checkUser($db, $newUserId);
                 if ($eligibilityError !== null) {
                     $db->rollback();
@@ -1477,7 +1494,11 @@ class PrestitiController
         } elseif ($penaltyRaw === '') {
             $penaltyRaw = '0';
         }
-        if (preg_match('/^(?:0|[1-9]\d{0,7})(?:\.\d{1,2})?$/D', $penaltyRaw) !== 1) {
+        // The amount is mirrored into the patron ledger (chargeLossPenalty), whose
+        // entries are bounded by PatronLedger::MAX_AMOUNT_CENTS: refuse anything
+        // above it here rather than record a penalty the ledger cannot hold.
+        if (preg_match('/^(?:0|[1-9]\d{0,7})(?:\.\d{1,2})?$/D', $penaltyRaw) !== 1
+            || (int) round((float) $penaltyRaw * 100) > \App\Services\PatronLedger::MAX_AMOUNT_CENTS) {
             return $response->withHeader('Location', url('/admin/loans/returned/' . $id) . '?error=invalid_penalty')->withStatus(302);
         }
         $sanzione = number_format((float) $penaltyRaw, 2, '.', '');
@@ -1554,6 +1575,17 @@ class PrestitiController
             if (!$loan) {
                 $db->rollback();
                 return $response->withHeader('Location', url('/admin/loans/returned/' . $id) . '?error=not_returnable')->withStatus(302);
+            }
+
+            // A loss/damage penalty or a fine waiver writes to the borrower's
+            // ledger: it needs the same borrower scope as the ledger page
+            // (PatronLedgerController), so a custom role cannot charge or waive
+            // on an administrator's or a Staff account. A plain return of such a
+            // loan still goes through: the copy has to come back.
+            if (($waiveFine || $sanzione !== '0.00')
+                && !\App\Support\Permissions::mayActOnBorrower($db, (int) $loan['utente_id'])) {
+                $db->rollback();
+                return $response->withHeader('Location', url('/admin/loans/returned/' . $id) . '?error=user_not_found')->withStatus(302);
             }
 
             // Re-verifica TOCTOU: la lettura iniziale era non bloccante per
@@ -2567,29 +2599,16 @@ class PrestitiController
 
     private function sanitizeRedirect(?string $path): ?string
     {
-        if ($path === null || $path === '') {
-            return null;
-        }
-
-        $trimmed = str_replace(["\r", "\n"], '', $path);
-        if (strpos($trimmed, '://') !== false) {
-            return null; // avoid absolute URLs or protocols
-        }
-
-        if (!str_starts_with($trimmed, '/')) {
-            return null;
-        }
-
-        // Reject protocol-relative (`//host`) and backslash-authority (`/\host`,
-        // which browsers normalise to `//host`) targets — a second char of `/`
-        // or `\` after the leading slash is an open-redirect vector. Aligned
-        // with AuthController/LanguageController sanitizers (findings F4/F10).
-        if (preg_match('#^/[\\\\/]#', $trimmed)) {
-            return null;
+        // Shared same-origin validator (AuthController/LanguageController use
+        // it too): refuses '//host', '/\host' and control characters such as
+        // '/<TAB>/host', which browsers strip and resolve to '//host'.
+        $local = \App\Support\SafeRedirect::localPath($path);
+        if ($local === null || str_contains($local, '://')) {
+            return null; // avoid absolute URLs or protocols anywhere in the value
         }
 
         // Collapse multiple slashes to avoid traversal quirks
-        $normalized = preg_replace('#/+#', '/', $trimmed);
+        $normalized = preg_replace('#/+#', '/', $local);
         return $normalized ?: null;
     }
 
