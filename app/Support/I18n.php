@@ -210,7 +210,7 @@ final class I18n
             if (is_array($decoded)) {
                 // Re-filter on load: an override written before the upload filter
                 // existed (or edited on disk) must not reach a view unfiltered.
-                $translations = array_merge($translations, TranslationSanitizer::sanitize($decoded));
+                $translations = array_merge($translations, TranslationSanitizer::sanitizeLoaded($decoded));
             }
         }
 

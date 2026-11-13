@@ -217,5 +217,26 @@ foreach (['i18nViewDetails', 'i18nEdit', 'i18nDelete'] as $const) {
 $translations->setValue(null, []);
 $loaded->setValue(null, false);
 
+// The per-request loader skips the full filter for values with no risky
+// character; it must produce exactly what the full filter produces.
+$hostile = [
+    'Annulla' => 'x" onmouseover="alert(1)',
+    'Salva' => '<img src=x onerror=alert(1)>',
+    'Elimina' => '`; alert(1); `',
+    'Modifica' => '${alert(1)}',
+    'Chiudi' => "a\0b",
+    'Indietro' => 'plain value',
+];
+$check(\App\Support\TranslationSanitizer::sanitizeLoaded($hostile) === \App\Support\TranslationSanitizer::sanitize($hostile),
+    'sanitizeLoaded() matches sanitize() on hostile values');
+foreach (glob($root . '/locale/[a-z][a-z]_[A-Z][A-Z].json') ?: [] as $localeFile) {
+    $shipped = array_map(
+        static fn ($v) => is_string($v) ? trim($v) : $v,
+        (array) json_decode((string) file_get_contents($localeFile), true)
+    );
+    $check(\App\Support\TranslationSanitizer::sanitizeLoaded($shipped) === \App\Support\TranslationSanitizer::sanitize($shipped),
+        'sanitizeLoaded() matches sanitize() on ' . basename($localeFile));
+}
+
 echo "\n{$pass} passed, {$fail} failed\n";
 exit($fail === 0 ? 0 : 1);

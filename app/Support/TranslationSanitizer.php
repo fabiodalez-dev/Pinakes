@@ -35,6 +35,31 @@ final class TranslationSanitizer
         return $sanitized;
     }
 
+    /**
+     * Same guarantee as sanitize(), for the per-request load of an override
+     * file. A full override holds ~9k entries and only a small fraction carry a
+     * character the filter acts on (markup, NUL, a double quote, a backtick or a
+     * "$"), so values without one are kept as they are and only the rest go
+     * through the full filter. Values were already trimmed when uploaded.
+     *
+     * @param array<mixed> $translations
+     * @return array<string, string>
+     */
+    public static function sanitizeLoaded(array $translations): array
+    {
+        $sanitized = [];
+        foreach ($translations as $key => $value) {
+            if (!is_string($key)) {
+                continue;
+            }
+            $sanitized[$key] = is_string($value) && strpbrk($value, "<\"`\$\0") === false
+                ? $value
+                : self::sanitizeValue($key, $value);
+        }
+
+        return $sanitized;
+    }
+
     public static function sanitizeValue(string $key, mixed $value): string
     {
         $scalarValue = is_scalar($value) ? (string) $value : '';
