@@ -16,6 +16,9 @@ declare(strict_types=1);
  *   C. recordForceLoginAttempt(): 15 attempts / 300 s per IP, fail closed.
  *   D. installer/index.php wiring: no snapshot trust, no sticky flag, the POST
  *      query carries the account-state conditions, \Throwable fails closed.
+ *   E. an installer login stays valid only while the account's password hash
+ *      matches the keyed fingerprint taken at login (password change/reset
+ *      ends it).
  *
  * No database needed. Run: php tests/security-audit-installer-force-gate.unit.php
  */
@@ -101,7 +104,15 @@ $check(str_contains($gate, 'Installer::isActiveAdmin($db, $sessionUserId)')
     && str_contains($gate, 'Installer::isBoundSessionRevoked($db, $boundRowId)')
     && str_contains($gate, "\$_SESSION['remember_session_id']"),
     'a main-app session is re-validated against utenti and its bound user_sessions row');
-$check(str_contains($gate, 'Installer::isActiveAdmin($db, $installerUserId)'), 'an installer login is re-validated on every request');
+$check(str_contains($gate, 'Installer::isActiveAdminWithCredential(')
+    && preg_match('/isActiveAdminWithCredential\(\s*\$db,\s*\$installerUserId,/', $gate) === 1
+    && !str_contains($gate, 'Installer::isActiveAdmin($db, $installerUserId)'),
+    'an installer login is re-validated on every request, account AND password fingerprint');
+$check(str_contains($gate, "\$_SESSION['installer_admin_credential'] = Installer::installerCredentialFingerprint((string) \$row['password'], \$credentialKey)")
+    && str_contains($gate, "\$_SESSION['installer_admin_credential_key'] = \$credentialKey"),
+    'the installer login stores a keyed fingerprint of the password hash it verified');
+$check(preg_match("/unset\\(\\s*\\\$_SESSION\\['installer_admin_user_id'\\],\\s*\\\$_SESSION\\['installer_admin_credential'\\],\\s*\\\$_SESSION\\['installer_admin_credential_key'\\]\\s*\\)/", $gate) === 1,
+    'a stale installer login is dropped with its fingerprint');
 $check(preg_match("/tipo_utente = 'admin' AND stato = 'attivo' AND email_verificata = 1/", $gate) === 1,
     'the POST door requires stato attivo and a verified email');
 $check(str_contains($gate, 'recordForceLoginAttempt('), 'the POST door is rate limited');
@@ -110,6 +121,29 @@ $check(str_contains($gate, 'catch (\\Throwable $e)') && !preg_match('/catch \(Ex
 $postPos = strpos($gate, 'recordForceLoginAttempt(');
 $queryPos = strpos($gate, "AND stato = 'attivo'");
 $check($postPos !== false && $queryPos !== false && $postPos < $queryPos, 'the attempt is counted before the credential check');
+
+// ---------------------------------------------------------------------------
+echo "E. Installer login is bound to the password it was made with\n";
+// ---------------------------------------------------------------------------
+if (!method_exists(Installer::class, 'installerLoginRowIsCurrent') || !method_exists(Installer::class, 'installerCredentialFingerprint')) {
+    $check(false, 'Installer::installerLoginRowIsCurrent()/installerCredentialFingerprint() exist');
+} else {
+    $key = bin2hex(random_bytes(32));
+    $hash = password_hash('old-password', PASSWORD_DEFAULT);
+    $fp = Installer::installerCredentialFingerprint($hash, $key);
+    $row = $active + ['password' => $hash];
+    $check(Installer::installerLoginRowIsCurrent($row, $fp, $key), 'same active admin, same password: still logged in');
+    $check(!Installer::installerLoginRowIsCurrent(['password' => password_hash('new-password', PASSWORD_DEFAULT)] + $row, $fp, $key),
+        'password changed or reset (CredentialRevoker::revokeAll() path): login refused');
+    $check(!Installer::installerLoginRowIsCurrent(['stato' => 'sospeso'] + $row, $fp, $key), 'suspended admin: login refused');
+    $check(!Installer::installerLoginRowIsCurrent(null, $fp, $key), 'deleted account: login refused');
+    $check(!Installer::installerLoginRowIsCurrent($row, '', $key) && !Installer::installerLoginRowIsCurrent($row, $fp, ''),
+        'a session without fingerprint (pre-fix login) is refused');
+    $check(!Installer::installerLoginRowIsCurrent($row, $fp, bin2hex(random_bytes(32))), 'a fingerprint under another key is refused');
+    $check(!Installer::installerLoginRowIsCurrent(['password' => ''] + $row, Installer::installerCredentialFingerprint('', $key), $key),
+        'an account without a password hash is refused');
+    $check(!str_contains($fp, $hash) && strlen($fp) === 64, 'the session holds an HMAC, not the password hash');
+}
 
 // Cleanup: only the private temp tree created above.
 $it = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($tmp, FilesystemIterator::SKIP_DOTS), RecursiveIteratorIterator::CHILD_FIRST);

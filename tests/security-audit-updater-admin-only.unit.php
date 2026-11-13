@@ -71,9 +71,16 @@ if (file_exists($flag)) {
     $r = $clear();
     $check($r->getStatusCode() === 403 && file_exists($flag), 'staff POST /admin/updates/maintenance/clear : 403, existing flag kept');
 } else {
+    // Exclusive create: if an update or restore puts its own flag in place
+    // between the check above and this line, fopen('x') fails and the test
+    // leaves that flag alone instead of overwriting and later deleting it.
     $created = false;
-    try {
-        $created = file_put_contents($flag, json_encode(['sticky' => true, 'reason' => 'security-audit test'])) !== false;
+    $handle = @fopen($flag, 'x');
+    if ($handle === false) {
+        echo "  SKIP storage/.maintenance appeared meanwhile — not touching it; maintenance checks not run\n";
+    } else try {
+        $created = fwrite($handle, (string) json_encode(['sticky' => true, 'reason' => 'security-audit test'])) !== false;
+        fclose($handle);
         $check($created, 'a sticky maintenance flag is in place');
         $r = $clear();
         $check($r->getStatusCode() === 403, 'staff POST /admin/updates/maintenance/clear : 403');

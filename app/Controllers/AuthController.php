@@ -181,6 +181,10 @@ class AuthController
                 } else {
                     $rememberMeService->bindPlainSession((int) $row['id']);
                 }
+                // If neither could write its row, a later credential revocation
+                // has nothing to revoke for this browser: pin it to the password
+                // instead (see RememberMeService::UNBOUND_CREDENTIAL_KEY).
+                RememberMeService::pinIfUnbound((string) ($row['password'] ?? ''));
 
                 // Log successful login
                 Log::security('login.success', [

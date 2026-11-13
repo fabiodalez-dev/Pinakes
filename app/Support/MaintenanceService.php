@@ -523,6 +523,21 @@ class MaintenanceService
         }
     }
 
+    /**
+     * Withdraw the public calendar copy now, e.g. the moment private mode is
+     * switched on, instead of waiting for the next maintenance pass.
+     *
+     * @return bool true when no copy remains (absent or removed); false when
+     *         the file is still there and the web server may keep serving it
+     */
+    public static function withdrawPublicIcsFile(?string $path = null): bool
+    {
+        $path ??= self::ICS_PATH;
+        self::removePublicIcsFile($path);
+        clearstatcache(true, $path);
+        return !is_file($path);
+    }
+
     /** Remove the public calendar copy; true when a file was removed. */
     private static function removePublicIcsFile(string $path): bool
     {
@@ -599,8 +614,9 @@ class MaintenanceService
         // copy written before; the app's /calendar/events.ics route (and the legacy
         // /storage/calendar/library-calendar.ics route) still answer signed-in users.
         if (self::privateModeEnabled($this->db)) {
-            self::removePublicIcsFile(self::ICS_PATH);
-            return true;
+            // Success means "no public copy left": a copy that cannot be
+            // removed is still served, so runAllLocked() must record an error.
+            return self::withdrawPublicIcsFile(self::ICS_PATH);
         }
 
         $icsGenerator = new IcsGenerator($this->db);

@@ -42,6 +42,14 @@ if (!isset($_SESSION['installation_finalized'])) {
     } catch (\Throwable $e) {
         $error = __("Errore durante la finalizzazione:") . " " . $e->getMessage();
     }
+} elseif (!$installer->hasLockFile()) {
+    // Finalised earlier in this session, but .installed is gone (removed or
+    // never persisted): the retry link lands here, so write the lock again.
+    if ($installer->createLockFile()) {
+        $installer->releaseInstallOwnership();
+    } else {
+        $error = __("Impossibile creare il file .installed nella root del progetto. Verifica i permessi di scrittura della cartella.");
+    }
 }
 
 // Never show the success page while the lock file is missing.

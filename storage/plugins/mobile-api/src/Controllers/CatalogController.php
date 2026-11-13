@@ -92,6 +92,10 @@ final class CatalogController
             if (mb_strlen($query, 'UTF-8') > self::MAX_QUERY_LENGTH) {
                 $query = trim(mb_substr($query, 0, self::MAX_QUERY_LENGTH, 'UTF-8'));
             }
+            // buildFilters() re-reads q: hand it the capped value, not the raw one.
+            if (isset($params['q'])) {
+                $params['q'] = $query;
+            }
             $requestedSort = isset($params['sort']) ? trim(Input::str($params['sort'])) : null;
             // Relevance is the default for a text query and can be selected
             // explicitly by mobile clients. Facet-only browsing keeps the

@@ -102,6 +102,15 @@ final class SessionRoleRevalidator
             return self::$cache[$userId] = ['status' => self::ABSENT, 'role' => null, 'stato' => null];
         }
 
+        // A session that could not be bound to a user_sessions row is pinned to
+        // the password it was opened with; once that password changes, the
+        // session is treated like a deleted account and every caller ends it.
+        $pin = $_SESSION[RememberMeService::UNBOUND_CREDENTIAL_KEY] ?? null;
+        if (is_string($pin) && $pin !== ''
+            && !hash_equals($pin, RememberMeService::credentialFingerprint((string) ($row['password'] ?? '')))) {
+            return self::$cache[$userId] = ['status' => self::ABSENT, 'role' => null, 'stato' => null];
+        }
+
         try {
             $row = Permissions::hydrate($row, $db);
         } catch (\Throwable $e) {

@@ -9352,5 +9352,8 @@
   "Correggi il problema indicato e riprova: l'installazione verrà finalizzata solo quando il file .installed sarà stato creato.": "Fix the problem shown and try again: the installation is finalized only once the .installed file has been created.",
   "Riprova la finalizzazione": "Retry finalization",
   "La sitemap non viene pubblicata mentre la modalità privata è attiva.": "The sitemap is not published while private mode is on.",
-  "Richiesta solo se cambi la tua password.": "Required only if you change your own password."
+  "Richiesta solo se cambi la tua password.": "Required only if you change your own password.",
+  "Impossibile rimuovere la sitemap pubblicata (public/sitemap.xml), che resta accessibile a chiunque. Verifica i permessi della cartella public/ e rimuovi il file.": "The published sitemap (public/sitemap.xml) could not be removed and is still accessible to anyone. Check the permissions of the public/ folder and remove the file.",
+  "Impossibile rimuovere il calendario pubblico (storage/calendar/library-calendar.ics), che resta accessibile a chiunque. Verifica i permessi della cartella storage/calendar/ e rimuovi il file.": "The public calendar (storage/calendar/library-calendar.ics) could not be removed and is still accessible to anyone. Check the permissions of the storage/calendar/ folder and remove the file.",
+  "Le impostazioni sono cambiate durante la generazione: la sitemap non è stata pubblicata. Riprova.": "The settings changed during generation: the sitemap was not published. Please try again."
 }

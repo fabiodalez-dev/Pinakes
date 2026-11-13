@@ -209,7 +209,7 @@ async function getCsrfToken(page) {
 
 /** Clear file-based rate limit state so tests don't hit 429 errors */
 function clearRateLimits() {
-  require('./helpers/rate-limit-reset').clearRateLimits(INSTALL_ROOT);
+  require('./helpers/rate-limit-reset').clearRateLimits();
 }
 
 /** Return today's date as YYYY-MM-DD */

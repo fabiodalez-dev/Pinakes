@@ -44,6 +44,29 @@ class RememberMeService
     public const SESSION_ROW_KEY = 'remember_session_id';
 
     /**
+     * Fallback for a sign-in whose user_sessions row could not be written: the
+     * session then has no row for CredentialRevoker to revoke, so it carries a
+     * fingerprint of the password hash it was opened with instead, and
+     * SessionRoleRevalidator ends it once the password changes.
+     */
+    public const UNBOUND_CREDENTIAL_KEY = 'unbound_credential_fp';
+
+    public static function credentialFingerprint(string $passwordHash): string
+    {
+        return hash('sha256', 'pinakes-session-credential|' . $passwordHash);
+    }
+
+    /** Pin the current session to $passwordHash when it has no bound row. */
+    public static function pinIfUnbound(string $passwordHash): void
+    {
+        if (!empty($_SESSION[self::SESSION_ROW_KEY]) || $passwordHash === '') {
+            unset($_SESSION[self::UNBOUND_CREDENTIAL_KEY]);
+            return;
+        }
+        $_SESSION[self::UNBOUND_CREDENTIAL_KEY] = self::credentialFingerprint($passwordHash);
+    }
+
+    /**
      * True when the bound row belongs to an ordinary sign-in rather than a
      * remembered one. The session knows how it was opened; the row does not,
      * and the two kinds must not be treated alike — a remembered row's expiry

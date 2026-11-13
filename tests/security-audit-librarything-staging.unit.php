@@ -72,7 +72,7 @@ try {
     $staged = (string) ($state['file_path'] ?? '');
     $stagingDir = $root . '/storage/tmp/librarything_imports';
     $check(str_starts_with($staged, $stagingDir . '/'), 'the upload is staged under storage/tmp/librarything_imports');
-    $check(!str_starts_with($staged, sys_get_temp_dir()), 'not in the host-shared temp dir');
+    $check(!str_starts_with($staged, rtrim(sys_get_temp_dir(), '/') . '/librarything_imports/'), 'not in the legacy host-shared temp staging dir');
     $check(is_file($staged) && (fileperms($staged) & 0777) === 0600, 'staged file is 0600 (got ' . (is_file($staged) ? decoct(fileperms($staged) & 0777) : 'missing') . ')');
     $check(is_dir($stagingDir) && (fileperms($stagingDir) & 0777) === 0700, 'staging directory is 0700');
     if (function_exists('posix_geteuid')) {

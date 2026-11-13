@@ -297,8 +297,10 @@ class AdminController extends BaseController
         $status = self::str($body, 'status', 20);
         $roleSlug = self::str($body, 'role', 60);
 
-        if (in_array($status, ['pending', 'active', 'suspended', 'left', 'banned'], true)) {
-            $this->repo->setMemberStatus($memberId, $status);
+        if (in_array($status, ['pending', 'active', 'suspended', 'left', 'banned'], true)
+            && !$this->repo->setMemberStatus($memberId, $status)) {
+            $this->flash('error', __("Errore durante l'aggiornamento dello stato"));
+            return $this->redirect($response, '/admin/book-club/' . $id);
         }
         if (in_array($roleSlug, BookClubPlugin::SYSTEM_ROLES, true)) {
             $roleId = $this->repo->roleIdBySlug($roleSlug);

@@ -8,6 +8,7 @@ use App\Support\IsbnFormatter;
 use App\Support\SearchIndexBuilder;
 use App\Support\SecureLogger;
 use App\Support\ContentCache;
+use App\Support\DbAtomic;
 use mysqli;
 
 /**
@@ -583,15 +584,89 @@ class Repo
      * the person who just lost access. Rejecting a pending request does not
      * rotate it — a pending requester never saw the URL — so a declined join
      * request does not break every member's calendar subscription.
+     *
+     * The previous status is read with SELECT ... FOR UPDATE, and the status
+     * change and the token rotation run in ONE transaction: every status
+     * change (activation included) goes through here, so a concurrent
+     * activation cannot slip between the read and the write and leave a
+     * member who just lost access with a valid token, and a failed rotation
+     * rolls the status change back and returns false instead of committing a
+     * revocation that left the old URL working (a retry would then find the
+     * member already non-active and never rotate). Inside a caller's
+     * transaction it works under a SAVEPOINT, so a failure undoes only this
+     * change and the caller's transaction stays open (never a nested
+     * begin_transaction(), which would commit it implicitly).
+     *
+     * $onlyFrom, when given, makes the change conditional on the status read
+     * under the lock (e.g. approving a request only while it is still
+     * pending, leaving only while still active or pending, so a concurrent
+     * suspension is not overwritten); a mismatch changes nothing and returns
+     * false.
+     *
+     * @param list<string>|null $onlyFrom
      */
-    public function setMemberStatus(int $memberId, string $status): bool
+    public function setMemberStatus(int $memberId, string $status, ?array $onlyFrom = null): bool
     {
-        $before = $status !== 'active' ? $this->memberById($memberId) : null;
-        $ok = $this->exec('UPDATE bookclub_members SET status = ? WHERE id = ?', 'si', [$status, $memberId]);
-        if ($ok && $before !== null && ($before['status'] ?? '') === 'active') {
-            $this->rotateIcsToken((int) $before['club_id']);
+        $nested = DbAtomic::inTransaction($this->db);
+        $savepoint = 'bookclub_member_status_' . bin2hex(random_bytes(6));
+        try {
+            $opened = $nested
+                ? $this->db->query("SAVEPOINT {$savepoint}") !== false
+                : $this->db->begin_transaction();
+        } catch (\Throwable $e) {
+            $opened = false;
         }
-        return $ok;
+        if (!$opened) {
+            SecureLogger::error('[BookClub] setMemberStatus: could not open a transaction', ['member_id' => $memberId]);
+            return false;
+        }
+
+        $changed = false;
+        try {
+            $before = $this->row('SELECT club_id, status FROM bookclub_members WHERE id = ? FOR UPDATE', 'i', [$memberId]);
+            if ($before !== null && ($onlyFrom === null || in_array($before['status'], $onlyFrom, true))) {
+                if (!$this->exec('UPDATE bookclub_members SET status = ? WHERE id = ?', 'si', [$status, $memberId])) {
+                    throw new \RuntimeException('member status update failed');
+                }
+                if ($status !== 'active' && $before['status'] === 'active'
+                    && !$this->rotateIcsToken((int) $before['club_id'])) {
+                    throw new \RuntimeException('calendar token rotation failed');
+                }
+                $changed = true;
+            }
+            if ($changed) {
+                if ($nested) {
+                    $this->db->query("RELEASE SAVEPOINT {$savepoint}");
+                } elseif (!$this->db->commit()) {
+                    throw new \RuntimeException('commit failed');
+                }
+            } else {
+                $this->rollbackMemberStatus($nested, $savepoint);
+            }
+            return $changed;
+        } catch (\Throwable $e) {
+            $this->rollbackMemberStatus($nested, $savepoint);
+            SecureLogger::error('[BookClub] setMemberStatus rolled back', [
+                'member_id' => $memberId,
+                'status' => $status,
+                'error' => $e->getMessage(),
+            ]);
+            return false;
+        }
+    }
+
+    private function rollbackMemberStatus(bool $nested, string $savepoint): void
+    {
+        try {
+            if ($nested) {
+                $this->db->query("ROLLBACK TO SAVEPOINT {$savepoint}");
+                $this->db->query("RELEASE SAVEPOINT {$savepoint}");
+            } else {
+                $this->db->rollback();
+            }
+        } catch (\Throwable $e) {
+            SecureLogger::error('[BookClub] setMemberStatus rollback failed', ['error' => $e->getMessage()]);
+        }
     }
 
     /** Issue a new calendar token for the club; every previously shared iCal URL stops working. */

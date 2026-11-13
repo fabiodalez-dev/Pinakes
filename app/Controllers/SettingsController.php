@@ -1089,8 +1089,17 @@ class SettingsController
         // so PrivateModeMiddleware cannot gate it: withdraw the published copy
         // when private mode is on (regenerateSitemap() and the cron refuse to
         // republish it), and /sitemap.xml goes back through the gated route.
+        // The static calendar copy is in the same position. A copy that cannot
+        // be removed stays public, so it is reported instead of hidden behind
+        // the success message.
+        $withdrawalErrors = [];
         if ($settings['private_mode'] === '1') {
-            \App\Support\SitemapCache::invalidate('private mode enabled');
+            if (!\App\Support\SitemapCache::withdraw('private mode enabled')) {
+                $withdrawalErrors[] = __('Impossibile rimuovere la sitemap pubblicata (public/sitemap.xml), che resta accessibile a chiunque. Verifica i permessi della cartella public/ e rimuovi il file.');
+            }
+            if (!\App\Support\MaintenanceService::withdrawPublicIcsFile()) {
+                $withdrawalErrors[] = __('Impossibile rimuovere il calendario pubblico (storage/calendar/library-calendar.ics), che resta accessibile a chiunque. Verifica i permessi della cartella storage/calendar/ e rimuovi il file.');
+            }
         }
 
         // In particular, enabling private mode must evict every public page
@@ -1128,11 +1137,15 @@ class SettingsController
         $_SESSION['success_message'] = $liteSpeedBlockedByContainer && $requestedLiteSpeed
             ? __('Impostazioni avanzate aggiornate. LiteSpeed resta disabilitato perché non è disponibile nella versione Docker.')
             : __('Impostazioni avanzate aggiornate correttamente.');
+        $errorMessages = $withdrawalErrors;
         if ($droppedVerificationLines > 0) {
-            $_SESSION['error_message'] = sprintf(
+            $errorMessages[] = sprintf(
                 __('%d righe del campo "Verifica motori di ricerca" sono state ignorate: incolla il meta tag completo fornito dal servizio, ad esempio <meta name="google-site-verification" content="...">.'),
                 $droppedVerificationLines
             );
+        }
+        if ($errorMessages !== []) {
+            $_SESSION['error_message'] = implode(' ', $errorMessages);
         }
         return $this->redirect($response, url('/admin/settings') . '?tab=advanced');
     }
@@ -1146,6 +1159,11 @@ class SettingsController
 
         // A published file bypasses private mode (served statically, see
         // updateAdvancedSettings()): never publish one while it is on.
+        // The revision is read BEFORE private mode: enabling private mode
+        // bumps it, and saveTo() only compares against the value it reads at
+        // its own start, so a switch landing between this read and saveTo()
+        // would otherwise go unnoticed and the file would be published.
+        $revisionAtStart = \App\Support\SitemapCache::revision();
         try {
             $privateMode = (string) ConfigStore::get('advanced.private_mode', '0') === '1'
                 || $repository->get('advanced', 'private_mode', '0') === '1';
@@ -1154,8 +1172,9 @@ class SettingsController
             $privateMode = true;
         }
         if ($privateMode) {
-            \App\Support\SitemapCache::invalidate('private mode is on');
-            $_SESSION['error_message'] = __('La sitemap non viene pubblicata mentre la modalità privata è attiva.');
+            $_SESSION['error_message'] = \App\Support\SitemapCache::withdraw('private mode is on')
+                ? __('La sitemap non viene pubblicata mentre la modalità privata è attiva.')
+                : __('Impossibile rimuovere la sitemap pubblicata (public/sitemap.xml), che resta accessibile a chiunque. Verifica i permessi della cartella public/ e rimuovi il file.');
             return $this->redirect($response, '/admin/settings?tab=advanced');
         }
 
@@ -1164,6 +1183,14 @@ class SettingsController
             $generator = new SitemapGenerator($db, $baseUrl);
             $targetPath = \App\Support\SitemapCache::publishedPath();
             $generator->saveTo($targetPath);
+            if (\App\Support\SitemapCache::revision() !== $revisionAtStart) {
+                // Private mode or the plugin set changed since the check above:
+                // the document may describe a site that is no longer public.
+                $_SESSION['error_message'] = \App\Support\SitemapCache::withdraw('settings changed while "Rigenera adesso" was generating')
+                    ? __('Le impostazioni sono cambiate durante la generazione: la sitemap non è stata pubblicata. Riprova.')
+                    : __('Impossibile rimuovere la sitemap pubblicata (public/sitemap.xml), che resta accessibile a chiunque. Verifica i permessi della cartella public/ e rimuovi il file.');
+                return $this->redirect($response, '/admin/settings?tab=advanced');
+            }
             $stats = $generator->getStats();
 
             $generatedAt = gmdate('c');

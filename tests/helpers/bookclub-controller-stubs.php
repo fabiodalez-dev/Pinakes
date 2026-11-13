@@ -95,6 +95,23 @@ final class BcFakeRepo extends Repo
     }
 
     public function setBookReadingDates(int $clubBookId, ?string $starts, ?string $ends): bool { return true; }
+
+    /** @var list<array<string, mixed>> rows returned by listClubsForUser() (club + member_status) */
+    public array $userClubs = [];
+    /** @var list<int> club ids clubSnapshot() was asked for */
+    public array $snapshotsTaken = [];
+
+    public function listClubsForUser(int $userId): array { return $this->userClubs; }
+
+    public function clubSnapshot(array $club): array
+    {
+        $this->snapshotsTaken[] = (int) $club['id'];
+        return [
+            'current_books' => [['id' => 1, 'titolo' => 'Members-only book ' . $club['slug']]],
+            'next_meeting' => ['id' => 2, 'title' => 'Members-only meeting ' . $club['slug']],
+            'open_polls' => [['id' => 3, 'title' => 'Members-only poll ' . $club['slug']]],
+        ];
+    }
 }
 
 /** PublicController with the governance matrix replaced by a fixed grant list. */

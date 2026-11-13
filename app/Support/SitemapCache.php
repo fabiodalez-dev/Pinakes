@@ -114,4 +114,24 @@ final class SitemapCache
 
         return false;
     }
+
+    /**
+     * Withdraw the published file and report whether a copy is still there.
+     *
+     * invalidate() answers "did I remove a file?", which is false both when
+     * there was nothing to remove and when the unlink failed. Enforcing private
+     * mode needs the other question, because a file that survives keeps being
+     * served by the web server without PHP: the caller has to tell the admin
+     * (or exit non-zero) instead of reporting success.
+     *
+     * @return bool true when no file remains at the path (absent or removed)
+     */
+    public static function withdraw(string $reason, ?string $path = null): bool
+    {
+        $target = $path ?? self::publishedPath();
+        self::invalidate($reason, $target);
+        clearstatcache(true, $target);
+
+        return !is_file($target);
+    }
 }

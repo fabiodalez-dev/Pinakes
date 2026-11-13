@@ -137,17 +137,10 @@ if (isset($_GET['action']) && $_GET['action'] === 'detect_socket') {
 // the app autoloader, so those checks are inlined (Installer::isActiveAdmin(),
 // Installer::isBoundSessionRevoked()). Any failure fails closed.
 if (isset($_GET['force']) && $installer->isInstalled()) {
-    // Load .env to get database credentials
-    $envFile = $baseDir . '/.env';
-    if (file_exists($envFile)) {
-        $envContent = file($envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
-        foreach ($envContent as $line) {
-            if (strpos($line, '#') === 0 || strpos($line, '=') === false) continue;
-            list($key, $value) = explode('=', $line, 2);
-            $key = trim($key);
-            $value = trim($value, " \t\n\r\0\x0B\"'");
-            $_ENV[$key] = $value;
-        }
+    // Load .env to get database credentials, decoded as phpdotenv does
+    // (a DB_PASS written as "p\$ss" is p$ss).
+    foreach (Installer::readEnvFile($baseDir . '/.env') ?? [] as $key => $value) {
+        $_ENV[$key] = $value;
     }
 
     $openInstallerDb = static function (): ?mysqli {
@@ -190,13 +183,24 @@ if (isset($_GET['force']) && $installer->isInstalled()) {
                         && !Installer::isBoundSessionRevoked($db, $boundRowId)) {
                         $forceAuthenticated = true;
                     }
-                    // (b) An earlier installer login: re-check the stored account every time.
+                    // (b) An earlier installer login: re-check the stored account every
+                    // time, and its password: a password change or reset (which is what
+                    // CredentialRevoker::revokeAll() follows) ends this login too.
                     $installerUserId = (int) ($_SESSION['installer_admin_user_id'] ?? 0);
                     if (!$forceAuthenticated && $installerUserId > 0) {
-                        if (Installer::isActiveAdmin($db, $installerUserId)) {
+                        if (Installer::isActiveAdminWithCredential(
+                            $db,
+                            $installerUserId,
+                            (string) ($_SESSION['installer_admin_credential'] ?? ''),
+                            (string) ($_SESSION['installer_admin_credential_key'] ?? '')
+                        )) {
                             $forceAuthenticated = true;
                         } else {
-                            unset($_SESSION['installer_admin_user_id']);
+                            unset(
+                                $_SESSION['installer_admin_user_id'],
+                                $_SESSION['installer_admin_credential'],
+                                $_SESSION['installer_admin_credential_key']
+                            );
                         }
                     }
                 } finally {
@@ -246,9 +250,13 @@ if (isset($_GET['force']) && $installer->isInstalled()) {
                             if (is_array($row) && password_verify($password, (string) $row['password'])) {
                                 session_regenerate_id(true);
                                 $forceAuthenticated = true;
-                                // An account id, re-validated on every request above;
-                                // never a standing yes.
+                                // An account id plus a fingerprint of its current
+                                // password hash, both re-validated on every request
+                                // above; never a standing yes.
+                                $credentialKey = bin2hex(random_bytes(32));
                                 $_SESSION['installer_admin_user_id'] = (int) $row['id'];
+                                $_SESSION['installer_admin_credential_key'] = $credentialKey;
+                                $_SESSION['installer_admin_credential'] = Installer::installerCredentialFingerprint((string) $row['password'], $credentialKey);
                             }
                         }
                     } finally {

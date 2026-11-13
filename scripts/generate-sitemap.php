@@ -86,6 +86,10 @@ $mysqli->set_charset($charset);
 // is served by the web server without running PHP (PrivateModeMiddleware never
 // sees it). Do not publish it while private mode is on, and withdraw any copy
 // published earlier, so /sitemap.xml keeps going through the gated route.
+// The revision is read BEFORE private mode: enabling private mode bumps it, and
+// saveTo() only compares against the value it reads at its own start, so a
+// switch landing between this read and saveTo() would otherwise publish.
+$revisionAtStart = \App\Support\SitemapCache::revision();
 try {
     $privateMode = (new SettingsRepository($mysqli))->get('advanced', 'private_mode', '0') === '1'
         || (string) ConfigStore::get('advanced.private_mode', '0') === '1';
@@ -95,7 +99,11 @@ try {
     exit(1);
 }
 if ($privateMode) {
-    \App\Support\SitemapCache::invalidate('private mode is on (scripts/generate-sitemap.php)');
+    if (!\App\Support\SitemapCache::withdraw('private mode is on (scripts/generate-sitemap.php)')) {
+        fwrite(STDERR, "Modalità privata attiva, ma public/sitemap.xml non può essere rimosso e resta accessibile: verificare i permessi di public/.\n");
+        $mysqli->close();
+        exit(1);
+    }
     fwrite(STDOUT, "Modalità privata attiva: sitemap non pubblicata.\n");
     $mysqli->close();
     exit(0);
@@ -125,6 +133,18 @@ try {
     $targetPath = \App\Support\SitemapCache::publishedPath();
 
     $generator->saveTo($targetPath);
+    if (\App\Support\SitemapCache::revision() !== $revisionAtStart) {
+        // Private mode or the plugin set changed since the check above: the
+        // document may describe a site that is no longer public.
+        if (!\App\Support\SitemapCache::withdraw('settings changed during generation (scripts/generate-sitemap.php)')) {
+            fwrite(STDERR, "Impostazioni cambiate durante la generazione, ma public/sitemap.xml non può essere rimosso e resta accessibile: verificare i permessi di public/.\n");
+            $mysqli->close();
+            exit(1);
+        }
+        fwrite(STDOUT, "Impostazioni cambiate durante la generazione: sitemap non pubblicata. Rieseguire lo script.\n");
+        $mysqli->close();
+        exit(0);
+    }
     $stats = $generator->getStats();
 
     $repository = new SettingsRepository($mysqli);

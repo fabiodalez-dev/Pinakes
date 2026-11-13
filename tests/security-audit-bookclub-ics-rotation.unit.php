@@ -13,8 +13,9 @@ declare(strict_types=1);
  * declining a pending join request (the requester never saw the URL) must not
  * break every member's calendar subscription.
  *
- * Drives the REAL Repo and MeetingController::icsFeed() against MySQL. The four
- * book-club tables the flow writes (clubs, members, roles, meetings) are
+ * Drives the REAL Repo and MeetingController::icsFeed() against MySQL. The five
+ * book-club tables the flow writes (clubs, members, roles, meetings, and the
+ * workflows that Repo::createClub() copies the default template into) are
  * session-local TEMPORARY tables that shadow any real ones, so nothing is
  * written to the database and nothing needs cleaning up. The meeting query's
  * read-only joins (RSVPs, club books, libri) use the real tables when present.
@@ -100,11 +101,25 @@ try {
         agenda TEXT NULL, starts_at DATETIME NOT NULL, ends_at DATETIME NULL, location VARCHAR(255) NULL,
         video_url VARCHAR(500) NULL, status ENUM('scheduled','done','cancelled') NOT NULL DEFAULT 'scheduled',
         PRIMARY KEY (id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+    // createClub() copies the default (club_id IS NULL) workflow into a new
+    // per-club row: without this shadow it would write that row into the
+    // real bookclub_workflows table, keyed to a temporary club id.
+    $db->query("CREATE TEMPORARY TABLE bookclub_workflows (
+        id INT NOT NULL AUTO_INCREMENT, club_id INT NULL, name VARCHAR(190) NOT NULL, states TEXT NOT NULL,
+        PRIMARY KEY (id), KEY idx_bcwf_club (club_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+    $tpl = $db->prepare('INSERT INTO bookclub_workflows (club_id, name, states) VALUES (NULL, ?, ?)');
+    $tplName = 'Workflow predefinito';
+    $tplStates = (string) json_encode(\App\Plugins\BookClub\BookClubPlugin::defaultWorkflowStates(), JSON_UNESCAPED_UNICODE);
+    $tpl->bind_param('ss', $tplName, $tplStates);
+    $tpl->execute();
+    $tpl->close();
     $db->query("INSERT INTO bookclub_roles (id, club_id, slug, name) VALUES (3, NULL, 'member', 'Member'), (1, NULL, 'owner', 'Owner')");
 
     $repo = new Repo($db);
     $clubId = (int) $repo->createClub(['name' => 'Audit ICS Club', 'privacy' => 'private', 'max_members' => null], 1);
     $club = $repo->clubById($clubId);
+    $wf = $db->query("SELECT COUNT(*) AS n FROM bookclub_workflows WHERE club_id = {$clubId}")->fetch_assoc();
+    $check((int) $wf['n'] === 1 && (int) $club['workflow_id'] > 0, 'createClub() copied the workflow into the TEMPORARY shadow table');
     $slug = (string) $club['slug'];
     $tokenOf = static fn (): string => (string) $repo->clubById($clubId)['ics_token'];
 
@@ -174,7 +189,7 @@ try {
     $fail++;
     echo "  FAIL unexpected " . get_class($e) . ': ' . $e->getMessage() . "\n";
 } finally {
-    foreach (['bookclub_meetings', 'bookclub_members', 'bookclub_roles', 'bookclub_clubs'] as $t) {
+    foreach (['bookclub_meetings', 'bookclub_members', 'bookclub_roles', 'bookclub_clubs', 'bookclub_workflows'] as $t) {
         try { $db->query("DROP TEMPORARY TABLE IF EXISTS {$t}"); } catch (\Throwable) {}
     }
 }

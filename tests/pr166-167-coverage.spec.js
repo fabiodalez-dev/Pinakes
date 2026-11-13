@@ -89,7 +89,7 @@ function runPhp(code) {
 // each backup create (beforeAll runs BEFORE beforeEach, so login() must clear
 // itself). Files live in <APP_ROOT>/storage/cache/ratelimit.
 function clearRateLimits() {
-  require('./helpers/rate-limit-reset').clearRateLimits(APP_ROOT);
+  require('./helpers/rate-limit-reset').clearRateLimits();
 }
 
 async function login(page, email, pass) {

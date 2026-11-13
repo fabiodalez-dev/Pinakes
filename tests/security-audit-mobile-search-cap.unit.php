@@ -95,5 +95,14 @@ $check(str_contains($source, 'private const MAX_QUERY_LENGTH = 256;')
 $check(str_contains($source, "buildRelevanceOrder(\$this->db, \$query, 'l.', self::RELEVANCE_WORD_LIMIT)"),
     'buildRelevanceOrder is called with the controller word limit');
 
+echo "C. The filter sees the capped q too\n";
+// The FULLTEXT filter binds every term in one parameter, so the SQL text cannot
+// show which terms reached it: check that the capped value is written back to
+// $params before buildFilters() re-reads q.
+$capPos = strpos($source, "\$params['q'] = \$query;");
+$filterPos = strpos($source, 'buildFilters($params)');
+$check($capPos !== false && $filterPos !== false && $capPos < $filterPos,
+    'the capped q is handed to buildFilters(), not the raw one');
+
 echo "\n{$pass} passed, {$fail} failed\n";
 exit($fail === 0 ? 0 : 1);

@@ -62,6 +62,21 @@ final class CredentialRevoker
             $keepRowId > 0 ? $keepRowId : null
         );
 
+        // The device being kept may be an unbound session pinned to the old
+        // password (RememberMeService::UNBOUND_CREDENTIAL_KEY): re-pin it to the
+        // new one, or the person who just changed it would be signed out.
+        if ($keepCurrentDevice && (int) ($_SESSION['user']['id'] ?? 0) === $userId
+            && isset($_SESSION[RememberMeService::UNBOUND_CREDENTIAL_KEY])) {
+            $stmt = $db->prepare('SELECT password FROM utenti WHERE id = ? LIMIT 1');
+            if ($stmt !== false) {
+                $stmt->bind_param('i', $userId);
+                $stmt->execute();
+                $current = $stmt->get_result()->fetch_assoc();
+                $stmt->close();
+                RememberMeService::pinIfUnbound((string) ($current['password'] ?? ''));
+            }
+        }
+
         $mobile = self::revokeRows(
             $db,
             'mobile_app_tokens',

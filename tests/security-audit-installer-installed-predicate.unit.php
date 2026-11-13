@@ -13,9 +13,13 @@ declare(strict_types=1);
  *      that wrote it (bound by a hashed token), and except a .env whose database
  *      is reachable and empty (Docker wizard mode). Unreachable DB = installed.
  *   B. createEnvFile() binds the session before writing .env, and writes nothing
- *      when it cannot bind.
+ *      when it cannot bind; when the .env write fails the previous binding
+ *      (or none) is restored.
  *   C. step 7 renders the error and never the success page when finalisation
- *      throws or .installed cannot be written (real step7.php, fake installer).
+ *      throws or .installed cannot be written (real step7.php, fake installer);
+ *      the retry of a finalised session recreates a missing .installed.
+ *   D. the claim is exclusive: while another session holds a live claim over
+ *      .env, the empty-database exception is off and the claim cannot be taken.
  *
  * No database needed. Run: php tests/security-audit-installer-installed-predicate.unit.php
  */
@@ -139,6 +143,94 @@ file_put_contents($site4 . '/storage', 'not a directory');
 $check((new ProbeInstaller($site4))->createEnvFile('127.0.0.1', 'u', 'p', 'db') === false && !is_file($site4 . '/.env'),
     'when the binding marker cannot be written, no .env is written');
 
+// A failed .env write must not leave a binding behind (it would grant ?force=1).
+// A directory named .env makes the write fail while the binding can be taken.
+$site6 = $mkSite();
+mkdir($site6 . '/.env');
+$inst6 = new ProbeInstaller($site6);
+$_SESSION = [];
+$res6 = @$inst6->createEnvFile('127.0.0.1', 'u', 'p', 'db');
+clearstatcache();
+$check($res6 === false, 'createEnvFile() reports a failed .env write');
+$check(!is_file($site6 . '/storage/.install_in_progress') && !array_key_exists(Installer::INSTALL_OWNER_SESSION_KEY, $_SESSION),
+    'failed .env write without a previous binding: no marker and no session token left');
+$check(!$inst6->ownsInstallInProgress(), 'failed .env write: the session does not own the install');
+
+// With a previous binding of this session, that exact binding comes back.
+$site7 = $mkSite();
+$inst7 = new ProbeInstaller($site7);
+$_SESSION = [];
+$inst7->claimInstallOwnership();
+$prevToken7 = (string) $_SESSION[Installer::INSTALL_OWNER_SESSION_KEY];
+$prevMtime7 = time() - 600;
+touch($site7 . '/storage/.install_in_progress', $prevMtime7);
+mkdir($site7 . '/.env');
+$res7 = @$inst7->createEnvFile('127.0.0.1', 'u', 'p', 'db');
+clearstatcache();
+$check($res7 === false
+    && ($_SESSION[Installer::INSTALL_OWNER_SESSION_KEY] ?? null) === $prevToken7
+    && (string) @file_get_contents($site7 . '/storage/.install_in_progress') === hash('sha256', $prevToken7)
+    && filemtime($site7 . '/storage/.install_in_progress') === $prevMtime7,
+    'failed .env write with a previous binding: token, marker and expiry restored as they were');
+
+// ---------------------------------------------------------------------------
+echo "D. A claimed install is exclusive (no empty-DB exception for others)\n";
+// ---------------------------------------------------------------------------
+$site8 = $mkSite();
+$envBefore8 = "DB_NAME=wizard\n";
+file_put_contents($site8 . '/.env', $envBefore8);
+$inst8 = new ProbeInstaller($site8);
+$inst8->emptyDb = true; // Docker wizard: pre-written .env, empty database
+$_SESSION = [];
+$check($inst8->isInstalled() === false, 'unclaimed wizard .env over an empty database: not installed');
+$check($inst8->claimInstallOwnership() === true, 'session A claims the install at step 2');
+$tokenA = (string) $_SESSION[Installer::INSTALL_OWNER_SESSION_KEY];
+$markerA = (string) file_get_contents($site8 . '/storage/.install_in_progress');
+
+$_SESSION = []; // session B
+$check($inst8->isInstalled() === true, 'session B: a live claim of A turns off the empty-database exception');
+$check(method_exists($inst8, 'installClaimedByAnotherSession') && $inst8->installClaimedByAnotherSession() === true, 'session B sees the install claimed by another session');
+$check($inst8->claimInstallOwnership() === false && !isset($_SESSION[Installer::INSTALL_OWNER_SESSION_KEY]),
+    'session B cannot take the claim');
+$check($inst8->createEnvFile('evil-host', 'evil', 'evil', 'evil') === false, 'session B cannot write .env');
+clearstatcache();
+$check((string) file_get_contents($site8 . '/.env') === $envBefore8
+    && (string) file_get_contents($site8 . '/storage/.install_in_progress') === $markerA,
+    'session B changed neither .env nor the marker');
+
+$_SESSION = [Installer::INSTALL_OWNER_SESSION_KEY => $tokenA];
+$check($inst8->ownsInstallInProgress() && $inst8->isInstalled() === false && !(method_exists($inst8, 'installClaimedByAnotherSession') && $inst8->installClaimedByAnotherSession()),
+    'session A still owns the install');
+$check($inst8->claimInstallOwnership() === true, 'session A may re-claim its own install (step 2 again)');
+$tokenA = (string) $_SESSION[Installer::INSTALL_OWNER_SESSION_KEY];
+
+touch($site8 . '/storage/.install_in_progress', time() - Installer::INSTALL_OWNER_TTL - 10);
+clearstatcache();
+$_SESSION = []; // session B again, after expiry
+$check($inst8->isInstalled() === false, 'an expired claim no longer blocks the empty-database exception');
+$check($inst8->claimInstallOwnership() === true, 'an expired claim can be taken');
+
+$site9 = $mkSite();
+$inst9 = new ProbeInstaller($site9);
+$_SESSION = [];
+$inst9->claimInstallOwnership();
+$_SESSION = [];
+$check($inst9->claimInstallOwnership() === true,
+    'without .env a leftover claim does not block a fresh install (nothing is live yet)');
+
+if (function_exists('posix_getuid') && posix_getuid() !== 0) {
+    $site10 = $mkSite();
+    file_put_contents($site10 . '/.env', "DB_NAME=wizard\n");
+    $inst10 = new ProbeInstaller($site10);
+    $inst10->emptyDb = true;
+    file_put_contents($site10 . '/storage/.install_in_progress', hash('sha256', 'someone'));
+    chmod($site10 . '/storage/.install_in_progress', 0000);
+    $_SESSION = [];
+    $check($inst10->isInstalled() === true && $inst10->claimInstallOwnership() === false,
+        'an unreadable live marker counts as claimed (fail closed)');
+    chmod($site10 . '/storage/.install_in_progress', 0600);
+}
+
 // ---------------------------------------------------------------------------
 echo "C. Step 7 surfaces finalisation failures (real installer/steps/step7.php)\n";
 // ---------------------------------------------------------------------------
@@ -198,9 +290,23 @@ $check(str_contains($out, 'Impossibile creare il file .installed') && !str_conta
 $check(!$fake->released, 'the install binding is kept so the owner can retry');
 
 $_SESSION = ['installation_finalized' => true];
-$out = $runStep7(new FakeFinaliser($site5), $site5);
-$check(str_contains($out, "Il file .installed non è presente") && !str_contains($out, 'Installazione Completata!'),
-    'a finalised session without .installed on disk still gets no success page');
+$fake = new FakeFinaliser($site5);
+$fake->lockWrites = false;
+$out = $runStep7($fake, $site5);
+$check(str_contains($out, 'Impossibile creare il file .installed') && !str_contains($out, 'Installazione Completata!')
+    && !is_file($site5 . '/.installed') && !$fake->released,
+    'a finalised session without .installed on disk, lock still unwritable: error, no success page');
+
+// The "Riprova la finalizzazione" retry of a finalised session must be able to
+// write the missing lock again (it used to skip createLockFile() forever).
+$_SESSION = ['installation_finalized' => true];
+$fake = new FakeFinaliser($site5);
+$out = $runStep7($fake, $site5);
+$check(is_file($site5 . '/.installed') && $fake->released
+    && str_contains($out, 'Installazione Completata!') && !str_contains($out, 'Impossibile creare'),
+    'the retry of a finalised session recreates .installed, and only then shows success');
+// nosemgrep: php.lang.security.unlink-use.unlink-use -- test temp file
+unlink($site5 . '/.installed');
 
 $_SESSION = [];
 $fake = new FakeFinaliser($site5);

@@ -9352,5 +9352,8 @@
   "Correggi il problema indicato e riprova: l'installazione verrà finalizzata solo quando il file .installed sarà stato creato.": "Corrigez le problème indiqué et réessayez : l'installation ne sera finalisée qu'une fois le fichier .installed créé.",
   "Riprova la finalizzazione": "Réessayer la finalisation",
   "La sitemap non viene pubblicata mentre la modalità privata è attiva.": "Le plan du site n'est pas publié tant que le mode privé est actif.",
-  "Richiesta solo se cambi la tua password.": "Requis uniquement si vous modifiez votre propre mot de passe."
+  "Richiesta solo se cambi la tua password.": "Requis uniquement si vous modifiez votre propre mot de passe.",
+  "Impossibile rimuovere la sitemap pubblicata (public/sitemap.xml), che resta accessibile a chiunque. Verifica i permessi della cartella public/ e rimuovi il file.": "Le plan du site publié (public/sitemap.xml) n'a pas pu être supprimé et reste accessible à tous. Vérifiez les permissions du dossier public/ et supprimez le fichier.",
+  "Impossibile rimuovere il calendario pubblico (storage/calendar/library-calendar.ics), che resta accessibile a chiunque. Verifica i permessi della cartella storage/calendar/ e rimuovi il file.": "Le calendrier public (storage/calendar/library-calendar.ics) n'a pas pu être supprimé et reste accessible à tous. Vérifiez les permissions du dossier storage/calendar/ et supprimez le fichier.",
+  "Le impostazioni sono cambiate durante la generazione: la sitemap non è stata pubblicata. Riprova.": "Les paramètres ont changé pendant la génération : le plan du site n'a pas été publié. Veuillez réessayer."
 }

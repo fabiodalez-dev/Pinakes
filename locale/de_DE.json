@@ -9352,5 +9352,8 @@
   "Correggi il problema indicato e riprova: l'installazione verrà finalizzata solo quando il file .installed sarà stato creato.": "Beheben Sie das angezeigte Problem und versuchen Sie es erneut: Die Installation wird erst abgeschlossen, wenn die Datei .installed erstellt wurde.",
   "Riprova la finalizzazione": "Fertigstellung erneut versuchen",
   "La sitemap non viene pubblicata mentre la modalità privata è attiva.": "Die Sitemap wird nicht veröffentlicht, solange der private Modus aktiv ist.",
-  "Richiesta solo se cambi la tua password.": "Nur erforderlich, wenn Sie Ihr eigenes Passwort ändern."
+  "Richiesta solo se cambi la tua password.": "Nur erforderlich, wenn Sie Ihr eigenes Passwort ändern.",
+  "Impossibile rimuovere la sitemap pubblicata (public/sitemap.xml), che resta accessibile a chiunque. Verifica i permessi della cartella public/ e rimuovi il file.": "Die veröffentlichte Sitemap (public/sitemap.xml) konnte nicht entfernt werden und ist weiterhin für jeden zugänglich. Prüfen Sie die Berechtigungen des Ordners public/ und entfernen Sie die Datei.",
+  "Impossibile rimuovere il calendario pubblico (storage/calendar/library-calendar.ics), che resta accessibile a chiunque. Verifica i permessi della cartella storage/calendar/ e rimuovi il file.": "Der öffentliche Kalender (storage/calendar/library-calendar.ics) konnte nicht entfernt werden und ist weiterhin für jeden zugänglich. Prüfen Sie die Berechtigungen des Ordners storage/calendar/ und entfernen Sie die Datei.",
+  "Le impostazioni sono cambiate durante la generazione: la sitemap non è stata pubblicata. Riprova.": "Die Einstellungen haben sich während der Generierung geändert: Die Sitemap wurde nicht veröffentlicht. Bitte versuchen Sie es erneut."
 }

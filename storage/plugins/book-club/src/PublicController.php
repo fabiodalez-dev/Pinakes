@@ -162,7 +162,10 @@ class PublicController extends BaseController
         }
         $member = $this->membership($club);
         if ($member !== null && in_array($member['status'], ['active', 'pending'], true)) {
-            $this->repo->setMemberStatus((int) $member['id'], 'left');
+            if (!$this->repo->setMemberStatus((int) $member['id'], 'left', ['active', 'pending'])) {
+                $this->flash('error', __("Si è verificato un errore durante l'operazione. Riprova più tardi."));
+                return $this->redirect($response, \App\Support\RouteTranslator::route('book_club') . '/' . $slug);
+            }
             if (function_exists('do_action')) {
                 do_action('bookclub.member.left', (int) $club['id'], (int) $member['user_id']);
             }
@@ -189,15 +192,23 @@ class PublicController extends BaseController
         }
         $body = $request->getParsedBody();
         $action = self::str($body, 'action', 10);
+        // Both outcomes apply only while the request is still pending: the
+        // status is re-checked under the row lock in setMemberStatus().
         if ($action === 'reject') {
-            $this->repo->setMemberStatus($memberId, 'left');
+            if (!$this->repo->setMemberStatus($memberId, 'left', ['pending'])) {
+                $this->flash('error', __("Si è verificato un errore durante l'operazione. Riprova più tardi."));
+                return $this->redirect($response, \App\Support\RouteTranslator::route('book_club') . '/' . $slug);
+            }
             $this->flash('success', __('Richiesta rifiutata.'));
         } else {
             if ($club['max_members'] !== null && $this->repo->countActiveMembers((int) $club['id']) >= (int) $club['max_members']) {
                 $this->flash('error', __('Il club ha raggiunto il numero massimo di membri.'));
                 return $this->redirect($response, \App\Support\RouteTranslator::route('book_club') . '/' . $slug);
             }
-            $this->repo->setMemberStatus($memberId, 'active');
+            if (!$this->repo->setMemberStatus($memberId, 'active', ['pending'])) {
+                $this->flash('error', __("Si è verificato un errore durante l'operazione. Riprova più tardi."));
+                return $this->redirect($response, \App\Support\RouteTranslator::route('book_club') . '/' . $slug);
+            }
             $this->flash('success', __('Membro approvato.'));
         }
         return $this->redirect($response, \App\Support\RouteTranslator::route('book_club') . '/' . $slug);
@@ -732,9 +743,15 @@ class PublicController extends BaseController
         $clubs = $this->repo->listClubsForUser($userId);
         $cards = [];
         foreach ($clubs as $club) {
+            // listClubsForUser() includes pending requests: a non-public club
+            // lists its card, not its activity, until the membership is
+            // active (same rule as canSeeContent() everywhere else, and as
+            // the mobile dashboard).
             $cards[] = [
                 'club' => $club,
-                'snapshot' => $this->repo->clubSnapshot($club),
+                'snapshot' => $this->canSeeContent($club)
+                    ? $this->repo->clubSnapshot($club)
+                    : ['current_books' => [], 'next_meeting' => null, 'open_polls' => []],
             ];
         }
         return $this->renderPublic($response, 'public/dashboard', [

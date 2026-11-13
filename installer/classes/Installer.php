@@ -92,12 +92,12 @@ class Installer {
         // Bind the install in progress to this session BEFORE .env exists: from
         // the moment .env is written the application is live, and only the
         // session that wrote it may carry on without admin authentication
-        // (isInstalled()). No binding, no .env.
-        if (!$this->claimInstallOwnership()) {
-            return false;
-        }
-
-        return file_put_contents($envPath, $envContent) !== false;
+        // (isInstalled()). No binding, no .env; and when .env cannot be
+        // written, the binding is put back as it was (a failed write must not
+        // leave a grant behind).
+        return $this->withInstallOwnership(
+            static fn (): bool => file_put_contents($envPath, $envContent) !== false
+        );
     }
 
     /**
@@ -110,16 +110,118 @@ class Installer {
             throw new Exception(__("File .env non trovato"));
         }
 
-        $lines = file($envPath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
-
-        foreach ($lines as $line) {
-            if (strpos($line, '=') !== false && !str_starts_with(trim($line), '#')) {
-                [$key, $value] = explode('=', $line, 2);
-                $this->config[trim($key)] = trim($value, '"\'');
-            }
+        // Same decoding as phpdotenv: a DB_PASS written as "p\$ss" by
+        // quoteEnvValue() is p$ss, not p\$ss.
+        $values = self::readEnvFile($envPath);
+        if ($values === null) {
+            throw new Exception(__("File .env non trovato"));
+        }
+        foreach ($values as $key => $value) {
+            $this->config[$key] = $value;
         }
 
         return true;
+    }
+
+    /** Escapes phpdotenv 5.6 decodes inside a double-quoted value (besides \" \\ \$). */
+    private const ENV_ESCAPES = ['f' => "\f", 'n' => "\n", 'r' => "\r", 't' => "\t", 'v' => "\v"];
+
+    /**
+     * Decode one .env value the way phpdotenv 5.6 (EntryParser) does, i.e. the
+     * inverse of quoteEnvValue():
+     *  - "double quoted": \" \\ \$ are literal, \f \n \r \t \v are control
+     *    characters, any other escape is an error;
+     *  - 'single quoted': literal, no escapes;
+     *  - unquoted: a # starts a comment, inner whitespace is an error.
+     * After a closing quote only whitespace or a comment may follow.
+     * ${VAR} references are not expanded (the installer never writes them).
+     *
+     * @return string|null null when phpdotenv would reject the value
+     */
+    public static function parseEnvValue(string $raw): ?string
+    {
+        $value = trim($raw);
+        $len = strlen($value);
+        if ($len === 0) {
+            return '';
+        }
+        $quote = $value[0];
+        if ($quote !== '"' && $quote !== "'") {
+            $hash = strpos($value, '#');
+            if ($hash !== false) {
+                $value = rtrim(substr($value, 0, $hash));
+            }
+            return preg_match('/\s/', $value) === 1 ? null : $value;
+        }
+        $out = '';
+        $closed = false;
+        $i = 1;
+        while ($i < $len) {
+            $c = $value[$i++];
+            if ($c === $quote) {
+                $closed = true;
+                break;
+            }
+            if ($quote === '"' && $c === '\\') {
+                if ($i >= $len) {
+                    return null;
+                }
+                $next = $value[$i++];
+                if ($next === '"' || $next === '\\' || $next === '$') {
+                    $out .= $next;
+                } elseif (isset(self::ENV_ESCAPES[$next])) {
+                    $out .= self::ENV_ESCAPES[$next];
+                } else {
+                    return null;
+                }
+                continue;
+            }
+            $out .= $c;
+        }
+        if (!$closed) {
+            return null;
+        }
+        $rest = ltrim(substr($value, $i));
+        if ($rest !== '' && $rest[0] !== '#') {
+            return null;
+        }
+        return $out;
+    }
+
+    /**
+     * Read a .env file into KEY => decoded value (see parseEnvValue()).
+     * Comment and blank lines are skipped, an optional "export " prefix is
+     * dropped, and a value phpdotenv would reject is left out rather than
+     * guessed. Null when the file cannot be read.
+     *
+     * @return array<string, string>|null
+     */
+    public static function readEnvFile(string $path): ?array
+    {
+        if (!is_file($path) || !is_readable($path)) {
+            return null;
+        }
+        $lines = file($path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+        if (!is_array($lines)) {
+            return null;
+        }
+        $env = [];
+        foreach ($lines as $line) {
+            $line = trim($line);
+            if ($line === '' || $line[0] === '#' || strpos($line, '=') === false) {
+                continue;
+            }
+            [$key, $raw] = explode('=', $line, 2);
+            $key = (string) preg_replace('/^export\s+/', '', trim($key));
+            if ($key === '') {
+                continue;
+            }
+            $value = self::parseEnvValue($raw);
+            if ($value !== null) {
+                $env[$key] = $value;
+            }
+        }
+        return $env;
     }
 
     /**
@@ -1134,7 +1236,9 @@ HTACCESS;
      *  - a .env whose database is reachable and holds no table at all, i.e.
      *    nothing has been installed yet (a pre-written .env, as the Docker
      *    image's wizard mode does). Step 2 refuses a non-empty database for the
-     *    same reason.
+     *    same reason. Not while another session holds a live binding: between
+     *    its step 2 and the schema import the database is still empty, and
+     *    that window must not reopen step 2 to everyone else.
      * Every other client, anonymous or not, gets the installed-state gates
      * (admin authentication for ?force=1). An unreadable .env or an unreachable
      * database counts as installed: fail closed.
@@ -1148,6 +1252,9 @@ HTACCESS;
         }
         if ($this->ownsInstallInProgress()) {
             return false;
+        }
+        if ($this->installClaimedByAnotherSession()) {
+            return true;
         }
         return !$this->configuredDatabaseIsEmpty();
     }
@@ -1165,31 +1272,14 @@ HTACCESS;
         }
         $this->configuredDatabaseEmpty = false;
         try {
-            $lines = @file($this->baseDir . '/.env', FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
-            if (!is_array($lines)) {
+            $env = self::readEnvFile($this->baseDir . '/.env');
+            if ($env === null) {
                 return false;
             }
-            $env = [];
-            foreach ($lines as $line) {
-                if (strpos($line, '=') !== false && !str_starts_with(trim($line), '#')) {
-                    [$key, $value] = explode('=', $line, 2);
-                    $env[trim($key)] = trim($value, " \t\"'");
-                }
-            }
-            $name = (string) ($env['DB_NAME'] ?? '');
-            if ($name === '') {
+            if ((string) ($env['DB_NAME'] ?? '') === '') {
                 return false;
             }
-            $socket = trim((string) ($env['DB_SOCKET'] ?? ''));
-            mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
-            $db = new \mysqli(
-                $socket !== '' ? 'localhost' : (string) ($env['DB_HOST'] ?? '127.0.0.1'),
-                (string) ($env['DB_USER'] ?? ''),
-                (string) ($env['DB_PASS'] ?? ''),
-                $name,
-                $socket !== '' ? 0 : (int) ($env['DB_PORT'] ?? 3306),
-                $socket !== '' ? $socket : null
-            );
+            $db = $this->openProbeConnection($env);
             try {
                 $result = $db->query('SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE()');
                 $count = $result instanceof \mysqli_result ? $result->fetch_row() : null;
@@ -1201,6 +1291,25 @@ HTACCESS;
             $this->configuredDatabaseEmpty = false;
         }
         return $this->configuredDatabaseEmpty;
+    }
+
+    /**
+     * Open the probe connection described by a decoded .env (readEnvFile()).
+     * Throws on failure; the caller treats any failure as "not empty".
+     *
+     * @param array<string, string> $env
+     */
+    protected function openProbeConnection(array $env): \mysqli {
+        $socket = trim((string) ($env['DB_SOCKET'] ?? ''));
+        mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
+        return new \mysqli(
+            $socket !== '' ? 'localhost' : (string) ($env['DB_HOST'] ?? '127.0.0.1'),
+            (string) ($env['DB_USER'] ?? ''),
+            (string) ($env['DB_PASS'] ?? ''),
+            (string) ($env['DB_NAME'] ?? ''),
+            $socket !== '' ? 0 : (int) ($env['DB_PORT'] ?? 3306),
+            $socket !== '' ? $socket : null
+        );
     }
 
     /** Lifetime of an install-in-progress binding, in seconds. */
@@ -1215,13 +1324,103 @@ HTACCESS;
     }
 
     /**
+     * Current marker: whether it exists, its raw content (null = unreadable)
+     * and its mtime (null = unreadable). Never cached across calls.
+     *
+     * @return array{exists: bool, content: ?string, mtime: ?int}
+     */
+    private function readOwnerMarker(): array {
+        $marker = $this->installOwnerMarkerPath();
+        clearstatcache(true, $marker);
+        if (!is_file($marker)) {
+            return ['exists' => false, 'content' => null, 'mtime' => null];
+        }
+        $mtime = @filemtime($marker);
+        $content = is_readable($marker) ? @file_get_contents($marker) : false;
+        return [
+            'exists' => true,
+            'content' => is_string($content) ? $content : null,
+            'mtime' => $mtime === false ? null : $mtime,
+        ];
+    }
+
+    /** Replace the marker atomically (temp file + rename): readers never see it half-written. */
+    private function writeOwnerMarker(string $content): bool {
+        $marker = $this->installOwnerMarkerPath();
+        $tmp = $marker . '.' . bin2hex(random_bytes(6)) . '.tmp';
+        if (@file_put_contents($tmp, $content) === false) {
+            return false;
+        }
+        @chmod($tmp, 0600);
+        if (!@rename($tmp, $marker)) {
+            // nosemgrep: php.lang.security.unlink-use.unlink-use -- random temp name under storage/, not user input
+            @unlink($tmp);
+            return false;
+        }
+        return true;
+    }
+
+    /**
+     * Put the marker back as readOwnerMarker() saw it: same content and mtime
+     * (so the original expiry still applies), or no marker at all.
+     *
+     * @param array{exists: bool, content: ?string, mtime: ?int} $previous
+     */
+    private function restoreOwnerMarker(array $previous): void {
+        $marker = $this->installOwnerMarkerPath();
+        if ($previous['exists'] && $previous['content'] !== null && $this->writeOwnerMarker($previous['content'])) {
+            if ($previous['mtime'] !== null) {
+                @touch($marker, $previous['mtime']);
+            }
+            return;
+        }
+        // No previous marker, or one nobody could own (unreadable): none.
+        if (is_file($marker)) {
+            // nosemgrep: php.lang.security.unlink-use.unlink-use -- fixed internal path under storage/, not user input
+            @unlink($marker);
+        }
+    }
+
+    /**
+     * True when the marker binds the install to a session other than this
+     * one and has not expired. Fails closed: a marker whose content or mtime
+     * cannot be read counts as a live foreign claim.
+     */
+    public function installClaimedByAnotherSession(): bool {
+        $state = $this->readOwnerMarker();
+        if (!$state['exists']) {
+            return false;
+        }
+        if ($state['mtime'] !== null && (time() - $state['mtime']) > self::INSTALL_OWNER_TTL) {
+            return false;
+        }
+        return !$this->ownsInstallInProgress();
+    }
+
+    /**
      * Bind the install in progress to the current session.
      *
      * A random token is kept in the session and only its hash on disk, so the
      * binding cannot be obtained by reading the marker nor by starting a new
-     * session. Returns false when the marker cannot be written.
+     * session. Exclusive: refused while another session holds a live binding
+     * over an existing .env (an expired binding, or this session's own, can be
+     * taken). Returns false when the binding cannot be taken or written.
      */
     public function claimInstallOwnership(): bool {
+        return $this->withInstallOwnership(null);
+    }
+
+    /**
+     * Take the binding and, while holding it, run $write (the .env write).
+     *
+     * Claimers are serialised on storage/.install_in_progress.lock, so the
+     * check-then-take is atomic and two sessions cannot both pass it. When
+     * $write fails, the marker and this session's token are restored to what
+     * they were before the call: a failed write leaves no grant behind.
+     *
+     * @param (callable(): bool)|null $write
+     */
+    private function withInstallOwnership(?callable $write): bool {
         if (session_status() !== PHP_SESSION_ACTIVE) {
             return false;
         }
@@ -1230,13 +1429,53 @@ HTACCESS;
         if (!is_dir($dir) && !@mkdir($dir, 0775, true) && !is_dir($dir)) {
             return false;
         }
-        $token = bin2hex(random_bytes(32));
-        if (@file_put_contents($marker, hash('sha256', $token), LOCK_EX) === false) {
+        $lock = @fopen($marker . '.lock', 'c');
+        if ($lock === false) {
             return false;
         }
-        @chmod($marker, 0600);
-        $_SESSION[self::INSTALL_OWNER_SESSION_KEY] = $token;
-        return true;
+        try {
+            if (!flock($lock, LOCK_EX)) {
+                return false;
+            }
+            // While .env does not exist the binding protects nothing (anyone may
+            // install), so a leftover claim does not block a fresh start.
+            if ($this->installClaimedByAnotherSession() && file_exists($this->baseDir . '/.env')) {
+                return false;
+            }
+            $previous = $this->readOwnerMarker();
+            $hadToken = array_key_exists(self::INSTALL_OWNER_SESSION_KEY, $_SESSION);
+            $previousToken = $_SESSION[self::INSTALL_OWNER_SESSION_KEY] ?? null;
+
+            $token = bin2hex(random_bytes(32));
+            if (!$this->writeOwnerMarker(hash('sha256', $token))) {
+                return false;
+            }
+            $_SESSION[self::INSTALL_OWNER_SESSION_KEY] = $token;
+            if ($write === null) {
+                return true;
+            }
+
+            try {
+                $written = $write() === true;
+            } catch (\Throwable $e) {
+                $written = false;
+            }
+            if ($written) {
+                return true;
+            }
+            $this->restoreOwnerMarker($previous);
+            if ($hadToken) {
+                $_SESSION[self::INSTALL_OWNER_SESSION_KEY] = $previousToken;
+            } else {
+                unset($_SESSION[self::INSTALL_OWNER_SESSION_KEY]);
+            }
+            return false;
+        } catch (\Throwable $e) {
+            return false;
+        } finally {
+            flock($lock, LOCK_UN);
+            fclose($lock);
+        }
     }
 
     /**
@@ -1249,19 +1488,12 @@ HTACCESS;
         if (!is_string($token) || $token === '') {
             return false;
         }
-        $marker = $this->installOwnerMarkerPath();
-        if (!is_file($marker)) {
+        $state = $this->readOwnerMarker();
+        if (!$state['exists'] || $state['mtime'] === null || $state['content'] === null
+            || (time() - $state['mtime']) > self::INSTALL_OWNER_TTL) {
             return false;
         }
-        $mtime = @filemtime($marker);
-        if ($mtime === false || (time() - $mtime) > self::INSTALL_OWNER_TTL) {
-            return false;
-        }
-        $stored = @file_get_contents($marker);
-        if (!is_string($stored)) {
-            return false;
-        }
-        return hash_equals(trim($stored), hash('sha256', $token));
+        return hash_equals(trim($state['content']), hash('sha256', $token));
     }
 
     /** End the install-in-progress binding (called once .installed exists). */
@@ -1319,6 +1551,52 @@ HTACCESS;
         $row = $result ? $result->fetch_assoc() : null;
         $stmt->close();
         return self::adminRowIsActive(is_array($row) ? $row : null);
+    }
+
+    /**
+     * Fingerprint of an account's current password hash, keyed with a random
+     * per-login secret kept in the installer session. Stored at the installer
+     * login; it stops matching as soon as the password changes (every
+     * CredentialRevoker::revokeAll() caller is a password change or reset).
+     */
+    public static function installerCredentialFingerprint(string $passwordHash, string $key): string {
+        return hash_hmac('sha256', $passwordHash, $key);
+    }
+
+    /**
+     * An installer login is still good when the account passes
+     * adminRowIsActive() AND its current password hash still matches the
+     * fingerprint taken at login. A missing fingerprint or key (e.g. a
+     * session from before this check) fails closed.
+     *
+     * @param array<string, mixed>|null $row utenti row (tipo_utente, stato, email_verificata, password)
+     */
+    public static function installerLoginRowIsCurrent(?array $row, string $fingerprint, string $key): bool {
+        if (!self::adminRowIsActive($row) || $fingerprint === '' || $key === '') {
+            return false;
+        }
+        $hash = $row['password'] ?? null;
+        if (!is_string($hash) || $hash === '') {
+            return false;
+        }
+        return hash_equals(self::installerCredentialFingerprint($hash, $key), $fingerprint);
+    }
+
+    /** Re-read an account and apply installerLoginRowIsCurrent(). */
+    public static function isActiveAdminWithCredential(\mysqli $db, int $userId, string $fingerprint, string $key): bool {
+        if ($userId <= 0) {
+            return false;
+        }
+        $stmt = $db->prepare('SELECT tipo_utente, stato, email_verificata, password FROM utenti WHERE id = ? LIMIT 1');
+        if ($stmt === false) {
+            return false;
+        }
+        $stmt->bind_param('i', $userId);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $row = $result ? $result->fetch_assoc() : null;
+        $stmt->close();
+        return self::installerLoginRowIsCurrent(is_array($row) ? $row : null, $fingerprint, $key);
     }
 
     /** Look up the bound user_sessions row and apply boundSessionRowIsRevoked(). */
