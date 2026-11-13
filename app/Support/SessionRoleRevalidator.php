@@ -102,20 +102,27 @@ final class SessionRoleRevalidator
             return self::$cache[$userId] = ['status' => self::ABSENT, 'role' => null, 'stato' => null];
         }
 
-        // A session that could not be bound to a user_sessions row is pinned to
-        // the password it was opened with; once that password changes, the
-        // session is treated like a deleted account and every caller ends it.
-        // An unbound session that carries no pin yet (opened before this check
-        // existed) is pinned now, to the password it is still valid for, so a
-        // later reset ends it too instead of leaving it outside revocation.
-        $currentFingerprint = RememberMeService::credentialFingerprint((string) ($row['password'] ?? ''));
-        $pin = $_SESSION[RememberMeService::UNBOUND_CREDENTIAL_KEY] ?? null;
-        if (is_string($pin) && $pin !== '') {
-            if (!hash_equals($pin, $currentFingerprint)) {
-                return self::$cache[$userId] = ['status' => self::ABSENT, 'role' => null, 'stato' => null];
+        // Every browser session must be revocable: either it is bound to a
+        // user_sessions row (revoked through that row), or its sign-in could
+        // not write one and it was pinned to the account id and the password
+        // hash it was opened with. A pin that no longer matches means the
+        // password changed: the session is treated like a deleted account and
+        // every caller ends it. A session with no pin for this account (opened
+        // before this check existed) is pinned now, to the password it is still
+        // valid for, so a later reset ends it too. A Mobile API request is
+        // exempt: its identity is the token, revoked on its own.
+        $viaToken = (($_SESSION['user']['auth_via'] ?? '') === 'mobile_token');
+        if (!$viaToken && empty($_SESSION[RememberMeService::SESSION_ROW_KEY])) {
+            $passwordHash = (string) ($row['password'] ?? '');
+            $expected = RememberMeService::pinValue($userId, $passwordHash);
+            $pin = $_SESSION[RememberMeService::UNBOUND_CREDENTIAL_KEY] ?? null;
+            if (is_string($pin) && str_starts_with($pin, $userId . ':')) {
+                if (!hash_equals($expected, $pin)) {
+                    return self::$cache[$userId] = ['status' => self::ABSENT, 'role' => null, 'stato' => null];
+                }
+            } elseif ($passwordHash !== '') {
+                $_SESSION[RememberMeService::UNBOUND_CREDENTIAL_KEY] = $expected;
             }
-        } elseif (empty($_SESSION[RememberMeService::SESSION_ROW_KEY]) && (string) ($row['password'] ?? '') !== '') {
-            $_SESSION[RememberMeService::UNBOUND_CREDENTIAL_KEY] = $currentFingerprint;
         }
 
         try {

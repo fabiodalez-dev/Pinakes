@@ -561,11 +561,9 @@ class Repo
     }
 
     /**
-     * Insert or revive a membership. A previously-left row is reused so the
-     * UNIQUE(club_id, user_id) key never blocks a re-join.
-     */
-    /**
-     * Create a membership, or update an existing one that is not settled.
+     * Create a membership, or update an existing one that is not settled. A
+     * previously-left row is reused, so the UNIQUE(club_id, user_id) key never
+     * blocks a re-join.
      *
      * Join requests and accepted invitations check the member's state first and
      * then call this, so a concurrent change can land in between. The decision

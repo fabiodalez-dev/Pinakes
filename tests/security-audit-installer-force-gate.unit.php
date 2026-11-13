@@ -19,6 +19,8 @@ declare(strict_types=1);
  *   E. an installer login stays valid only while the account's password hash
  *      matches the keyed fingerprint taken at login (password change/reset
  *      ends it).
+ *   F. ...and only while the user_sessions row it wrote at login is live:
+ *      revoking that admin's sessions ends it even without a password change.
  *
  * No database needed. Run: php tests/security-audit-installer-force-gate.unit.php
  */
@@ -90,7 +92,7 @@ $check(!(new Installer($broken))->recordForceLoginAttempt('198.51.100.9', $now),
 echo "D. installer/index.php force gate wiring\n";
 // ---------------------------------------------------------------------------
 $src = (string) file_get_contents($ROOT . '/installer/index.php');
-$gateStart = strpos($src, "if (isset(\$_GET['force']) && \$installer->isInstalled())");
+$gateStart = strpos($src, "if (\$forceRequested && \$installer->isInstalled())");
 $gateEnd = strpos($src, '// Check if already installed');
 $gate = ($gateStart !== false && $gateEnd !== false) ? substr($src, $gateStart, $gateEnd - $gateStart) : '';
 $check($gate !== '', 'force gate located');
@@ -111,8 +113,8 @@ $check(str_contains($gate, 'Installer::isActiveAdminWithCredential(')
 $check(str_contains($gate, "\$_SESSION['installer_admin_credential'] = Installer::installerCredentialFingerprint((string) \$row['password'], \$credentialKey)")
     && str_contains($gate, "\$_SESSION['installer_admin_credential_key'] = \$credentialKey"),
     'the installer login stores a keyed fingerprint of the password hash it verified');
-$check(preg_match("/unset\\(\\s*\\\$_SESSION\\['installer_admin_user_id'\\],\\s*\\\$_SESSION\\['installer_admin_credential'\\],\\s*\\\$_SESSION\\['installer_admin_credential_key'\\]\\s*\\)/", $gate) === 1,
-    'a stale installer login is dropped with its fingerprint');
+$check(preg_match("/unset\\(\\s*\\\$_SESSION\\['installer_admin_user_id'\\],\\s*\\\$_SESSION\\['installer_admin_credential'\\],\\s*\\\$_SESSION\\['installer_admin_credential_key'\\],\\s*\\\$_SESSION\\[Installer::INSTALLER_SESSION_ROW_KEY\\]\\s*\\)/", $gate) === 1,
+    'a stale installer login is dropped with its fingerprint and its row id');
 $check(preg_match("/tipo_utente = 'admin' AND stato = 'attivo' AND email_verificata = 1/", $gate) === 1,
     'the POST door requires stato attivo and a verified email');
 $check(str_contains($gate, 'recordForceLoginAttempt('), 'the POST door is rate limited');
@@ -144,6 +146,34 @@ if (!method_exists(Installer::class, 'installerLoginRowIsCurrent') || !method_ex
         'an account without a password hash is refused');
     $check(!str_contains($fp, $hash) && strlen($fp) === 64, 'the session holds an HMAC, not the password hash');
 }
+
+// ---------------------------------------------------------------------------
+echo "F. Installer login is bound to a revocable user_sessions row\n";
+// ---------------------------------------------------------------------------
+if (!method_exists(Installer::class, 'installerSessionRowIsAcceptable')) {
+    $check(false, 'Installer::installerSessionRowIsAcceptable() exists');
+} else {
+    $live = ['is_revoked' => '0', 'still_valid' => '1'];
+    $check(Installer::installerSessionRowIsAcceptable(42, true, $live), 'live row: installer login holds');
+    $check(!Installer::installerSessionRowIsAcceptable(42, true, ['is_revoked' => 1] + $live),
+        'row revoked ("sign out everywhere", revokeAll()) without a password change: login ends');
+    $check(!Installer::installerSessionRowIsAcceptable(42, true, ['still_valid' => 0] + $live), 'expired row: login ends');
+    $check(!Installer::installerSessionRowIsAcceptable(42, true, null), 'deleted row: login ends');
+    $check(!Installer::installerSessionRowIsAcceptable(-1, true, $live) && !Installer::installerSessionRowIsAcceptable(-1, false, null),
+        'a login with no row recorded (pre-fix session) is refused');
+    $check(Installer::installerSessionRowIsAcceptable(0, false, null), 'schema without user_sessions: account + password checks only (as before)');
+    $check(!Installer::installerSessionRowIsAcceptable(0, true, null) && !Installer::installerSessionRowIsAcceptable(0, null, null),
+        'row id 0 once the table exists, or when that cannot be told: refused');
+    $check(Installer::INSTALLER_SESSION_ROW_TTL > 0 && Installer::INSTALLER_SESSION_ROW_TTL <= 7200, 'the installer row is short-lived (at most 2 h)');
+}
+$check(preg_match('/Installer::isActiveAdminWithCredential\([^;]*\)\s*&&\s*Installer::installerSessionRowIsLive\(\s*\$db,\s*\(int\) \(\$_SESSION\[Installer::INSTALLER_SESSION_ROW_KEY\] \?\? -1\)/s', $gate) === 1,
+    'the installer-login re-check also requires its user_sessions row to be live (missing key = refused)');
+$bindPos = strpos($gate, 'Installer::bindInstallerSessionRow(');
+$guardPos = strpos($gate, 'if ($sessionRowId !== null) {');
+$grantPos = strpos($gate, "\$_SESSION['installer_admin_user_id'] = (int) \$row['id'];");
+$check($bindPos !== false && $guardPos !== false && $grantPos !== false && $bindPos < $guardPos && $guardPos < $grantPos,
+    'the installer login writes its row first and is refused when the row cannot be written');
+$check(str_contains($gate, '$_SESSION[Installer::INSTALLER_SESSION_ROW_KEY] = $sessionRowId;'), 'the row id is kept in the installer session');
 
 // Cleanup: only the private temp tree created above.
 $it = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($tmp, FilesystemIterator::SKIP_DOTS), RecursiveIteratorIterator::CHILD_FIRST);

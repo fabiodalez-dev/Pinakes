@@ -66,6 +66,12 @@ final class RacingSitemapGenerator extends SitemapGenerator
         // revision handling, and the real constructor would need a database.
     }
 
+    /** No database here: private mode is off unless a test says otherwise. */
+    protected function privateModeEnabledNow(): bool
+    {
+        return false;
+    }
+
     public function generate(): string
     {
         if ($this->invalidateDuringGenerate) {
@@ -137,16 +143,17 @@ try {
     $gen = new RacingSitemapGenerator();
     $gen->invalidateDuringGenerate = true;   // the race, executed
     $raced = SitemapCache::revision();
-    $gen->saveTo($published);
+    $racedResult = $gen->saveTo($published);
 
     $check(SitemapCache::revision() > $raced, 'the mid-flight invalidation really did fire');
     $check(!is_file($published),
         'the pre-change snapshot is NOT left published — this is the bug, and it no longer reproduces');
 
-    // The withdrawal must not be mistaken for a failure by the caller: saveTo()
-    // returns normally, and /sitemap.xml serves the current document until the
-    // next regeneration republishes the fast path.
-    $check(true, 'saveTo() returned without throwing (the caller is not told a correct outcome failed)');
+    // Not publishing must not be mistaken for a failure by the caller: saveTo()
+    // returns normally (false, with the reason), and /sitemap.xml serves the
+    // current document until the next regeneration republishes the fast path.
+    $check($racedResult === false && $gen->getLastSkipReason() === SitemapGenerator::SKIP_REVISION_CHANGED,
+        'saveTo() returned without throwing and says why it did not publish');
 
     echo "\nD. A second publish after the dust settles works normally\n";
 

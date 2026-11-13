@@ -56,14 +56,26 @@ class RememberMeService
         return hash('sha256', 'pinakes-session-credential|' . $passwordHash);
     }
 
+    /**
+     * The pin stored in the session: the account id and the fingerprint of its
+     * password hash. The id keeps a pin from being checked against another
+     * account (a Mobile API request carries its token's user in the same
+     * session for the length of one request).
+     */
+    public static function pinValue(int $userId, string $passwordHash): string
+    {
+        return $userId . ':' . self::credentialFingerprint($passwordHash);
+    }
+
     /** Pin the current session to $passwordHash when it has no bound row. */
     public static function pinIfUnbound(string $passwordHash): void
     {
-        if (!empty($_SESSION[self::SESSION_ROW_KEY]) || $passwordHash === '') {
+        $userId = (int) ($_SESSION['user']['id'] ?? 0);
+        if (!empty($_SESSION[self::SESSION_ROW_KEY]) || $passwordHash === '' || $userId <= 0) {
             unset($_SESSION[self::UNBOUND_CREDENTIAL_KEY]);
             return;
         }
-        $_SESSION[self::UNBOUND_CREDENTIAL_KEY] = self::credentialFingerprint($passwordHash);
+        $_SESSION[self::UNBOUND_CREDENTIAL_KEY] = self::pinValue($userId, $passwordHash);
     }
 
     /**

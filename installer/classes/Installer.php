@@ -1232,7 +1232,8 @@ HTACCESS;
      * Same predicate as the front controllers, which serve the application as
      * soon as .env exists: .installed OR .env. Two exceptions:
      *  - the session that wrote .env during the install in progress (see
-     *    claimInstallOwnership()), which must be able to reach step 7;
+     *    claimInstallOwnership()), which must be able to reach step 7, as
+     *    long as ownerMayContinue() holds;
      *  - a .env whose database is reachable and holds no table at all, i.e.
      *    nothing has been installed yet (a pre-written .env, as the Docker
      *    image's wizard mode does). Step 2 refuses a non-empty database for the
@@ -1251,7 +1252,9 @@ HTACCESS;
             return false;
         }
         if ($this->ownsInstallInProgress()) {
-            return false;
+            // The owner goes on only while that is still verifiable without
+            // an account: see ownerMayContinue().
+            return !$this->ownerMayContinue();
         }
         if ($this->installClaimedByAnotherSession()) {
             return true;
@@ -1503,7 +1506,65 @@ HTACCESS;
             // nosemgrep: php.lang.security.unlink-use.unlink-use -- fixed internal path under storage/, not user input
             @unlink($marker);
         }
-        unset($_SESSION[self::INSTALL_OWNER_SESSION_KEY]);
+        unset(
+            $_SESSION[self::INSTALL_OWNER_SESSION_KEY],
+            $_SESSION[self::INSTALL_POPULATED_SESSION_KEY],
+            $_SESSION[self::FORCE_MODE_SESSION_KEY]
+        );
+    }
+
+    /** Session key: proof that this owner session started populating the configured database. */
+    public const INSTALL_POPULATED_SESSION_KEY = 'installer_populated_by_owner';
+
+    /**
+     * Session key routing a ?force=1 reinstall's later requests (whose links
+     * and redirects do not carry ?force) through the force gate. A routing
+     * hint only: the gate re-authenticates every request, it grants nothing.
+     */
+    public const FORCE_MODE_SESSION_KEY = 'installer_force_mode';
+
+    private function populatedProof(string $ownerToken): string {
+        return hash('sha256', 'populated:' . $ownerToken);
+    }
+
+    /**
+     * Step 3 calls this right before importing the schema: from here on the
+     * configured database is no longer empty because THIS session filled it.
+     * Bound to the current ownership token, so a new step 2 (new token, new
+     * .env) starts without it. Recorded before the import, not after its
+     * success, so a failed import can still be retried.
+     */
+    public function recordSchemaImportByOwner(): bool {
+        if (!$this->ownsInstallInProgress()) {
+            return false;
+        }
+        $_SESSION[self::INSTALL_POPULATED_SESSION_KEY] = $this->populatedProof((string) $_SESSION[self::INSTALL_OWNER_SESSION_KEY]);
+        return true;
+    }
+
+    /** True when this owner session recorded the schema import of the current binding. */
+    private function ownerPopulatedConfiguredDatabase(): bool {
+        $token = $_SESSION[self::INSTALL_OWNER_SESSION_KEY] ?? '';
+        $proof = $_SESSION[self::INSTALL_POPULATED_SESSION_KEY] ?? '';
+        return is_string($token) && $token !== '' && is_string($proof) && $proof !== ''
+            && hash_equals($this->populatedProof($token), $proof);
+    }
+
+    /**
+     * The owner of the install in progress may go on without an account only
+     * while no account can exist to check it against:
+     *  (i)  the configured database is still empty, or
+     *  (ii) this same session started the schema import into it (every
+     *       account in it was then created by this session).
+     * Otherwise (a populated database this session did not fill) the owner
+     * gets the installed-state gates like everyone else: an active admin of
+     * THAT database, re-validated on every request.
+     */
+    public function ownerMayContinue(): bool {
+        if (!$this->ownsInstallInProgress()) {
+            return false;
+        }
+        return $this->ownerPopulatedConfiguredDatabase() || $this->configuredDatabaseIsEmpty();
     }
 
     /**
@@ -1597,6 +1658,99 @@ HTACCESS;
         $row = $result ? $result->fetch_assoc() : null;
         $stmt->close();
         return self::installerLoginRowIsCurrent(is_array($row) ? $row : null, $fingerprint, $key);
+    }
+
+    /** Lifetime of the user_sessions row an installer login writes, in seconds. */
+    public const INSTALLER_SESSION_ROW_TTL = 7200;
+
+    /** Session key holding that row's id (0 = the schema has no user_sessions table). */
+    public const INSTALLER_SESSION_ROW_KEY = 'installer_admin_session_row';
+
+    /** Whether the configured database has a user_sessions table; null when it cannot be told. */
+    public static function userSessionsTableExists(\mysqli $db): ?bool {
+        try {
+            $result = $db->query("SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'user_sessions'");
+            if (!$result instanceof \mysqli_result) {
+                return null;
+            }
+            $row = $result->fetch_row();
+            $result->free();
+            return is_array($row) ? ((int) $row[0] > 0) : null;
+        } catch (\Throwable $e) {
+            return null;
+        }
+    }
+
+    /**
+     * Record an installer login as a user_sessions row of the admin (same
+     * shape RememberMeService::bindPlainSession() writes, short lifetime), so
+     * that revoking that admin's sessions — "sign out everywhere", a password
+     * change, CredentialRevoker::revokeAll() — also ends the installer login.
+     *
+     * @return int|null the row id; 0 when the schema predates user_sessions
+     *         (nothing to bind to); null when the row could not be written,
+     *         and then the login must be refused.
+     */
+    public static function bindInstallerSessionRow(\mysqli $db, int $userId, string $ipAddress, ?string $userAgent): ?int {
+        if ($userId <= 0) {
+            return null;
+        }
+        $exists = self::userSessionsTableExists($db);
+        if ($exists === null) {
+            return null;
+        }
+        if ($exists === false) {
+            return 0;
+        }
+        try {
+            $tokenHash = hash('sha256', 'installer:' . bin2hex(random_bytes(32)));
+            $deviceInfo = 'Pinakes installer';
+            $ip = $ipAddress !== '' ? substr($ipAddress, 0, 45) : null;
+            $expiresAt = gmdate('Y-m-d H:i:s', time() + self::INSTALLER_SESSION_ROW_TTL);
+            $stmt = $db->prepare('INSERT INTO user_sessions (utente_id, token_hash, device_info, ip_address, user_agent, expires_at) VALUES (?, ?, ?, ?, ?, ?)');
+            if ($stmt === false) {
+                return null;
+            }
+            $stmt->bind_param('isssss', $userId, $tokenHash, $deviceInfo, $ip, $userAgent, $expiresAt);
+            $ok = $stmt->execute();
+            $rowId = (int) $db->insert_id;
+            $stmt->close();
+            return ($ok && $rowId > 0) ? $rowId : null;
+        } catch (\Throwable $e) {
+            return null;
+        }
+    }
+
+    /**
+     * Whether the row an installer login is bound to still holds:
+     *  - id > 0: the row exists, is not revoked and has not expired
+     *    (boundSessionRowIsRevoked());
+     *  - id 0: the login was made on a schema without user_sessions, and the
+     *    table still does not exist (once it does, re-login);
+     *  - missing/negative (a login from before this binding): no.
+     *
+     * @param bool|null $tableExists userSessionsTableExists() (only used for id 0)
+     * @param array<string, mixed>|null $row user_sessions row (is_revoked, still_valid) for id > 0
+     */
+    public static function installerSessionRowIsAcceptable(int $storedRowId, ?bool $tableExists, ?array $row): bool {
+        if ($storedRowId === 0) {
+            return $tableExists === false;
+        }
+        if ($storedRowId < 0) {
+            return false;
+        }
+        return !self::boundSessionRowIsRevoked($storedRowId, $row);
+    }
+
+    /** Database side of installerSessionRowIsAcceptable(). */
+    public static function installerSessionRowIsLive(\mysqli $db, int $storedRowId): bool {
+        if ($storedRowId === 0) {
+            return self::installerSessionRowIsAcceptable(0, self::userSessionsTableExists($db), null);
+        }
+        if ($storedRowId < 0) {
+            return false;
+        }
+        return !self::isBoundSessionRevoked($db, $storedRowId);
     }
 
     /** Look up the bound user_sessions row and apply boundSessionRowIsRevoked(). */

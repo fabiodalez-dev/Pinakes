@@ -20,6 +20,9 @@ declare(strict_types=1);
  *      the retry of a finalised session recreates a missing .installed.
  *   D. the claim is exclusive: while another session holds a live claim over
  *      .env, the empty-database exception is off and the claim cannot be taken.
+ *   E. the owner itself goes on only while the configured database is empty
+ *      or was filled by its own step 3; over any other populated database it
+ *      needs an active admin of that database like everyone else.
  *
  * No database needed. Run: php tests/security-audit-installer-installed-predicate.unit.php
  */
@@ -34,6 +37,10 @@ if (!function_exists('__')) {
 }
 
 require_once $ROOT . '/installer/classes/Installer.php';
+
+// Guarded so the suite reports FAILs (not a fatal) against code without the rule.
+$popKey = defined('Installer::INSTALL_POPULATED_SESSION_KEY') ? Installer::INSTALL_POPULATED_SESSION_KEY : 'installer_populated_by_owner';
+$forceKey = defined('Installer::FORCE_MODE_SESSION_KEY') ? Installer::FORCE_MODE_SESSION_KEY : 'installer_force_mode';
 
 $failed = 0;
 $passed = 0;
@@ -104,13 +111,17 @@ $token = (string) ($_SESSION[Installer::INSTALL_OWNER_SESSION_KEY] ?? '');
 $marker = (string) @file_get_contents($site . '/storage/.install_in_progress');
 $check($token !== '' && strlen($token) === 64, 'a 256-bit token is kept in the session');
 $check($marker === hash('sha256', $token) && !str_contains($marker, $token), 'only the token hash is on disk');
+// The owner goes on over a populated database only once it has itself started
+// the schema import there (section E covers the rule).
+$check(method_exists($inst, 'recordSchemaImportByOwner') && $inst->recordSchemaImportByOwner(), 'the owner records its schema import');
+$proof = $_SESSION[$popKey] ?? null;
 $check($inst->ownsInstallInProgress() && $inst->isInstalled() === false, 'the owning session may continue the install');
 
 $_SESSION = [];
 $check($inst->isInstalled() === true, 'a fresh session (no token) is refused');
 $_SESSION[Installer::INSTALL_OWNER_SESSION_KEY] = bin2hex(random_bytes(32));
 $check($inst->isInstalled() === true, 'a forged token is refused');
-$_SESSION[Installer::INSTALL_OWNER_SESSION_KEY] = $token;
+$_SESSION = [Installer::INSTALL_OWNER_SESSION_KEY => $token, $popKey => $proof];
 touch($site . '/storage/.install_in_progress', time() - Installer::INSTALL_OWNER_TTL - 10);
 clearstatcache();
 $check($inst->isInstalled() === true, 'an expired binding is refused');
@@ -129,6 +140,7 @@ echo "B. createEnvFile() binds the session that writes .env\n";
 // ---------------------------------------------------------------------------
 $site2 = $mkSite();
 $inst2 = new ProbeInstaller($site2);
+$inst2->emptyDb = true; // step 2 only accepts an empty database
 $_SESSION = [];
 $check($inst2->createEnvFile('127.0.0.1', 'u', 'p', 'db') === true, 'createEnvFile() writes .env');
 $check(is_file($site2 . '/.env') && $inst2->isInstalled() === false, 'the writing session owns the install in progress');
@@ -230,6 +242,53 @@ if (function_exists('posix_getuid') && posix_getuid() !== 0) {
         'an unreadable live marker counts as claimed (fail closed)');
     chmod($site10 . '/storage/.install_in_progress', 0600);
 }
+
+// ---------------------------------------------------------------------------
+echo "E. The owner goes on only while no account can exist to check it\n";
+// ---------------------------------------------------------------------------
+$hasRule = method_exists(Installer::class, 'ownerMayContinue') && method_exists(Installer::class, 'recordSchemaImportByOwner');
+$check($hasRule, 'Installer::ownerMayContinue() and recordSchemaImportByOwner() exist');
+$site11 = $mkSite();
+$inst11 = new ProbeInstaller($site11);
+$inst11->emptyDb = true;
+$_SESSION = [];
+$inst11->createEnvFile('127.0.0.1', 'u', 'p', 'newdb');
+$check($inst11->isInstalled() === false && (!$hasRule || $inst11->ownerMayContinue()),
+    '(i) owner over the still-empty new database: goes on (no account exists yet)');
+$inst11->emptyDb = false; // populated, and not by this session
+$check($inst11->ownsInstallInProgress() && $inst11->isInstalled() === true,
+    'owner over a populated database it did not fill: refused (needs an active admin of that database)');
+$check(!$hasRule || $inst11->ownerMayContinue() === false, 'ownerMayContinue() says no');
+$_SESSION[$popKey] = hash('sha256', 'populated:' . bin2hex(random_bytes(32)));
+$check($inst11->isInstalled() === true, 'a forged import proof is refused');
+unset($_SESSION[$popKey]);
+
+$inst11->emptyDb = true;
+$check($hasRule && $inst11->recordSchemaImportByOwner() === true, 'step 3 records the import while the database is still empty');
+$inst11->emptyDb = false; // step 3 filled it
+$check($inst11->isInstalled() === false, '(ii) the session that imported the schema goes on over its own database (steps 4-7)');
+
+$inst11->emptyDb = true;
+$inst11->createEnvFile('127.0.0.1', 'u', 'p', 'otherdb'); // back to step 2: new binding, new .env
+$inst11->emptyDb = false;
+$check($inst11->isInstalled() === true, 'a new step 2 drops the old import proof (it was for another database)');
+
+$saved = $_SESSION;
+$_SESSION = [];
+$check($hasRule && $inst11->recordSchemaImportByOwner() === false && !isset($_SESSION[$popKey]),
+    'a session that does not own the install cannot record an import');
+$_SESSION = $saved + [$forceKey => true];
+$inst11->releaseInstallOwnership();
+$check(!isset($_SESSION[$popKey]) && !isset($_SESSION[$forceKey]) && !isset($_SESSION[Installer::INSTALL_OWNER_SESSION_KEY]),
+    'releaseInstallOwnership() also drops the import proof and the reinstall routing hint');
+
+$step3 = (string) file_get_contents($ROOT . '/installer/steps/step3.php');
+$recPos = strpos($step3, '$installer->recordSchemaImportByOwner();');
+$impPos = strpos($step3, '$installer->importSchema();');
+$check($recPos !== false && $impPos !== false && $recPos < $impPos, 'step 3 records the import before importSchema() (a failed import stays retryable)');
+$index = (string) file_get_contents($ROOT . '/installer/index.php');
+$check(str_contains($index, 'if ($installer->ownerMayContinue()) {') && !str_contains($index, 'if ($installer->ownsInstallInProgress()) {'),
+    'the ?force=1 gate lets the owner through only under ownerMayContinue()');
 
 // ---------------------------------------------------------------------------
 echo "C. Step 7 surfaces finalisation failures (real installer/steps/step7.php)\n";

@@ -286,7 +286,7 @@ try {
     }
 }
 
-echo "E. A concurrent activation waits for the revocation (two connections, real tables)\n";
+echo "E. Concurrent activation vs revocation, and join vs activation (two clients, real tables)\n";
 $a = null;
 $b = null;
 $clubId = 0;
@@ -333,6 +333,42 @@ try {
         $check($blocked === true, 'the concurrent activation waited on the row lock instead of slipping in');
         $check($ok && $row['status'] === 'suspended', 'revocation applied');
         $check($blocked === true || $row['ics_token'] !== $t0, 'no window where the member was active and kept the old token');
+
+        // Join racing an activation: the join controller saw 'pending' and calls
+        // upsertMember(..., 'pending') while an invitation's activation holds the
+        // row. The join runs in a separate PHP process (a real second client
+        // through the real Repo) and must be evaluated AFTER the activation
+        // commits, keeping the member active instead of demoting it.
+        $a->query("UPDATE bookclub_members SET status = 'pending' WHERE id = {$memberId}");
+        $a->begin_transaction();
+        $a->query("SELECT id FROM bookclub_members WHERE id = {$memberId} FOR UPDATE");
+        $a->query("UPDATE bookclub_members SET status = 'active' WHERE id = {$memberId}");
+        $child = 'require ' . var_export($root . '/vendor/autoload.php', true) . ';'
+            . 'require_once ' . var_export($root . '/storage/plugins/book-club/BookClubPlugin.php', true) . ';'
+            . '$c = json_decode((string) getenv("BC_RACE"), true);'
+            . 'mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);'
+            . '$db = ($c["socket"] !== "" && file_exists($c["socket"])) ? new mysqli(null, $c["user"], $c["pass"], $c["name"], 0, $c["socket"]) : new mysqli($c["host"], $c["user"], $c["pass"], $c["name"], $c["port"]);'
+            . '$db->query("SET SESSION innodb_lock_wait_timeout = 20");'
+            . 'echo (new App\\Plugins\\BookClub\\Repo($db))->upsertMember($c["club"], $c["uid"], $c["rid"], "pending") ? "ok" : "false";';
+        $race = json_encode(['host' => $host, 'user' => $user, 'pass' => $dbPass, 'name' => $name, 'socket' => $socket, 'port' => $port,
+            'club' => $clubId, 'uid' => $uid, 'rid' => $rid]);
+        $proc = proc_open([PHP_BINARY, '-r', $child], [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes, null, ['BC_RACE' => $race] + getenv());
+        // Wait until the join is actually blocked on A's row lock.
+        $waiting = false;
+        for ($i = 0; $i < 100 && !$waiting; $i++) {
+            usleep(50000);
+            // A prepared statement waiting on a row lock shows as an Execute still
+            // running (STATE 'update'); INNODB_TRX would need the PROCESS privilege.
+            $waiting = (int) $b->query("SELECT COUNT(*) AS n FROM information_schema.PROCESSLIST
+                WHERE COMMAND = 'Execute' AND INFO LIKE 'INSERT INTO bookclub_members%'")->fetch_assoc()['n'] > 0;
+        }
+        $a->commit();
+        $out = is_resource($proc) ? stream_get_contents($pipes[1]) . stream_get_contents($pipes[2]) : '';
+        if (is_resource($proc)) { proc_close($proc); }
+        $status = (string) $a->query("SELECT status FROM bookclub_members WHERE id = {$memberId}")->fetch_assoc()['status'];
+        $check($waiting, 'the racing join was blocked on the activation\'s row lock');
+        $check(trim($out) === 'ok' && $status === 'active',
+            "the join evaluated after the activation committed and kept the member active (got {$status}; child: " . trim($out) . ')');
     }
 } catch (\Throwable $e) {
     $fail++;

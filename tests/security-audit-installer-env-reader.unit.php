@@ -143,7 +143,7 @@ $check($installedAnswer === true, 'a probe that cannot connect still counts as i
 echo "D. installer/index.php force gate uses the shared reader\n";
 // ---------------------------------------------------------------------------
 $src = (string) file_get_contents($ROOT . '/installer/index.php');
-$gateStart = strpos($src, "if (isset(\$_GET['force']) && \$installer->isInstalled())");
+$gateStart = strpos($src, "if (\$forceRequested && \$installer->isInstalled())");
 $gateEnd = strpos($src, '// Check if already installed');
 $gate = ($gateStart !== false && $gateEnd !== false) ? substr($src, $gateStart, $gateEnd - $gateStart) : '';
 $check(str_contains($gate, "Installer::readEnvFile(\$baseDir . '/.env')"), 'the force gate reads .env with Installer::readEnvFile()');

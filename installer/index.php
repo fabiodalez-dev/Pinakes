@@ -136,7 +136,13 @@ if (isset($_GET['action']) && $_GET['action'] === 'detect_socket') {
 // deleted, revoked or expired ends the session). The installer does not load
 // the app autoloader, so those checks are inlined (Installer::isActiveAdmin(),
 // Installer::isBoundSessionRevoked()). Any failure fails closed.
-if (isset($_GET['force']) && $installer->isInstalled()) {
+//
+// A reinstall's forms and redirects (index.php?step=N) do not carry ?force, so
+// once the gate has let a session in, its later requests are routed through the
+// same gate (Installer::FORCE_MODE_SESSION_KEY). That is routing, not a grant:
+// every one of those requests is re-authenticated below.
+$forceRequested = isset($_GET['force']) || !empty($_SESSION[Installer::FORCE_MODE_SESSION_KEY]);
+if ($forceRequested && $installer->isInstalled()) {
     // Load .env to get database credentials, decoded as phpdotenv does
     // (a DB_PASS written as "p\$ss" is p$ss).
     foreach (Installer::readEnvFile($baseDir . '/.env') ?? [] as $key => $value) {
@@ -166,9 +172,11 @@ if (isset($_GET['force']) && $installer->isInstalled()) {
     unset($_SESSION['installer_admin_verified']);
 
     // The session that wrote .env for the reinstall in progress (it was already
-    // authenticated here when it did) keeps going: the new .env may point at an
-    // empty database where no admin exists yet.
-    if ($installer->ownsInstallInProgress()) {
+    // authenticated here when it did) keeps going while no account can exist to
+    // check it against: the new database is still empty, or this session itself
+    // imported the schema into it (Installer::ownerMayContinue()). Otherwise it
+    // needs an active admin of the configured database, like anyone else.
+    if ($installer->ownerMayContinue()) {
         $forceAuthenticated = true;
     } else {
         try {
@@ -184,8 +192,9 @@ if (isset($_GET['force']) && $installer->isInstalled()) {
                         $forceAuthenticated = true;
                     }
                     // (b) An earlier installer login: re-check the stored account every
-                    // time, and its password: a password change or reset (which is what
-                    // CredentialRevoker::revokeAll() follows) ends this login too.
+                    // time, its password (a password change or reset ends this login),
+                    // and the user_sessions row it wrote (revoking that admin's
+                    // sessions ends it too, as it ends a main-app session).
                     $installerUserId = (int) ($_SESSION['installer_admin_user_id'] ?? 0);
                     if (!$forceAuthenticated && $installerUserId > 0) {
                         if (Installer::isActiveAdminWithCredential(
@@ -193,13 +202,17 @@ if (isset($_GET['force']) && $installer->isInstalled()) {
                             $installerUserId,
                             (string) ($_SESSION['installer_admin_credential'] ?? ''),
                             (string) ($_SESSION['installer_admin_credential_key'] ?? '')
+                        ) && Installer::installerSessionRowIsLive(
+                            $db,
+                            (int) ($_SESSION[Installer::INSTALLER_SESSION_ROW_KEY] ?? -1)
                         )) {
                             $forceAuthenticated = true;
                         } else {
                             unset(
                                 $_SESSION['installer_admin_user_id'],
                                 $_SESSION['installer_admin_credential'],
-                                $_SESSION['installer_admin_credential_key']
+                                $_SESSION['installer_admin_credential_key'],
+                                $_SESSION[Installer::INSTALLER_SESSION_ROW_KEY]
                             );
                         }
                     }
@@ -247,16 +260,29 @@ if (isset($_GET['force']) && $installer->isInstalled()) {
                             $result = $stmt->get_result();
                             $row = $result ? $result->fetch_assoc() : null;
                             $stmt->close();
-                            if (is_array($row) && password_verify($password, (string) $row['password'])) {
+                            // The login is also written as a revocable user_sessions
+                            // row of the admin; when that row cannot be written the
+                            // login is refused (fail closed). A schema without the
+                            // table (row id 0) keeps the account + password checks.
+                            $sessionRowId = (is_array($row) && password_verify($password, (string) $row['password']))
+                                ? Installer::bindInstallerSessionRow(
+                                    $mysqli,
+                                    (int) $row['id'],
+                                    (string) ($_SERVER['REMOTE_ADDR'] ?? ''),
+                                    isset($_SERVER['HTTP_USER_AGENT']) ? (string) $_SERVER['HTTP_USER_AGENT'] : null
+                                )
+                                : null;
+                            if ($sessionRowId !== null) {
                                 session_regenerate_id(true);
                                 $forceAuthenticated = true;
-                                // An account id plus a fingerprint of its current
-                                // password hash, both re-validated on every request
-                                // above; never a standing yes.
+                                // An account id, a fingerprint of its current password
+                                // hash and its user_sessions row, all re-validated on
+                                // every request above; never a standing yes.
                                 $credentialKey = bin2hex(random_bytes(32));
                                 $_SESSION['installer_admin_user_id'] = (int) $row['id'];
                                 $_SESSION['installer_admin_credential_key'] = $credentialKey;
                                 $_SESSION['installer_admin_credential'] = Installer::installerCredentialFingerprint((string) $row['password'], $credentialKey);
+                                $_SESSION[Installer::INSTALLER_SESSION_ROW_KEY] = $sessionRowId;
                             }
                         }
                     } finally {
@@ -271,6 +297,14 @@ if (isset($_GET['force']) && $installer->isInstalled()) {
 
         // Regenerate CSRF token after each POST attempt
         $_SESSION['installer_csrf_token'] = bin2hex(random_bytes(32));
+    }
+
+    // Route this session's next requests of the reinstall through this gate
+    // (see $forceRequested); a refused session loses the routing hint.
+    if ($forceAuthenticated) {
+        $_SESSION[Installer::FORCE_MODE_SESSION_KEY] = true;
+    } else {
+        unset($_SESSION[Installer::FORCE_MODE_SESSION_KEY]);
     }
 
     // If not authenticated, show login form
@@ -329,7 +363,7 @@ if (isset($_GET['force']) && $installer->isInstalled()) {
 }
 
 // Check if already installed
-if ($installer->isInstalled() && !isset($_GET['force'])) {
+if (!$forceRequested && $installer->isInstalled()) {
     // Try to verify installation status
     $installationStatus = [];
     $installationStatus['env_exists'] = file_exists($baseDir . '/.env');

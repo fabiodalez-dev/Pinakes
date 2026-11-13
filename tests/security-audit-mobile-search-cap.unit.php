@@ -111,7 +111,7 @@ $n = $searchBlocks(trim(str_repeat('a ', 3000)));
 $check($n === 1, "'a a a ...' is ranked as one word (got {$n})");
 $n = $searchBlocks('eco rosa');
 $check($n === 2, "a normal two-word query still ranks both words (got {$n})");
-$n = $searchBlocks($manyWords, ['sort' => 'title']);
+$n = $searchBlocks($manyWords, ['sort' => 'title_asc']);
 $check($n === 0, 'an explicit non-relevance sort builds no score blocks');
 
 echo "B. Query length cap\n";
@@ -134,11 +134,11 @@ $boundFor = static function (string $q, array $extra = []): string {
 // 'eco' + 253 spaces fills the 256-character cap, so 'rosa' lies beyond it. With
 // a non-relevance sort nothing is ranked: only the WHERE filter binds q.
 $padded = 'eco' . str_repeat(' ', 253) . 'rosa';
-$control = $boundFor('eco rosa', ['sort' => 'title']);
+$control = $boundFor('eco rosa', ['sort' => 'title_asc']);
 $check(str_contains($control, 'rosa') && str_contains($control, 'eco'), 'control: both words of a short query reach the filter parameters');
-$capped = $boundFor($padded, ['sort' => 'title']);
+$capped = $boundFor($padded, ['sort' => 'title_asc']);
 $check(str_contains($capped, 'eco') && !str_contains($capped, 'rosa'),
-    'a word beyond the 256-character cap is not bound to the filter (title sort)');
+    'a word beyond the 256-character cap is not bound to the filter (title_asc sort)');
 $cappedRel = $boundFor($padded);
 $check(str_contains($cappedRel, 'eco') && !str_contains($cappedRel, 'rosa'),
     'nor to the filter or the ranking (relevance sort)');

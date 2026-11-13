@@ -9355,5 +9355,6 @@
   "Richiesta solo se cambi la tua password.": "Richiesta solo se cambi la tua password.",
   "Impossibile rimuovere la sitemap pubblicata (public/sitemap.xml), che resta accessibile a chiunque. Verifica i permessi della cartella public/ e rimuovi il file.": "Impossibile rimuovere la sitemap pubblicata (public/sitemap.xml), che resta accessibile a chiunque. Verifica i permessi della cartella public/ e rimuovi il file.",
   "Impossibile rimuovere il calendario pubblico (storage/calendar/library-calendar.ics), che resta accessibile a chiunque. Verifica i permessi della cartella storage/calendar/ e rimuovi il file.": "Impossibile rimuovere il calendario pubblico (storage/calendar/library-calendar.ics), che resta accessibile a chiunque. Verifica i permessi della cartella storage/calendar/ e rimuovi il file.",
-  "Le impostazioni sono cambiate durante la generazione: la sitemap non è stata pubblicata. Riprova.": "Le impostazioni sono cambiate durante la generazione: la sitemap non è stata pubblicata. Riprova."
+  "Le impostazioni sono cambiate durante la generazione: la sitemap non è stata pubblicata. Riprova.": "Le impostazioni sono cambiate durante la generazione: la sitemap non è stata pubblicata. Riprova.",
+  "La sitemap non è stata pubblicata: la cartella storage/cache/ non è leggibile o scrivibile. Verifica i permessi della cartella.": "La sitemap non è stata pubblicata: la cartella storage/cache/ non è leggibile o scrivibile. Verifica i permessi della cartella."
 }

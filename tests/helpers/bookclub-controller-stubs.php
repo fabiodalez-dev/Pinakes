@@ -53,7 +53,7 @@ final class BcFakeRepo extends Repo
 
     public function clubManagerEmails(int $clubId): array { return []; }
 
-    public function upsertMember(int $clubId, int $userId, int $roleId, string $status, ?int $invitedBy = null): bool
+    public function upsertMember(int $clubId, int $userId, int $roleId, string $status, ?int $invitedBy = null, bool $overrideSettled = false): bool
     {
         $this->writes[] = ['upsertMember', $clubId, $userId, $status];
         $key = $clubId . ':' . $userId;

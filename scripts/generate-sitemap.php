@@ -86,10 +86,8 @@ $mysqli->set_charset($charset);
 // is served by the web server without running PHP (PrivateModeMiddleware never
 // sees it). Do not publish it while private mode is on, and withdraw any copy
 // published earlier, so /sitemap.xml keeps going through the gated route.
-// The revision is read BEFORE private mode: enabling private mode bumps it, and
-// saveTo() only compares against the value it reads at its own start, so a
-// switch landing between this read and saveTo() would otherwise publish.
-$revisionAtStart = \App\Support\SitemapCache::revision();
+// This early check only spares the generation; the guarantee is saveTo(), which
+// re-reads the flag under the publish lock before moving the file into public/.
 try {
     $privateMode = (new SettingsRepository($mysqli))->get('advanced', 'private_mode', '0') === '1'
         || (string) ConfigStore::get('advanced.private_mode', '0') === '1';
@@ -132,16 +130,17 @@ try {
     $generator = new SitemapGenerator($mysqli, $baseUrl);
     $targetPath = \App\Support\SitemapCache::publishedPath();
 
-    $generator->saveTo($targetPath);
-    if (\App\Support\SitemapCache::revision() !== $revisionAtStart) {
-        // Private mode or the plugin set changed since the check above: the
-        // document may describe a site that is no longer public.
-        if (!\App\Support\SitemapCache::withdraw('settings changed during generation (scripts/generate-sitemap.php)')) {
-            fwrite(STDERR, "Impostazioni cambiate durante la generazione, ma public/sitemap.xml non può essere rimosso e resta accessibile: verificare i permessi di public/.\n");
+    if (!$generator->saveTo($targetPath)) {
+        $skipReason = $generator->getLastSkipReason();
+        if ($skipReason === SitemapGenerator::SKIP_PRIVATE_MODE) {
+            fwrite(STDOUT, "Modalità privata attivata durante la generazione: sitemap non pubblicata.\n");
+        } elseif ($skipReason === SitemapGenerator::SKIP_REVISION_CHANGED) {
+            fwrite(STDOUT, "Impostazioni cambiate durante la generazione: sitemap non pubblicata. Rieseguire lo script.\n");
+        } else {
+            fwrite(STDERR, "Sitemap non pubblicata: storage/cache/ non è leggibile o scrivibile (contatore delle modifiche o lock). Verificare i permessi.\n");
             $mysqli->close();
             exit(1);
         }
-        fwrite(STDOUT, "Impostazioni cambiate durante la generazione: sitemap non pubblicata. Rieseguire lo script.\n");
         $mysqli->close();
         exit(0);
     }
