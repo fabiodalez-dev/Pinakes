@@ -87,10 +87,18 @@ foreach (['activateDirectly', 'approveAndSendActivation'] as $handler) {
 }
 
 echo "renewCard\n";
-$r = $run('renewCard', $callers['staff'], $target(9, 'admin'));
-$check($r['status'] === 403 && !$r['past'], 'staff renewing an admin account: 403, no write');
-$r = $run('renewCard', $callers['staff'], $target(10, 'staff'));
-$check($r['status'] === 403 && !$r['past'], 'staff renewing a staff account: 403, no write');
+// Operator accounts hold no card: refused for every caller, nothing written
+// (the same "not renewable" answer the Mobile API returns as 409).
+foreach (['staff', 'manager', 'admin'] as $caller) {
+    foreach (['admin' => 9, 'staff' => 10] as $role => $id) {
+        $_SESSION = [];
+        $r = $run('renewCard', $callers[$caller], $target($id, $role));
+        $check($r['status'] === 302 && !$r['past'], "{$caller} renewing a {$role} account: refused as not renewable, no write");
+    }
+}
+// A reader outside a custom role's reach is still refused by the permission check.
+$r = $run('renewCard', ['id' => 3, 'tipo_utente' => 'standard', 'stato' => 'attivo', 'permissions' => []], $target(20, 'standard'));
+$check($r['status'] === 403 && !$r['past'], 'a caller without users.manage renewing a reader: 403, no write');
 $check($run('renewCard', $callers['staff'], $target(20, 'standard'))['past'], "staff renews a reader's card");
 $check($run('renewCard', $callers['admin'], $target(20, 'standard'))['past'], "administrator renews a reader's card");
 

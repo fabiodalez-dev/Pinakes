@@ -1107,6 +1107,13 @@ class UsersController
         if (!$user) {
             return $response->withHeader('Location', url('/admin/users?error=user_not_found'))->withStatus(302);
         }
+        // An operator account (admin, staff) holds no library card: there is
+        // nothing to renew and nothing is written, so every caller gets the same
+        // "not renewable" answer (the Mobile API maps it to 409 card_not_renewable).
+        if (!in_array((string) ($user['tipo_utente'] ?? ''), ['standard', 'premium'], true)) {
+            $_SESSION['error_message'] = __('Impossibile rinnovare la tessera di questo account.');
+            return $response->withHeader('Location', url('/admin/users/details/' . $id))->withStatus(302);
+        }
         if (!self::canChangeAccountState($user)) {
             return $response->withStatus(403);
         }
