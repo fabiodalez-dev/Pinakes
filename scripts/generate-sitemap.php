@@ -2,6 +2,14 @@
 <?php
 declare(strict_types=1);
 
+// CLI only. Under a web SAPI any anonymous visitor could run this tool (the
+// unanchored installer exemption of the root .htaccess once let
+// /scripts/<file>.php/installer through). scripts/.htaccess denies it as well.
+if (PHP_SAPI !== 'cli') {
+    http_response_code(404);
+    exit;
+}
+
 use App\Controllers\SeoController;
 use App\Models\SettingsRepository;
 use App\Support\ConfigStore;
@@ -73,6 +81,25 @@ if ($mysqli->connect_error) {
 }
 
 $mysqli->set_charset($charset);
+
+// Private mode puts the catalogue behind the login wall, but public/sitemap.xml
+// is served by the web server without running PHP (PrivateModeMiddleware never
+// sees it). Do not publish it while private mode is on, and withdraw any copy
+// published earlier, so /sitemap.xml keeps going through the gated route.
+try {
+    $privateMode = (new SettingsRepository($mysqli))->get('advanced', 'private_mode', '0') === '1'
+        || (string) ConfigStore::get('advanced.private_mode', '0') === '1';
+} catch (Throwable $exception) {
+    fwrite(STDERR, 'Impossibile leggere la modalità privata: ' . $exception->getMessage() . "\n");
+    $mysqli->close();
+    exit(1);
+}
+if ($privateMode) {
+    \App\Support\SitemapCache::invalidate('private mode is on (scripts/generate-sitemap.php)');
+    fwrite(STDOUT, "Modalità privata attiva: sitemap non pubblicata.\n");
+    $mysqli->close();
+    exit(0);
+}
 
 // Boot the plugin system the way public/index.php does. SitemapGenerator lets
 // active plugins add their own pages through the `sitemap.entries` filter, and

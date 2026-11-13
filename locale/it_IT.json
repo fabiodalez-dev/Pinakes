@@ -5373,6 +5373,7 @@
   "VIAF Work ID": "VIAF Work ID",
   "Wikidata ID": "Wikidata ID",
   "Impossibile preparare il file LibraryThing": "Impossibile preparare il file LibraryThing",
+  "Il file da importare è stato modificato o non è più disponibile. Caricalo di nuovo.": "Il file da importare è stato modificato o non è più disponibile. Caricalo di nuovo.",
   "Errore di sistema durante l'importazione": "Errore di sistema durante l'importazione",
   "es. Q12345": "es. Q12345",
   "Durata sessione": "Durata sessione",
@@ -9338,5 +9339,18 @@
   "Correggi chiusura errata": "Correggi chiusura errata",
   "Elimina e ripristina le scadenze": "Elimina e ripristina le scadenze",
   "La restituzione deve avvenire il giorno stesso (%s).": "La restituzione deve avvenire il giorno stesso (%s).",
-  "Scadenza confermata dopo la riapertura": "Scadenza confermata dopo la riapertura"
+  "Scadenza confermata dopo la riapertura": "Scadenza confermata dopo la riapertura",
+  "Per cambiare la tua password inserisci la password attuale, oppure usa la pagina del tuo profilo.": "Per cambiare la tua password inserisci la password attuale, oppure usa la pagina del tuo profilo.",
+  "Troppi tentativi di accesso. Riprova tra qualche minuto.": "Troppi tentativi di accesso. Riprova tra qualche minuto.",
+  "Per ripetere l'installazione usa «Reinstalla da Capo» (richiede le credenziali di un amministratore attivo) oppure, con accesso ai file del server, elimina sia .env sia .installed dalla root del progetto": "Per ripetere l'installazione usa «Reinstalla da Capo» (richiede le credenziali di un amministratore attivo) oppure, con accesso ai file del server, elimina sia .env sia .installed dalla root del progetto",
+  "Accedere a /installer/?force=1 con le credenziali di un amministratore attivo": "Accedere a /installer/?force=1 con le credenziali di un amministratore attivo",
+  "Oppure, con accesso ai file del server, eliminare sia .env sia .installed dalla root del progetto e rieseguire l'installer": "Oppure, con accesso ai file del server, eliminare sia .env sia .installed dalla root del progetto e rieseguire l'installer",
+  "Impossibile creare il file .installed nella root del progetto. Verifica i permessi di scrittura della cartella.": "Impossibile creare il file .installed nella root del progetto. Verifica i permessi di scrittura della cartella.",
+  "Il file .installed non è presente nella root del progetto: l'installazione non è protetta.": "Il file .installed non è presente nella root del progetto: l'installazione non è protetta.",
+  "Errore durante la finalizzazione": "Errore durante la finalizzazione",
+  "Installazione non completata": "Installazione non completata",
+  "Correggi il problema indicato e riprova: l'installazione verrà finalizzata solo quando il file .installed sarà stato creato.": "Correggi il problema indicato e riprova: l'installazione verrà finalizzata solo quando il file .installed sarà stato creato.",
+  "Riprova la finalizzazione": "Riprova la finalizzazione",
+  "La sitemap non viene pubblicata mentre la modalità privata è attiva.": "La sitemap non viene pubblicata mentre la modalità privata è attiva.",
+  "Richiesta solo se cambi la tua password.": "Richiesta solo se cambi la tua password."
 }

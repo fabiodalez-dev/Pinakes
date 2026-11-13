@@ -208,7 +208,9 @@ final class I18n
         if (file_exists($overrideFile)) {
             $decoded = json_decode((string) file_get_contents($overrideFile), true);
             if (is_array($decoded)) {
-                $translations = array_merge($translations, $decoded);
+                // Re-filter on load: an override written before the upload filter
+                // existed (or edited on disk) must not reach a view unfiltered.
+                $translations = array_merge($translations, TranslationSanitizer::sanitize($decoded));
             }
         }
 

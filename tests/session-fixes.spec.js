@@ -114,10 +114,8 @@ test.describe.serial('Login rate limit', () => {
   //    blocked the 6th). We POST straight at /accedi; the rate-limit middleware
   //    counts every request before auth, so a 429 would mean the cap tripped.
   test('allows more than 5 login attempts (no 429 at the 6th/7th)', async ({ request }) => {
-    // Start from a clean window using PHP's own temp dir (matches RateLimiter).
-    try {
-      execFileSync('php', ['-r', 'array_map("unlink", glob(sys_get_temp_dir()."/pinakes_ratelimit/*.json"));'], { timeout: 10000 });
-    } catch { /* best effort */ }
+    // Start from a clean window (RateLimiter state lives in storage/cache/ratelimit).
+    require('./helpers/rate-limit-reset').clearRateLimits();
 
     const statuses = [];
     for (let i = 0; i < 7; i++) {

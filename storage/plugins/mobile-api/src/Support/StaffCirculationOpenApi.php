@@ -274,7 +274,7 @@ final class StaffCirculationOpenApi
                 'book' => O::object(['id' => $i, 'title' => $s, 'cover_url' => $ns]),
                 'held' => $b, 'deletable' => $b,
                 'consultation_only' => ['type' => 'boolean', 'description' => 'Kept for in-house consultation, never lent (Pinakes 0.9.0). False with features.consultation_only off.'],
-                'on_loan' => ['oneOf' => [['type' => 'null'], O::object(['loan_id' => $i, 'user_name' => $s, 'due_at' => $nd])]],
+                'on_loan' => ['oneOf' => [['type' => 'null'], O::object(['loan_id' => $i, 'user_name' => ['type' => ['string', 'null'], 'description' => 'Null unless the caller holds loans.manage.'], 'due_at' => $nd])]],
                 'created_at' => $ns, 'updated_at' => $ns,
             ]),
             'LoanCreate' => ['type' => 'object', 'required' => ['user_id', 'book_id'], 'properties' => [

@@ -290,7 +290,10 @@ class MobileApiController extends BaseController
         if ($existing !== null && in_array($existing['status'], ['active', 'pending'], true)) {
             return $this->ok($response, ['status' => (string) $existing['status']]);
         }
-        if ($existing !== null && $existing['status'] === 'banned') {
+        // A suspension, like a ban, is a sanction only the library or the
+        // club's managers lift: the self-service join must not overwrite it.
+        // Same stable error code as a ban, so existing clients handle it.
+        if ($existing !== null && in_array($existing['status'], ['banned', 'suspended'], true)) {
             return $this->fail($response, 'banned', __('Non puoi unirti a questo club.'), 403);
         }
         if (!in_array($club['privacy'], ['public', 'private'], true)) {

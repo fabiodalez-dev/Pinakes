@@ -116,7 +116,13 @@ final class StaffCopyReader
             $parts = explode('|', $r['on_loan'], 3);
             $onLoan = [
                 'loan_id'   => (int) $parts[0],
-                'user_name' => HtmlHelper::decode(trim($parts[2] ?? '')),
+                // Who holds the copy is loan-desk data: GET/PUT /staff/copies/{id}
+                // follow catalog.manage, so a cataloguing-only role sees that the
+                // copy is out and until when, never the borrower (the web book
+                // page redacts it the same way in LibriController).
+                'user_name' => \App\Support\Permissions::can('loans.manage')
+                    ? HtmlHelper::decode(trim($parts[2] ?? ''))
+                    : null,
                 'due_at'    => ($parts[1] ?? '') !== '' ? $parts[1] : null,
             ];
         }

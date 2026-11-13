@@ -47,6 +47,14 @@ final class CatalogController
     /** Placeholder cover when a title has none (kept relative for the app). */
     private const PLACEHOLDER_COVER = '/uploads/copertine/placeholder.jpg';
 
+    /**
+     * Search budget per request. Every word of `q` adds a relevance block
+     * (ISBN/title/author/publisher/keywords/description CASEs) evaluated on every
+     * candidate row, so a token holder must not choose that count freely.
+     */
+    private const MAX_QUERY_LENGTH = 256;
+    private const RELEVANCE_WORD_LIMIT = 12;
+
     private mysqli $db;
 
     /**
@@ -81,6 +89,9 @@ final class CatalogController
 
             $limit = $this->clampLimit($params['limit'] ?? null);
             $query = isset($params['q']) ? trim(Input::str($params['q'])) : '';
+            if (mb_strlen($query, 'UTF-8') > self::MAX_QUERY_LENGTH) {
+                $query = trim(mb_substr($query, 0, self::MAX_QUERY_LENGTH, 'UTF-8'));
+            }
             $requestedSort = isset($params['sort']) ? trim(Input::str($params['sort'])) : null;
             // Relevance is the default for a text query and can be selected
             // explicitly by mobile clients. Facet-only browsing keeps the
@@ -92,7 +103,7 @@ final class CatalogController
                    'order' => 'relevance_score DESC, l.titolo ASC, l.id ASC', 'field' => 'relevance_score']
                 : $this->sortSpec($requestedSort);
             $relevance = $useRelevance
-                ? SearchIndexBuilder::buildRelevanceOrder($this->db, $query, 'l.')
+                ? SearchIndexBuilder::buildRelevanceOrder($this->db, $query, 'l.', self::RELEVANCE_WORD_LIMIT)
                 : null;
 
             $cursor = CursorCodec::decode(isset($params['cursor']) ? Input::str($params['cursor']) : null);

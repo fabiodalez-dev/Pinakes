@@ -1604,8 +1604,11 @@ class FrontendController
 
     private function getFilters(array $params): array
     {
-        // Support both 'q' (header form) and 'search' (hero form) parameters
-        $searchTerm = $params['q'] ?? $params['search'] ?? '';
+        // Support both 'q' (header form) and 'search' (hero form) parameters.
+        // Capped like 'autore' below: the catalogue is anonymous and the term
+        // list is re-run in the count, page and every facet query.
+        $rawSearch = $params['q'] ?? $params['search'] ?? '';
+        $searchTerm = is_scalar($rawSearch) ? trim(mb_substr(trim((string) $rawSearch), 0, 200, 'UTF-8')) : '';
         $rawTipoMedia = $params['tipo_media'] ?? '';
         if (is_array($rawTipoMedia)) {
             $rawTipoMedia = $rawTipoMedia[0] ?? '';

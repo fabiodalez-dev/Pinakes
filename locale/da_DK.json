@@ -5373,6 +5373,7 @@
   "VIAF Work ID": "VIAF Work ID",
   "Wikidata ID": "Wikidata ID",
   "Impossibile preparare il file LibraryThing": "Kan ikke klargøre LibraryThing-filen",
+  "Il file da importare è stato modificato o non è più disponibile. Caricalo di nuovo.": "Filen, der skal importeres, er blevet ændret eller er ikke længere tilgængelig. Upload den igen.",
   "Errore di sistema durante l'importazione": "Systemfejl under import",
   "es. Q12345": "f.eks. Q12345",
   "Durata sessione": "Sessionsvarighed",
@@ -9338,5 +9339,18 @@
   "Correggi chiusura errata": "Ret en fejlagtig lukning",
   "Elimina e ripristina le scadenze": "Slet og gendan afleveringsfrister",
   "La restituzione deve avvenire il giorno stesso (%s).": "Bogen skal afleveres samme dag (%s).",
-  "Scadenza confermata dopo la riapertura": "Afleveringsdato bekræftet efter genåbning"
+  "Scadenza confermata dopo la riapertura": "Afleveringsdato bekræftet efter genåbning",
+  "Per cambiare la tua password inserisci la password attuale, oppure usa la pagina del tuo profilo.": "For at ændre din egen adgangskode skal du indtaste din nuværende adgangskode eller bruge din profilside.",
+  "Troppi tentativi di accesso. Riprova tra qualche minuto.": "For mange loginforsøg. Prøv igen om et par minutter.",
+  "Per ripetere l'installazione usa «Reinstalla da Capo» (richiede le credenziali di un amministratore attivo) oppure, con accesso ai file del server, elimina sia .env sia .installed dalla root del progetto": "For at gentage installationen skal du bruge «Geninstaller helt forfra» (kræver loginoplysningerne for en aktiv administrator) eller, med adgang til serverens filer, slette både .env og .installed fra projektets rodmappe",
+  "Accedere a /installer/?force=1 con le credenziali di un amministratore attivo": "Gå til /installer/?force=1 med loginoplysningerne for en aktiv administrator",
+  "Oppure, con accesso ai file del server, eliminare sia .env sia .installed dalla root del progetto e rieseguire l'installer": "Eller, med adgang til serverens filer, slette både .env og .installed fra projektets rodmappe og køre installationsprogrammet igen",
+  "Impossibile creare il file .installed nella root del progetto. Verifica i permessi di scrittura della cartella.": "Filen .installed kunne ikke oprettes i projektets rodmappe. Kontroller mappens skrivetilladelser.",
+  "Il file .installed non è presente nella root del progetto: l'installazione non è protetta.": "Filen .installed mangler i projektets rodmappe: installationen er ikke beskyttet.",
+  "Errore durante la finalizzazione": "Fejl under afslutning",
+  "Installazione non completata": "Installationen er ikke fuldført",
+  "Correggi il problema indicato e riprova: l'installazione verrà finalizzata solo quando il file .installed sarà stato creato.": "Ret det viste problem, og prøv igen: installationen afsluttes først, når filen .installed er oprettet.",
+  "Riprova la finalizzazione": "Prøv afslutningen igen",
+  "La sitemap non viene pubblicata mentre la modalità privata è attiva.": "Sitemappet offentliggøres ikke, mens privat tilstand er aktiv.",
+  "Richiesta solo se cambi la tua password.": "Kun påkrævet, hvis du ændrer din egen adgangskode."
 }

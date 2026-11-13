@@ -533,10 +533,12 @@ unset($workspaceHeader);
 window.i18nLocale = <?= json_encode(\App\Support\I18n::getLocale(), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
 // formatDateLocale and appLocale are defined globally in layout.php
 
+// Escapes for HTML text AND double/single-quoted attributes: the renderers below
+// put translations into title="…"/aria-label="…" as well as into text.
 function escHtml(str) {
     var div = document.createElement('div');
     div.textContent = str || '';
-    return div.innerHTML;
+    return div.innerHTML.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
 document.addEventListener('DOMContentLoaded', function() {
@@ -583,20 +585,20 @@ document.addEventListener('DOMContentLoaded', function() {
             {
                 data: 'libro',
                 render: function(data, type, row) {
-                    return `<div class="font-semibold text-gray-900">${escHtml(data) || window.__('N/D')}</div>
-                            <div class="text-gray-500">${window.__('ID Prestito')}: ${parseInt(row.id) || 0}</div>`;
+                    return `<div class="font-semibold text-gray-900">${escHtml(data) || escHtml(window.__('N/D'))}</div>
+                            <div class="text-gray-500">${escHtml(window.__('ID Prestito'))}: ${parseInt(row.id) || 0}</div>`;
                 }
             },
             {
                 data: 'utente',
                 render: function(data, type, row) {
-                    return `<div class="font-semibold text-gray-900">${escHtml(data) || window.__('N/D')}</div>`;
+                    return `<div class="font-semibold text-gray-900">${escHtml(data) || escHtml(window.__('N/D'))}</div>`;
                 }
             },
             {
                 data: 'data_prestito',
                 render: function(data, type, row) {
-                    const dataPrestito = data ? formatDateLocale(data) : window.__('N/D');
+                    const dataPrestito = data ? formatDateLocale(data) : escHtml(window.__('N/D'));
                     return `<div class="text-gray-700">${dataPrestito}</div>`;
                 }
             },
@@ -605,7 +607,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 render: function(data, type, row) {
                     data = row.effective_due_at || data;
                     if (!data) {
-                        return `<span class="text-gray-400">${window.__('N/D')}</span>`;
+                        return `<span class="text-gray-400">${escHtml(window.__('N/D'))}</span>`;
                     }
                     // Same red-highlight rule as the Physical Copies list: an active
                     // loan (in_corso/in_ritardo) whose due date is today or past.
@@ -633,7 +635,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 className: 'text-center',
                 orderable: false,
                 render: function(data, type, row) {
-                    const pdfLabel = window.__('Scarica PDF');
+                    const pdfLabel = escHtml(window.__('Scarica PDF'));
                     return `<a href="${window.BASE_PATH}/admin/loans/${parseInt(row.id, 10)}/pdf" class="btn-icon btn-secondary p-2 text-gray-500 hover:bg-gray-200 rounded-full transition-colors" title="${pdfLabel}" aria-label="${pdfLabel}"><i class="fas fa-file-pdf w-4 h-4" aria-hidden="true"></i></a>`;
                 }
             },
@@ -644,14 +646,14 @@ document.addEventListener('DOMContentLoaded', function() {
                 render: function(data, type, row) {
                     const safeId = parseInt(row.id, 10);
                     let actions = `<div class="flex items-center justify-end space-x-2">
-                        <a href="${window.BASE_PATH}/admin/loans/details/${safeId}" class="btn-icon btn-secondary p-2 text-gray-500 hover:bg-gray-200 rounded-full transition-colors" title="<?= htmlspecialchars(__("Dettagli"), ENT_QUOTES, 'UTF-8') ?>" aria-label="<?= htmlspecialchars(__("Dettagli"), ENT_QUOTES, 'UTF-8') ?>">
+                        <a href="${window.BASE_PATH}/admin/loans/details/${safeId}" class="btn-icon btn-secondary p-2 text-gray-500 hover:bg-gray-200 rounded-full transition-colors" title="${escHtml(<?= json_encode(__("Dettagli"), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>)}" aria-label="${escHtml(<?= json_encode(__("Dettagli"), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>)}">
                             <i class="fas fa-eye w-4 h-4"></i>
                         </a>`;
                     // Show "Conferma Ritiro" button for da_ritirare OR prenotato with today's date
                     const isReadyForPickup = row.stato === 'da_ritirare' ||
                         (row.stato === 'prenotato' && row.data_prestito && row.data_prestito <= applicationToday);
                     if (isReadyForPickup) {
-                        actions += `<button type="button" onclick="confirmPickup(${safeId})" class="btn-icon btn-secondary p-2 text-amber-600 hover:bg-amber-100 rounded-full transition-colors" title="${window.__('Conferma Ritiro')}" aria-label="${window.__('Conferma Ritiro')}">
+                        actions += `<button type="button" onclick="confirmPickup(${safeId})" class="btn-icon btn-secondary p-2 text-amber-600 hover:bg-amber-100 rounded-full transition-colors" title="${escHtml(window.__('Conferma Ritiro'))}" aria-label="${escHtml(window.__('Conferma Ritiro'))}">
                             <i class="fas fa-box-open w-4 h-4"></i>
                         </button>`;
                     }
@@ -659,14 +661,14 @@ document.addEventListener('DOMContentLoaded', function() {
                     // is the commonest one to return); the backend handler accepts both,
                     // so the button must appear for both — not only in_corso.
                     if (row.attivo === 1 && (row.stato === 'in_corso' || row.stato === 'in_ritardo')) {
-                        actions += `<a href="${window.BASE_PATH}/admin/loans/returned/${safeId}" class="btn-icon btn-secondary p-2 text-blue-600 hover:bg-blue-100 rounded-full transition-colors" title="${window.__('Registra Restituzione')}" aria-label="${window.__('Registra Restituzione')}">
+                        actions += `<a href="${window.BASE_PATH}/admin/loans/returned/${safeId}" class="btn-icon btn-secondary p-2 text-blue-600 hover:bg-blue-100 rounded-full transition-colors" title="${escHtml(window.__('Registra Restituzione'))}" aria-label="${escHtml(window.__('Registra Restituzione'))}">
                             <i class="fas fa-undo-alt w-4 h-4"></i>
                         </a>`;
                         // #360: quick recall only for a loan already past its due date
                         // (strict <, matching sendManualRecall's giorni_ritardo >= 1) —
                         // same condition as the SSR row above.
                         if (row.is_overdue === true) {
-                            actions += `<button type="button" class="btn-icon btn-secondary loan-recall-btn p-2 text-amber-600 hover:bg-amber-100 rounded-full transition-colors" data-loan-id="${safeId}" title="${window.__('Invia Sollecito')}" aria-label="${window.__('Invia Sollecito')}">
+                            actions += `<button type="button" class="btn-icon btn-secondary loan-recall-btn p-2 text-amber-600 hover:bg-amber-100 rounded-full transition-colors" data-loan-id="${safeId}" title="${escHtml(window.__('Invia Sollecito'))}" aria-label="${escHtml(window.__('Invia Sollecito'))}">
                                 <i class="fas fa-bullhorn w-4 h-4"></i>
                             </button>`;
                         }
@@ -1085,60 +1087,60 @@ document.addEventListener('DOMContentLoaded', function() {
     // Export dialog with status filter
     window.showExportDialog = function() {
         Swal.fire({
-            title: __('Esporta Prestiti'),
+            title: escHtml(__('Esporta Prestiti')),
             html: `
-                <p class="text-sm text-gray-600 mb-4">${__('Seleziona gli stati dei prestiti da esportare:')}</p>
+                <p class="text-sm text-gray-600 mb-4">${escHtml(__('Seleziona gli stati dei prestiti da esportare:'))}</p>
                 <div class="text-left space-y-2">
                     <label class="flex items-center gap-2 cursor-pointer p-2 hover:bg-gray-50 rounded">
                         <input type="checkbox" id="export-all" class="w-4 h-4 text-blue-600 rounded" checked>
-                        <span class="font-medium">${__('Tutti gli stati')}</span>
+                        <span class="font-medium">${escHtml(__('Tutti gli stati'))}</span>
                     </label>
                     <hr class="my-2">
                     <label class="flex items-center gap-2 cursor-pointer p-2 hover:bg-gray-50 rounded">
                         <input type="checkbox" name="export-status" value="pendente" class="export-status-cb w-4 h-4 text-orange-600 rounded" checked>
-                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800"><i class="fas fa-hourglass-half mr-1"></i>${__('Pendente')}</span>
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800"><i class="fas fa-hourglass-half mr-1"></i>${escHtml(__('Pendente'))}</span>
                     </label>
                     <label class="flex items-center gap-2 cursor-pointer p-2 hover:bg-gray-50 rounded">
                         <input type="checkbox" name="export-status" value="prenotato" class="export-status-cb w-4 h-4 text-purple-600 rounded" checked>
-                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800"><i class="fas fa-calendar-check mr-1"></i>${__('Prenotato')}</span>
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800"><i class="fas fa-calendar-check mr-1"></i>${escHtml(__('Prenotato'))}</span>
                     </label>
                     <label class="flex items-center gap-2 cursor-pointer p-2 hover:bg-gray-50 rounded">
                         <input type="checkbox" name="export-status" value="da_ritirare" class="export-status-cb w-4 h-4 text-amber-600 rounded" checked>
-                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800"><i class="fas fa-box mr-1"></i>${__('Da Ritirare')}</span>
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800"><i class="fas fa-box mr-1"></i>${escHtml(__('Da Ritirare'))}</span>
                     </label>
                     <label class="flex items-center gap-2 cursor-pointer p-2 hover:bg-gray-50 rounded">
                         <input type="checkbox" name="export-status" value="in_corso" class="export-status-cb w-4 h-4 text-blue-600 rounded" checked>
-                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"><i class="fas fa-clock mr-1"></i>${__('In Corso')}</span>
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"><i class="fas fa-clock mr-1"></i>${escHtml(__('In Corso'))}</span>
                     </label>
                     <label class="flex items-center gap-2 cursor-pointer p-2 hover:bg-gray-50 rounded">
                         <input type="checkbox" name="export-status" value="in_ritardo" class="export-status-cb w-4 h-4 text-yellow-600 rounded" checked>
-                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800"><i class="fas fa-exclamation-triangle mr-1"></i>${__('In Ritardo')}</span>
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800"><i class="fas fa-exclamation-triangle mr-1"></i>${escHtml(__('In Ritardo'))}</span>
                     </label>
                     <label class="flex items-center gap-2 cursor-pointer p-2 hover:bg-gray-50 rounded">
                         <input type="checkbox" name="export-status" value="restituito" class="export-status-cb w-4 h-4 text-green-600 rounded" checked>
-                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800"><i class="fas fa-check-circle mr-1"></i>${__('Restituito')}</span>
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800"><i class="fas fa-check-circle mr-1"></i>${escHtml(__('Restituito'))}</span>
                     </label>
                     <label class="flex items-center gap-2 cursor-pointer p-2 hover:bg-gray-50 rounded">
                         <input type="checkbox" name="export-status" value="perso" class="export-status-cb w-4 h-4 text-red-600 rounded" checked>
-                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800"><i class="fas fa-times-circle mr-1"></i>${__('Perso')}</span>
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800"><i class="fas fa-times-circle mr-1"></i>${escHtml(__('Perso'))}</span>
                     </label>
                     <label class="flex items-center gap-2 cursor-pointer p-2 hover:bg-gray-50 rounded">
                         <input type="checkbox" name="export-status" value="danneggiato" class="export-status-cb w-4 h-4 text-red-600 rounded" checked>
-                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800"><i class="fas fa-times-circle mr-1"></i>${__('Danneggiato')}</span>
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800"><i class="fas fa-times-circle mr-1"></i>${escHtml(__('Danneggiato'))}</span>
                     </label>
                     <label class="flex items-center gap-2 cursor-pointer p-2 hover:bg-gray-50 rounded">
                         <input type="checkbox" name="export-status" value="scaduto" class="export-status-cb w-4 h-4 text-gray-600 rounded" checked>
-                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-200 text-gray-700"><i class="fas fa-calendar-times mr-1"></i>${__('Scaduto')}</span>
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-200 text-gray-700"><i class="fas fa-calendar-times mr-1"></i>${escHtml(__('Scaduto'))}</span>
                     </label>
                     <label class="flex items-center gap-2 cursor-pointer p-2 hover:bg-gray-50 rounded">
                         <input type="checkbox" name="export-status" value="annullato" class="export-status-cb w-4 h-4 text-gray-600 rounded" checked>
-                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-200 text-gray-700"><i class="fas fa-ban mr-1"></i>${__('Annullato')}</span>
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-200 text-gray-700"><i class="fas fa-ban mr-1"></i>${escHtml(__('Annullato'))}</span>
                     </label>
                 </div>
             `,
             showCancelButton: true,
-            confirmButtonText: `<i class="fas fa-download mr-2"></i>${__('Esporta')}`,
-            cancelButtonText: __('Annulla'),
+            confirmButtonText: `<i class="fas fa-download mr-2"></i>${escHtml(__('Esporta'))}`,
+            cancelButtonText: escHtml(__('Annulla')),
             confirmButtonColor: '#111827',
             didOpen: () => {
                 const allCheckbox = document.getElementById('export-all');

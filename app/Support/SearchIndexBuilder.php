@@ -456,10 +456,12 @@ final class SearchIndexBuilder
      * for cursor pagination), its placeholders occur in SELECT and these params
      * must instead precede the WHERE params.
      *
-     * `$maxWords` is intentionally opt-in. Full catalog searches must be able to
-     * rank every query term; public AJAX callers pass their own defensive cap.
-     * Normalization/filtering happens before the cap so ignored wildcard-only
-     * tokens cannot consume the whole budget or produce an empty SQL expression.
+     * Terms are always capped at ExactSearch::MAX_FILTER_TERMS (the same terms
+     * buildSearchCondition() filters on, see searchTerms()), so a full catalog
+     * search ranks every term it filters on. `$maxWords` can only lower that cap:
+     * public AJAX callers pass their own, tighter one. Normalization/filtering
+     * happens before the cap so ignored wildcard-only tokens cannot consume the
+     * whole budget or produce an empty SQL expression.
      *
      * @return array{sql: string, score_sql: string, params: list<string>, types: string}
      */
@@ -471,9 +473,8 @@ final class SearchIndexBuilder
     ): array
     {
         $words = self::searchTerms($searchQuery);
-        if ($maxWords !== null) {
-            $words = array_slice($words, 0, max(0, $maxWords));
-        }
+        $maxWords = min($maxWords ?? ExactSearch::MAX_FILTER_TERMS, ExactSearch::MAX_FILTER_TERMS);
+        $words = array_slice($words, 0, max(0, $maxWords));
         if ($words === []) {
             return ['sql' => "{$prefix}titolo ASC", 'score_sql' => '0', 'params' => [], 'types' => ''];
         }
@@ -635,13 +636,42 @@ final class SearchIndexBuilder
      *
      * @return list<array{term: string, exact: bool}>
      */
+    /**
+     * Most characters of a query the builder will tokenize. Callers cap the
+     * user-facing box far lower (200); this only bounds the tokenizer itself.
+     */
+    private const MAX_QUERY_CHARS = 1000;
+
+    /**
+     * Normalized, de-duplicated query terms, at most ExactSearch::MAX_FILTER_TERMS.
+     *
+     * Every term becomes its own predicate (a LIKE '%x%' when FULLTEXT cannot
+     * take it) and its own relevance block, re-run in the count, page and facet
+     * queries, so the list is bounded HERE, once, for every caller: one URL of
+     * "e e e …" used to become thousands of unindexed LIKEs. Repeats add nothing
+     * to the result set and only multiplied the cost, so they are dropped first;
+     * terms past the cap are ignored (search narrows, it never errors).
+     *
+     * @return list<array{term: string, exact: bool}>
+     */
     private static function searchTerms(string $searchQuery): array
     {
+        $searchQuery = mb_substr(trim($searchQuery), 0, self::MAX_QUERY_CHARS, 'UTF-8');
         $terms = [];
+        $seen = [];
         foreach (ExactSearch::tokenize(trim($searchQuery)) as $term) {
             $value = $term['exact'] ? $term['term'] : trim(rtrim($term['term'], '*'));
-            if ($value !== '') {
-                $terms[] = ['term' => $value, 'exact' => $term['exact']];
+            if ($value === '') {
+                continue;
+            }
+            $key = ($term['exact'] ? 'x:' : 'w:') . mb_strtolower($value, 'UTF-8');
+            if (isset($seen[$key])) {
+                continue;
+            }
+            $seen[$key] = true;
+            $terms[] = ['term' => $value, 'exact' => $term['exact']];
+            if (count($terms) >= ExactSearch::MAX_FILTER_TERMS) {
+                break;
             }
         }
         return $terms;

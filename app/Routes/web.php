@@ -3489,7 +3489,10 @@ return function (App $app): void {
     });
 
     // Plugin image proxy endpoint - More permissive for plugin extensibility
-    // Allows any HTTPS domain but protects against SSRF attacks
+    // Allows any HTTPS domain but protects against SSRF attacks.
+    // Staff-only: its one caller is the cover preview in the admin book form, and
+    // an anonymous caller could otherwise pin PHP workers on attacker-paced DNS
+    // lookups and downloads (security audit 2026-11).
     $app->get('/api/plugins/proxy-image', function ($request, $response) {
         $url = $request->getQueryParams()['url'] ?? '';
         if (!$url) {
@@ -3558,9 +3561,11 @@ return function (App $app): void {
             return $response->withStatus(403);
         }
 
-        // Validate all resolved IPv4 addresses are public
+        // Validate all resolved IPv4 addresses are public. SsrfGuard::isPublicIp is
+        // the single audited predicate: it also rejects CGNAT, benchmarking, NAT64,
+        // 6to4, site-local and IPv4-mapped addresses the bare filter_var flags pass.
         foreach ($ips as $ip) {
-            if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false) {
+            if (!\App\Support\SsrfGuard::isPublicIp((string) $ip)) {
                 return $response->withStatus(403);
             }
         }
@@ -3568,7 +3573,7 @@ return function (App $app): void {
         // Validate all resolved IPv6 addresses are public
         foreach ($aaaaRecords as $record) {
             $ipv6 = $record['ipv6'] ?? null;
-            if ($ipv6 && filter_var($ipv6, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false) {
+            if ($ipv6 && !\App\Support\SsrfGuard::isPublicIp((string) $ipv6)) {
                 return $response->withStatus(403);
             }
         }
@@ -3579,7 +3584,7 @@ return function (App $app): void {
         // "127.0.0.1" to curl's, so validating the hostname is not enough. Pin
         // curl to the exact IPs we just validated as public via CURLOPT_RESOLVE
         // so it never re-resolves. All entries in $ips / $aaaaRecords already
-        // passed the NO_PRIV_RANGE|NO_RES_RANGE filter above.
+        // passed SsrfGuard::isPublicIp() above.
         $port = isset($parts['port']) ? (int) $parts['port'] : 443;
         $validatedIps = $ips;
         foreach ($aaaaRecords as $record) {
@@ -3591,6 +3596,10 @@ return function (App $app): void {
             return $response->withStatus(403);
         }
         $resolveEntry = $host . ':' . $port . ':' . implode(',', $validatedIps);
+
+        // Hard byte cap: a cover preview never needs more than this, and without
+        // it curl_exec buffers whatever the origin streams for the whole timeout.
+        $maxProxyBytes = 5 * 1024 * 1024;
 
         // Fetch image with secure settings
         $ch = curl_init($url);
@@ -3610,6 +3619,15 @@ return function (App $app): void {
             CURLOPT_HTTPHEADER => [
                 'Accept: image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8'
             ],
+            // Refuse up front when the origin announces a larger Content-Length...
+            CURLOPT_MAXFILESIZE => $maxProxyBytes,
+            // ...and abort mid-stream when it does not (chunked / lying header):
+            // a non-zero return from the progress callback aborts the transfer.
+            CURLOPT_NOPROGRESS => false,
+            CURLOPT_PROGRESSFUNCTION => static function ($handle, $dlTotal, $dlNow, $ulTotal, $ulNow) use ($maxProxyBytes): int {
+                unset($handle, $ulTotal, $ulNow);
+                return ($dlNow > $maxProxyBytes || $dlTotal > $maxProxyBytes) ? 1 : 0;
+            },
         ]);
 
         $img = curl_exec($ch);
@@ -3618,7 +3636,7 @@ return function (App $app): void {
 
         // A 3xx means the origin tried to redirect us (potentially to an
         // internal target); with FOLLOWLOCATION off we simply refuse it.
-        if ($img === false || $httpCode !== 200) {
+        if (!is_string($img) || $httpCode !== 200 || strlen($img) > $maxProxyBytes) {
             return $response->withStatus(404);
         }
 
@@ -3627,15 +3645,17 @@ return function (App $app): void {
         $mimeType = $finfo->buffer($img);
 
         // Only allow image MIME types
-        if (!str_starts_with($mimeType, 'image/')) {
+        if (!is_string($mimeType) || !str_starts_with($mimeType, 'image/')) {
             return $response->withStatus(403);
         }
 
         $response->getBody()->write($img);
+        // private: the route now sits behind a staff session, so shared caches
+        // (LiteSpeed edge, proxies) must not store or replay the body.
         return $response->withHeader('Content-Type', $mimeType)
-            ->withHeader('Cache-Control', 'public, max-age=3600')
+            ->withHeader('Cache-Control', 'private, max-age=3600')
             ->withHeader('X-Proxy-Type', 'plugin');
-    });
+    })->add(new AdminAuthMiddleware());
 
     // Serve uploaded files from storage directory
     $app->get('/uploads/storage/{filepath:.*}', function ($request, $response, $args) {

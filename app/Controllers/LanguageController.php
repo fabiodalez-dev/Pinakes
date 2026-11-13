@@ -84,28 +84,9 @@ class LanguageController
      */
     private function sanitizeRedirect($redirect): string
     {
-        if (!is_string($redirect) || $redirect === '') {
-            return '/';
-        }
-
-        if (str_contains($redirect, "\n") || str_contains($redirect, "\r")) {
-            return '/';
-        }
-
-        if (preg_match('#^(?:[a-z]+:)?//#i', $redirect)) {
-            return '/';
-        }
-
-        if ($redirect[0] !== '/') {
-            return '/';
-        }
-
-        // Reject backslash- or double-slash-prefixed paths (e.g. "/\evil.com")
-        // that browsers normalise into a cross-origin redirect.
-        if (preg_match('#^/[\\\\/]#', $redirect)) {
-            return '/';
-        }
-
-        return $redirect;
+        // Same validator as the post-login return_url: refuses '//host',
+        // '/\host' and '/<TAB>/host' (browsers strip the tab), which would
+        // otherwise send the visitor to another origin from this public route.
+        return \App\Support\SafeRedirect::localPath($redirect) ?? '/';
     }
 }

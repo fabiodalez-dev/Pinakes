@@ -128,49 +128,52 @@ function viewMessage(id) {
       const modal = document.getElementById('message-modal');
       const detail = document.getElementById('message-detail');
 
+      // Labels go through json_encode() + escapeHtml(): raw PHP inside this
+      // template literal would let a translation holding a backtick or a
+      // placeholder opener run as script.
       detail.innerHTML = `
         <div class="space-y-4">
           <div class="grid grid-cols-2 gap-4">
             <div>
-              <label class="text-sm font-medium text-gray-500"><?= __("Da") ?></label>
+              <label class="text-sm font-medium text-gray-500">${escapeHtml(<?= json_encode(__("Da"), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>)}</label>
               <p class="mt-1 text-sm text-gray-900">${escapeHtml(data.nome)} ${escapeHtml(data.cognome)}</p>
             </div>
             <div>
-              <label class="text-sm font-medium text-gray-500"><?= __("Email") ?></label>
+              <label class="text-sm font-medium text-gray-500">${escapeHtml(<?= json_encode(__("Email"), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>)}</label>
               <p class="mt-1 text-sm text-gray-900">
                 <a href="mailto:${escapeHtmlAttr(data.email)}" class="text-gray-900 hover:underline">${escapeHtml(data.email)}</a>
               </p>
             </div>
             ${data.telefono ? `
             <div>
-              <label class="text-sm font-medium text-gray-500"><?= __("Telefono") ?></label>
+              <label class="text-sm font-medium text-gray-500">${escapeHtml(<?= json_encode(__("Telefono"), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>)}</label>
               <p class="mt-1 text-sm text-gray-900">${escapeHtml(data.telefono)}</p>
             </div>
             ` : ''}
             ${data.indirizzo ? `
             <div>
-              <label class="text-sm font-medium text-gray-500"><?= __("Indirizzo") ?></label>
+              <label class="text-sm font-medium text-gray-500">${escapeHtml(<?= json_encode(__("Indirizzo"), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>)}</label>
               <p class="mt-1 text-sm text-gray-900">${escapeHtml(data.indirizzo)}</p>
             </div>
             ` : ''}
             <div>
-              <label class="text-sm font-medium text-gray-500"><?= __("Data") ?></label>
+              <label class="text-sm font-medium text-gray-500">${escapeHtml(<?= json_encode(__("Data"), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>)}</label>
               <p class="mt-1 text-sm text-gray-900">${new Date(data.created_at).toLocaleString('it-IT')}</p>
             </div>
           </div>
           <div>
-            <label class="text-sm font-medium text-gray-500"><?= __("Messaggio") ?></label>
+            <label class="text-sm font-medium text-gray-500">${escapeHtml(<?= json_encode(__("Messaggio"), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>)}</label>
             <div class="mt-2 p-4 bg-gray-50 rounded-xl text-sm text-gray-900 whitespace-pre-wrap">${escapeHtml(data.messaggio)}</div>
           </div>
           <div class="flex gap-2 pt-4">
             <button onclick="replyToMessage(this.dataset.email)" data-email="${escapeHtmlAttr(data.email)}" class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gray-900 text-white text-sm font-semibold hover:bg-gray-800 transition-colors">
               <i class="fas fa-reply"></i>
-              <?= __("Rispondi") ?>
+              ${escapeHtml(<?= json_encode(__("Rispondi"), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>)}
             </button>
             ${!data.is_archived ? `
             <button onclick="archiveMessage(${parseInt(data.id, 10)})" class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gray-600 text-white text-sm font-semibold hover:bg-gray-700 transition-colors">
               <i class="fas fa-archive"></i>
-              <?= __("Archivia") ?>
+              ${escapeHtml(<?= json_encode(__("Archivia"), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>)}
             </button>
             ` : ''}
           </div>

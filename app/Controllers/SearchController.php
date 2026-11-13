@@ -10,13 +10,33 @@ use App\Support\HtmlHelper;
 
 class SearchController
 {
-    /** Public AJAX safeguards; the paginated catalog search remains uncapped. */
+    /**
+     * Public AJAX safeguards. SearchIndexBuilder also caps every query at
+     * ExactSearch::MAX_FILTER_TERMS terms, whichever is lower wins.
+     */
     private const AJAX_RELEVANCE_WORD_LIMIT = 24;
     private const AJAX_BOOK_RESULT_LIMIT = 50;
 
+    /** Longest search text these anonymous endpoints accept (rest is dropped). */
+    private const MAX_QUERY_CHARS = 200;
+
+    /**
+     * The `q` parameter, trimmed and cut to MAX_QUERY_CHARS: these endpoints
+     * are public and every extra word costs SQL on the shared database.
+     */
+    private static function searchQuery(Request $request): string
+    {
+        $raw = $request->getQueryParams()['q'] ?? '';
+        if (!is_scalar($raw)) {
+            return '';
+        }
+
+        return trim(mb_substr(trim((string) $raw), 0, self::MAX_QUERY_CHARS, 'UTF-8'));
+    }
+
     public function authors(Request $request, Response $response, mysqli $db): Response
     {
-        $q = trim((string)($request->getQueryParams()['q'] ?? ''));
+        $q = self::searchQuery($request);
         $rows = [];
         // Display name = "Pseudonimo (Nome)" when a pseudonym is set (issue #237),
         // and each query word may match either the real name or the pseudonym so an
@@ -64,7 +84,7 @@ class SearchController
 
     public function publishers(Request $request, Response $response, mysqli $db): Response
     {
-        $q = trim((string)($request->getQueryParams()['q'] ?? ''));
+        $q = self::searchQuery($request);
         $rows = [];
         // Every word must match (AND); a quoted group is matched with its
         // exact spelling, accents included (#501).
@@ -89,7 +109,7 @@ class SearchController
 
     public function users(Request $request, Response $response, mysqli $db): Response
     {
-        $q = trim((string)($request->getQueryParams()['q'] ?? ''));
+        $q = self::searchQuery($request);
         $rows=[];
         // Quoted value = exact spelling, accents included (#501). The full
         // name in either order is searched too, so "Mario Rossi" — what the
@@ -127,7 +147,7 @@ class SearchController
 
     public function books(Request $request, Response $response, mysqli $db): Response
     {
-        $q = trim((string)($request->getQueryParams()['q'] ?? ''));
+        $q = self::searchQuery($request);
         $rows=[];
         $cond = \App\Support\SearchIndexBuilder::buildSearchCondition($db, 'l.search_index', $q);
         if ($cond !== null) {
@@ -230,7 +250,7 @@ class SearchController
 
     public function unifiedSearch(Request $request, Response $response, mysqli $db): Response
     {
-        $q = trim((string)($request->getQueryParams()['q'] ?? ''));
+        $q = self::searchQuery($request);
         $results = [];
 
         if ($q !== '') {
@@ -273,7 +293,7 @@ class SearchController
 
     public function searchPreview(Request $request, Response $response, mysqli $db): Response
     {
-        $q = trim((string)($request->getQueryParams()['q'] ?? ''));
+        $q = self::searchQuery($request);
         $results = [];
 
         if ($q !== '') {
@@ -607,7 +627,7 @@ class SearchController
 
     public function genres(Request $request, Response $response, mysqli $db): Response
     {
-        $q = trim((string)($request->getQueryParams()['q'] ?? ''));
+        $q = self::searchQuery($request);
         $rows=[];
         $search = \App\Support\ExactSearch::filterCondition(['nome'], $q);
         if ($search !== null) {
@@ -626,7 +646,7 @@ class SearchController
 
     public function locations(Request $request, Response $response, mysqli $db): Response
     {
-        $q = trim((string)($request->getQueryParams()['q'] ?? ''));
+        $q = self::searchQuery($request);
         $rows = [];
         $search = \App\Support\ExactSearch::filterCondition(['s.nome', 's.codice', 'CAST(m.numero_livello AS CHAR)'], $q);
         if ($search !== null) {

@@ -5373,6 +5373,7 @@
   "VIAF Work ID": "VIAF Work ID",
   "Wikidata ID": "Wikidata ID",
   "Impossibile preparare il file LibraryThing": "Unable to prepare the LibraryThing file",
+  "Il file da importare è stato modificato o non è più disponibile. Caricalo di nuovo.": "The file to import was changed or is no longer available. Upload it again.",
   "Errore di sistema durante l'importazione": "System error during import",
   "es. Q12345": "e.g. Q12345",
   "Durata sessione": "Session duration",
@@ -9338,5 +9339,18 @@
   "Correggi chiusura errata": "Correct an erroneous closure",
   "Elimina e ripristina le scadenze": "Delete and restore due dates",
   "La restituzione deve avvenire il giorno stesso (%s).": "Return the book on the same day (%s).",
-  "Scadenza confermata dopo la riapertura": "Due date confirmed after reopening"
+  "Scadenza confermata dopo la riapertura": "Due date confirmed after reopening",
+  "Per cambiare la tua password inserisci la password attuale, oppure usa la pagina del tuo profilo.": "To change your own password, enter your current password, or use your profile page.",
+  "Troppi tentativi di accesso. Riprova tra qualche minuto.": "Too many login attempts. Please try again in a few minutes.",
+  "Per ripetere l'installazione usa «Reinstalla da Capo» (richiede le credenziali di un amministratore attivo) oppure, con accesso ai file del server, elimina sia .env sia .installed dalla root del progetto": "To repeat the installation, use «Reinstall from Scratch» (requires the credentials of an active administrator) or, with access to the server files, delete both .env and .installed from the project root",
+  "Accedere a /installer/?force=1 con le credenziali di un amministratore attivo": "Go to /installer/?force=1 with the credentials of an active administrator",
+  "Oppure, con accesso ai file del server, eliminare sia .env sia .installed dalla root del progetto e rieseguire l'installer": "Or, with access to the server files, delete both .env and .installed from the project root and run the installer again",
+  "Impossibile creare il file .installed nella root del progetto. Verifica i permessi di scrittura della cartella.": "Could not create the .installed file in the project root. Check the folder's write permissions.",
+  "Il file .installed non è presente nella root del progetto: l'installazione non è protetta.": "The .installed file is missing from the project root: the installation is not protected.",
+  "Errore durante la finalizzazione": "Error during finalization",
+  "Installazione non completata": "Installation not completed",
+  "Correggi il problema indicato e riprova: l'installazione verrà finalizzata solo quando il file .installed sarà stato creato.": "Fix the problem shown and try again: the installation is finalized only once the .installed file has been created.",
+  "Riprova la finalizzazione": "Retry finalization",
+  "La sitemap non viene pubblicata mentre la modalità privata è attiva.": "The sitemap is not published while private mode is on.",
+  "Richiesta solo se cambi la tua password.": "Required only if you change your own password."
 }

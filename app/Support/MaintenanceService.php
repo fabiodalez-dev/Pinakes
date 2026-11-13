@@ -484,6 +484,10 @@ class MaintenanceService
         if (!is_file($path)) {
             return false;
         }
+        if (self::privateModeEnabled($db)) {
+            // No public copy at all while private mode is on (see generateIcsCalendar()).
+            return self::removePublicIcsFile($path);
+        }
         $content = @file_get_contents($path);
         if (!is_string($content) || !self::icsHasPersonalData($content)) {
             return false;
@@ -498,6 +502,39 @@ class MaintenanceService
         // nosemgrep: php.lang.security.unlink-use.unlink-use -- fixed internal path under storage/calendar, not user input
         @unlink($path);
         return true;
+    }
+
+    /**
+     * True when advanced.private_mode is on, read both from the settings cache
+     * the middleware uses and from the database, so a stale cache cannot make a
+     * writer publish. An unreadable setting counts as on: the static file is
+     * only a copy of what the app routes serve, so not writing it loses nothing.
+     */
+    private static function privateModeEnabled(mysqli $db): bool
+    {
+        try {
+            if ((string) ConfigStore::get('advanced.private_mode', '0') === '1') {
+                return true;
+            }
+            return (new SettingsRepository($db))->get('advanced', 'private_mode', '0') === '1';
+        } catch (\Throwable $e) {
+            SecureLogger::warning('MaintenanceService: private mode could not be read, public calendar file not written', ['error' => $e->getMessage()]);
+            return true;
+        }
+    }
+
+    /** Remove the public calendar copy; true when a file was removed. */
+    private static function removePublicIcsFile(string $path): bool
+    {
+        if (!is_file($path)) {
+            return false;
+        }
+        // nosemgrep: php.lang.security.unlink-use.unlink-use -- fixed internal path under storage/calendar, not user input
+        if (@unlink($path)) {
+            return true;
+        }
+        SecureLogger::warning('MaintenanceService: public calendar file could not be removed while private mode is on', ['path' => basename($path)]);
+        return false;
     }
 
     /**
@@ -556,6 +593,16 @@ class MaintenanceService
      */
     public function generateIcsCalendar(): bool
     {
+        // Private mode hides the catalogue from anonymous visitors, and a static
+        // copy of the calendar is outside PrivateModeMiddleware's reach whenever a
+        // web server serves it directly. Write nothing while it is on and drop any
+        // copy written before; the app's /calendar/events.ics route (and the legacy
+        // /storage/calendar/library-calendar.ics route) still answer signed-in users.
+        if (self::privateModeEnabled($this->db)) {
+            self::removePublicIcsFile(self::ICS_PATH);
+            return true;
+        }
+
         $icsGenerator = new IcsGenerator($this->db);
         // IcsGenerator::saveToFile() creates the directory if needed.
         // catalogueOnly + no personal data: this file mirrors what anonymous

@@ -254,19 +254,12 @@ class AuthController
         if ($url === null) {
             return null;
         }
-        $clean = trim(str_replace(["\r", "\n"], '', $url));
-        if ($clean === '' || !str_starts_with($clean, '/')) {
-            return null;
-        }
-        // Reject protocol-relative ('//') and backslash-authority ('/\') forms:
-        // a browser normalises the '\' to '/', turning '/\evil.com' into
-        // '//evil.com' → a cross-origin open redirect (CWE-601). Query params
-        // are already URL-decoded here, so a '%5C' payload arrives as a raw '\'
-        // and is caught too. This is the single choke point for the post-login
-        // redirect (both loginForm() and login() route return_url through here).
-        if (preg_match('#^/[\\\\/]#', $clean)) {
-            return null;
-        }
-        return $clean;
+        // Single choke point for the post-login redirect (both loginForm() and
+        // login() route return_url through here). SafeRedirect refuses
+        // protocol-relative ('//'), backslash ('/\') and control-character
+        // ('/<TAB>/host') forms that a browser turns into a cross-origin
+        // redirect (CWE-601). Query params are already URL-decoded here, so
+        // '%5C' or '%09' payloads arrive as the raw byte and are caught too.
+        return \App\Support\SafeRedirect::localPath(trim($url));
     }
 }

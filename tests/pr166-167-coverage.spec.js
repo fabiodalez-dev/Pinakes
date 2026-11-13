@@ -87,14 +87,9 @@ function runPhp(code) {
 // Reset rate-limit budgets. The login throttle and the 5/60s cap on the backup
 // create route both accumulate across a long run; cleared before each login and
 // each backup create (beforeAll runs BEFORE beforeEach, so login() must clear
-// itself). Files live in sys_get_temp_dir()/pinakes_ratelimit — CLI php and the
-// FPM worker can resolve different temp dirs, so clear every candidate.
+// itself). Files live in <APP_ROOT>/storage/cache/ratelimit.
 function clearRateLimits() {
-  try {
-    execFileSync('php', ['-r',
-      'foreach ([sys_get_temp_dir(), "/var/tmp", "/tmp"] as $d) { array_map("unlink", glob($d."/pinakes_ratelimit/*.json") ?: []); }',
-    ], { encoding: 'utf-8', timeout: 5000 });
-  } catch {}
+  require('./helpers/rate-limit-reset').clearRateLimits(APP_ROOT);
 }
 
 async function login(page, email, pass) {

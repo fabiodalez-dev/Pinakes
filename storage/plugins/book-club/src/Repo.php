@@ -574,9 +574,30 @@ class Repo
         );
     }
 
+    /**
+     * Change a membership's status. When an ACTIVE member stops being one
+     * (left, suspended, banned, back to pending), the club's calendar token is
+     * rotated: the tokenized iCal URL is shown to active members only and is
+     * the sole proof of membership for the session-less feed (non-public
+     * clubs, video-conference links), so the old URL must stop working for
+     * the person who just lost access. Rejecting a pending request does not
+     * rotate it — a pending requester never saw the URL — so a declined join
+     * request does not break every member's calendar subscription.
+     */
     public function setMemberStatus(int $memberId, string $status): bool
     {
-        return $this->exec('UPDATE bookclub_members SET status = ? WHERE id = ?', 'si', [$status, $memberId]);
+        $before = $status !== 'active' ? $this->memberById($memberId) : null;
+        $ok = $this->exec('UPDATE bookclub_members SET status = ? WHERE id = ?', 'si', [$status, $memberId]);
+        if ($ok && $before !== null && ($before['status'] ?? '') === 'active') {
+            $this->rotateIcsToken((int) $before['club_id']);
+        }
+        return $ok;
+    }
+
+    /** Issue a new calendar token for the club; every previously shared iCal URL stops working. */
+    public function rotateIcsToken(int $clubId): bool
+    {
+        return $this->exec('UPDATE bookclub_clubs SET ics_token = ? WHERE id = ?', 'si', [bin2hex(random_bytes(16)), $clubId]);
     }
 
     public function setMemberRole(int $memberId, int $roleId): bool

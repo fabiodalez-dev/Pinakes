@@ -1085,6 +1085,14 @@ class SettingsController
             ConfigStore::set('cache.' . $key, $key === 'litespeed_enabled' ? $value === '1' : (int) $value);
         }
 
+        // public/sitemap.xml is served by the web server without running PHP,
+        // so PrivateModeMiddleware cannot gate it: withdraw the published copy
+        // when private mode is on (regenerateSitemap() and the cron refuse to
+        // republish it), and /sitemap.xml goes back through the gated route.
+        if ($settings['private_mode'] === '1') {
+            \App\Support\SitemapCache::invalidate('private mode enabled');
+        }
+
         // In particular, enabling private mode must evict every public page
         // before subsequent anonymous lookups can be answered at the edge.
         // force=true also covers disabling LiteSpeed or changing its TTLs.
@@ -1135,6 +1143,21 @@ class SettingsController
 
         $repository = new SettingsRepository($db);
         $repository->ensureTables();
+
+        // A published file bypasses private mode (served statically, see
+        // updateAdvancedSettings()): never publish one while it is on.
+        try {
+            $privateMode = (string) ConfigStore::get('advanced.private_mode', '0') === '1'
+                || $repository->get('advanced', 'private_mode', '0') === '1';
+        } catch (\Throwable $exception) {
+            SecureLogger::error('SettingsController::regenerateSitemap private mode lookup failed: ' . $exception->getMessage());
+            $privateMode = true;
+        }
+        if ($privateMode) {
+            \App\Support\SitemapCache::invalidate('private mode is on');
+            $_SESSION['error_message'] = __('La sitemap non viene pubblicata mentre la modalità privata è attiva.');
+            return $this->redirect($response, '/admin/settings?tab=advanced');
+        }
 
         try {
             $baseUrl = SeoController::resolveBaseUrl($request);

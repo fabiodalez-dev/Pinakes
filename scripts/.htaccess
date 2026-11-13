@@ -1,0 +1,26 @@
+# scripts/ holds command-line tools (cron jobs, maintenance, release and CI
+# helpers). None of them is a web page: deny every direct request, except the
+# browser-based manual-upgrade.php, which is meant to be opened over HTTP.
+#
+# Only relevant when the document root is the project root; the batch scripts
+# also refuse to run outside the CLI on their own.
+
+# Apache 2.4
+<IfModule mod_authz_core.c>
+    Require all denied
+    <Files "manual-upgrade.php">
+        Require all granted
+    </Files>
+</IfModule>
+
+# Apache 2.2 (fallback)
+<IfModule !mod_authz_core.c>
+    Order Deny,Allow
+    Deny from all
+    <Files "manual-upgrade.php">
+        Order Allow,Deny
+        Allow from all
+    </Files>
+</IfModule>
+
+Options -Indexes

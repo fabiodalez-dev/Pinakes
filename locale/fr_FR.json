@@ -5373,6 +5373,7 @@
   "VIAF Work ID": "VIAF Work ID",
   "Wikidata ID": "Wikidata ID",
   "Impossibile preparare il file LibraryThing": "Impossible de préparer le fichier LibraryThing",
+  "Il file da importare è stato modificato o non è più disponibile. Caricalo di nuovo.": "Le fichier à importer a été modifié ou n'est plus disponible. Téléversez-le à nouveau.",
   "Errore di sistema durante l'importazione": "Erreur système lors de l'importation",
   "es. Q12345": "ex. Q12345",
   "Durata sessione": "Durée de la session",
@@ -9338,5 +9339,18 @@
   "Correggi chiusura errata": "Corriger une fermeture erronée",
   "Elimina e ripristina le scadenze": "Supprimer et rétablir les dates de retour",
   "La restituzione deve avvenire il giorno stesso (%s).": "Le livre doit être rendu le jour même (%s).",
-  "Scadenza confermata dopo la riapertura": "Échéance confirmée après la réouverture"
+  "Scadenza confermata dopo la riapertura": "Échéance confirmée après la réouverture",
+  "Per cambiare la tua password inserisci la password attuale, oppure usa la pagina del tuo profilo.": "Pour modifier votre propre mot de passe, saisissez votre mot de passe actuel ou utilisez la page de votre profil.",
+  "Troppi tentativi di accesso. Riprova tra qualche minuto.": "Trop de tentatives de connexion. Réessayez dans quelques minutes.",
+  "Per ripetere l'installazione usa «Reinstalla da Capo» (richiede le credenziali di un amministratore attivo) oppure, con accesso ai file del server, elimina sia .env sia .installed dalla root del progetto": "Pour répéter l'installation, utilisez « Réinstaller depuis le début » (nécessite les identifiants d'un administrateur actif) ou, avec un accès aux fichiers du serveur, supprimez à la fois .env et .installed à la racine du projet",
+  "Accedere a /installer/?force=1 con le credenziali di un amministratore attivo": "Accéder à /installer/?force=1 avec les identifiants d'un administrateur actif",
+  "Oppure, con accesso ai file del server, eliminare sia .env sia .installed dalla root del progetto e rieseguire l'installer": "Ou, avec un accès aux fichiers du serveur, supprimer à la fois .env et .installed à la racine du projet et relancer l'installateur",
+  "Impossibile creare il file .installed nella root del progetto. Verifica i permessi di scrittura della cartella.": "Impossible de créer le fichier .installed à la racine du projet. Vérifiez les droits d'écriture du dossier.",
+  "Il file .installed non è presente nella root del progetto: l'installazione non è protetta.": "Le fichier .installed est absent de la racine du projet : l'installation n'est pas protégée.",
+  "Errore durante la finalizzazione": "Erreur lors de la finalisation",
+  "Installazione non completata": "Installation non terminée",
+  "Correggi il problema indicato e riprova: l'installazione verrà finalizzata solo quando il file .installed sarà stato creato.": "Corrigez le problème indiqué et réessayez : l'installation ne sera finalisée qu'une fois le fichier .installed créé.",
+  "Riprova la finalizzazione": "Réessayer la finalisation",
+  "La sitemap non viene pubblicata mentre la modalità privata è attiva.": "Le plan du site n'est pas publié tant que le mode privé est actif.",
+  "Richiesta solo se cambi la tua password.": "Requis uniquement si vous modifiez votre propre mot de passe."
 }

@@ -26,13 +26,7 @@ const { test, expect } = require('@playwright/test');
 const { execFileSync } = require('child_process');
 
 function clearRateLimits() {
-    // Use PHP to locate the actual sys_get_temp_dir() used by PHP-FPM (may differ from os.tmpdir())
-    try {
-        execFileSync('php', [
-            '-r',
-            'array_map("unlink", glob(sys_get_temp_dir()."/pinakes_ratelimit/*.json") ?: []);',
-        ], { encoding: 'utf-8', timeout: 5000 });
-    } catch { /* ignore */ }
+    require('./helpers/rate-limit-reset').clearRateLimits();
 }
 clearRateLimits();
 

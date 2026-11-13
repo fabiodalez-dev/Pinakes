@@ -17,8 +17,17 @@ final class BackendPermissionsMiddleware implements MiddlewareInterface
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
     {
         $path = $request->getUri()->getPath();
+        // Decide on the path the router dispatches: Slim rawurldecode()s it once
+        // before matching, so '/%61dmin/books' reaches /admin/books and must be
+        // gated as such. Repeated leading slashes are collapsed so that a form the
+        // router would not route anyway is gated rather than waved through.
+        // Permissions::authorizePath() decodes the same way and refuses (for
+        // custom roles) anything that is not a plain decoded path: an encoded
+        // '/', '\' or NUL, or a '%' left after the one decode.
+        $decoded = rawurldecode($path);
         $base = HtmlHelper::getBasePath();
-        $local = $base !== '' && str_starts_with($path, $base . '/') ? substr($path, strlen($base)) : $path;
+        $local = $base !== '' && str_starts_with($decoded, $base . '/') ? substr($decoded, strlen($base)) : $decoded;
+        $local = '/' . ltrim($local, '/');
         if ($local === '/admin' || (!str_starts_with($local, '/admin/') && !str_starts_with($local, '/api/admin/'))
             || empty($_SESSION['user'])) {
             return $handler->handle($request);

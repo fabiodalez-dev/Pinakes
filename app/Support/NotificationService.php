@@ -305,7 +305,22 @@ class NotificationService {
                 $currentLocale = \App\Support\I18n::getLocale();
                 try {
                     \App\Support\I18n::setLocale($locale);
-                    $verifyUrl = absoluteUrl(RouteTranslator::route('verify_email') . '?token=' . urlencode((string)$user['token_verifica_email']));
+                    // The link carries the live verification token and goes to an
+                    // address chosen by an anonymous registrant, so its host must be
+                    // one the operator configured, never the request's Host header
+                    // (TrustedLink, like the recovery and invitation emails).
+                    $verifyUrl = TrustedLink::build(RouteTranslator::route('verify_email') . '?token=' . urlencode((string)$user['token_verifica_email']));
+                    if ($verifyUrl === null) {
+                        // Fail closed, as PasswordController::forgot() does: send
+                        // nothing rather than a link pointing at an unverified host.
+                        // The administrators are still notified and can approve or
+                        // activate the account from the user's page.
+                        SecureLogger::error('[NotificationService] Registration email suppressed: neither APP_CANONICAL_URL nor '
+                            . 'APP_TRUSTED_HOSTS is configured; refusing to build the verification link from the request Host header', [
+                                'user_id' => $userId,
+                            ]);
+                        return false;
+                    }
                     $buttonText = __('Conferma la tua email');
                     $verifySection = '<p style="margin: 20px 0;"><a href="' . htmlspecialchars($verifyUrl, ENT_QUOTES, 'UTF-8') . '" style="background-color: #10b981; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px;">' . htmlspecialchars($buttonText, ENT_QUOTES, 'UTF-8') . '</a></p>';
                 } finally {

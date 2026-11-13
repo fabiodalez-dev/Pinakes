@@ -36,9 +36,7 @@ const dbInt = (sql) => parseInt(dbQuery(sql) || '0', 10);
 const sqlStr = (v) => "'" + String(v).replace(/\\/g, '\\\\').replace(/'/g, "\\'") + "'";
 
 function clearRateLimits() {
-  try {
-    execFileSync('php', ['-r', 'foreach ([sys_get_temp_dir(), "/var/tmp", "/tmp"] as $d) { array_map("unlink", glob($d."/pinakes_ratelimit/*.json") ?: []); }'], { encoding: 'utf-8', timeout: 5000 });
-  } catch { /* ignore */ }
+  require('./rate-limit-reset').clearRateLimits();
 }
 
 function phpHash(password) {

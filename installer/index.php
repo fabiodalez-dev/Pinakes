@@ -127,7 +127,15 @@ if (isset($_GET['action']) && $_GET['action'] === 'detect_socket') {
     exit;
 }
 
-// Security: If force parameter is used, require admin authentication
+// Security: If force parameter is used, require admin authentication.
+//
+// From step 2 the installer rewrites .env, which repoints the live application,
+// so this door must be held by a CURRENTLY active admin — checked against the
+// database on EVERY request, with the same rules the main app applies (role
+// admin, stato 'attivo', verified email; a bound user_sessions row that is
+// deleted, revoked or expired ends the session). The installer does not load
+// the app autoloader, so those checks are inlined (Installer::isActiveAdmin(),
+// Installer::isBoundSessionRevoked()). Any failure fails closed.
 if (isset($_GET['force']) && $installer->isInstalled()) {
     // Load .env to get database credentials
     $envFile = $baseDir . '/.env';
@@ -142,11 +150,62 @@ if (isset($_GET['force']) && $installer->isInstalled()) {
         }
     }
 
+    $openInstallerDb = static function (): ?mysqli {
+        $dbSocket = trim((string) ($_ENV['DB_SOCKET'] ?? ''));
+        $mysqli = new mysqli(
+            $dbSocket !== '' ? 'localhost' : (string) ($_ENV['DB_HOST'] ?? '127.0.0.1'),
+            (string) ($_ENV['DB_USER'] ?? ''),
+            (string) ($_ENV['DB_PASS'] ?? ''),
+            (string) ($_ENV['DB_NAME'] ?? ''),
+            $dbSocket !== '' ? 0 : (int) ($_ENV['DB_PORT'] ?? 3306),
+            $dbSocket !== '' ? $dbSocket : null
+        );
+        if ($mysqli->connect_error) {
+            return null;
+        }
+        return $mysqli;
+    };
+
     $forceAuthenticated = false;
 
-    // Check if admin session exists from main app
-    if (isset($_SESSION['user']['tipo_utente']) && $_SESSION['user']['tipo_utente'] === 'admin') {
+    // The pre-fix grant was a sticky boolean that outlived demotion, suspension
+    // and deletion of the account: never honour it again.
+    unset($_SESSION['installer_admin_verified']);
+
+    // The session that wrote .env for the reinstall in progress (it was already
+    // authenticated here when it did) keeps going: the new .env may point at an
+    // empty database where no admin exists yet.
+    if ($installer->ownsInstallInProgress()) {
         $forceAuthenticated = true;
+    } else {
+        try {
+            $db = $openInstallerDb();
+            if ($db !== null) {
+                try {
+                    // (a) A main-app session: re-read the account and its bound sign-in row.
+                    $sessionUserId = (int) ($_SESSION['user']['id'] ?? 0);
+                    $boundRowId = (int) ($_SESSION['remember_session_id'] ?? 0);
+                    if ($sessionUserId > 0
+                        && Installer::isActiveAdmin($db, $sessionUserId)
+                        && !Installer::isBoundSessionRevoked($db, $boundRowId)) {
+                        $forceAuthenticated = true;
+                    }
+                    // (b) An earlier installer login: re-check the stored account every time.
+                    $installerUserId = (int) ($_SESSION['installer_admin_user_id'] ?? 0);
+                    if (!$forceAuthenticated && $installerUserId > 0) {
+                        if (Installer::isActiveAdmin($db, $installerUserId)) {
+                            $forceAuthenticated = true;
+                        } else {
+                            unset($_SESSION['installer_admin_user_id']);
+                        }
+                    }
+                } finally {
+                    $db->close();
+                }
+            }
+        } catch (\Throwable $e) {
+            $forceAuthenticated = false;
+        }
     }
 
     // CSRF token for installer force-auth form
@@ -156,52 +215,49 @@ if (isset($_GET['force']) && $installer->isInstalled()) {
 
     // Allow login via POST
     $csrfFailed = false;
-    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['admin_email'], $_POST['admin_password'])) {
+    $rateLimited = false;
+    if (!$forceAuthenticated && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['admin_email'], $_POST['admin_password'])) {
         // Validate CSRF token
         $submittedToken = (string) ($_POST['csrf_token'] ?? '');
         $sessionToken = (string) ($_SESSION['installer_csrf_token'] ?? '');
         if ($sessionToken === '' || !hash_equals($sessionToken, $submittedToken)) {
             $csrfFailed = true;
+        } elseif (!$installer->recordForceLoginAttempt((string) ($_SERVER['REMOTE_ADDR'] ?? ''))) {
+            // Same budget as the main POST /login (15 attempts / 5 minutes per IP).
+            // Also refused when the attempt cannot be recorded: fail closed.
+            $rateLimited = true;
         } else {
-            $email = trim($_POST['admin_email']);
-            $password = $_POST['admin_password'];
+            $email = trim((string) $_POST['admin_email']);
+            $password = (string) $_POST['admin_password'];
 
             // Connect to database and verify admin credentials
             try {
-                $dbHost = $_ENV['DB_HOST'] ?? '127.0.0.1';
-                $dbUser = $_ENV['DB_USER'] ?? '';
-                $dbPass = $_ENV['DB_PASS'] ?? '';
-                $dbName = $_ENV['DB_NAME'] ?? '';
-                $dbPort = $_ENV['DB_PORT'] ?? '3306';
-                $dbSocket = trim((string) ($_ENV['DB_SOCKET'] ?? ''));
-
-                $mysqli = new mysqli(
-                    $dbSocket !== '' ? 'localhost' : $dbHost,
-                    $dbUser,
-                    $dbPass,
-                    $dbName,
-                    $dbSocket !== '' ? 0 : (int)$dbPort,
-                    $dbSocket !== '' ? $dbSocket : null
-                );
-                if (!$mysqli->connect_error) {
-                    $stmt = $mysqli->prepare("SELECT id, password FROM utenti WHERE email = ? AND tipo_utente = 'admin' LIMIT 1");
-                    if ($stmt) {
-                        $stmt->bind_param('s', $email);
-                        $stmt->execute();
-                        $result = $stmt->get_result();
-                        if ($row = $result->fetch_assoc()) {
-                            if (password_verify($password, $row['password'])) {
+                $mysqli = $openInstallerDb();
+                if ($mysqli !== null) {
+                    try {
+                        // Same account-state rules as the main login: active and verified.
+                        $stmt = $mysqli->prepare("SELECT id, password FROM utenti WHERE email = ? AND tipo_utente = 'admin' AND stato = 'attivo' AND email_verificata = 1 LIMIT 1");
+                        if ($stmt) {
+                            $stmt->bind_param('s', $email);
+                            $stmt->execute();
+                            $result = $stmt->get_result();
+                            $row = $result ? $result->fetch_assoc() : null;
+                            $stmt->close();
+                            if (is_array($row) && password_verify($password, (string) $row['password'])) {
                                 session_regenerate_id(true);
                                 $forceAuthenticated = true;
-                                $_SESSION['installer_admin_verified'] = true;
+                                // An account id, re-validated on every request above;
+                                // never a standing yes.
+                                $_SESSION['installer_admin_user_id'] = (int) $row['id'];
                             }
                         }
-                        $stmt->close();
+                    } finally {
+                        $mysqli->close();
                     }
-                    $mysqli->close();
                 }
-            } catch (Exception $e) {
-                // Silently fail - will show login form
+            } catch (\Throwable $e) {
+                // Fail closed - will show login form
+                $forceAuthenticated = false;
             }
         }
 
@@ -209,15 +265,13 @@ if (isset($_GET['force']) && $installer->isInstalled()) {
         $_SESSION['installer_csrf_token'] = bin2hex(random_bytes(32));
     }
 
-    // Check if previously authenticated in this session
-    if (isset($_SESSION['installer_admin_verified']) && $_SESSION['installer_admin_verified'] === true) {
-        $forceAuthenticated = true;
-    }
-
     // If not authenticated, show login form
     if (!$forceAuthenticated) {
         $errorHtml = '';
-        if ($csrfFailed) {
+        if ($rateLimited) {
+            http_response_code(429);
+            $errorHtml = '<div class="alert alert-danger">' . htmlspecialchars(__('Troppi tentativi di accesso. Riprova tra qualche minuto.')) . '</div>';
+        } elseif ($csrfFailed) {
             $errorHtml = '<div class="alert alert-danger">' . htmlspecialchars(__('Token CSRF non valido. Riprova.')) . '</div>';
         } elseif ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $errorHtml = '<div class="alert alert-danger">' . htmlspecialchars(__('Credenziali non valide o utente non admin')) . '</div>';
@@ -271,7 +325,7 @@ if ($installer->isInstalled() && !isset($_GET['force'])) {
     // Try to verify installation status
     $installationStatus = [];
     $installationStatus['env_exists'] = file_exists($baseDir . '/.env');
-    $installationStatus['lock_exists'] = $installer->isInstalled();
+    $installationStatus['lock_exists'] = $installer->hasLockFile();
     $installationStatus['db_verified'] = false;
     $installationStatus['db_error'] = null;
 
@@ -319,7 +373,7 @@ if ($installer->isInstalled() && !isset($_GET['force'])) {
                         <ul>
                             <li>' . __("Verifica che il database sia accessibile e configurato correttamente nel file .env") . '</li>
                             <li>' . __("Verifica che le credenziali del database nel file .env siano corrette") . '</li>
-                            <li>' . __("Se hai modificato il database manualmente, elimina il file .installed (nella root del progetto) e prova di nuovo da zero") . '</li>
+                            <li>' . __("Per ripetere l'installazione usa «Reinstalla da Capo» (richiede le credenziali di un amministratore attivo) oppure, con accesso ai file del server, elimina sia .env sia .installed dalla root del progetto") . '</li>
                         </ul>
 
                         <p class="text-center mt-4">
@@ -354,8 +408,8 @@ if ($installer->isInstalled() && !isset($_GET['force'])) {
                     </div>
                     <p class="mt-4">' . __("Se desideri reinstallare puoi:") . '</p>
                     <ol>
-                        <li>' . __("Eliminare il file .installed dalla root del progetto e rieseguire l'installer") . '</li>
-                        <li>' . __("Oppure accedere a /installer/?force=1 per forzare una nuova procedura") . '</li>
+                        <li>' . __("Accedere a /installer/?force=1 con le credenziali di un amministratore attivo") . '</li>
+                        <li>' . __("Oppure, con accesso ai file del server, eliminare sia .env sia .installed dalla root del progetto e rieseguire l'installer") . '</li>
                     </ol>
                     <p class="text-center mt-4">
                         <a href="' . $installerBasePath . '/" class="btn btn-primary">' . __("Vai all'applicazione") . '</a>
