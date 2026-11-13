@@ -1538,6 +1538,18 @@ HTACCESS;
         if (!$this->ownsInstallInProgress()) {
             return false;
         }
+        // A retry of a failed import keeps the proof it already earned.
+        if ($this->ownerPopulatedConfiguredDatabase()) {
+            return true;
+        }
+        // Only a database that is empty right now (a fresh probe, not the
+        // memoised answer) is one this session is about to fill. An owner that
+        // reached step 3 through an admin of an already-populated database earns
+        // no standing proof: it keeps needing that admin on every request.
+        $this->configuredDatabaseEmpty = null;
+        if (!$this->configuredDatabaseIsEmpty()) {
+            return false;
+        }
         $_SESSION[self::INSTALL_POPULATED_SESSION_KEY] = $this->populatedProof((string) $_SESSION[self::INSTALL_OWNER_SESSION_KEY]);
         return true;
     }

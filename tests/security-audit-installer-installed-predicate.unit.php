@@ -113,7 +113,9 @@ $check($token !== '' && strlen($token) === 64, 'a 256-bit token is kept in the s
 $check($marker === hash('sha256', $token) && !str_contains($marker, $token), 'only the token hash is on disk');
 // The owner goes on over a populated database only once it has itself started
 // the schema import there (section E covers the rule).
+$inst->emptyDb = true; // step 3 imports into the database step 2 accepted empty
 $check(method_exists($inst, 'recordSchemaImportByOwner') && $inst->recordSchemaImportByOwner(), 'the owner records its schema import');
+$inst->emptyDb = false; // the import filled it
 $proof = $_SESSION[$popKey] ?? null;
 $check($inst->ownsInstallInProgress() && $inst->isInstalled() === false, 'the owning session may continue the install');
 
@@ -263,10 +265,17 @@ $_SESSION[$popKey] = hash('sha256', 'populated:' . bin2hex(random_bytes(32)));
 $check($inst11->isInstalled() === true, 'a forged import proof is refused');
 unset($_SESSION[$popKey]);
 
+// An owner that reached step 3 through an admin of an already-populated
+// database earns no standing proof: it keeps needing that admin.
+$check($hasRule && $inst11->recordSchemaImportByOwner() === false && !isset($_SESSION[$popKey]),
+    'no import proof over a database that is already populated (the probe is re-read, not memoised)');
+$check($inst11->isInstalled() === true, 'so that owner still needs an active admin');
+
 $inst11->emptyDb = true;
 $check($hasRule && $inst11->recordSchemaImportByOwner() === true, 'step 3 records the import while the database is still empty');
 $inst11->emptyDb = false; // step 3 filled it
 $check($inst11->isInstalled() === false, '(ii) the session that imported the schema goes on over its own database (steps 4-7)');
+$check($inst11->recordSchemaImportByOwner() === true, 'a retry of a failed import keeps the proof it already earned');
 
 $inst11->emptyDb = true;
 $inst11->createEnvFile('127.0.0.1', 'u', 'p', 'otherdb'); // back to step 2: new binding, new .env

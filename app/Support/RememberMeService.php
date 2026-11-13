@@ -67,15 +67,33 @@ class RememberMeService
         return $userId . ':' . self::credentialFingerprint($passwordHash);
     }
 
+    /**
+     * The pin lives INSIDE $_SESSION['user']: whatever replaces the session's
+     * user (a sign-in, a Mobile API request for its length) replaces or restores
+     * the pin with it, so a pin can never be left over from another account.
+     */
+    public static function currentPin(): ?string
+    {
+        $pin = $_SESSION['user'][self::UNBOUND_CREDENTIAL_KEY] ?? null;
+        return is_string($pin) ? $pin : null;
+    }
+
+    public static function storePin(string $pin): void
+    {
+        if (isset($_SESSION['user']) && is_array($_SESSION['user'])) {
+            $_SESSION['user'][self::UNBOUND_CREDENTIAL_KEY] = $pin;
+        }
+    }
+
     /** Pin the current session to $passwordHash when it has no bound row. */
     public static function pinIfUnbound(string $passwordHash): void
     {
         $userId = (int) ($_SESSION['user']['id'] ?? 0);
         if (!empty($_SESSION[self::SESSION_ROW_KEY]) || $passwordHash === '' || $userId <= 0) {
-            unset($_SESSION[self::UNBOUND_CREDENTIAL_KEY]);
+            unset($_SESSION['user'][self::UNBOUND_CREDENTIAL_KEY]);
             return;
         }
-        $_SESSION[self::UNBOUND_CREDENTIAL_KEY] = self::pinValue($userId, $passwordHash);
+        self::storePin(self::pinValue($userId, $passwordHash));
     }
 
     /**

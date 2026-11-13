@@ -115,13 +115,22 @@ final class SessionRoleRevalidator
         if (!$viaToken && empty($_SESSION[RememberMeService::SESSION_ROW_KEY])) {
             $passwordHash = (string) ($row['password'] ?? '');
             $expected = RememberMeService::pinValue($userId, $passwordHash);
-            $pin = $_SESSION[RememberMeService::UNBOUND_CREDENTIAL_KEY] ?? null;
-            if (is_string($pin) && str_starts_with($pin, $userId . ':')) {
-                if (!hash_equals($expected, $pin)) {
+            $pin = RememberMeService::currentPin();
+            if (is_string($pin) && $pin !== '') {
+                if (preg_match('/^[0-9a-f]{64}$/', $pin) === 1) {
+                    // Earlier pin format (fingerprint only, no account id):
+                    // honoured only if it still matches, then upgraded.
+                    if (!hash_equals(RememberMeService::credentialFingerprint($passwordHash), $pin)) {
+                        return self::$cache[$userId] = ['status' => self::ABSENT, 'role' => null, 'stato' => null];
+                    }
+                    RememberMeService::storePin($expected);
+                } elseif (!hash_equals($expected, $pin)) {
+                    // A stale pin, or one naming another account (every sign-in
+                    // replaces the pin, so that never happens legitimately).
                     return self::$cache[$userId] = ['status' => self::ABSENT, 'role' => null, 'stato' => null];
                 }
             } elseif ($passwordHash !== '') {
-                $_SESSION[RememberMeService::UNBOUND_CREDENTIAL_KEY] = $expected;
+                RememberMeService::storePin($expected);
             }
         }
 

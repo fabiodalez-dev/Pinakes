@@ -45,13 +45,13 @@ $resolveWith = static function (string $currentHash) use ($userRow): string {
 echo "A. Pinning rules and revalidation\n";
 $_SESSION = ['user' => ['id' => 5], RememberMeService::SESSION_ROW_KEY => 42];
 RememberMeService::pinIfUnbound($oldHash);
-$check(!isset($_SESSION[RememberMeService::UNBOUND_CREDENTIAL_KEY]), 'a session bound to a row is not pinned');
+$check(!(RememberMeService::currentPin() !== null), 'a session bound to a row is not pinned');
 
 $_SESSION = ['user' => ['id' => 5]];
 RememberMeService::pinIfUnbound($oldHash);
-$check(($_SESSION[RememberMeService::UNBOUND_CREDENTIAL_KEY] ?? '') === RememberMeService::pinValue(5, $oldHash),
+$check((RememberMeService::currentPin() ?? '') === RememberMeService::pinValue(5, $oldHash),
     'an unbound session is pinned to its account and the password hash it was opened with');
-$check(!str_contains((string) $_SESSION[RememberMeService::UNBOUND_CREDENTIAL_KEY], $oldHash),
+$check(!str_contains((string) RememberMeService::currentPin(), $oldHash),
     'the session stores a fingerprint, not the hash itself');
 
 $check($resolveWith($oldHash) === SessionRoleRevalidator::OK, 'same password: the pinned session stays valid');
@@ -61,22 +61,32 @@ $check($resolveWith($newHash) === SessionRoleRevalidator::ABSENT, 'password chan
 // its first revalidation, so a later admin reset ends it as well.
 $_SESSION = ['user' => ['id' => 5]];
 $check($resolveWith($oldHash) === SessionRoleRevalidator::OK, 'a legacy unbound session stays valid on its first revalidation');
-$check(($_SESSION[RememberMeService::UNBOUND_CREDENTIAL_KEY] ?? '') === RememberMeService::pinValue(5, $oldHash),
+$check((RememberMeService::currentPin() ?? '') === RememberMeService::pinValue(5, $oldHash),
     'and is pinned to its account and the password it is still valid for');
 $check($resolveWith($newHash) === SessionRoleRevalidator::ABSENT, 'a later password reset ends the legacy session');
 
-// A pin names its account: another account's pin is never compared against
-// this one (a real sign-in replaces it; here it is re-pinned to this account).
-$_SESSION = ['user' => ['id' => 5], RememberMeService::UNBOUND_CREDENTIAL_KEY => RememberMeService::pinValue(6, $oldHash)];
+// A pin names its account: one naming another account ends the session (every
+// sign-in replaces the pin, so it cannot appear legitimately).
+$_SESSION = ['user' => ['id' => 5, RememberMeService::UNBOUND_CREDENTIAL_KEY => RememberMeService::pinValue(6, $oldHash)]];
+$check($resolveWith($oldHash) === SessionRoleRevalidator::ABSENT, "another account's pin ends the session");
+
+// The earlier pin format (fingerprint only) is honoured only while it matches,
+// then upgraded; a stale one ends the session.
+$_SESSION = ['user' => ['id' => 5, RememberMeService::UNBOUND_CREDENTIAL_KEY => RememberMeService::credentialFingerprint($oldHash)]];
 $check($resolveWith($oldHash) === SessionRoleRevalidator::OK
-    && ($_SESSION[RememberMeService::UNBOUND_CREDENTIAL_KEY] ?? '') === RememberMeService::pinValue(5, $oldHash),
-    "another account's pin is not checked against this account");
-$_SESSION = ['user' => ['id' => 5], RememberMeService::UNBOUND_CREDENTIAL_KEY => RememberMeService::pinValue(5, $oldHash)];
+    && (RememberMeService::currentPin() ?? '') === RememberMeService::pinValue(5, $oldHash),
+    'an earlier-format pin that still matches is upgraded');
+$_SESSION = ['user' => ['id' => 5, RememberMeService::UNBOUND_CREDENTIAL_KEY => RememberMeService::credentialFingerprint($oldHash)]];
+$check($resolveWith($newHash) === SessionRoleRevalidator::ABSENT, 'an earlier-format pin from before a reset ends the session');
+$_SESSION = ['user' => ['id' => 5, RememberMeService::UNBOUND_CREDENTIAL_KEY => 'garbage']];
+$check($resolveWith($oldHash) === SessionRoleRevalidator::ABSENT, 'a malformed pin ends the session');
+
+$_SESSION = ['user' => ['id' => 5, RememberMeService::UNBOUND_CREDENTIAL_KEY => RememberMeService::pinValue(5, $oldHash)]];
 $check($resolveWith($newHash) === SessionRoleRevalidator::ABSENT, "this account's stale pin ends the session");
 
 // A bound session is revoked through its row: it needs no pin.
 $_SESSION = ['user' => ['id' => 5], RememberMeService::SESSION_ROW_KEY => 42];
-$check($resolveWith($newHash) === SessionRoleRevalidator::OK && !isset($_SESSION[RememberMeService::UNBOUND_CREDENTIAL_KEY]),
+$check($resolveWith($newHash) === SessionRoleRevalidator::OK && !(RememberMeService::currentPin() !== null),
     'a bound session is left to its user_sessions row (no pin needed)');
 
 // A Mobile API request: identity is the token, revoked on its own.
@@ -132,19 +142,19 @@ if (!$db instanceof mysqli) {
         $_SESSION = ['user' => ['id' => $ghostId]];
         RememberMeService::pinIfUnbound($oldHash);
         CredentialRevoker::revokeAll($db, $ghostId, true);
-        $check(($_SESSION[RememberMeService::UNBOUND_CREDENTIAL_KEY] ?? '') === RememberMeService::pinValue($ghostId, $newHash),
+        $check((RememberMeService::currentPin() ?? '') === RememberMeService::pinValue($ghostId, $newHash),
             'changing your own password re-pins this unbound session to the new hash');
 
         $_SESSION = ['user' => ['id' => 1]];
         RememberMeService::pinIfUnbound($oldHash);
         CredentialRevoker::revokeAll($db, $ghostId, true);
-        $check(($_SESSION[RememberMeService::UNBOUND_CREDENTIAL_KEY] ?? '') === RememberMeService::pinValue(1, $oldHash),
+        $check((RememberMeService::currentPin() ?? '') === RememberMeService::pinValue(1, $oldHash),
             "revoking ANOTHER account's credentials leaves this session's pin alone");
 
         $_SESSION = ['user' => ['id' => $ghostId]];
         RememberMeService::pinIfUnbound($oldHash);
         CredentialRevoker::revokeAll($db, $ghostId, false);
-        $check(($_SESSION[RememberMeService::UNBOUND_CREDENTIAL_KEY] ?? '') === RememberMeService::pinValue($ghostId, $oldHash),
+        $check((RememberMeService::currentPin() ?? '') === RememberMeService::pinValue($ghostId, $oldHash),
             'an admin reset (no device kept) does not re-pin, so the old session ends');
     } finally {
         $db->query('DROP TEMPORARY TABLE IF EXISTS utenti');
