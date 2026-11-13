@@ -105,10 +105,17 @@ final class SessionRoleRevalidator
         // A session that could not be bound to a user_sessions row is pinned to
         // the password it was opened with; once that password changes, the
         // session is treated like a deleted account and every caller ends it.
+        // An unbound session that carries no pin yet (opened before this check
+        // existed) is pinned now, to the password it is still valid for, so a
+        // later reset ends it too instead of leaving it outside revocation.
+        $currentFingerprint = RememberMeService::credentialFingerprint((string) ($row['password'] ?? ''));
         $pin = $_SESSION[RememberMeService::UNBOUND_CREDENTIAL_KEY] ?? null;
-        if (is_string($pin) && $pin !== ''
-            && !hash_equals($pin, RememberMeService::credentialFingerprint((string) ($row['password'] ?? '')))) {
-            return self::$cache[$userId] = ['status' => self::ABSENT, 'role' => null, 'stato' => null];
+        if (is_string($pin) && $pin !== '') {
+            if (!hash_equals($pin, $currentFingerprint)) {
+                return self::$cache[$userId] = ['status' => self::ABSENT, 'role' => null, 'stato' => null];
+            }
+        } elseif (empty($_SESSION[RememberMeService::SESSION_ROW_KEY]) && (string) ($row['password'] ?? '') !== '') {
+            $_SESSION[RememberMeService::UNBOUND_CREDENTIAL_KEY] = $currentFingerprint;
         }
 
         try {

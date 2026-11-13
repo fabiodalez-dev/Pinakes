@@ -57,8 +57,18 @@ $check(!str_contains((string) $_SESSION[RememberMeService::UNBOUND_CREDENTIAL_KE
 $check($resolveWith($oldHash) === SessionRoleRevalidator::OK, 'same password: the pinned session stays valid');
 $check($resolveWith($newHash) === SessionRoleRevalidator::ABSENT, 'password changed elsewhere: the pinned session is ended');
 
+// A session opened before this check existed: no row, no pin. It is pinned on
+// its first revalidation, so a later admin reset ends it as well.
 $_SESSION = ['user' => ['id' => 5]];
-$check($resolveWith($newHash) === SessionRoleRevalidator::OK, 'a session without a pin (bound, or opened before the upgrade) is unaffected');
+$check($resolveWith($oldHash) === SessionRoleRevalidator::OK, 'a legacy unbound session stays valid on its first revalidation');
+$check(($_SESSION[RememberMeService::UNBOUND_CREDENTIAL_KEY] ?? '') === RememberMeService::credentialFingerprint($oldHash),
+    'and is pinned to the password it is still valid for');
+$check($resolveWith($newHash) === SessionRoleRevalidator::ABSENT, 'a later password reset ends the legacy session');
+
+// A bound session is revoked through its row: it is never pinned.
+$_SESSION = ['user' => ['id' => 5], RememberMeService::SESSION_ROW_KEY => 42];
+$check($resolveWith($newHash) === SessionRoleRevalidator::OK && !isset($_SESSION[RememberMeService::UNBOUND_CREDENTIAL_KEY]),
+    'a bound session is left to its user_sessions row (no pin added)');
 SessionRoleRevalidator::reset();
 
 echo "B. revokeAll() re-pins the device it keeps\n";

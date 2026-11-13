@@ -252,6 +252,31 @@ try {
     $req2 = $add(802, 'pending');
     $check($repo->setMemberStatus($req2, 'active', ['pending']) && $statusOf($req2) === 'active', 'approve of a still-pending request: applied');
     $check($repo->setMemberStatus(999999, 'left') === false, 'unknown member id: false');
+
+    echo "F. upsertMember() never demotes or lifts a settled membership\n";
+    // join()/acceptInvite() check the state and then upsert: the decision must be
+    // the database's, in the same statement, or a concurrent change slips in.
+    $roleOf = static fn (int $id): int => (int) $db->query("SELECT role_id FROM bookclub_members WHERE id = {$id}")->fetch_assoc()['role_id'];
+    $act = $add(901, 'active');
+    $db->query("UPDATE bookclub_members SET role_id = 1 WHERE id = {$act}");
+    $t0 = $token();
+    $repo->upsertMember(1, 901, 3, 'pending');
+    $check($statusOf($act) === 'active' && $roleOf($act) === 1, 'a late join of an active member keeps it active, with its role');
+    $check($token() === $t0, 'and the calendar token is untouched (nothing was revoked)');
+    $sus = $add(902, 'suspended');
+    $repo->upsertMember(1, 902, 3, 'active');
+    $check($statusOf($sus) === 'suspended', 'an upsert to active does not lift a suspension');
+    $ban = $add(903, 'banned');
+    $repo->upsertMember(1, 903, 3, 'pending');
+    $check($statusOf($ban) === 'banned', 'an upsert does not lift a ban');
+    $pen = $add(904, 'pending');
+    $repo->upsertMember(1, 904, 3, 'active');
+    $check($statusOf($pen) === 'active', 'a pending request accepted through an invitation becomes active');
+    $lft = $add(905, 'left');
+    $repo->upsertMember(1, 905, 3, 'pending');
+    $check($statusOf($lft) === 'pending', 'a member who left can ask to rejoin');
+    $repo->upsertMember(1, 902, 3, 'active', null, true);
+    $check($statusOf($sus) === 'active', 'an explicit admin add (overrideSettled) still replaces a settled row');
 } catch (\Throwable $e) {
     $fail++;
     echo "  FAIL unexpected " . get_class($e) . ': ' . $e->getMessage() . "\n";

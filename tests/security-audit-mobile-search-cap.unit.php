@@ -41,10 +41,36 @@ $setStatic(\App\Support\SearchIndexBuilder::class, 'columnExists', true);
 $setStatic(\App\Support\SearchIndexBuilder::class, 'hasDescrizionePlain', false);
 $setStatic(\App\Support\SchemaInfo::class, 'tableCache', ['libri_editori' => true]);
 
+/** Records the values bound to a statement, then stops before execution. */
+final class SecAuditCapturingStmt extends mysqli_stmt
+{
+    public function __construct(private SecAuditCapturingDb $owner)
+    {
+    }
+
+    public function bind_param(string $types, mixed &...$vars): bool
+    {
+        foreach ($vars as $v) {
+            $this->owner->bound[] = $v;
+        }
+        return true;
+    }
+
+    public function execute(?array $params = null): bool
+    {
+        foreach ($params ?? [] as $v) {
+            $this->owner->bound[] = $v;
+        }
+        throw new RuntimeException('secaudit: SQL and parameters captured, stop before execution');
+    }
+}
+
 final class SecAuditCapturingDb extends mysqli
 {
     /** @var list<string> */
     public array $sql = [];
+    /** @var list<mixed> */
+    public array $bound = [];
 
     public function __construct()
     {
@@ -53,7 +79,7 @@ final class SecAuditCapturingDb extends mysqli
     public function prepare(string $query): mysqli_stmt|false
     {
         $this->sql[] = $query;
-        throw new RuntimeException('secaudit: SQL captured, stop before execution');
+        return new SecAuditCapturingStmt($this);
     }
 
     public function query(string $query, int $result_mode = MYSQLI_STORE_RESULT): mysqli_result|bool
@@ -96,13 +122,26 @@ $check(str_contains($source, "buildRelevanceOrder(\$this->db, \$query, 'l.', sel
     'buildRelevanceOrder is called with the controller word limit');
 
 echo "C. The filter sees the capped q too\n";
-// The FULLTEXT filter binds every term in one parameter, so the SQL text cannot
-// show which terms reached it: check that the capped value is written back to
-// $params before buildFilters() re-reads q.
-$capPos = strpos($source, "\$params['q'] = \$query;");
-$filterPos = strpos($source, 'buildFilters($params)');
-$check($capPos !== false && $filterPos !== false && $capPos < $filterPos,
-    'the capped q is handed to buildFilters(), not the raw one');
+/** Every value bound to the search statement(s), flattened to one string. */
+$boundFor = static function (string $q, array $extra = []): string {
+    $db = new SecAuditCapturingDb();
+    $request = (new Slim\Psr7\Factory\ServerRequestFactory())
+        ->createServerRequest('GET', '/api/v1/catalog/search')
+        ->withQueryParams(['q' => $q] + $extra);
+    (new CatalogController($db))->search($request, new Slim\Psr7\Response());
+    return implode("\n", array_map(static fn ($v): string => is_scalar($v) ? (string) $v : '', $db->bound));
+};
+// 'eco' + 253 spaces fills the 256-character cap, so 'rosa' lies beyond it. With
+// a non-relevance sort nothing is ranked: only the WHERE filter binds q.
+$padded = 'eco' . str_repeat(' ', 253) . 'rosa';
+$control = $boundFor('eco rosa', ['sort' => 'title']);
+$check(str_contains($control, 'rosa') && str_contains($control, 'eco'), 'control: both words of a short query reach the filter parameters');
+$capped = $boundFor($padded, ['sort' => 'title']);
+$check(str_contains($capped, 'eco') && !str_contains($capped, 'rosa'),
+    'a word beyond the 256-character cap is not bound to the filter (title sort)');
+$cappedRel = $boundFor($padded);
+$check(str_contains($cappedRel, 'eco') && !str_contains($cappedRel, 'rosa'),
+    'nor to the filter or the ranking (relevance sort)');
 
 echo "\n{$pass} passed, {$fail} failed\n";
 exit($fail === 0 ? 0 : 1);

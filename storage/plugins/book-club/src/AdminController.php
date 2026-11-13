@@ -278,7 +278,7 @@ class AdminController extends BaseController
             $this->flash('error', __('Ruolo non valido.'));
             return $this->redirect($response, '/admin/book-club/' . $id);
         }
-        $this->repo->upsertMember($id, (int) $user['id'], $roleId, 'active', $this->userId());
+        $this->repo->upsertMember($id, (int) $user['id'], $roleId, 'active', $this->userId(), true);
         $this->flash('success', __('Membro aggiunto al club.'));
         return $this->redirect($response, '/admin/book-club/' . $id);
     }

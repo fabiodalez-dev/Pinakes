@@ -564,12 +564,41 @@ class Repo
      * Insert or revive a membership. A previously-left row is reused so the
      * UNIQUE(club_id, user_id) key never blocks a re-join.
      */
-    public function upsertMember(int $clubId, int $userId, int $roleId, string $status, ?int $invitedBy = null): bool
+    /**
+     * Create a membership, or update an existing one that is not settled.
+     *
+     * Join requests and accepted invitations check the member's state first and
+     * then call this, so a concurrent change can land in between. The decision
+     * is therefore taken by the database, in this one statement: a row that is
+     * already active, suspended or banned keeps its status, role and inviter.
+     * Otherwise a late join could demote an active member to pending without
+     * rotating the club's calendar token (the old URL would keep working), or
+     * lift a suspension. Changing a settled membership goes through
+     * setMemberStatus(), which locks the row and rotates the token. Only an
+     * explicit admin action passes $overrideSettled to replace one directly.
+     */
+    public function upsertMember(int $clubId, int $userId, int $roleId, string $status, ?int $invitedBy = null, bool $overrideSettled = false): bool
     {
+        if ($overrideSettled) {
+            return $this->exec(
+                'INSERT INTO bookclub_members (club_id, user_id, role_id, status, invited_by)
+                 VALUES (?, ?, ?, ?, ?)
+                 ON DUPLICATE KEY UPDATE role_id = VALUES(role_id), status = VALUES(status), invited_by = VALUES(invited_by)',
+                'iiisi',
+                [$clubId, $userId, $roleId, $status, $invitedBy]
+            );
+        }
+
+        // MySQL evaluates the assignments left to right and each one sees the
+        // columns already updated, so status is assigned LAST: role_id and
+        // invited_by must test the row's previous status.
         return $this->exec(
-            'INSERT INTO bookclub_members (club_id, user_id, role_id, status, invited_by)
+            "INSERT INTO bookclub_members (club_id, user_id, role_id, status, invited_by)
              VALUES (?, ?, ?, ?, ?)
-             ON DUPLICATE KEY UPDATE role_id = VALUES(role_id), status = VALUES(status), invited_by = VALUES(invited_by)',
+             ON DUPLICATE KEY UPDATE
+                role_id = IF(status IN ('active', 'suspended', 'banned'), role_id, VALUES(role_id)),
+                invited_by = IF(status IN ('active', 'suspended', 'banned'), invited_by, VALUES(invited_by)),
+                status = IF(status IN ('active', 'suspended', 'banned'), status, VALUES(status))",
             'iiisi',
             [$clubId, $userId, $roleId, $status, $invitedBy]
         );
