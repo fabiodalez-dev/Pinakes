@@ -1023,12 +1023,39 @@ class UsersController
         $notifier = new NotificationService($db);
         $emailSent = $notifier->sendUserActivationWithVerification($userId, $token);
 
-        // The account is approved either way; say so honestly when the email
-        // could not be sent (no trusted host configured, or the mailer failed).
-        return $response->withHeader(
-            'Location',
-            "/admin/users/details/{$userId}?success=" . ($emailSent ? 'approved_email_sent' : 'approved_email_not_sent')
-        )->withStatus(302);
+        if ($emailSent) {
+            return $response->withHeader('Location', "/admin/users/details/{$userId}?success=approved_email_sent")->withStatus(302);
+        }
+
+        // The email did not go out (no trusted host configured, or the mailer
+        // failed). An account that has never verified its address cannot sign in
+        // and has no link to do it with, so approving it would strand it: put it
+        // back to 'sospeso', where the approval actions are available again once
+        // the cause is fixed. One that already verified its address can sign in
+        // and stays approved.
+        if ((int) ($user['email_verificata'] ?? 0) === 0) {
+            try {
+                $revert = $db->prepare("
+                    UPDATE utenti
+                    SET stato = 'sospeso',
+                        token_verifica_email = NULL,
+                        data_token_verifica = NULL,
+                        updated_at = NOW()
+                    WHERE id = ? AND stato = 'attivo' AND email_verificata = 0
+                ");
+                $revert->bind_param('i', $userId);
+                $revert->execute();
+                $revert->close();
+            } catch (\Throwable $e) {
+                \App\Support\SecureLogger::error('[Users] could not put an approved-but-unmailed account back to sospeso', [
+                    'user_id' => $userId,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+            return $response->withHeader('Location', "/admin/users/details/{$userId}?error=approval_email_failed")->withStatus(302);
+        }
+
+        return $response->withHeader('Location', "/admin/users/details/{$userId}?success=approved_email_not_sent")->withStatus(302);
     }
 
     /**

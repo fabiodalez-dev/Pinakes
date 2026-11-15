@@ -124,7 +124,8 @@ try {
     $check(str_starts_with($url, 'https://library.example/') && str_contains($url, $token) && !str_contains($url, 'attacker.example'),
         'its link uses the canonical host, carries the token and never the request Host');
     $ctl = (string) file_get_contents(dirname(__DIR__) . '/app/Controllers/UsersController.php');
-    $check(str_contains($ctl, "'approved_email_sent' : 'approved_email_not_sent'"), 'approval tells the admin when the email could not be sent');
+    $check(str_contains($ctl, 'success=approved_email_sent') && str_contains($ctl, 'error=approval_email_failed') && str_contains($ctl, 'success=approved_email_not_sent'),
+        'approval tells the admin when the email could not be sent (behaviour: tests/security-audit-approval-email-failure.unit.php)');
 } finally {
     foreach ($saved as $name => $value) {
         $setEnv($name, $value);

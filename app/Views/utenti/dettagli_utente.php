@@ -77,7 +77,7 @@ $display = static function (?string $value, string $placeholder = '—'): string
       <i class="fas fa-exclamation-triangle text-amber-600 mt-0.5"></i>
       <div>
         <p class="font-medium text-amber-900"><?= __("Utente approvato, ma l'email non è stata inviata") ?></p>
-        <p class="text-sm text-amber-700 mt-1"><?= __("L'account è stato attivato, ma non è stato possibile inviare l'email di verifica. Controlla che APP_CANONICAL_URL sia impostato nel file .env e che la posta funzioni, poi usa l'attivazione diretta o rinvia l'invito.") ?></p>
+        <p class="text-sm text-amber-700 mt-1"><?= __("L'utente aveva già verificato il proprio indirizzo e può accedere. L'email non è stata inviata: controlla che APP_CANONICAL_URL sia impostato nel file .env e che la posta funzioni.") ?></p>
       </div>
     </div>
   <?php endif; ?>
@@ -88,6 +88,16 @@ $display = static function (?string $value, string $placeholder = '—'): string
       <div>
         <p class="font-medium text-green-900"><?= __("Utente attivato direttamente!") ?></p>
         <p class="text-sm text-green-700 mt-1"><?= __("L'utente è stato attivato e può già effettuare il login. È stata inviata un'email di benvenuto.") ?></p>
+      </div>
+    </div>
+  <?php endif; ?>
+
+  <?php if ($error === 'approval_email_failed'): ?>
+    <div class="bg-red-50 border border-red-200 rounded-lg p-4 flex items-start gap-3" role="alert">
+      <i class="fas fa-exclamation-circle text-red-600 mt-0.5"></i>
+      <div>
+        <p class="font-medium text-red-900"><?= __("Approvazione annullata: l'email non è stata inviata") ?></p>
+        <p class="text-sm text-red-700 mt-1"><?= __("L'utente è rimasto sospeso perché non è stato possibile inviargli l'email di verifica. Controlla che APP_CANONICAL_URL sia impostato nel file .env e che la posta funzioni, poi riprova ad approvarlo oppure usa «Attiva Direttamente».") ?></p>
       </div>
     </div>
   <?php endif; ?>
