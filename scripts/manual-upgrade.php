@@ -602,6 +602,107 @@ function copyTree(string $src, string $dst, string $rootDst, array $skipRelative
 }
 
 // ============================================================
+// LOGIN THROTTLE STATE
+//
+// Kept inside the installation (storage/cache/upgrade-auth, private to the PHP
+// user), never in the host-shared temp dir: there the file name was predictable
+// (a hash of the client address), so a co-tenant could pre-create it to lock the
+// operator out, delete it to reset the counter, or plant a symlink that the next
+// write followed to any file this account can write. Same class of problem as
+// App\Support\RateLimiter, fixed the same way. Self-contained: this script runs
+// before, and without, the application.
+// ============================================================
+// BEGIN upgrade-auth-throttle
+function upgradeAuthStateDir(string $rootPath): ?string
+{
+    $dir = rtrim(str_replace('\\', '/', $rootPath), '/') . '/storage/cache/upgrade-auth';
+    if (!is_dir($dir) && !is_link($dir)) {
+        @mkdir($dir, 0700, true);
+    }
+    if (is_link($dir) || !is_dir($dir)) {
+        return null;
+    }
+    if (function_exists('posix_geteuid')) {
+        $owner = @fileowner($dir);
+        if ($owner === false || $owner !== posix_geteuid()) {
+            return null;
+        }
+    }
+    $perms = @fileperms($dir);
+    if ($perms !== false && ($perms & 0077) !== 0) {
+        @chmod($dir, 0700);
+    }
+    return $dir;
+}
+
+/** State file for a client address, or null when the state directory cannot be trusted. */
+function upgradeAuthStateFile(string $rootPath, string $clientAddr): ?string
+{
+    $dir = upgradeAuthStateDir($rootPath);
+    if ($dir === null) {
+        return null;
+    }
+    $root = realpath($rootPath) ?: $rootPath;
+    $file = $dir . '/' . hash('sha256', $root . "\0" . $clientAddr) . '.json';
+    if (is_link($file)) {
+        // Never follow a link out of the state directory.
+        @unlink($file);
+        if (is_link($file)) {
+            return null;
+        }
+    }
+    return $file;
+}
+
+/**
+ * Atomic read-modify-write of the throttle state. $mutate receives
+ * ['failed' => int, 'lock_until' => int] and returns the state to store.
+ * Returns the stored state, or null when the file cannot be used safely
+ * (callers fail closed: no password check without a counter).
+ *
+ * @param callable(array{failed:int,lock_until:int}):array{failed:int,lock_until:int} $mutate
+ * @return array{failed:int,lock_until:int}|null
+ */
+function upgradeAuthUpdate(string $file, callable $mutate): ?array
+{
+    $handle = @fopen($file, 'c+');
+    if ($handle === false) {
+        return null;
+    }
+    try {
+        if (!flock($handle, LOCK_EX)) {
+            return null;
+        }
+        // The handle must be the regular file currently linked at $file.
+        $opened = @fstat($handle);
+        $atPath = @lstat($file);
+        if ($opened === false || $atPath === false
+            || ($atPath['mode'] & 0170000) !== 0100000
+            || $opened['dev'] !== $atPath['dev'] || $opened['ino'] !== $atPath['ino']) {
+            return null;
+        }
+        $state = ['failed' => 0, 'lock_until' => 0];
+        $raw = stream_get_contents($handle);
+        $decoded = is_string($raw) && $raw !== '' ? json_decode($raw, true) : null;
+        if (is_array($decoded)) {
+            $state['failed'] = max(0, (int) ($decoded['failed'] ?? 0));
+            $state['lock_until'] = max(0, (int) ($decoded['lock_until'] ?? 0));
+        }
+        $new = $mutate($state);
+        $json = json_encode($new);
+        if ($json === false || !ftruncate($handle, 0) || rewind($handle) === false || fwrite($handle, $json) === false) {
+            return null;
+        }
+        fflush($handle);
+        return $new;
+    } finally {
+        flock($handle, LOCK_UN);
+        fclose($handle);
+    }
+}
+// END upgrade-auth-throttle
+
+// ============================================================
 // AUTH CHECK
 // ============================================================
 
@@ -616,34 +717,33 @@ $maxAttempts = 5;
 $lockSeconds = 300;
 
 // File-based throttling (not session-scoped, so rotating cookies cannot bypass it)
-$clientKey = hash('sha256', (string) ($_SERVER['REMOTE_ADDR'] ?? 'unknown'));
-$attemptFile = sys_get_temp_dir() . '/pinakes_upgrade_auth_' . $clientKey . '.json';
-$attemptState = ['failed' => 0, 'lock_until' => 0];
-if (is_file($attemptFile)) {
-    $raw = file_get_contents($attemptFile);
-    $decoded = is_string($raw) ? json_decode($raw, true) : null;
-    if (is_array($decoded)) {
-        $attemptState['failed'] = (int) ($decoded['failed'] ?? 0);
-        $attemptState['lock_until'] = (int) ($decoded['lock_until'] ?? 0);
-    }
-}
+$attemptFile = upgradeAuthStateFile($rootPath, (string) ($_SERVER['REMOTE_ADDR'] ?? 'unknown'));
 
 if ($requestMethod === 'POST' && isset($_POST['password'])) {
-    if (time() < $attemptState['lock_until']) {
+    $attemptState = $attemptFile !== null
+        ? upgradeAuthUpdate($attemptFile, static fn (array $state): array => $state)
+        : null;
+    if ($attemptState === null) {
+        // No trustworthy counter, no password check: a throttle that cannot be
+        // kept is the same as no throttle.
+        $error = 'Protezione dai tentativi non disponibile: rendi scrivibile storage/cache/ per l\'utente del web server, oppure esegui l\'aggiornamento da riga di comando.';
+    } elseif (time() < $attemptState['lock_until']) {
         $error = 'Troppi tentativi. Riprova tra qualche minuto.';
     } elseif (hash_equals('pinakes2026', UPGRADE_PASSWORD)) {
         $error = 'SICUREZZA: cambia la password nel file prima di procedere.';
     } elseif (hash_equals(UPGRADE_PASSWORD, (string) $_POST['password'])) {
         session_regenerate_id(true);
         $_SESSION['upgrade_auth'] = true;
-        @unlink($attemptFile);
+        upgradeAuthUpdate($attemptFile, static fn (array $state): array => ['failed' => 0, 'lock_until' => 0]);
     } else {
-        $attemptState['failed']++;
-        if ($attemptState['failed'] >= $maxAttempts) {
-            $attemptState['lock_until'] = time() + $lockSeconds;
-            $attemptState['failed'] = 0;
-        }
-        file_put_contents($attemptFile, json_encode($attemptState), LOCK_EX);
+        upgradeAuthUpdate($attemptFile, static function (array $state) use ($maxAttempts, $lockSeconds): array {
+            $state['failed']++;
+            if ($state['failed'] >= $maxAttempts) {
+                $state['lock_until'] = time() + $lockSeconds;
+                $state['failed'] = 0;
+            }
+            return $state;
+        });
         $error = 'Password errata.';
     }
 }
@@ -773,7 +873,9 @@ if ($authenticated && $requestMethod === 'POST' && isset($_FILES['zipfile'])) {
 
         if ($mysqldumpBin) {
             // Use defaults-extra-file to avoid exposing password in process list
-            $defaultsFile = tempnam(sys_get_temp_dir(), 'pinakes_dump_');
+            // Inside the install (storage/tmp is already required writable above), not the
+            // host-shared temp dir.
+            $defaultsFile = tempnam($rootPath . '/storage/tmp', 'pinakes_dump_');
             if ($defaultsFile === false) {
                 throw new RuntimeException('Impossibile creare file temporaneo per credenziali mysqldump');
             }

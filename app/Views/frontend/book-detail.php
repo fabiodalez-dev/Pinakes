@@ -1858,7 +1858,7 @@ document.addEventListener('DOMContentLoaded', function() {
           waitlist: __('Copia ancora fuori per un ritardo: da questo giorno puoi metterti in coda')
         };
 
-        const infoText = __('Le date rosse o arancioni non sono disponibili. La richiesta verrà valutata da un amministratore.');
+        const infoText = <?= json_encode(htmlspecialchars(__('Le date rosse o arancioni non sono disponibili. La richiesta verrà valutata da un amministratore.'), ENT_QUOTES, 'UTF-8'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) ?>; // HTML-escaped: it lands in the Swal html below
         // This page's __() is a key-only dictionary (see the override above
         // the script): the templates are translated server-side and filled
         // here, as successRangeTpl is.
@@ -1927,12 +1927,12 @@ document.addEventListener('DOMContentLoaded', function() {
           html:
             `<div class="loan-request-form">`+
             `<div class="loan-request-field">`+
-            `<label class="loan-request-label" data-for-picker="start">${__('Quando vuoi iniziare il prestito?')}</label>`+
-            `<input id="swal-date-start" type="text" class="loan-date-input" placeholder="<?= htmlspecialchars(__('Data inizio'), ENT_QUOTES, 'UTF-8') ?>">`+
+            `<label class="loan-request-label" data-for-picker="start">${<?= json_encode(htmlspecialchars(__('Quando vuoi iniziare il prestito?'), ENT_QUOTES, 'UTF-8'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) ?>}</label>`+
+            `<input id="swal-date-start" type="text" class="loan-date-input" placeholder="${<?= json_encode(htmlspecialchars(__('Data inizio'), ENT_QUOTES, 'UTF-8'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) ?>}">`+
             `</div>`+
             `<div class="loan-request-field">`+
-            `<label class="loan-request-label" data-for-picker="end">${__('Fino a quando? (opzionale):')}</label>`+
-            `<input id="swal-date-end" type="text" class="loan-date-input" placeholder="<?= htmlspecialchars(__('Durata predefinita prestito') . ': ' . __('%d giorni', (int) $defaultRequestLoanDays), ENT_QUOTES, 'UTF-8') ?>">`+
+            `<label class="loan-request-label" data-for-picker="end">${<?= json_encode(htmlspecialchars(__('Fino a quando? (opzionale):'), ENT_QUOTES, 'UTF-8'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) ?>}</label>`+
+            `<input id="swal-date-end" type="text" class="loan-date-input" placeholder="${<?= json_encode(htmlspecialchars(__('Durata predefinita prestito') . ': ' . __('%d giorni', (int) $defaultRequestLoanDays), ENT_QUOTES, 'UTF-8'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) ?>}">`+
             `<p id="swal-loan-limit" class="loan-request-limit" hidden role="status"></p>`+
             `</div>`+
             `<p class="loan-request-note">`+

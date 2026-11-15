@@ -1021,12 +1021,13 @@ class UsersController
 
         // Invia email di attivazione con link di verifica
         $notifier = new NotificationService($db);
-        $notifier->sendUserActivationWithVerification($userId, $token);
+        $emailSent = $notifier->sendUserActivationWithVerification($userId, $token);
 
-        // Redirect con messaggio di successo
+        // The account is approved either way; say so honestly when the email
+        // could not be sent (no trusted host configured, or the mailer failed).
         return $response->withHeader(
             'Location',
-            "/admin/users/details/{$userId}?success=approved_email_sent"
+            "/admin/users/details/{$userId}?success=" . ($emailSent ? 'approved_email_sent' : 'approved_email_not_sent')
         )->withStatus(302);
     }
 

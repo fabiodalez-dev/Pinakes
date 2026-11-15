@@ -72,6 +72,16 @@ $display = static function (?string $value, string $placeholder = '—'): string
     </div>
   <?php endif; ?>
 
+  <?php if ($success === 'approved_email_not_sent'): ?>
+    <div class="bg-amber-50 border border-amber-200 rounded-lg p-4 flex items-start gap-3" role="alert">
+      <i class="fas fa-exclamation-triangle text-amber-600 mt-0.5"></i>
+      <div>
+        <p class="font-medium text-amber-900"><?= __("Utente approvato, ma l'email non è stata inviata") ?></p>
+        <p class="text-sm text-amber-700 mt-1"><?= __("L'account è stato attivato, ma non è stato possibile inviare l'email di verifica. Controlla che APP_CANONICAL_URL sia impostato nel file .env e che la posta funzioni, poi usa l'attivazione diretta o rinvia l'invito.") ?></p>
+      </div>
+    </div>
+  <?php endif; ?>
+
   <?php if ($success === 'activated_directly'): ?>
     <div class="bg-green-50 border border-green-200 rounded-lg p-4 flex items-start gap-3" role="alert">
       <i class="fas fa-check-circle text-green-600 mt-0.5"></i>

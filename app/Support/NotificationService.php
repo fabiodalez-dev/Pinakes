@@ -405,7 +405,17 @@ class NotificationService {
             }
             $stmt->close();
 
-            $verificationUrl = absoluteUrl(RouteTranslator::route('verify_email') . '?token=' . urlencode($token));
+            // The link carries a live verification token: its host must be one the
+            // operator configured (TrustedLink), never the Host header of whatever
+            // request triggered the send. Fail closed, as the registration mail does.
+            $verificationUrl = TrustedLink::build(RouteTranslator::route('verify_email') . '?token=' . urlencode($token));
+            if ($verificationUrl === null) {
+                SecureLogger::error('[NotificationService] Activation email suppressed: neither APP_CANONICAL_URL nor '
+                    . 'APP_TRUSTED_HOSTS is configured; refusing to build the verification link from the request Host header', [
+                        'user_id' => $userId,
+                    ]);
+                return false;
+            }
 
             $variables = [
                 'nome' => $user['nome'],

@@ -1421,7 +1421,7 @@ function displayImagePreview(file) {
                     </div>
                     <button type="button" onclick="removeCoverImage()" class="text-xs text-red-600 hover:text-red-800 hover:underline flex items-center gap-1">
                         <i class="fas fa-trash"></i>
-                        <?= __('Rimuovi') ?>
+                        ${escapeHtml(<?= json_encode(__('Rimuovi'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) ?>)}
                     </button>
                 </div>
             </div>
@@ -3043,21 +3043,21 @@ async function handleDuplicateBook(existingBook) {
         icon: 'warning',
         title: __('Libro Già Esistente'),
         html: `
-            <p class="mb-4">${__('Esiste già un libro con lo stesso identificatore (ISBN/EAN).')}</p>
+            <p class="mb-4">${escapeHtml(__('Esiste già un libro con lo stesso identificatore (ISBN/EAN).'))}</p>
             <div class="bg-gray-100 p-4 rounded-lg mb-4 text-left">
-                <p class="font-semibold mb-2"><i class="fas fa-book mr-2"></i>${__('Libro Esistente:')}</p>
-                <p class="text-gray-700 mb-1"><strong>${__('ID:')}</strong> #${existingBook.id}</p>
-                <p class="text-gray-700 mb-1"><strong>${__('Titolo:')}</strong> ${escapeHtml(existingBook.title)}</p>
-                ${existingBook.isbn13 ? `<p class="text-gray-700 mb-1"><strong>${__('ISBN-13:')}</strong> ${escapeHtml(existingBook.isbn13)}</p>` : ''}
-                ${existingBook.ean ? `<p class="text-gray-700 mb-1"><strong>${__('EAN:')}</strong> ${escapeHtml(existingBook.ean)}</p>` : ''}
-                ${existingBook.location ? `<p class="text-gray-700 mb-1"><strong>${__('Collocazione:')}</strong> <span class="inline-flex items-center px-2 py-1 bg-blue-100 text-blue-800 rounded-md text-sm"><i class="fas fa-map-marker-alt mr-1"></i>${escapeHtml(existingBook.location)}</span></p>` : `<p class="text-gray-700 mb-1"><strong>${__('Collocazione:')}</strong> <span class="text-gray-400">${__('Non specificata')}</span></p>`}
+                <p class="font-semibold mb-2"><i class="fas fa-book mr-2"></i>${escapeHtml(__('Libro Esistente:'))}</p>
+                <p class="text-gray-700 mb-1"><strong>${escapeHtml(__('ID:'))}</strong> #${existingBook.id}</p>
+                <p class="text-gray-700 mb-1"><strong>${escapeHtml(__('Titolo:'))}</strong> ${escapeHtml(existingBook.title)}</p>
+                ${existingBook.isbn13 ? `<p class="text-gray-700 mb-1"><strong>${escapeHtml(__('ISBN-13:'))}</strong> ${escapeHtml(existingBook.isbn13)}</p>` : ''}
+                ${existingBook.ean ? `<p class="text-gray-700 mb-1"><strong>${escapeHtml(__('EAN:'))}</strong> ${escapeHtml(existingBook.ean)}</p>` : ''}
+                ${existingBook.location ? `<p class="text-gray-700 mb-1"><strong>${escapeHtml(__('Collocazione:'))}</strong> <span class="inline-flex items-center px-2 py-1 bg-blue-100 text-blue-800 rounded-md text-sm"><i class="fas fa-map-marker-alt mr-1"></i>${escapeHtml(existingBook.location)}</span></p>` : `<p class="text-gray-700 mb-1"><strong>${escapeHtml(__('Collocazione:'))}</strong> <span class="text-gray-400">${escapeHtml(__('Non specificata'))}</span></p>`}
             </div>
-            <p class="text-sm text-gray-600">${__('Vuoi aumentare il numero di copie di questo libro?')}</p>
+            <p class="text-sm text-gray-600">${escapeHtml(__('Vuoi aumentare il numero di copie di questo libro?'))}</p>
         `,
         showCancelButton: true,
         showDenyButton: true,
-        confirmButtonText: '<i class="fas fa-plus mr-2"></i>' + __('Aumenta Copie'),
-        denyButtonText: '<i class="fas fa-eye mr-2"></i>' + __('Visualizza Libro'),
+        confirmButtonText: '<i class="fas fa-plus mr-2"></i>' + escapeHtml(__('Aumenta Copie')),
+        denyButtonText: '<i class="fas fa-eye mr-2"></i>' + escapeHtml(__('Visualizza Libro')),
         cancelButtonText: __('Annulla'),
         confirmButtonColor: '#10b981',
         denyButtonColor: '#3b82f6',
@@ -3078,7 +3078,7 @@ async function increaseCopies(book) {
     const { value: copiesToAdd } = await Swal.fire({
         title: __('Aumenta Copie'),
         html: `
-            <p class="mb-4">${__('Quante copie vuoi aggiungere a "%s"?').replace('%s', escapeHtml(book.title))}</p>
+            <p class="mb-4">${escapeHtml(__('Quante copie vuoi aggiungere a "%s"?')).replace('%s', escapeHtml(book.title))}</p>
             <input type="number" id="copiesToAdd" class="swal2-input" value="1" min="1" max="100" style="width: 150px;">
         `,
         focusConfirm: false,
@@ -3148,9 +3148,9 @@ async function increaseCopies(book) {
                     icon: 'success',
                     title: __('Copie Aggiunte!'),
                     html: `
-                        <p class="mb-2">${__('Hai aggiunto %s copie a "%s"').replace('%s', copiesToAdd).replace('%s', escapeHtml(book.title))}</p>
-                        <p class="text-sm text-gray-600">${__('Copie in circolazione')}: ${data.copie_totali}</p>
-                        <p class="text-sm text-gray-600">${__('Copie disponibili:')}: ${data.copie_disponibili}</p>
+                        <p class="mb-2">${escapeHtml(__('Hai aggiunto %s copie a "%s"')).replace('%s', copiesToAdd).replace('%s', escapeHtml(book.title))}</p>
+                        <p class="text-sm text-gray-600">${escapeHtml(__('Copie in circolazione'))}: ${data.copie_totali}</p>
+                        <p class="text-sm text-gray-600">${escapeHtml(__('Copie disponibili:'))}: ${data.copie_disponibili}</p>
                     `,
                     confirmButtonText: __('OK')
                 });
@@ -4371,7 +4371,7 @@ function displayScrapedCover(imageUrl) {
                 </div>
                 <button type="button" onclick="removeCoverImage()" class="text-xs text-red-600 hover:text-red-800 hover:underline flex items-center gap-1">
                     <i class="fas fa-trash"></i>
-                    <?= __('Rimuovi') ?>
+                    ${escapeHtml(<?= json_encode(__('Rimuovi'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) ?>)}
                 </button>
             </div>
         </div>

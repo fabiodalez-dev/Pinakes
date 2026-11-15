@@ -2078,7 +2078,7 @@ $htmlLang = substr($currentLocale, 0, 2);
 
             function displaySearchResults(results, container, query) {
                 if (!Array.isArray(results) || results.length === 0) {
-                    container.innerHTML = '<div class="search-no-results" style="padding: 1rem; text-align: center; color: var(--text-muted);">' + __('Nessun risultato trovato') + '</div>';
+                    container.innerHTML = '<div class="search-no-results" style="padding: 1rem; text-align: center; color: var(--text-muted);">' + escapeHtml(__('Nessun risultato trovato')) + '</div>';
                     container.classList.add('is-visible');
                     return;
                 }
