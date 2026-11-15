@@ -700,6 +700,32 @@ function upgradeAuthUpdate(string $file, callable $mutate): ?array
         fclose($handle);
     }
 }
+/**
+ * Reserve one login attempt BEFORE the password is compared. Refusal and
+ * counting happen in a single critical section, so concurrent requests cannot
+ * all read "not locked" and then try the password in parallel: at most
+ * $maxAttempts attempts are ever allowed per window, however many arrive at
+ * once. The counter is cleared by the caller on success.
+ *
+ * @return array{allowed: bool}|null null when no trustworthy counter can be kept
+ */
+function upgradeAuthReserveAttempt(string $file, int $maxAttempts, int $lockSeconds): ?array
+{
+    $allowed = false;
+    $stored = upgradeAuthUpdate($file, static function (array $state) use (&$allowed, $maxAttempts, $lockSeconds): array {
+        if (time() < $state['lock_until']) {
+            return $state; // locked: refused, nothing more to count
+        }
+        $allowed = true;
+        $state['failed']++;
+        if ($state['failed'] >= $maxAttempts) {
+            $state['lock_until'] = time() + $lockSeconds;
+            $state['failed'] = 0;
+        }
+        return $state;
+    });
+    return $stored === null ? null : ['allowed' => $allowed];
+}
 // END upgrade-auth-throttle
 
 // ============================================================
@@ -720,14 +746,16 @@ $lockSeconds = 300;
 $attemptFile = upgradeAuthStateFile($rootPath, (string) ($_SERVER['REMOTE_ADDR'] ?? 'unknown'));
 
 if ($requestMethod === 'POST' && isset($_POST['password'])) {
-    $attemptState = $attemptFile !== null
-        ? upgradeAuthUpdate($attemptFile, static fn (array $state): array => $state)
+    // The attempt is counted (and refused when locked) before the password is
+    // looked at, in one critical section: see upgradeAuthReserveAttempt().
+    $reservation = $attemptFile !== null
+        ? upgradeAuthReserveAttempt($attemptFile, $maxAttempts, $lockSeconds)
         : null;
-    if ($attemptState === null) {
+    if ($reservation === null) {
         // No trustworthy counter, no password check: a throttle that cannot be
         // kept is the same as no throttle.
         $error = 'Protezione dai tentativi non disponibile: rendi scrivibile storage/cache/ per l\'utente del web server, oppure esegui l\'aggiornamento da riga di comando.';
-    } elseif (time() < $attemptState['lock_until']) {
+    } elseif (!$reservation['allowed']) {
         $error = 'Troppi tentativi. Riprova tra qualche minuto.';
     } elseif (hash_equals('pinakes2026', UPGRADE_PASSWORD)) {
         $error = 'SICUREZZA: cambia la password nel file prima di procedere.';
@@ -736,14 +764,6 @@ if ($requestMethod === 'POST' && isset($_POST['password'])) {
         $_SESSION['upgrade_auth'] = true;
         upgradeAuthUpdate($attemptFile, static fn (array $state): array => ['failed' => 0, 'lock_until' => 0]);
     } else {
-        upgradeAuthUpdate($attemptFile, static function (array $state) use ($maxAttempts, $lockSeconds): array {
-            $state['failed']++;
-            if ($state['failed'] >= $maxAttempts) {
-                $state['lock_until'] = time() + $lockSeconds;
-                $state['failed'] = 0;
-            }
-            return $state;
-        });
         $error = 'Password errata.';
     }
 }

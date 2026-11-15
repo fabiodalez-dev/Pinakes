@@ -80,6 +80,45 @@ try {
     $read = upgradeAuthUpdate((string) $fileA, static fn (array $s): array => $s);
     $check($read === ['failed' => 0, 'lock_until' => 0], 'a corrupt state file reads as empty');
 
+    echo "B2. The attempt is reserved before the password is checked\n";
+    $rootR = $mkRoot('siteR');
+    $fileR = (string) upgradeAuthStateFile($rootR, '203.0.113.50');
+    $allowed = 0;
+    for ($i = 0; $i < 8; $i++) {
+        $r = upgradeAuthReserveAttempt($fileR, 5, 300);
+        $allowed += ($r !== null && $r['allowed']) ? 1 : 0;
+    }
+    $check($allowed === 5, "sequentially, exactly 5 of 8 attempts are allowed (got {$allowed})");
+    $check((upgradeAuthReserveAttempt($fileR, 5, 300)['allowed'] ?? true) === false, 'and the sixth is refused while locked');
+    upgradeAuthUpdate($fileR, static fn (array $s): array => ['failed' => 0, 'lock_until' => 0]);
+    $check((upgradeAuthReserveAttempt($fileR, 5, 300)['allowed'] ?? false) === true, 'a cleared counter allows attempts again');
+    $check(upgradeAuthReserveAttempt($tmp . '/no/such/dir/state.json', 5, 300) === null, 'an unusable state file yields null (fail closed)');
+
+    // Concurrency: 20 processes reserve at the same moment. Check-then-record
+    // would let every one of them through; reservation allows exactly 5.
+    $rootP = $mkRoot('siteP');
+    $fileP = (string) upgradeAuthStateFile($rootP, '203.0.113.60');
+    $helpers = $tmp . '/helpers.php';
+    file_put_contents($helpers, "<?php\n" . substr($source, $start, $end - $start));
+    $gate = $tmp . '/go';
+    $children = [];
+    for ($i = 0; $i < 20; $i++) {
+        $code = 'require ' . var_export($helpers, true) . ';'
+            . 'while (!is_file(' . var_export($gate, true) . ')) { usleep(1000); }'
+            . '$r = upgradeAuthReserveAttempt(' . var_export($fileP, true) . ', 5, 300); echo ($r !== null && $r["allowed"]) ? "1" : "0";';
+        $p = proc_open([PHP_BINARY, '-r', $code], [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
+        $children[] = [$p, $pipes];
+    }
+    usleep(300000); // let every child reach the gate
+    file_put_contents($gate, '1');
+    $granted = 0;
+    foreach ($children as [$p, $pipes]) {
+        $granted += (int) trim((string) stream_get_contents($pipes[1]));
+        stream_get_contents($pipes[2]);
+        proc_close($p);
+    }
+    $check($granted === 5, "20 simultaneous attempts: exactly 5 may try the password (got {$granted})");
+
     echo "C. A planted symlink is never followed\n";
     $rootC = $mkRoot('siteC');
     $victim = $tmp . '/victim.txt';
@@ -111,9 +150,13 @@ try {
     $check(!str_contains($source, 'pinakes_upgrade_auth_') && !str_contains($source, "attemptFile = sys_get_temp_dir()"), 'the old temp-dir state file is gone from the script');
     $loginPos = strpos($source, "if (\$requestMethod === 'POST' && isset(\$_POST['password']))");
     $login = (string) substr($source, (int) $loginPos, 1800);
-    $nullPos = strpos($login, '$attemptState === null');
+    $reservePos = strpos($login, 'upgradeAuthReserveAttempt(');
+    $nullPos = strpos($login, '$reservation === null');
     $passPos = strpos($login, 'hash_equals(UPGRADE_PASSWORD');
-    $check($nullPos !== false && $passPos !== false && $nullPos < $passPos, 'without a usable counter the password is never checked');
+    $check($reservePos !== false && $nullPos !== false && $passPos !== false && $reservePos < $nullPos && $nullPos < $passPos,
+        'the attempt is reserved, and a missing counter refused, before the password is compared');
+    $check(!str_contains($login, "\$state['failed']++") && substr_count($login, 'upgradeAuthUpdate(') === 1,
+        'the login records nothing after the comparison except clearing the counter on success');
     $check(str_contains($source, "tempnam(\$rootPath . '/storage/tmp', 'pinakes_dump_')"), 'the mysqldump credentials file is created inside the install, not the shared temp dir');
 } finally {
     if (is_dir($tmp)) {
