@@ -14,8 +14,9 @@ use RuntimeException;
  * value of create(), which the settings page shows once. A database or backup
  * read therefore yields nothing that authenticates against /api/public.
  *
- * The legacy plaintext `api_key` column is kept nullable for one release
- * (rollback safety) and is never written again.
+ * The schema upgrade keeps legacy keys intact until this release serves API
+ * traffic or the API settings page. Conversion then clears the old column.
+ * A downgrade after conversion must restore the pre-upgrade database backup.
  */
 class ApiKeyRepository
 {
@@ -68,8 +69,12 @@ class ApiKeyRepository
         // Schema already in shape, but a heal that stopped before its backfill
         // can leave plaintext keys behind: finish it.
         $left = $this->db->query('SELECT 1 FROM api_keys WHERE api_key IS NOT NULL LIMIT 1');
-        if ($left !== false && $left->num_rows > 0) {
-            $left->free();
+        if ($left === false) {
+            throw new RuntimeException('Unable to check legacy API keys: ' . $this->db->error);
+        }
+        $hasLegacyKeys = $left->num_rows > 0;
+        $left->free();
+        if ($hasLegacyKeys) {
             $this->backfillHashes();
         }
     }
@@ -156,17 +161,46 @@ class ApiKeyRepository
             return null;
         }
         $hash = self::hashKey($apiKey);
-        $stmt = $this->db->prepare('SELECT id, key_prefix, name, description, is_active, last_used_at FROM api_keys WHERE key_hash = ? AND is_active = 1 LIMIT 1');
-        if ($stmt === false) {
-            throw new RuntimeException('Failed to prepare statement: ' . $this->db->error);
+        try {
+            $row = $this->lookup($hash);
+        } catch (RuntimeException $e) {
+            // A database restored from an older backup may still lack the table
+            // or either added column. Other SQL failures must surface normally.
+            if (!in_array($e->getCode(), [1054, 1146], true)) {
+                throw $e;
+            }
+            $row = ['has_plaintext' => 1];
         }
-        $stmt->bind_param('s', $hash);
-        $stmt->execute();
-        $result = $stmt->get_result();
-        $row = $result !== false ? $result->fetch_assoc() : null;
-        $stmt->close();
+        if (!empty($row['has_plaintext'])) {
+            $this->ensureTable();
+            $row = $this->lookup($hash);
+        }
+        unset($row['has_plaintext']);
+        return isset($row['id']) ? $row : null;
+    }
 
-        return $row ?: null;
+    /** One indexed lookup and a legacy-row probe in the same statement. */
+    private function lookup(string $hash): array
+    {
+        $stmt = $this->db->prepare('
+            SELECT k.id, k.key_prefix, k.name, k.description, k.is_active, k.last_used_at, legacy.has_plaintext
+            FROM (SELECT EXISTS(SELECT 1 FROM api_keys WHERE api_key IS NOT NULL) AS has_plaintext) legacy
+            LEFT JOIN api_keys k ON k.key_hash = ? AND k.is_active = 1
+            LIMIT 1
+        ');
+        if ($stmt === false) {
+            throw new RuntimeException('Failed to prepare API key lookup: ' . $this->db->error, $this->db->errno);
+        }
+        try {
+            $stmt->bind_param('s', $hash);
+            if (!$stmt->execute()) {
+                throw new RuntimeException('Failed to look up API key: ' . $stmt->error, $stmt->errno);
+            }
+            $result = $stmt->get_result();
+            return $result instanceof \mysqli_result ? ($result->fetch_assoc() ?: []) : [];
+        } finally {
+            $stmt->close();
+        }
     }
 
     /**
@@ -302,29 +336,16 @@ class ApiKeyRepository
      */
     private function backfillHashes(): void
     {
-        $result = $this->db->query("SELECT id, api_key FROM api_keys WHERE key_hash IS NULL AND api_key IS NOT NULL AND api_key <> ''");
-        if ($result === false) {
-            throw new RuntimeException('Unable to read legacy API keys: ' . $this->db->error);
-        }
-        $rows = $result->fetch_all(MYSQLI_ASSOC);
-        $result->free();
-
-        $stmt = $this->db->prepare('UPDATE api_keys SET key_hash = ?, key_prefix = ? WHERE id = ? AND key_hash IS NULL');
-        if ($stmt === false) {
-            throw new RuntimeException('Failed to prepare statement: ' . $this->db->error);
-        }
-        foreach ($rows as $row) {
-            $plain = (string) $row['api_key'];
-            $hash = self::hashKey($plain);
-            $prefix = substr(strtolower($plain), 0, self::PREFIX_LENGTH);
-            $id = (int) $row['id'];
-            $stmt->bind_param('ssi', $hash, $prefix, $id);
-            $stmt->execute();
-        }
-        $stmt->close();
-
-        if ($this->db->query('UPDATE api_keys SET api_key = NULL WHERE key_hash IS NOT NULL AND api_key IS NOT NULL') === false) {
-            throw new RuntimeException('Unable to clear legacy API keys: ' . $this->db->error);
+        // Hash and clear in one statement. An interrupted conversion cannot
+        // leave new hashes committed alongside their plaintext values.
+        if ($this->db->query("
+            UPDATE api_keys
+            SET key_hash = COALESCE(key_hash, SHA2(LOWER(NULLIF(api_key, '')), 256)),
+                key_prefix = COALESCE(key_prefix, LEFT(LOWER(NULLIF(api_key, '')), " . self::PREFIX_LENGTH . ")),
+                api_key = NULL
+            WHERE api_key IS NOT NULL
+        ") === false) {
+            throw new RuntimeException('Unable to convert legacy API keys: ' . $this->db->error);
         }
     }
 }

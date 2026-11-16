@@ -1,12 +1,10 @@
 -- Pinakes 0.9.6.
 
--- api_keys: store only a SHA-256 of each public API key plus a short display
--- prefix. The full key is shown once at creation and never again; a database or
--- backup read no longer yields a key usable against /api/public.
--- Existing keys keep working: their hash and prefix are backfilled from the
--- plaintext, then the plaintext is cleared. The api_key column stays (nullable,
--- never written again) for one release so a rollback keeps a valid schema.
--- Additive and idempotent on MySQL and MariaDB.
+-- Prepare api_keys for SHA-256 hashes and display prefixes. This upgrade step
+-- preserves credential data so the updater can still roll back the application
+-- files if installation fails after the schema migration. The new application
+-- converts the keys after installation, on API use or API settings access.
+-- Downgrades after conversion need the pre-upgrade database backup.
 CREATE TABLE IF NOT EXISTS api_keys (
   id int NOT NULL AUTO_INCREMENT,
   api_key varchar(64) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
@@ -48,10 +46,3 @@ SET @sql = IF(@idx_exists = 0, 'ALTER TABLE api_keys ADD UNIQUE KEY uniq_key_has
 PREPARE stmt FROM @sql;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
-
--- The old lookup compared keys under a case-insensitive collation, so the hash
--- is taken over the lowercase form (ApiKeyRepository lowercases a presented key
--- before hashing it too). Generated keys are lowercase hex already.
-UPDATE api_keys SET key_hash = SHA2(LOWER(api_key), 256), key_prefix = LEFT(LOWER(api_key), 8) WHERE key_hash IS NULL AND api_key IS NOT NULL AND api_key <> '';
-
-UPDATE api_keys SET api_key = NULL WHERE key_hash IS NOT NULL AND api_key IS NOT NULL;

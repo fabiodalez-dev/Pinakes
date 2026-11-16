@@ -7,13 +7,14 @@ declare(strict_types=1);
  * Runs the REAL migration file, split exactly as the Updater splits it,
  * against a sandbox database seeded with the pre-0.9.6 api_keys table and two
  * keys, then asserts:
- *   - key_hash / key_prefix are added and backfilled, the plaintext is cleared;
+ *   - schema changes preserve legacy credentials through installation rollback;
+ *   - on first use, the installed app backfills hashes and clears plaintext;
  *   - the old keys still authenticate through ApiKeyRepository::getByKey()
  *     (also in the other letter case, as the old case-insensitive lookup did);
  *   - a second run is a no-op (idempotency);
  *   - the upgraded table matches the fresh-install table from schema.sql;
- *   - ApiKeyRepository::ensureTable() heals a pre-0.9.6 table the same way
- *     (the window before the migration runs).
+ *   - a ready table is used without further schema or data maintenance;
+ *   - an older database backup can be restored and converted again.
  *
  * Needs a database (E2E_DB_* or the worktree .env); skips cleanly otherwise.
  * Sandbox: <DB_NAME>_apikeys96, dropped at the end.
@@ -23,6 +24,17 @@ declare(strict_types=1);
 
 $ROOT = dirname(__DIR__);
 require $ROOT . '/vendor/autoload.php';
+
+final class ApiKeyMigrationTestConnection extends mysqli
+{
+    public array $directQueries = [];
+
+    public function query(string $query, int $result_mode = MYSQLI_STORE_RESULT): mysqli_result|bool
+    {
+        $this->directQueries[] = $query;
+        return parent::query($query, $result_mode);
+    }
+}
 
 $pass = 0;
 $fail = 0;
@@ -51,22 +63,22 @@ if ($dbUser !== '' && $baseDb !== '') {
     mysqli_report(MYSQLI_REPORT_OFF);
     try {
         $db = $socket !== '' && file_exists($socket)
-            ? @new mysqli('localhost', $dbUser, $dbPass, '', 0, $socket)
-            : @new mysqli($dbHost !== '' ? $dbHost : '127.0.0.1', $dbUser, $dbPass, '', $dbPort);
+            ? @new ApiKeyMigrationTestConnection('localhost', $dbUser, $dbPass, '', 0, $socket)
+            : @new ApiKeyMigrationTestConnection($dbHost !== '' ? $dbHost : '127.0.0.1', $dbUser, $dbPass, '', $dbPort);
         if ($db->connect_errno) { $db = null; }
     } catch (\Throwable $e) {
         $db = null;
     }
 }
 if (!$db instanceof mysqli) {
-    echo "SKIP no reachable database configured (E2E_DB_* or .env)\n";
+    echo "SKIP: no reachable database configured (E2E_DB_* or .env)\n";
     exit(0);
 }
 $db->set_charset('utf8mb4');
 
 $sandbox = preg_replace('/[^A-Za-z0-9_]/', '', $baseDb) . '_apikeys96';
 if ($db->query("CREATE DATABASE IF NOT EXISTS `{$sandbox}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci") === false) {
-    echo "SKIP cannot create sandbox database {$sandbox}: {$db->error}\n";
+    echo "SKIP: cannot create sandbox database {$sandbox}: {$db->error}\n";
     exit(0);
 }
 
@@ -139,6 +151,14 @@ $indexes = static function () use ($db): array {
 $rows = static function () use ($db): array {
     return $db->query('SELECT id, api_key, key_hash, key_prefix, name, is_active FROM api_keys ORDER BY id')->fetch_all(MYSQLI_ASSOC);
 };
+$lookupBefore096 = static function (string $key) use ($db): ?array {
+    $stmt = $db->prepare('SELECT id, api_key, name, description, is_active, last_used_at FROM api_keys WHERE api_key = ? AND is_active = 1 LIMIT 1');
+    $stmt->bind_param('s', $key);
+    $stmt->execute();
+    $row = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    return $row;
+};
 
 try {
     $db->select_db($sandbox);
@@ -146,13 +166,20 @@ try {
 
     echo "Upgrade of a 0.9.5 api_keys table through the real migration\n";
     $seed();
+    $db->query('CREATE TABLE api_keys_backup LIKE api_keys');
+    $db->query('INSERT INTO api_keys_backup SELECT * FROM api_keys');
     $check(!array_key_exists('key_hash', $columns()), 'the seeded table is the pre-0.9.6 shape');
     $errors = $runMigration();
     $check($errors === [], 'every statement runs without error' . ($errors ? ' (' . implode('; ', $errors) . ')' : ''));
     $cols = $columns();
     $check(isset($cols['key_hash'], $cols['key_prefix']), 'key_hash and key_prefix are added');
-    $check(str_ends_with((string) ($cols['api_key'] ?? ''), '|YES|NULL'), 'the legacy api_key column becomes nullable (kept for rollback)');
+    $check(str_ends_with((string) ($cols['api_key'] ?? ''), '|YES|NULL'), 'the legacy api_key column becomes nullable');
     $check(($indexes()['uniq_key_hash'] ?? '') === '0:key_hash', 'key_hash carries a unique index');
+    $check($lookupBefore096($keyA) !== null && $lookupBefore096($keyB) === null,
+        'the previous app still accepts the same keys after the additive migration');
+    $repo = new \App\Models\ApiKeyRepository($db);
+    $hit = $repo->getByKey($keyA);
+    $check(is_array($hit) && (int) $hit['id'] === 1 && $hit['name'] === 'Integration A', 'first use after installation converts and authenticates an existing key');
     $after = $rows();
     $check($after[0]['key_hash'] === hash('sha256', $keyA) && $after[1]['key_hash'] === hash('sha256', $keyB), 'each key_hash is the SHA-256 of the old key');
     $check($after[0]['key_prefix'] === substr($keyA, 0, 8) && $after[1]['key_prefix'] === substr($keyB, 0, 8), 'each key_prefix is the first 8 characters');
@@ -160,18 +187,24 @@ try {
     $dump = json_encode($db->query('SELECT * FROM api_keys')->fetch_all(MYSQLI_ASSOC));
     $check(!str_contains((string) $dump, $keyA) && !str_contains((string) $dump, $keyB), 'no row holds a usable key any more');
 
-    $repo = new \App\Models\ApiKeyRepository($db);
-    $hit = $repo->getByKey($keyA);
-    $check(is_array($hit) && (int) $hit['id'] === 1 && $hit['name'] === 'Integration A', 'the old key still authenticates through the repository lookup');
+    $db->directQueries = [];
     $check(is_array($repo->getByKey(strtoupper($keyA))), 'as before, the lookup ignores letter case');
     $check($repo->getByKey($keyB) === null, 'an inactive key still does not authenticate');
     $check($repo->getByKey(hash('sha256', $keyA)) === null, 'the stored hash itself is not a key');
     $check($repo->getByKey(substr($keyA, 0, 63)) === null && $repo->getByKey('') === null, 'a wrong or empty key does not authenticate');
+    $check($db->directQueries === [], 'requests on a converted table run neither schema maintenance nor a separate plaintext query');
 
     echo "Idempotency\n";
     $errors = $runMigration();
     $check($errors === [], 'a second run raises no error' . ($errors ? ' (' . implode('; ', $errors) . ')' : ''));
     $check($rows() === $after && $columns() === $cols, 'a second run changes nothing');
+
+    echo "Downgrade or recovery using the pre-upgrade database backup\n";
+    $db->query('RENAME TABLE api_keys TO api_keys_converted, api_keys_backup TO api_keys');
+    $check($lookupBefore096($keyA) !== null && $lookupBefore096($keyB) === null,
+        'the matching database backup restores the previous app credential state');
+    $check($repo->getByKey($keyA) !== null && $repo->getByKey($keyB) === null,
+        'the new app also heals the old table on the first request after a database restore');
 
     echo "Fresh install parity\n";
     $schema = (string) file_get_contents($ROOT . '/installer/database/schema.sql');

@@ -31,7 +31,7 @@ class ApiKeyMiddleware implements MiddlewareInterface
             return $this->jsonError('API is disabled', 403);
         }
 
-        // Get API key from header or query parameter
+        // Get API key from a request header.
         $apiKey = $this->extractApiKey($request);
 
         if ($apiKey === null) {
@@ -40,8 +40,6 @@ class ApiKeyMiddleware implements MiddlewareInterface
 
         // Validate API key (looked up by its SHA-256; the key itself is not stored)
         $apiKeyRepo = new ApiKeyRepository($this->db);
-        $apiKeyRepo->ensureTable();
-
         $keyData = $apiKeyRepo->getByKey($apiKey);
 
         if ($keyData === null) {

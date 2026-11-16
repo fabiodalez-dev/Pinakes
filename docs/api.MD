@@ -103,7 +103,16 @@ session-based admin endpoints.
    `api_keys.key_prefix`, managed by `ApiKeyRepository`), so the settings page
    afterwards shows just the prefix and a lost key cannot be recovered: delete it
    and create a new one. Inactive/unknown keys return `401`. Keys created before
-   0.9.6 keep working: the upgrade hashes them and clears the stored plaintext.
+   0.9.6 keep working. After installation, the first API request supplying a
+   key or the first visit to the API settings converts the existing keys to
+   hashes and clears the plaintext.
+
+Take a database backup before upgrading. The updater can restore the previous
+files if installation fails before conversion. To downgrade to a version
+before 0.9.6 after conversion, put the site in maintenance mode and restore the
+previous application files and the matching pre-upgrade database backup before
+reopening it. This restores the keys and their active/inactive state as of that
+backup. Keys created after it need to be reissued.
 
 ### Passing the key
 

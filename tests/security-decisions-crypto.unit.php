@@ -145,7 +145,7 @@ if ($dbUser !== '' && $baseDb !== '') {
 }
 $sandbox = $baseDb . '_secdec_b';
 if (!$db instanceof mysqli || $db->query("CREATE DATABASE IF NOT EXISTS `{$sandbox}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci") === false) {
-    echo "  SKIP B/C database part: no reachable database (E2E_DB_* or .env)\n";
+    echo "SKIP: B/C database part could not reach or create its database (E2E_DB_* or .env)\n";
 } else {
     try {
         $db->set_charset('utf8mb4');

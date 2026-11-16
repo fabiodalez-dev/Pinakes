@@ -336,7 +336,7 @@ PHP);
         }
     }
     if (!$db instanceof mysqli) {
-        echo "  SKIP no reachable database configured (E2E_DB_* or .env)\n";
+        echo "SKIP: no reachable database configured (E2E_DB_* or .env)\n";
     } else {
         $sandbox = preg_replace('/[^A-Za-z0-9_]/', '', $baseDb) . '_hardb';
         $db->query("CREATE DATABASE IF NOT EXISTS `{$sandbox}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
@@ -359,10 +359,19 @@ PHP);
             $check(!$visible('/uploads/archives/documents/2-unpub.pdf'), 'file of an unpublished unit: refused');
             $check(!$visible('/uploads/archives/documents/3-deleted.pdf'), 'file of a soft-deleted unit: refused');
             $check(!$visible('/uploads/archives/documents/orphan.pdf'), 'file belonging to no unit: refused');
+            $db->query('CREATE TABLE utenti (id INT PRIMARY KEY, tipo_utente VARCHAR(16), stato VARCHAR(16), ruolo_id INT NULL)');
+            $db->query('CREATE TABLE ruoli (id INT PRIMARY KEY, nome VARCHAR(50), permessi TEXT)');
+            $db->query("INSERT INTO ruoli VALUES (1, 'Cataloguer', '[\"backend.access\",\"catalog.manage\"]')");
+            $db->query("INSERT INTO utenti VALUES (1, 'staff', 'attivo', NULL), (2, 'standard', 'attivo', NULL), (3, 'standard', 'attivo', 1)");
             $_SESSION = ['user' => ['id' => 1, 'tipo_utente' => 'staff']];
             $check($visible('/uploads/archives/documents/2-unpub.pdf'), 'staff still opens an unpublished unit file (back-office links the raw path)');
             $_SESSION = ['user' => ['id' => 2, 'tipo_utente' => 'standard']];
             $check(!$visible('/uploads/archives/documents/2-unpub.pdf'), 'a signed-in reader does not');
+            $_SESSION = ['user' => ['id' => 3, 'tipo_utente' => 'standard']];
+            $check($visible('/uploads/archives/documents/2-unpub.pdf'), 'a custom cataloguer can follow a back-office link to an unpublished file');
+            $db->query('UPDATE utenti SET ruolo_id = NULL WHERE id = 3');
+            \App\Support\SessionRoleRevalidator::reset();
+            $check(!$visible('/uploads/archives/documents/2-unpub.pdf'), 'a stale session loses access when the custom role is removed');
             $_SESSION = [];
         } finally {
             $db->query("DROP DATABASE IF EXISTS `{$sandbox}`");

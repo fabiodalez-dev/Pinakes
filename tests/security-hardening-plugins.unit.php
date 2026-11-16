@@ -326,7 +326,7 @@ foreach (preg_split('/\r?\n/', (string) @file_get_contents($root . '/.env')) ?: 
 $dbName = getenv('E2E_DB_NAME') ?: ($env['DB_NAME'] ?? '');
 $dbUser = getenv('E2E_DB_USER') ?: ($env['DB_USER'] ?? '');
 if ($dbName === '' || $dbUser === '') {
-    echo "  SKIP no database configured (E2E_DB_NAME/E2E_DB_USER or .env)\n";
+    echo "SKIP: no database configured (E2E_DB_NAME/E2E_DB_USER or .env)\n";
 } else {
     mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
     $dbPass = getenv('E2E_DB_PASS') ?: ($env['DB_PASS'] ?? ($env['DB_PASSWORD'] ?? ''));

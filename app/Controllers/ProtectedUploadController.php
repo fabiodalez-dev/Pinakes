@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Controllers;
 
+use App\Support\Permissions;
+use App\Support\SessionRoleRevalidator;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use Slim\Psr7\Response as SlimResponse;
@@ -263,21 +265,24 @@ class ProtectedUploadController
      * that, so unpublishing or deleting a unit did not revoke a link someone
      * already held. A file now opens here only while it belongs to a live,
      * published unit (archival_unit_files, or the legacy document_path column).
-     * Admin and staff keep access to every file: the back-office unit page links
-     * the raw path, unpublished units included.
+     * Operators who can open the archive back office keep access to its raw
+     * links, including those for unpublished units.
      *
      * Installs without the archives tables keep the old behaviour; a failing
      * lookup refuses.
      */
     private function archiveDocumentVisible(string $storedPath): bool
     {
-        if (in_array($_SESSION['user']['tipo_utente'] ?? '', ['admin', 'staff'], true)) {
-            return true;
-        }
         if ($this->db === null) {
             return false;
         }
         try {
+            $viewer = SessionRoleRevalidator::resolve($this->db);
+            if ($viewer['status'] === SessionRoleRevalidator::OK
+                && $viewer['stato'] === 'attivo'
+                && Permissions::allowsPath('/admin/archives')) {
+                return true;
+            }
             $schema = $this->archiveSchema();
             if (!$schema['units']) {
                 return true;
