@@ -4057,8 +4057,11 @@ class OaiPmhServerPlugin
             $ip      = (string) ($request->getServerParams()['REMOTE_ADDR'] ?? 'unknown');
             $decoded = base64_decode(substr($auth, 6), true);
             $parts   = $decoded !== false ? explode(':', $decoded, 2) : [];
-            $rlId    = 'oai_unimarc_basic:' . \App\Support\RateLimiter::clientKey($ip) . ':' . strtolower($parts[0] ?? '');
-            if (\App\Support\RateLimiter::isLimited($rlId, 10, 300)) {
+            // Plus a failures-only bucket per IP that no success clears, so
+            // spraying many accounts (or spellings of one) is capped too.
+            $rlId    = 'oai_unimarc_basic:' . \App\Support\RateLimiter::clientKey($ip) . ':' . \App\Support\RateLimiter::accountKey($parts[0] ?? '');
+            $rlIpId  = 'oai_unimarc_basic_fail:' . \App\Support\RateLimiter::clientKey($ip);
+            if (\App\Support\RateLimiter::isLimited($rlIpId, 30, 300, false) || \App\Support\RateLimiter::isLimited($rlId, 10, 300)) {
                 $out = $response->withStatus(429)->withHeader('Retry-After', '300');
                 return false;
             }
@@ -4066,6 +4069,7 @@ class OaiPmhServerPlugin
                 \App\Support\RateLimiter::reset($rlId);
                 return true;
             }
+            \App\Support\RateLimiter::isLimited($rlIpId, 30, 300); // count this failure for the IP
         }
 
         // Missing or invalid credentials — challenge the client (RFC 7235 §3.1)

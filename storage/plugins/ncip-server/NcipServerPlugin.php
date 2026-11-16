@@ -2977,8 +2977,16 @@ class NcipServerPlugin
 
         $server = $request->getServerParams();
         $remoteAddr = is_string($server['REMOTE_ADDR'] ?? null) ? (string) $server['REMOTE_ADDR'] : 'unknown';
-        $rateKey = 'ncip_basic:' . RateLimiter::clientKey($remoteAddr) . ':' . strtolower($email);
-        if (RateLimiter::isLimited($rateKey, 10, 900)) {
+        // Per IP+account (cleared by that account's success), plus a
+        // failures-only bucket per IP that no success clears, so spraying
+        // many accounts (or spellings of one) from one client is capped.
+        $rateKey = 'ncip_basic:' . RateLimiter::clientKey($remoteAddr) . ':' . RateLimiter::accountKey($email);
+        $ipFailKey = 'ncip_basic_fail:' . RateLimiter::clientKey($remoteAddr);
+        $failed = static function () use ($ipFailKey): ?array {
+            RateLimiter::isLimited($ipFailKey, 30, 900);
+            return null;
+        };
+        if (RateLimiter::isLimited($ipFailKey, 30, 900, false) || RateLimiter::isLimited($rateKey, 10, 900)) {
             SecureLogger::warning('[NCIP] Basic auth rate limit exceeded', [
                 'remote_addr' => $remoteAddr,
                 'email_hash'  => hash('sha256', strtolower($email)),
@@ -3002,16 +3010,16 @@ class NcipServerPlugin
         $user = $res->fetch_assoc();
         $stmt->close();
 
-        if (!is_array($user)) { return null; }
+        if (!is_array($user)) { return $failed(); }
         if (!password_verify($password, (string) ($user['password'] ?? ''))) {
-            return null;
+            return $failed();
         }
         // Same gates as the interactive login (core AuthController): a
         // verified email, and the plugin 'login.validate' hook (2FA,
         // reCAPTCHA, ...), so a future verification plugin also covers NCIP.
         if ((int) ($user['email_verificata'] ?? 0) !== 1
             || !\App\Support\Hooks::apply('login.validate', true, [$email, $request])) {
-            return null;
+            return $failed();
         }
 
         RateLimiter::reset($rateKey);

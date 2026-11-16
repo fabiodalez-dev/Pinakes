@@ -252,13 +252,35 @@ $check($filter->invoke(null, ['author' => '  Levi  '], 'author') === 'Levi', 'a 
 $check($filter->invoke(null, [], 'author') === '', 'a missing value is empty');
 
 // ── 108 ──────────────────────────────────────────────────────────────────────
-echo "108. Basic-auth throttles key on IP + account\n";
-$check(str_contains($src('storage/plugins/oai-pmh-server/OaiPmhServerPlugin.php'),
-    "'oai_unimarc_basic:' . \\App\\Support\\RateLimiter::clientKey(\$ip) . ':' . strtolower(\$parts[0] ?? '')"), 'OAI-PMH');
-$check(str_contains($src('storage/plugins/resource-sync/ResourceSyncPlugin.php'),
-    "'resourcesync_basic:' . RateLimiter::clientKey(\$ip) . ':' . strtolower(\$parts[0] ?? '')"), 'ResourceSync');
-$check(str_contains($src('storage/plugins/viaf-authority/ViafAuthorityPlugin.php'),
-    "'viaf_basic:' . RateLimiter::clientKey(\$ip) . ':' . strtolower(\$rlUser)"), 'VIAF');
+echo "108. Basic-auth throttles: IP + canonical account, plus an IP failure cap\n";
+$rl = \App\Support\RateLimiter::class;
+// Spellings the users-table collation treats as one account share one bucket.
+$k = $rl::accountKey('admin@example.org');
+$check($rl::accountKey(' Admin@Example.org  ') === $k, 'case and surrounding spaces map to one account bucket');
+$check(!class_exists(\Normalizer::class) || $rl::accountKey('ädmin@example.org') === $k, 'accented spelling maps to the same bucket');
+$check($rl::accountKey('other@example.org') !== $k, 'a different account gets a different bucket');
+// Read-only check never spends an attempt; counting calls do.
+$probe = 'hardening_probe_' . bin2hex(random_bytes(6));
+try {
+    $check($rl::isLimited($probe, 2, 300, false) === false, 'read-only check on an empty bucket is not limited');
+    $check($rl::isLimited($probe, 2, 300, false) === false, 'repeated read-only checks do not grow the bucket');
+    $rl::isLimited($probe, 2, 300);
+    $rl::isLimited($probe, 2, 300);
+    $check($rl::isLimited($probe, 2, 300, false) === true, 'after two counted failures a budget of 2 is exhausted');
+} finally {
+    $rl::reset($probe);
+}
+foreach ([
+    'OAI-PMH' => ['storage/plugins/oai-pmh-server/OaiPmhServerPlugin.php', "'oai_unimarc_basic_fail:'"],
+    'ResourceSync' => ['storage/plugins/resource-sync/ResourceSyncPlugin.php', "'resourcesync_basic_fail:'"],
+    'VIAF' => ['storage/plugins/viaf-authority/ViafAuthorityPlugin.php', "'viaf_basic_fail:'"],
+    'NCIP' => ['storage/plugins/ncip-server/NcipServerPlugin.php', "'ncip_basic_fail:'"],
+] as $label => [$file, $failPrefix]) {
+    $code = $src($file);
+    $check(str_contains($code, 'RateLimiter::accountKey(') && !preg_match('/_basic:\'\s*\.[^;]*strtolower\(/', $code), "{$label}: account part of the key is canonical");
+    $check(str_contains($code, $failPrefix) && str_contains($code, ', false)'), "{$label}: IP failure bucket checked read-only before the password");
+    $check(!preg_match('/reset\(\$(rlIpId|ipFailKey)\)/', $code), "{$label}: a success never clears the IP failure bucket");
+}
 
 echo "\n{$pass} passed, {$fail} failed\n";
 exit($fail === 0 ? 0 : 1);

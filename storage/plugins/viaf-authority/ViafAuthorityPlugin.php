@@ -1092,8 +1092,12 @@ class ViafAuthorityPlugin
             $ip      = is_string($server['REMOTE_ADDR'] ?? null) ? (string) $server['REMOTE_ADDR'] : 'unknown';
             $decoded = base64_decode(substr($authHeader, 6), true);
             $rlUser  = $decoded !== false ? explode(':', $decoded, 2)[0] : '';
-            $rlId    = 'viaf_basic:' . RateLimiter::clientKey($ip) . ':' . strtolower($rlUser);
-            if (RateLimiter::isLimited($rlId, 10, 300)) {
+            // Two buckets: per IP+account (cleared by that account's success)
+            // and per IP for failures only (never cleared by a success, so
+            // spraying many accounts or spellings from one client is capped).
+            $rlId    = 'viaf_basic:' . RateLimiter::clientKey($ip) . ':' . RateLimiter::accountKey($rlUser);
+            $rlIpId  = 'viaf_basic_fail:' . RateLimiter::clientKey($ip);
+            if (RateLimiter::isLimited($rlIpId, 30, 300, false) || RateLimiter::isLimited($rlId, 10, 300)) {
                 $out = $this->json($response, ['error' => true, 'message' => __('Troppe richieste. Riprova più tardi.')], 429)
                     ->withHeader('Retry-After', '300');
                 return false;
@@ -1107,6 +1111,8 @@ class ViafAuthorityPlugin
                     return true;
                 }
             }
+
+            RateLimiter::isLimited($rlIpId, 30, 300); // count this failure for the IP
 
             // Wrong or malformed credentials: RFC 7235 401 with a fresh challenge.
             $out = $this->json($response, ['error' => true, 'message' => __('Accesso negato.')], 401)

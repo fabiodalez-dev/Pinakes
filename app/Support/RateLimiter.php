@@ -12,7 +12,7 @@ class RateLimiter
      * Check if the request should be rate limited.
      * Uses file-based storage with flock() for atomic read-modify-write.
      */
-    public static function isLimited(string $identifier, int $maxAttempts = self::MAX_ATTEMPTS, int $window = self::WINDOW): bool
+    public static function isLimited(string $identifier, int $maxAttempts = self::MAX_ATTEMPTS, int $window = self::WINDOW, bool $count = true): bool
     {
         // Elapsed-based window measurement: microtime(true) keeps the window a
         // true float duration instead of quantizing the first-attempt marker to
@@ -66,6 +66,13 @@ class RateLimiter
                 $state = ['attempts' => 0, 'first_attempt' => 0.0];
             }
 
+            // Read-only check: report whether the bucket is already over its
+            // budget without spending an attempt (used for failure-only
+            // counters that a successful request must not grow).
+            if (!$count) {
+                return $state['attempts'] >= $maxAttempts;
+            }
+
             if ($state['attempts'] === 0) {
                 $state['first_attempt'] = $currentTime;
             }
@@ -89,6 +96,25 @@ class RateLimiter
             fclose($handle);
             self::pruneExpired();
         }
+    }
+
+    /**
+     * Canonical form of a login name for a per-account bucket key. The users
+     * table compares emails under a case- and accent-insensitive, PAD SPACE
+     * collation, so 'Admin@x ', 'admin@x' and 'ädmin@x' reach the same
+     * account: keying on the raw string would hand an attacker a fresh,
+     * empty counter for every spelling of one victim's email.
+     */
+    public static function accountKey(string $account): string
+    {
+        $account = trim($account);
+        if (class_exists(\Normalizer::class)) {
+            $decomposed = \Normalizer::normalize($account, \Normalizer::FORM_KD);
+            if (is_string($decomposed)) {
+                $account = (string) (preg_replace('/\p{Mn}+/u', '', $decomposed) ?? $account);
+            }
+        }
+        return hash('sha256', mb_strtolower($account, 'UTF-8'));
     }
 
     /**

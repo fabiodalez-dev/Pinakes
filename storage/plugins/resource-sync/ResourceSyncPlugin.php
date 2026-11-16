@@ -237,8 +237,11 @@ class ResourceSyncPlugin
             $ip      = (string) ($request->getServerParams()['REMOTE_ADDR'] ?? 'unknown');
             $decoded = base64_decode(substr($auth, 6), true);
             $parts   = $decoded !== false ? explode(':', $decoded, 2) : [];
-            $rlId    = 'resourcesync_basic:' . RateLimiter::clientKey($ip) . ':' . strtolower($parts[0] ?? '');
-            if (RateLimiter::isLimited($rlId, 10, 300)) {
+            // Plus a failures-only bucket per IP that no success clears, so
+            // spraying many accounts (or spellings of one) is capped too.
+            $rlId    = 'resourcesync_basic:' . RateLimiter::clientKey($ip) . ':' . RateLimiter::accountKey($parts[0] ?? '');
+            $rlIpId  = 'resourcesync_basic_fail:' . RateLimiter::clientKey($ip);
+            if (RateLimiter::isLimited($rlIpId, 30, 300, false) || RateLimiter::isLimited($rlId, 10, 300)) {
                 $out = $response
                     ->withStatus(429)
                     ->withHeader('Retry-After', '300');
@@ -249,6 +252,7 @@ class ResourceSyncPlugin
                 RateLimiter::reset($rlId);
                 return true;
             }
+            RateLimiter::isLimited($rlIpId, 30, 300); // count this failure for the IP
         }
 
         // Missing, malformed or wrong credentials: RFC 7235 §3.1 — a 401 with
