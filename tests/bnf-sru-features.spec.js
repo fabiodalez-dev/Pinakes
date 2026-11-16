@@ -95,7 +95,7 @@ async function openZ39Modal(page) {
   await page.waitForLoadState('networkidle');
 
   // The "Configura Z39.50" button is inside the z39-server plugin card
-  const configBtn = page.locator('button[onclick*="openZ39ServerModal"], button:has-text("Configura Z39"), button:has-text("Configure Z39")').first();
+  const configBtn = page.locator('button[data-pk-action="plugins-open-z39"], button:has-text("Configura Z39"), button:has-text("Configure Z39")').first();
   const visible = await configBtn.isVisible({ timeout: 5000 }).catch(() => false);
   if (!visible) return false;
 
@@ -135,7 +135,7 @@ test.describe.serial('Phase 1: Z39.50/SRU Admin UI', () => {
   test('1.2 Z39.50 configure button is present on plugins page', async () => {
     await page.goto(`${BASE}/admin/plugins`);
     await page.waitForLoadState('networkidle');
-    const btn = page.locator('button[onclick*="openZ39ServerModal"], button:has-text("Configura Z39"), button:has-text("Configure Z39"), button:has-text("Z39")').first();
+    const btn = page.locator('button[data-pk-action="plugins-open-z39"], button:has-text("Configura Z39"), button:has-text("Configure Z39"), button:has-text("Z39")').first();
     await expect(btn).toBeVisible({ timeout: 8000 });
   });
 
@@ -330,7 +330,7 @@ test.describe.serial('Phase 3: SRU syntax options and server CRUD', () => {
 
     // Add a blank server row to inspect the syntax dropdown
     const beforeCount = await page.locator('.z39-server-row').count();
-    await page.locator('button[onclick="addZ39ServerRow()"], button:has-text("Personalizzato"), button:has-text("Custom")').first().click();
+    await page.locator('button[data-pk-action="plugins-add-z39-row"], button:has-text("Personalizzato"), button:has-text("Custom")').first().click();
     await page.waitForFunction(
       (prev) => document.querySelectorAll('.z39-server-row').length > prev,
       beforeCount,
@@ -404,7 +404,7 @@ test.describe.serial('Phase 3: SRU syntax options and server CRUD', () => {
     const countBefore = await page.locator('.z39-server-row').count();
     if (countBefore === 0) {
       // Nothing to delete — add one first
-      await page.locator('button[onclick="addZ39ServerRow()"], button:has-text("Personalizzato"), button:has-text("Custom")').first().click();
+      await page.locator('button[data-pk-action="plugins-add-z39-row"], button:has-text("Personalizzato"), button:has-text("Custom")').first().click();
       await page.waitForFunction(
         () => document.querySelectorAll('.z39-server-row').length > 0,
         { timeout: 5000 },
@@ -413,7 +413,7 @@ test.describe.serial('Phase 3: SRU syntax options and server CRUD', () => {
 
     const rowsBeforeDelete = await page.locator('.z39-server-row').count();
     // Click trash icon on the last row
-    await page.locator('.z39-server-row').last().locator('button[onclick*="remove"]').click();
+    await page.locator('.z39-server-row').last().locator('button[data-pk-action="plugins-remove-z39-row"]').click();
     // Wait for row to be removed
     await page.waitForFunction(
       (prev) => document.querySelectorAll('.z39-server-row').length < prev,

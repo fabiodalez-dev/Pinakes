@@ -127,7 +127,7 @@ unset($workspaceHeader);
   </div>
 </div>
 
-<script>
+<script<?= csp_nonce_attr() ?>>
 document.addEventListener('DOMContentLoaded', function () {
   const search = document.getElementById('search_fornitore');
   if (search) {

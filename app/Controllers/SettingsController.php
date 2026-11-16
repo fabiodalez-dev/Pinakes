@@ -111,6 +111,16 @@ class SettingsController
         // may see those values; the partials gate secret output on $isAdmin.
         $isAdmin = (($_SESSION['user']['tipo_utente'] ?? '') === 'admin');
 
+        // A just-created API key is shown exactly once: only its hash is
+        // stored, so this session copy is the last place the full key exists.
+        $newApiKey = null;
+        if (isset($_SESSION['new_api_key'])) {
+            if ($isAdmin && is_string($_SESSION['new_api_key']) && $_SESSION['new_api_key'] !== '') {
+                $newApiKey = $_SESSION['new_api_key'];
+            }
+            unset($_SESSION['new_api_key']);
+        }
+
         ob_start();
         $data = compact(
             'appSettings',
@@ -138,7 +148,8 @@ class SettingsController
             'activeTab',
             'db',
             'cookieBannerTexts',
-            'isAdmin'
+            'isAdmin',
+            'newApiKey'
         );
         require __DIR__ . '/../Views/settings/index.php';
         $content = ob_get_clean();
@@ -148,6 +159,11 @@ class SettingsController
         $html = ob_get_clean();
 
         $response->getBody()->write($html);
+        if ($newApiKey !== null) {
+            // The page carries a secret that is never shown again: keep it out
+            // of the browser and proxy caches (back button, shared machines).
+            return $response->withHeader('Cache-Control', 'no-store, private');
+        }
         return $response;
     }
 
@@ -315,7 +331,7 @@ class SettingsController
         // Resolve SMTP password first: encrypt if non-empty, clear if empty
         try {
             $encryptedSmtpPass = $smtpPass !== ''
-                ? SettingsEncryption::encrypt($smtpPass)
+                ? SettingsEncryption::encrypt($smtpPass, 'email', 'smtp_password')
                 : '';
         } catch (\Throwable $e) {
             SecureLogger::error('SettingsController::updateEmailSettings encryption failed: ' . $e->getMessage());
@@ -665,7 +681,7 @@ class SettingsController
         // Decrypt SMTP password for form display (only when actually encrypted)
         if (isset($settings['smtp_password']) && is_string($settings['smtp_password'])
             && str_starts_with($settings['smtp_password'], SettingsEncryption::PREFIX)) {
-            $decrypted = SettingsEncryption::decrypt($settings['smtp_password']);
+            $decrypted = SettingsEncryption::decrypt($settings['smtp_password'], 'email', 'smtp_password');
             if ($decrypted !== null) {
                 $settings['smtp_password'] = $decrypted;
             } else {
@@ -1476,7 +1492,9 @@ class SettingsController
             $newKey = $apiKeyRepo->create($name, $description !== '' ? $description : null);
 
             $_SESSION['success_message'] = __('API key creata con successo.');
-            $_SESSION['new_api_key'] = $newKey['api_key']; // Store for one-time display
+            // One-time display: SettingsController::index() shows it once and
+            // drops it; only the key's hash is stored in the database.
+            $_SESSION['new_api_key'] = $newKey['api_key'];
         } catch (\Throwable $e) {
             SecureLogger::error('SettingsController::createApiKey error: ' . $e->getMessage());
             $_SESSION['error_message'] = __('Errore nella creazione dell\'API key.');

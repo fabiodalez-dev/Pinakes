@@ -38,7 +38,7 @@ class ApiKeyMiddleware implements MiddlewareInterface
             return $this->jsonError('API key is required. Provide it via the X-API-Key header or an Authorization: Bearer token', 401);
         }
 
-        // Validate API key
+        // Validate API key (looked up by its SHA-256; the key itself is not stored)
         $apiKeyRepo = new ApiKeyRepository($this->db);
         $apiKeyRepo->ensureTable();
 
@@ -50,7 +50,7 @@ class ApiKeyMiddleware implements MiddlewareInterface
 
         // Update last used timestamp (async, non-blocking)
         try {
-            $apiKeyRepo->updateLastUsed($apiKey);
+            $apiKeyRepo->updateLastUsed((int) $keyData['id']);
         } catch (\Throwable $e) {
             // Log error but don't block the request
             SecureLogger::warning('[ApiKeyMiddleware] Failed to update API key last used timestamp', ['exception' => $e->getMessage()]);

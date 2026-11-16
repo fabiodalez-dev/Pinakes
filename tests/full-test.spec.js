@@ -950,7 +950,7 @@ test.describe.serial('Phase 5: Scraping-Pro Plugin', () => {
       return;
     }
 
-    // The activate button uses `onclick="activatePlugin(ID)"`. If it's
+    // The activate button uses `data-pk-action="plugins-activate"`. If it's
     // missing, the plugin is already active — that's a pass.
     const activateBtn = proCard.locator('button:has-text("Attiva")');
     if (await activateBtn.isVisible({ timeout: 1500 }).catch(() => false)) {

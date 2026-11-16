@@ -59,7 +59,7 @@ $token = \App\Support\Csrf::ensureToken();
                     <img src="<?= $e($b['cover'] ?? url(DesiderataPlugin::PLACEHOLDER_COVER)) ?>"
                          alt=""
                          class="w-20 h-28 object-cover rounded-lg shadow-sm"
-                         onerror="this.onerror=null;this.src=(window.BASE_PATH||'')+'/uploads/copertine/placeholder.jpg'">
+                         data-pk-fallback-src="<?= $e(url('/uploads/copertine/placeholder.jpg')) ?>">
                   </div>
                   <div class="flex-1 min-w-0">
                     <h3 class="font-semibold text-gray-900 mb-2 line-clamp-2"><?= $e($b['titolo'] ?? '') ?></h3>
@@ -95,7 +95,7 @@ $token = \App\Support\Csrf::ensureToken();
                   <form method="post" action="<?= $e(url('/admin/desiderata/books/' . $bookId . '/received')) ?>">
                     <input type="hidden" name="csrf_token" value="<?= $e($token) ?>">
                     <input type="hidden" name="return_to" value="dashboard">
-                    <button type="submit" class="inline-flex items-center justify-center w-full bg-gray-800 hover:bg-gray-700 text-white font-medium py-2.5 px-4 rounded-lg transition-colors" onclick="<?= $e(DesiderataPlugin::confirmJs(__('Registrare il libro come donato? Viene creata una copia fisica in inventario e la richiesta si chiude.'))) ?>">
+                    <button type="submit" class="inline-flex items-center justify-center w-full bg-gray-800 hover:bg-gray-700 text-white font-medium py-2.5 px-4 rounded-lg transition-colors" data-pk-confirm="<?= $e(__('Registrare il libro come donato? Viene creata una copia fisica in inventario e la richiesta si chiude.')) ?>">
                       <i class="fas fa-box-open mr-2"></i><?= __("Libro donato: registra la copia") ?>
                     </button>
                   </form>

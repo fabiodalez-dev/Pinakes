@@ -6,8 +6,22 @@ namespace App\Models;
 use mysqli;
 use RuntimeException;
 
+/**
+ * Public API keys.
+ *
+ * Only a SHA-256 of each key (`key_hash`) and a short display prefix
+ * (`key_prefix`) are stored. The full key exists in clear only in the return
+ * value of create(), which the settings page shows once. A database or backup
+ * read therefore yields nothing that authenticates against /api/public.
+ *
+ * The legacy plaintext `api_key` column is kept nullable for one release
+ * (rollback safety) and is never written again.
+ */
 class ApiKeyRepository
 {
+    /** Characters of the key kept in clear for display ("abcd1234…"). */
+    public const PREFIX_LENGTH = 8;
+
     private mysqli $db;
 
     public function __construct(mysqli $db)
@@ -20,19 +34,37 @@ class ApiKeyRepository
         $sql = "
             CREATE TABLE IF NOT EXISTS api_keys (
                 id INT PRIMARY KEY AUTO_INCREMENT,
-                api_key VARCHAR(64) NOT NULL UNIQUE,
+                api_key VARCHAR(64) NULL DEFAULT NULL,
+                key_hash CHAR(64) NULL DEFAULT NULL,
+                key_prefix VARCHAR(16) NULL DEFAULT NULL,
                 name VARCHAR(255) NOT NULL,
                 description TEXT,
                 is_active TINYINT(1) DEFAULT 1,
                 last_used_at TIMESTAMP NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                UNIQUE KEY api_key (api_key),
+                UNIQUE KEY uniq_key_hash (key_hash),
                 INDEX idx_api_key (api_key),
                 INDEX idx_is_active (is_active)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
         ";
         if ($this->db->query($sql) === false) {
             throw new RuntimeException('Unable to ensure api_keys table: ' . $this->db->error);
+        }
+
+        // A table created before 0.9.6 whose migration has not run yet (the
+        // short window of an upgrade, or a database restored from an old
+        // backup): bring it to the hashed shape here, mirroring
+        // migrate_0.9.6.sql, so existing keys keep authenticating.
+        $col = $this->db->query("SHOW COLUMNS FROM api_keys LIKE 'key_hash'");
+        if ($col === false) {
+            throw new RuntimeException('Unable to inspect api_keys table: ' . $this->db->error);
+        }
+        $hasHash = $col->num_rows > 0;
+        $col->free();
+        if (!$hasHash) {
+            $this->upgradeLegacyTable();
         }
     }
 
@@ -45,23 +77,45 @@ class ApiKeyRepository
     }
 
     /**
-     * Create a new API key
+     * The stored lookup hash of a presented key. Keys used to be compared
+     * under a case-insensitive collation, so the hash covers the lowercase
+     * form (generated keys are lowercase hex already).
+     */
+    public static function hashKey(string $apiKey): string
+    {
+        return hash('sha256', strtolower($apiKey));
+    }
+
+    /**
+     * Create a new API key.
+     *
+     * The returned 'api_key' is the only time the full key is available: it is
+     * not stored and cannot be retrieved later.
+     *
+     * @return array{id:int, api_key:string, key_prefix:string, name:string, description:?string, is_active:bool}
      */
     public function create(string $name, ?string $description = null): array
     {
         $apiKey = $this->generateApiKey();
-        $stmt = $this->db->prepare('INSERT INTO api_keys (api_key, name, description, is_active) VALUES (?, ?, ?, 1)');
+        $hash = self::hashKey($apiKey);
+        $prefix = substr($apiKey, 0, self::PREFIX_LENGTH);
+        $stmt = $this->db->prepare('INSERT INTO api_keys (key_hash, key_prefix, name, description, is_active) VALUES (?, ?, ?, ?, 1)');
         if ($stmt === false) {
             throw new RuntimeException('Failed to prepare statement: ' . $this->db->error);
         }
-        $stmt->bind_param('sss', $apiKey, $name, $description);
-        $stmt->execute();
+        $stmt->bind_param('ssss', $hash, $prefix, $name, $description);
+        if (!$stmt->execute()) {
+            $error = $stmt->error;
+            $stmt->close();
+            throw new RuntimeException('Failed to create API key: ' . $error);
+        }
         $id = (int)$this->db->insert_id;
         $stmt->close();
 
         return [
             'id' => $id,
             'api_key' => $apiKey,
+            'key_prefix' => $prefix,
             'name' => $name,
             'description' => $description,
             'is_active' => true
@@ -69,11 +123,11 @@ class ApiKeyRepository
     }
 
     /**
-     * Get all API keys
+     * Get all API keys (display data only: never the key itself).
      */
     public function getAll(): array
     {
-        $result = $this->db->query('SELECT id, api_key, name, description, is_active, last_used_at, created_at FROM api_keys ORDER BY created_at DESC');
+        $result = $this->db->query('SELECT id, key_prefix, name, description, is_active, last_used_at, created_at FROM api_keys ORDER BY created_at DESC');
         if ($result === false) {
             throw new RuntimeException('Failed to fetch API keys: ' . $this->db->error);
         }
@@ -88,33 +142,37 @@ class ApiKeyRepository
     }
 
     /**
-     * Get active API key by key value
+     * Get the active API key matching a presented key, looked up by its hash.
      */
     public function getByKey(string $apiKey): ?array
     {
-        $stmt = $this->db->prepare('SELECT id, api_key, name, description, is_active, last_used_at FROM api_keys WHERE api_key = ? AND is_active = 1 LIMIT 1');
+        if ($apiKey === '') {
+            return null;
+        }
+        $hash = self::hashKey($apiKey);
+        $stmt = $this->db->prepare('SELECT id, key_prefix, name, description, is_active, last_used_at FROM api_keys WHERE key_hash = ? AND is_active = 1 LIMIT 1');
         if ($stmt === false) {
             throw new RuntimeException('Failed to prepare statement: ' . $this->db->error);
         }
-        $stmt->bind_param('s', $apiKey);
+        $stmt->bind_param('s', $hash);
         $stmt->execute();
         $result = $stmt->get_result();
-        $row = $result->fetch_assoc();
+        $row = $result !== false ? $result->fetch_assoc() : null;
         $stmt->close();
 
         return $row ?: null;
     }
 
     /**
-     * Update last used timestamp
+     * Update last used timestamp of the key with this id.
      */
-    public function updateLastUsed(string $apiKey): void
+    public function updateLastUsed(int $id): void
     {
-        $stmt = $this->db->prepare('UPDATE api_keys SET last_used_at = NOW() WHERE api_key = ?');
+        $stmt = $this->db->prepare('UPDATE api_keys SET last_used_at = NOW() WHERE id = ?');
         if ($stmt === false) {
             throw new RuntimeException('Failed to prepare statement: ' . $this->db->error);
         }
-        $stmt->bind_param('s', $apiKey);
+        $stmt->bind_param('i', $id);
         $stmt->execute();
         $stmt->close();
     }
@@ -159,5 +217,58 @@ class ApiKeyRepository
         $row = $result->fetch_assoc();
         $result->free();
         return ((int)($row['count'] ?? 0)) > 0;
+    }
+
+    /**
+     * Same steps as migrate_0.9.6.sql, for a table still in the pre-0.9.6
+     * plaintext shape. Each step tolerates having already been applied.
+     */
+    private function upgradeLegacyTable(): void
+    {
+        $steps = [
+            "ALTER TABLE api_keys ADD COLUMN key_hash CHAR(64) COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL AFTER api_key",
+            "ALTER TABLE api_keys ADD COLUMN key_prefix VARCHAR(16) COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL AFTER key_hash",
+            "ALTER TABLE api_keys MODIFY COLUMN api_key VARCHAR(64) COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL",
+            "ALTER TABLE api_keys ADD UNIQUE KEY uniq_key_hash (key_hash)",
+        ];
+        // 1060 duplicate column, 1061 duplicate key name: a concurrent request
+        // (or the migration) applied the step first.
+        foreach ($steps as $sql) {
+            if ($this->db->query($sql) === false && !in_array($this->db->errno, [1060, 1061], true)) {
+                throw new RuntimeException('Unable to upgrade api_keys table: ' . $this->db->error);
+            }
+        }
+        $this->backfillHashes();
+    }
+
+    /**
+     * Hash any key still held only in plaintext, then clear the plaintext.
+     */
+    private function backfillHashes(): void
+    {
+        $result = $this->db->query("SELECT id, api_key FROM api_keys WHERE key_hash IS NULL AND api_key IS NOT NULL AND api_key <> ''");
+        if ($result === false) {
+            throw new RuntimeException('Unable to read legacy API keys: ' . $this->db->error);
+        }
+        $rows = $result->fetch_all(MYSQLI_ASSOC);
+        $result->free();
+
+        $stmt = $this->db->prepare('UPDATE api_keys SET key_hash = ?, key_prefix = ? WHERE id = ? AND key_hash IS NULL');
+        if ($stmt === false) {
+            throw new RuntimeException('Failed to prepare statement: ' . $this->db->error);
+        }
+        foreach ($rows as $row) {
+            $plain = (string) $row['api_key'];
+            $hash = self::hashKey($plain);
+            $prefix = substr(strtolower($plain), 0, self::PREFIX_LENGTH);
+            $id = (int) $row['id'];
+            $stmt->bind_param('ssi', $hash, $prefix, $id);
+            $stmt->execute();
+        }
+        $stmt->close();
+
+        if ($this->db->query('UPDATE api_keys SET api_key = NULL WHERE key_hash IS NOT NULL AND api_key IS NOT NULL') === false) {
+            throw new RuntimeException('Unable to clear legacy API keys: ' . $this->db->error);
+        }
     }
 }

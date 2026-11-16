@@ -25,7 +25,7 @@ ob_start();
 ?>
 
       <div class="flex gap-2">
-        <button onclick="markAllAsRead()" class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white border border-gray-300 text-gray-700 text-sm font-semibold hover:bg-gray-50 transition-colors">
+        <button data-pk-action="notifications-mark-all-read" class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white border border-gray-300 text-gray-700 text-sm font-semibold hover:bg-gray-50 transition-colors">
           <i class="fas fa-check-double"></i>
           <?= __("Segna tutte come lette") ?>
         </button>
@@ -132,7 +132,7 @@ unset($workspaceHeader);
                     <?php endif; ?>
                     <?php if (!$notification['is_read']): ?>
                     <button type="button"
-                            onclick="markAsRead(<?php echo (int)$notification['id']; ?>)"
+                            data-pk-action="notifications-mark-read" data-notification-id="<?php echo (int)$notification['id']; ?>"
                             class="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-gray-200 text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-50"
                             title="<?= htmlspecialchars(__("Segna come letto"), ENT_QUOTES, 'UTF-8') ?>">
                       <i class="fas fa-check text-xs"></i>
@@ -140,7 +140,7 @@ unset($workspaceHeader);
                     </button>
                     <?php endif; ?>
                     <button type="button"
-                            onclick="deleteNotification(<?php echo (int)$notification['id']; ?>)"
+                            data-pk-action="notifications-delete" data-notification-id="<?php echo (int)$notification['id']; ?>"
                             class="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-red-100 text-sm font-medium text-red-600 hover:bg-red-50"
                             title="<?= htmlspecialchars(__("Elimina"), ENT_QUOTES, 'UTF-8') ?>">
                       <i class="fas fa-trash text-xs"></i>
@@ -166,7 +166,7 @@ unset($workspaceHeader);
   <?php endif; ?>
 </div>
 
-<script>
+<script<?= csp_nonce_attr() ?>>
 function markAsRead(id) {
   csrfFetch(`${window.BASE_PATH}/admin/notifications/${id}/read`, { method: 'POST' })
     .then(response => response.json())
@@ -204,4 +204,9 @@ function deleteNotification(id) {
       .catch(error => console.error('Error:', error));
   });
 }
+
+// Delegated actions (CSP script-src-attr 'none': no inline on* attributes).
+PinakesActions.register('notifications-mark-all-read', () => markAllAsRead());
+PinakesActions.register('notifications-mark-read', (el) => markAsRead(parseInt(el.dataset.notificationId, 10)));
+PinakesActions.register('notifications-delete', (el) => deleteNotification(parseInt(el.dataset.notificationId, 10)));
 </script>

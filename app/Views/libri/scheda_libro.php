@@ -113,6 +113,9 @@ $btnDanger  = 'btn-danger-outline';
             // renew() re-checks the borrower (LoanEligibility::checkUser).
             echo htmlspecialchars(\App\Support\LoanEligibility::errorMessage($errorKey), ENT_QUOTES, 'UTF-8');
             break;
+        case \App\Support\SelfDealingGuard::ERROR:
+            echo htmlspecialchars(\App\Support\SelfDealingGuard::message(), ENT_QUOTES, 'UTF-8');
+            break;
         default:
             echo __('Operazione non riuscita. Riprova.');
     }
@@ -211,7 +214,7 @@ ob_start();
             <?= __("Restituzione") ?>
           </button>
           <?php endif; ?>
-          <form id="delete-book" method="post" action="<?= htmlspecialchars(url('/admin/books/delete/' . (int)$libro['id']), ENT_QUOTES, 'UTF-8') ?>" onsubmit="return confirmDeleteBook(event);" class="flex-1 lg:flex-none">
+          <form id="delete-book" method="post" action="<?= htmlspecialchars(url('/admin/books/delete/' . (int)$libro['id']), ENT_QUOTES, 'UTF-8') ?>" class="flex-1 lg:flex-none">
             <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8'); ?>">
             <button type="submit" class="<?php echo $btnDanger; ?> w-full">
               <i class="fas fa-trash"></i>
@@ -264,7 +267,7 @@ unset($workspaceHeader);
         <div class="pk-book-record__cover-stage">
           <div class="pk-book-record__cover<?= $isMusic ? ' pk-book-record__cover--square' : '' ?>" data-cover-missing="<?= $missingCover ? 'true' : 'false' ?>">
             <img src="<?php echo htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>"
-                 onerror="this.onerror=null;this.parentElement.dataset.coverMissing='true'"
+                 data-book-record-cover
                  alt="<?php echo htmlspecialchars(($libro['titolo'] ?? 'Libro') . ' - Copertina', ENT_QUOTES, 'UTF-8'); ?>" />
             <div class="pk-book-record__blank">
               <span class="pk-book-record__blank-authors"><?= App\Support\HtmlHelper::e(implode(', ', array_filter($coverAuthors))) ?></span>
@@ -413,7 +416,7 @@ unset($workspaceHeader);
             ?>
 
             <?php if ($canRenew): ?>
-            <form method="post" action="<?= htmlspecialchars(url('/admin/loans/renew/' . (int)$activeLoan['id']), ENT_QUOTES, 'UTF-8') ?>" onsubmit="return confirmRenewal(event);">
+            <form method="post" action="<?= htmlspecialchars(url('/admin/loans/renew/' . (int)$activeLoan['id']), ENT_QUOTES, 'UTF-8') ?>" data-book-renew-form>
               <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8'); ?>">
               <input type="hidden" name="redirect_to" value="<?php echo htmlspecialchars(url('/admin/books/' . (int)($libro['id'] ?? 0)), ENT_QUOTES, 'UTF-8'); ?>">
               <button type="submit" class="<?php echo $btnPrimary; ?> w-full justify-center">
@@ -651,7 +654,7 @@ unset($workspaceHeader);
               <dd class="text-gray-900 font-medium">
                 <span id="dewey_code_display" class="font-mono"><?php echo App\Support\HtmlHelper::e($libro['classificazione_dewey'] ?? ''); ?></span>
                 <span id="dewey_name_display" class="text-sm text-gray-600 italic ml-2"></span>
-                <script>
+                <script<?= csp_nonce_attr() ?>>
                 (async function() {
                   const codeEl = document.getElementById('dewey_code_display');
                   const nameEl = document.getElementById('dewey_name_display');
@@ -768,7 +771,7 @@ unset($workspaceHeader);
                     <source src="<?php echo htmlspecialchars($normalizeHref((string) $libro['audio_url']), ENT_QUOTES, 'UTF-8'); ?>">
                   </audio>
                 </div>
-                <script>
+                <script<?= csp_nonce_attr() ?>>
                 (function() {
                   var btn = document.getElementById('btn-admin-audio-toggle');
                   var player = document.getElementById('admin-audio-player');
@@ -1032,7 +1035,7 @@ unset($workspaceHeader);
           </span>
         </h2>
         <div class="flex items-center gap-2 flex-wrap">
-          <button type="button" onclick="openAddCopyModal()"
+          <button type="button" data-pk-action="book-copy-add"
                   class="inline-flex min-h-11 items-center gap-2 px-4 py-2.5 bg-gray-800 text-white text-sm rounded hover:bg-gray-900 transition-colors font-medium">
             <i class="fas fa-plus"></i><?= __("Aggiungi copie") ?>
           </button>
@@ -1215,7 +1218,10 @@ unset($workspaceHeader);
                     <?php endif; ?>
                     <?php if ($canEdit): ?>
                     <button type="button"
-                            onclick="openEditCopyModal(<?php echo (int)$copia['id']; ?>, <?php echo htmlspecialchars((string) json_encode($copia['stato'] ?? '', JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE), ENT_QUOTES, 'UTF-8'); ?>, <?php echo htmlspecialchars((string) json_encode($copia['note'] ?? '', JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE), ENT_QUOTES, 'UTF-8'); ?>)"
+                            data-pk-action="book-copy-edit"
+                            data-copy-id="<?php echo (int)$copia['id']; ?>"
+                            data-copy-stato="<?php echo htmlspecialchars((string) ($copia['stato'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>"
+                            data-copy-note="<?php echo htmlspecialchars((string) ($copia['note'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>"
                             class="btn-icon btn-secondary text-blue-600 hover:text-blue-900 transition-colors"
                             title="<?= htmlspecialchars(__("Modifica stato"), ENT_QUOTES, 'UTF-8') ?>" aria-label="<?= htmlspecialchars(__("Modifica stato"), ENT_QUOTES, 'UTF-8') ?>">
                       <i class="fas fa-edit"></i>
@@ -1223,7 +1229,9 @@ unset($workspaceHeader);
                     <?php endif; ?>
                     <?php if ($canDelete): ?>
                     <button type="button"
-                            onclick="confirmDeleteCopy(<?php echo (int)$copia['id']; ?>, <?php echo htmlspecialchars((string) json_encode($copia['numero_inventario'] ?? '', JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE), ENT_QUOTES, 'UTF-8'); ?>)"
+                            data-pk-action="book-copy-delete"
+                            data-copy-id="<?php echo (int)$copia['id']; ?>"
+                            data-copy-inventario="<?php echo htmlspecialchars((string) ($copia['numero_inventario'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>"
                             class="btn-icon btn-danger-outline text-red-600 hover:text-red-900 transition-colors"
                             title="<?= htmlspecialchars(__("Elimina copia"), ENT_QUOTES, 'UTF-8') ?>" aria-label="<?= htmlspecialchars(__("Elimina copia"), ENT_QUOTES, 'UTF-8') ?>">
                       <i class="fas fa-trash"></i>
@@ -1305,7 +1313,7 @@ unset($workspaceHeader);
                 <td class="px-4 py-2 text-sm text-gray-600"><?= App\Support\HtmlHelper::e($vol['autore'] ?? '') ?></td>
                 <td class="px-4 py-2 text-sm text-gray-500"><?= App\Support\HtmlHelper::e(($vol['isbn13'] ?? '') ?: ($vol['isbn10'] ?? '')) ?></td>
                 <td class="px-4 py-2 text-sm text-right">
-                  <button type="button" onclick="removeVolume(<?= (int)$libro['id'] ?>, <?= (int)$vol['id'] ?>)" class="btn-icon btn-secondary text-red-500 hover:text-red-700 text-xs" title="<?= htmlspecialchars(__('Rimuovi'), ENT_QUOTES, 'UTF-8') ?>" aria-label="<?= htmlspecialchars(__('Rimuovi'), ENT_QUOTES, 'UTF-8') ?>">
+                  <button type="button" data-pk-action="book-volume-remove" data-opera-id="<?= (int)$libro['id'] ?>" data-volume-id="<?= (int)$vol['id'] ?>" class="btn-icon btn-secondary text-red-500 hover:text-red-700 text-xs" title="<?= htmlspecialchars(__('Rimuovi'), ENT_QUOTES, 'UTF-8') ?>" aria-label="<?= htmlspecialchars(__('Rimuovi'), ENT_QUOTES, 'UTF-8') ?>">
                     <i class="fas fa-times"></i>
                   </button>
                 </td>
@@ -1316,7 +1324,7 @@ unset($workspaceHeader);
         </div>
       </div>
       <div class="pt-4 border-t border-gray-200 p-3 text-center">
-        <button type="button" onclick="addVolumeModal(<?= (int)$libro['id'] ?>)" class="text-sm text-gray-900 hover:text-gray-700 font-medium">
+        <button type="button" data-pk-action="book-volume-add" data-opera-id="<?= (int)$libro['id'] ?>" class="text-sm text-gray-900 hover:text-gray-700 font-medium">
           <i class="fas fa-plus mr-1"></i> <?= __("Aggiungi volume") ?>
         </button>
       </div>
@@ -1329,7 +1337,7 @@ unset($workspaceHeader);
     <p class="text-sm text-gray-600 mb-2 max-w-3xl">
       <?= __("Un'opera multi-volume raggruppa più libri già in catalogo come volumi di un'unica opera (es. una trilogia o un'enciclopedia in più tomi).") ?>
     </p>
-    <button type="button" onclick="addVolumeModal(<?= (int)$libro['id'] ?>)" class="inline-flex items-center py-3 text-sm text-gray-900 hover:text-gray-700 font-medium">
+    <button type="button" data-pk-action="book-volume-add" data-opera-id="<?= (int)$libro['id'] ?>" class="inline-flex items-center py-3 text-sm text-gray-900 hover:text-gray-700 font-medium">
       <i class="fas fa-layer-group mr-1"></i> <?= __("Configura come opera multi-volume") ?>
     </button>
   </div>
@@ -1507,7 +1515,7 @@ unset($workspaceHeader);
   </div>
 
   <!-- FullCalendar (same as dashboard) -->
-  <script src="<?= htmlspecialchars(assetUrl('fullcalendar.min.js'), ENT_QUOTES, 'UTF-8') ?>"></script>
+  <script<?= csp_nonce_attr() ?> src="<?= htmlspecialchars(assetUrl('fullcalendar.min.js'), ENT_QUOTES, 'UTF-8') ?>"></script>
   <?php
   // Prepare calendar events for each copy's loan
   $copyColors = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#06B6D4', '#84CC16'];
@@ -1570,7 +1578,7 @@ unset($workspaceHeader);
       }
   }
   ?>
-  <script>
+  <script<?= csp_nonce_attr() ?>>
   // XSS protection helper
   function escapeHtml(str) {
       return String(str ?? '')
@@ -1661,7 +1669,7 @@ unset($workspaceHeader);
   });
   </script>
 
-  <style>
+  <style<?= csp_nonce_attr() ?>>
     /* FullCalendar custom styles for copy availability */
     #copy-availability-calendar .fc-event {
       cursor: pointer;
@@ -1713,7 +1721,7 @@ unset($workspaceHeader);
   </style>
   <?php endif; ?>
 
-  <script>
+  <script<?= csp_nonce_attr() ?>>
     function confirmDeleteBook(e){
       if (window.Swal){
         e.preventDefault();
@@ -1867,6 +1875,32 @@ unset($workspaceHeader);
       }
       return confirm(<?= json_encode(sprintf(__('Rinnovare il prestito? La scadenza verrà estesa di %d giorni.'), $renewalDays), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>);
     }
+
+    // Submit guards and actions wired here: the CSP forbids inline on* attributes.
+    document.getElementById('delete-book')?.addEventListener('submit', (e) => {
+      if (!confirmDeleteBook(e)) e.preventDefault();
+    });
+    document.querySelectorAll('form[data-book-renew-form]').forEach((form) => {
+      form.addEventListener('submit', (e) => {
+        if (!confirmRenewal(e)) e.preventDefault();
+      });
+    });
+    window.PinakesActions.register('book-volume-add', (el) => addVolumeModal(parseInt(el.dataset.operaId, 10)));
+    window.PinakesActions.register('book-volume-remove', (el) => removeVolume(parseInt(el.dataset.operaId, 10), parseInt(el.dataset.volumeId, 10)));
+
+    // Cover that fails to load: flag the frame so the CSS shows the blank cover.
+    (function () {
+      const img = document.querySelector('img[data-book-record-cover]');
+      if (!img) return;
+      let flagged = false;
+      const flag = () => {
+        if (flagged) return;
+        flagged = true;
+        if (img.parentElement) img.parentElement.dataset.coverMissing = 'true';
+      };
+      img.addEventListener('error', flag);
+      if (img.complete && img.naturalWidth === 0 && img.getAttribute('src')) flag();
+    })();
   </script>
 
   <?php if (!empty($activeLoan) && (int)$activeLoan['attivo'] === 1): ?>
@@ -1928,7 +1962,7 @@ unset($workspaceHeader);
       </div>
     </div>
 
-    <script>
+    <script<?= csp_nonce_attr() ?>>
       document.addEventListener('DOMContentLoaded', function() {
         const modal = document.getElementById('return-modal');
         if (!modal) return;
@@ -2101,7 +2135,7 @@ unset($workspaceHeader);
     </div>
   </div>
 
-  <script>
+  <script<?= csp_nonce_attr() ?>>
     // Modal aggiungi copia
     const addCopyModal = document.getElementById('add-copy-modal');
     const addCopyQuantity = document.getElementById('add-copy-quantita');
@@ -2145,9 +2179,10 @@ unset($workspaceHeader);
     document.getElementById('close-add-copy-modal-secondary')?.addEventListener('click', closeAddCopyModal);
     addCopyQuantity?.addEventListener('input', syncAddCopyBatchFields);
     addCopyModal?.addEventListener('click', (e) => { if (e.target === addCopyModal) closeAddCopyModal(); });
+    window.PinakesActions.register('book-copy-add', () => openAddCopyModal());
   </script>
 
-  <script>
+  <script<?= csp_nonce_attr() ?>>
     // Modal gestione copia
     const editCopyModal = document.getElementById('edit-copy-modal');
     const editCopyForm = document.getElementById('edit-copy-form');
@@ -2271,6 +2306,8 @@ unset($workspaceHeader);
         }
       }
     }
+    window.PinakesActions.register('book-copy-edit', (el) => openEditCopyModal(parseInt(el.dataset.copyId, 10), el.dataset.copyStato || '', el.dataset.copyNote || ''));
+    window.PinakesActions.register('book-copy-delete', (el) => confirmDeleteCopy(parseInt(el.dataset.copyId, 10), el.dataset.copyInventario || ''));
   </script>
   </div>
 </section>

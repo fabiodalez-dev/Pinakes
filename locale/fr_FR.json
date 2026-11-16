@@ -9361,5 +9361,15 @@
   "L'utente aveva già verificato il proprio indirizzo e può accedere. L'email non è stata inviata: controlla che APP_CANONICAL_URL sia impostato nel file .env e che la posta funzioni.": "L'utilisateur avait déjà vérifié son adresse et peut se connecter. L'e-mail n'a pas été envoyé : vérifiez que APP_CANONICAL_URL est défini dans le fichier .env et que la messagerie fonctionne.",
   "Approvazione annullata: l'email non è stata inviata": "Approbation annulée : l'e-mail n'a pas été envoyé",
   "L'utente è rimasto sospeso perché non è stato possibile inviargli l'email di verifica. Controlla che APP_CANONICAL_URL sia impostato nel file .env e che la posta funzioni, poi riprova ad approvarlo oppure usa «Attiva Direttamente».": "L'utilisateur est resté suspendu, car l'e-mail de vérification n'a pas pu lui être envoyé. Vérifiez que APP_CANONICAL_URL est défini dans le fichier .env et que la messagerie fonctionne, puis essayez de l'approuver à nouveau ou utilisez « Activer directement ».",
-  "contiene caratteri non validi": "contient des caractères non valides"
+  "contiene caratteri non validi": "contient des caractères non valides",
+  "Attiva HTTP Strict Transport Security sulle connessioni HTTPS (max-age: 1 anno, sottodomini esclusi). Disattivato per impostazione predefinita.": "Active HTTP Strict Transport Security sur les connexions HTTPS (max-age : 1 an, sous-domaines exclus). Désactivé par défaut.",
+  "Copia ora la nuova API key: non verrà più mostrata.": "Copiez la nouvelle clé API maintenant : elle ne sera plus affichée.",
+  "Viene salvata solo un'impronta della chiave. Se la perdi, eliminala e creane una nuova.": "Seule une empreinte de la clé est enregistrée. Si vous la perdez, supprimez-la et créez-en une nouvelle.",
+  "Non puoi gestire i prestiti del tuo stesso account: chiedi a un altro operatore o a un amministratore.": "Vous ne pouvez pas gérer les prêts de votre propre compte : demandez à un autre opérateur ou à un administrateur.",
+  "Prestito n. %d": "Prêt n° %d",
+  "Il prestito è scaduto: per spostarne la scadenza serve una motivazione, con cui la multa maturata finora viene condonata.": "Le prêt est en retard : pour déplacer son échéance, une justification est requise et l’amende accumulée jusqu’ici est remise.",
+  "Il prestito è in ritardo di %1$d giorni, con una multa maturata di %2$s. Spostando in avanti la scadenza, la multa viene registrata e condonata: indica la motivazione.": "Le prêt a %1$d jours de retard, avec une amende accumulée de %2$s. En repoussant l’échéance, l’amende est enregistrée et remise : indiquez la justification.",
+  "Obbligatoria solo se sposti in avanti la scadenza.": "Obligatoire uniquement si vous repoussez l’échéance.",
+  "Estensione annullata: il prestito n. %d è scaduto e sta maturando una multa. Estendilo singolarmente indicando una motivazione, con cui la multa viene condonata.": "Prolongation annulée : le prêt n° %d est en retard et une amende s’accumule. Prolongez-le individuellement en indiquant une justification, qui remet l’amende.",
+  "Estensione annullata: un prestito scaduto sta maturando una multa. Estendilo singolarmente indicando una motivazione, con cui la multa viene condonata.": "Prolongation annulée : un prêt en retard accumule une amende. Prolongez-le individuellement en indiquant une justification, qui remet l’amende."
 }

@@ -111,7 +111,7 @@ renderHeader(5, __('Impostazioni Applicazione'));
     <div class="form-group" style="margin-top: 20px;">
         <div style="background: linear-gradient(135deg, #e0f2fe 0%, #bae6fd 100%); border: 1px solid #0ea5e9; border-radius: 12px; padding: 20px;">
             <label style="display: flex; align-items: flex-start; gap: 12px; cursor: pointer;">
-                <input type="checkbox" name="force_https" value="1" style="width: 20px; height: 20px; margin-top: 2px; accent-color: #0369a1;">
+                <input type="checkbox" name="force_https" value="1"<?= Installer::isInstallRequestHttps() ? ' checked' : '' ?> style="width: 20px; height: 20px; margin-top: 2px; accent-color: #0369a1;">
                 <div>
                     <span style="font-weight: 600; color: #0369a1; display: block;"><?= __("Forza HTTPS") ?></span>
                     <small style="color: #075985; display: block; margin-top: 4px;">

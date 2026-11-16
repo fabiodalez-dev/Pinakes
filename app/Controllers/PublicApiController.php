@@ -134,7 +134,6 @@ class PublicApiController
                 l.copie_disponibili,
                 l.numero_inventario,
                 l.classificazione_dewey,
-                l.note_varie,
                 l.file_url,
                 l.audio_url,
                 l.collocazione,
@@ -214,7 +213,8 @@ class PublicApiController
                 'copie_disponibili' => (int)$row['copie_disponibili'],
                 'numero_inventario' => $row['numero_inventario'],
                 'classificazione_dewey' => $row['classificazione_dewey'],
-                'note_varie' => $row['note_varie'],
+                // note_varie is deliberately absent: internal notes are shown only on
+                // the admin book page, never to an API-key holder.
                 // Only files anyone may open (issue #480): the API key names no reader. A link
                 // to another site follows its attachment's visibility on this record.
                 'file_url' => \App\Support\DigitalAccess::anonymousUrl($row['file_url'], $db, $bookId, true),

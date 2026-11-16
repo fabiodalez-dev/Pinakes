@@ -169,7 +169,7 @@ test.describe.serial('SweetAlert — plugins-archives cluster', () => {
     await page.waitForLoadState('domcontentloaded');
     const isActive = dbQuery("SELECT is_active FROM plugins WHERE name = 'archives'");
     if (isActive !== '1') {
-      const activateBtn = page.locator('button[onclick^="activatePlugin("]').first();
+      const activateBtn = page.locator('button[data-pk-action="plugins-activate"]').first();
       if (await activateBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
         await activateBtn.click();
         const swalConfirm = page.locator('.swal2-confirm').first();

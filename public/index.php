@@ -412,12 +412,17 @@ if (!$isCli && !$httpsDetected) {
     }
 }
 
-// Set HSTS header if enabled and using HTTPS
-if (!$isCli && $httpsDetected) {
-    $enableHstsFromDb = \App\Support\ConfigStore::get('advanced.enable_hsts', false);
-    if ($enableHstsFromDb) {
-        // HSTS: max-age=1 year (31536000 seconds), includeSubDomains
-        header('Strict-Transport-Security: max-age=31536000; includeSubDomains', false);
+// HSTS is opt-in (Settings > Advanced > "Abilita HSTS", off by default) and
+// only ever sent on HTTPS. The scheme check uses $httpsForSharedHeaders, which
+// honours X-Forwarded-* only from a TRUSTED_PROXIES peer: a spoofed header on a
+// plain-HTTP install must not get HSTS stored in a shared (edge) cache.
+if (!$isCli) {
+    $hstsValue = \App\Support\Hsts::headerValue(
+        \App\Support\ConfigStore::get('advanced.enable_hsts', false),
+        $httpsForSharedHeaders
+    );
+    if ($hstsValue !== null) {
+        header('Strict-Transport-Security: ' . $hstsValue);
     }
 }
 
@@ -698,37 +703,14 @@ if (!$displayErrorDetails) {
 // 404/405 responses are rendered outside this layer and leave the application
 // without CSP precisely on attacker-controlled paths.
 $app->add(function ($request, $handler) use ($httpsForSharedHeaders) {
-    $cspNonce = \App\Support\ContentSecurityPolicy::createNonce();
+    // The nonce is generated BEFORE the request is handled so the templates
+    // can stamp it on their own <script>/<style> elements through
+    // csp_nonce_attr(). The response body is deliberately NOT rewritten:
+    // stamping every <script> of the finished page would also bless any tag
+    // smuggled in through stored content, which is exactly what the nonce
+    // is meant to keep out.
+    $cspNonce = \App\Support\ContentSecurityPolicy::beginRequest();
     $response = $handler->handle($request);
-
-    $contentType = strtolower($response->getHeaderLine('Content-Type'));
-    // Decide from the Content-Type first: a PDF, an image or a download is
-    // never read into memory here (a large scan would hit memory_limit).
-    // Only a response without a type is sniffed, from its first bytes.
-    $html = '';
-    $isHtml = false;
-    $declaredHtml = str_contains($contentType, 'text/html') || str_contains($contentType, 'application/xhtml+xml');
-    if ($declaredHtml) {
-        $isHtml = true;
-    } elseif (trim($contentType) === '') {
-        $body = $response->getBody();
-        if ($body->isSeekable()) {
-            $body->rewind();
-            $head = $body->read(1024);
-            $body->rewind();
-            $isHtml = \App\Support\ContentSecurityPolicy::isHtmlResponse('', $head);
-        } else {
-            $html = (string) $body;
-            $isHtml = \App\Support\ContentSecurityPolicy::isHtmlResponse('', $html);
-        }
-    }
-    if ($isHtml) {
-        $html = $html !== '' ? $html : (string) $response->getBody();
-        $html = \App\Support\ContentSecurityPolicy::addNonceAttributes($html, $cspNonce);
-        $response = $response
-            ->withBody((new \Slim\Psr7\Factory\StreamFactory())->createStream($html))
-            ->withoutHeader('Content-Length');
-    }
 
     $csp = \App\Support\ContentSecurityPolicy::header(
         $cspNonce,
@@ -744,9 +726,8 @@ $app->add(function ($request, $handler) use ($httpsForSharedHeaders) {
         // same origin only (barcode scanner, patron photo), nothing else.
         ->withHeader('Permissions-Policy', \App\Support\ContentSecurityPolicy::permissionsPolicy());
 
-    if (!$response->hasHeader('Strict-Transport-Security') && (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')) {
-        $response = $response->withHeader('Strict-Transport-Security', 'max-age=63072000; includeSubDomains; preload');
-    }
+    // Strict-Transport-Security is NOT added here: it is opt-in and emitted
+    // once, above, from the advanced.enable_hsts setting (App\Support\Hsts).
 
     return $response;
 });

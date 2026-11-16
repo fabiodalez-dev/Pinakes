@@ -98,6 +98,9 @@ class BackupManager
     public function __construct(mysqli $db, string $rootPath)
     {
         $this->db = $db;
+        // Dumps and restores run long statements: never under the web
+        // request's statement time limit.
+        DbStatementTimeout::lift($db);
         $this->rootPath = rtrim(str_replace('\\', '/', $rootPath), '/');
         $this->backupPath = $this->rootPath . '/storage/backups';
     }

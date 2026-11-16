@@ -9361,5 +9361,15 @@
   "L'utente aveva già verificato il proprio indirizzo e può accedere. L'email non è stata inviata: controlla che APP_CANONICAL_URL sia impostato nel file .env e che la posta funzioni.": "Brugeren havde allerede bekræftet sin adresse og kan logge ind. E-mailen blev ikke sendt: kontrollér, at APP_CANONICAL_URL er angivet i .env-filen, og at mail fungerer.",
   "Approvazione annullata: l'email non è stata inviata": "Godkendelse annulleret: e-mailen blev ikke sendt",
   "L'utente è rimasto sospeso perché non è stato possibile inviargli l'email di verifica. Controlla che APP_CANONICAL_URL sia impostato nel file .env e che la posta funzioni, poi riprova ad approvarlo oppure usa «Attiva Direttamente».": "Brugeren forblev suspenderet, fordi bekræftelsesmailen ikke kunne sendes. Kontrollér, at APP_CANONICAL_URL er angivet i .env-filen, og at mail fungerer, og prøv derefter at godkende igen, eller brug “Aktivér direkte”.",
-  "contiene caratteri non validi": "indeholder ugyldige tegn"
+  "contiene caratteri non validi": "indeholder ugyldige tegn",
+  "Attiva HTTP Strict Transport Security sulle connessioni HTTPS (max-age: 1 anno, sottodomini esclusi). Disattivato per impostazione predefinita.": "Aktiverer HTTP Strict Transport Security på HTTPS-forbindelser (max-age: 1 år, underdomæner undtaget). Deaktiveret som standard.",
+  "Copia ora la nuova API key: non verrà più mostrata.": "Kopiér den nye API-nøgle nu: den vises ikke igen.",
+  "Viene salvata solo un'impronta della chiave. Se la perdi, eliminala e creane una nuova.": "Kun et fingeraftryk af nøglen gemmes. Hvis du mister den, så slet den og opret en ny.",
+  "Non puoi gestire i prestiti del tuo stesso account: chiedi a un altro operatore o a un amministratore.": "Du kan ikke håndtere lån på din egen konto: spørg en anden medarbejder eller en administrator.",
+  "Prestito n. %d": "Lån nr. %d",
+  "Il prestito è scaduto: per spostarne la scadenza serve una motivazione, con cui la multa maturata finora viene condonata.": "Lånet er overskredet: for at flytte afleveringsdatoen kræves en begrundelse, og det hidtil påløbne gebyr eftergives dermed.",
+  "Il prestito è in ritardo di %1$d giorni, con una multa maturata di %2$s. Spostando in avanti la scadenza, la multa viene registrata e condonata: indica la motivazione.": "Lånet er %1$d dage for sent, med et påløbet gebyr på %2$s. Flyttes afleveringsdatoen frem, registreres og eftergives gebyret: angiv begrundelsen.",
+  "Obbligatoria solo se sposti in avanti la scadenza.": "Kun påkrævet, hvis du flytter afleveringsdatoen frem.",
+  "Estensione annullata: il prestito n. %d è scaduto e sta maturando una multa. Estendilo singolarmente indicando una motivazione, con cui la multa viene condonata.": "Forlængelse annulleret: lån nr. %d er overskredet, og der påløber et gebyr. Forlæng det enkeltvis med en begrundelse, som eftergiver gebyret.",
+  "Estensione annullata: un prestito scaduto sta maturando una multa. Estendilo singolarmente indicando una motivazione, con cui la multa viene condonata.": "Forlængelse annulleret: et overskredet lån har et påløbende gebyr. Forlæng det enkeltvis med en begrundelse, som eftergiver gebyret."
 }

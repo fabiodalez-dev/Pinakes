@@ -78,14 +78,16 @@ try {
     $stableOne = ContentSecurityPolicy::removeNonceAttributes('<script nonce="one">window.same=1;</script>');
     $stableTwo = ContentSecurityPolicy::removeNonceAttributes('<script nonce="two">window.same=1;</script>');
     $check($stableOne === $stableTwo, 'different request nonces produce byte-identical cached HTML');
+    $edgeNonce = ContentSecurityPolicy::createNonce();
+    $noncedOne = '<script nonce="' . $edgeNonce . '">window.same=1;</script>';
     $scriptHash = "'sha256-" . base64_encode(hash('sha256', 'window.same=1;', true)) . "'";
-    $check(str_contains(ContentSecurityPolicy::headerForCachedHtml($stableOne), $scriptHash), 'cached CSP contains the exact inline-script hash');
+    $check(str_contains(ContentSecurityPolicy::headerForCachedHtml($noncedOne, $edgeNonce), $scriptHash), 'cached CSP contains the exact inline-script hash');
     $styleBody = 'a{color:red}';
     $styleHash = "'sha256-" . base64_encode(hash('sha256', $styleBody, true)) . "'";
-    $check(str_contains(ContentSecurityPolicy::headerForCachedHtml('<style>' . $styleBody . '</style>'), $styleHash), 'cached CSP contains the exact inline-style hash');
-    $check(substr_count(ContentSecurityPolicy::headerForCachedHtml('<script></script>'), "'sha256-") === 0, 'empty inline blocks do not add meaningless hashes');
-    $check(!str_contains(ContentSecurityPolicy::headerForCachedHtml($stableOne), 'upgrade-insecure-requests'), 'cached CSP omits HTTPS upgrade when not requested');
-    $check(str_contains(ContentSecurityPolicy::headerForCachedHtml($stableOne, true), 'upgrade-insecure-requests'), 'cached CSP preserves the HTTPS upgrade directive');
+    $check(str_contains(ContentSecurityPolicy::headerForCachedHtml('<style nonce="' . $edgeNonce . '">' . $styleBody . '</style>', $edgeNonce), $styleHash), 'cached CSP contains the exact inline-style hash');
+    $check(substr_count(ContentSecurityPolicy::headerForCachedHtml('<script nonce="' . $edgeNonce . '"></script>', $edgeNonce), "'sha256-") === 0, 'empty inline blocks do not add meaningless hashes');
+    $check(!str_contains(ContentSecurityPolicy::headerForCachedHtml($noncedOne, $edgeNonce), 'upgrade-insecure-requests'), 'cached CSP omits HTTPS upgrade when not requested');
+    $check(str_contains(ContentSecurityPolicy::headerForCachedHtml($noncedOne, $edgeNonce, true), 'upgrade-insecure-requests'), 'cached CSP preserves the HTTPS upgrade directive');
 
     echo "C. LiteSpeed helpers and response policy\n";
     $configProperty = new ReflectionProperty(ConfigStore::class, 'runtimeCache');
@@ -169,10 +171,11 @@ try {
             public function handle(ServerRequestInterface $request): ResponseInterface
             {
                 $response = new Response($this->status);
-                $response->getBody()->write('<!doctype html><html><body><script nonce="request">window.edge=1;</script></body></html>');
+                $edgeNonce = ContentSecurityPolicy::createNonce();
+                $response->getBody()->write('<!doctype html><html><body><script nonce="' . $edgeNonce . '">window.edge=1;</script></body></html>');
                 $response = $response
                     ->withHeader('Content-Type', 'text/html; charset=UTF-8')
-                    ->withHeader('Content-Security-Policy', "default-src 'self'")
+                    ->withHeader('Content-Security-Policy', ContentSecurityPolicy::header($edgeNonce))
                     ->withHeader(LiteSpeedCache::MARKER_HEADER, $this->marker);
                 return $this->cacheControl !== ''
                     ? $response->withHeader('Cache-Control', $this->cacheControl)

@@ -30,8 +30,12 @@ $htmlLang = substr($currentLocale, 0, 2);
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title><?= htmlspecialchars($appName, ENT_QUOTES, 'UTF-8') ?> - <?= htmlspecialchars(__("Library Management System"), ENT_QUOTES, 'UTF-8') ?></title>
   <meta name="csrf-token" content="<?php echo App\Support\Csrf::ensureToken(); ?>" />
+  <?php // Read by libraries that create <style> at runtime (FullCalendar looks
+        // for meta[name="csp-nonce"]). The admin area is never shared-cached,
+        // so the per-request value never outlives its response. ?>
+  <meta name="csp-nonce" content="<?= htmlspecialchars(csp_nonce(), ENT_QUOTES, 'UTF-8') ?>" />
   <link rel="icon" type="image/x-icon" href="<?= htmlspecialchars(url('/favicon.ico'), ENT_QUOTES, 'UTF-8') ?>">
-  <script>window.BASE_PATH = <?= json_encode(\App\Support\HtmlHelper::getBasePath(), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;</script>
+  <script<?= csp_nonce_attr() ?>>window.BASE_PATH = <?= json_encode(\App\Support\HtmlHelper::getBasePath(), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;</script>
   <link rel="stylesheet" href="<?= htmlspecialchars(assetUrl('vendor.css'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($vendorCssVersion, ENT_QUOTES, 'UTF-8') ?>" />
   <link rel="stylesheet" href="<?= htmlspecialchars(assetUrl('flatpickr-custom.css'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($appVersion, ENT_QUOTES, 'UTF-8') ?>" />
   <?php $mainCssVersion = (string) (@filemtime(__DIR__ . '/../../public/assets/main.css') ?: $appVersion); ?>
@@ -50,8 +54,9 @@ $htmlLang = substr($currentLocale, 0, 2);
   // head, like the frontend layout: at the end of the body this blocking request held back
   // the deferred bundles (SweetAlert among them) while the page above it was already
   // clickable, so an early click on a confirm button fell back to window.confirm(). ?>
-  <script src="<?= htmlspecialchars(\App\Support\TranslationScript::url(I18n::getLocale()), ENT_QUOTES, 'UTF-8') ?>"></script>
-  <script>
+  <script<?= csp_nonce_attr() ?> src="<?= htmlspecialchars(\App\Support\TranslationScript::url(I18n::getLocale()), ENT_QUOTES, 'UTF-8') ?>"></script>
+  <script<?= csp_nonce_attr() ?> src="<?= htmlspecialchars(assetUrl('js/pk-actions.js'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($appVersion, ENT_QUOTES, 'UTF-8') ?>"></script>
+  <script<?= csp_nonce_attr() ?>>
     (function () {
       if (typeof window.__ !== 'function') {
         window.__ = function (message, ...args) {
@@ -102,7 +107,7 @@ $htmlLang = substr($currentLocale, 0, 2);
   }
   ?>
 
-  <style>
+  <style<?= csp_nonce_attr() ?>>
     /* Mobile fixes */
     @media (max-width: 1024px) {
       #notifications-badge {
@@ -758,7 +763,7 @@ $htmlLang = substr($currentLocale, 0, 2);
                   class="absolute left-1/2 -translate-x-1/2 md:left-auto md:right-0 md:translate-x-0 mt-2 w-[calc(100vw-2rem)] md:w-96 max-w-md bg-white border border-gray-200 rounded-2xl shadow-2xl hidden z-[100]">
                   <div class="p-4 border-b border-gray-200 flex items-center justify-between">
                     <h3 class="text-lg font-semibold text-gray-900"><?= __("Notifiche") ?></h3>
-                    <button onclick="markAllNotificationsAsRead()"
+                    <button type="button" data-pk-action="admin-notifications-read-all"
                       class="text-xs text-gray-900 hover:text-gray-700 font-medium">
                       <?= __("Segna tutte come lette") ?>
                     </button>
@@ -846,7 +851,7 @@ $htmlLang = substr($currentLocale, 0, 2);
                       <hr class="my-2 border-gray-200">
                       <form method="post" action="<?= htmlspecialchars(route_path('logout'), ENT_QUOTES, 'UTF-8') ?>" style="display:contents;">
                         <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(\App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8') ?>">
-                        <a href="<?= htmlspecialchars(route_path('logout'), ENT_QUOTES, 'UTF-8') ?>" onclick="event.preventDefault();this.closest('form').submit();"
+                        <a href="<?= htmlspecialchars(route_path('logout'), ENT_QUOTES, 'UTF-8') ?>" data-pk-action="submit-form"
                           class="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-red-50 transition-colors text-red-600 no-underline">
                           <i class="fas fa-sign-out-alt w-4 h-4"></i>
                           <span class="text-sm"><?= __("Esci") ?></span>
@@ -934,7 +939,7 @@ $htmlLang = substr($currentLocale, 0, 2);
   </div>
 
   <!-- Scripts -->
-  <script>
+  <script<?= csp_nonce_attr() ?>>
     window.i18nTranslations = window.i18nTranslations || {};
     window.userIsAdminOrStaff = <?= json_encode($isBuiltInOperator, JSON_HEX_TAG) ?>;
 
@@ -956,13 +961,13 @@ $htmlLang = substr($currentLocale, 0, 2);
       return translated;
     };
   </script>
-  <script src="<?= htmlspecialchars(assetUrl('vendor.bundle.js'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($vendorBundleVersion, ENT_QUOTES, 'UTF-8') ?>" defer></script>
-  <script src="<?= htmlspecialchars(assetUrl('flatpickr-init.js'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($appVersion, ENT_QUOTES, 'UTF-8') ?>" defer></script>
-  <script src="<?= htmlspecialchars(assetUrl('main.bundle.js'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($mainBundleVersion, ENT_QUOTES, 'UTF-8') ?>" defer></script>
-  <script src="<?= htmlspecialchars(assetUrl('js/csrf-helper.js'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($appVersion, ENT_QUOTES, 'UTF-8') ?>" defer></script>
-  <script src="<?= htmlspecialchars(assetUrl('js/swal-config.js'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($appVersion, ENT_QUOTES, 'UTF-8') ?>" defer></script>
-  <script src="<?= htmlspecialchars(assetUrl('tinymce/tinymce.min.js'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($appVersion, ENT_QUOTES, 'UTF-8') ?>" defer></script>
-  <script>
+  <script<?= csp_nonce_attr() ?> src="<?= htmlspecialchars(assetUrl('vendor.bundle.js'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($vendorBundleVersion, ENT_QUOTES, 'UTF-8') ?>" defer></script>
+  <script<?= csp_nonce_attr() ?> src="<?= htmlspecialchars(assetUrl('flatpickr-init.js'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($appVersion, ENT_QUOTES, 'UTF-8') ?>" defer></script>
+  <script<?= csp_nonce_attr() ?> src="<?= htmlspecialchars(assetUrl('main.bundle.js'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($mainBundleVersion, ENT_QUOTES, 'UTF-8') ?>" defer></script>
+  <script<?= csp_nonce_attr() ?> src="<?= htmlspecialchars(assetUrl('js/csrf-helper.js'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($appVersion, ENT_QUOTES, 'UTF-8') ?>" defer></script>
+  <script<?= csp_nonce_attr() ?> src="<?= htmlspecialchars(assetUrl('js/swal-config.js'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($appVersion, ENT_QUOTES, 'UTF-8') ?>" defer></script>
+  <script<?= csp_nonce_attr() ?> src="<?= htmlspecialchars(assetUrl('tinymce/tinymce.min.js'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($appVersion, ENT_QUOTES, 'UTF-8') ?>" defer></script>
+  <script<?= csp_nonce_attr() ?>>
 
     function escapeHtml(value) {
       const div = document.createElement('div');
@@ -1673,6 +1678,7 @@ $htmlLang = substr($currentLocale, 0, 2);
         console.error('Error marking notifications as read:', error);
       }
     }
+    window.PinakesActions.register('admin-notifications-read-all', () => markAllNotificationsAsRead());
 
     // Format notification time
     function formatNotificationTime(dateString) {
@@ -1983,7 +1989,7 @@ $htmlLang = substr($currentLocale, 0, 2);
     }
   </script>
 
-  <script>
+  <script<?= csp_nonce_attr() ?>>
     (function () {
       const nativeAlert = typeof window.alert === 'function' ? window.alert.bind(window) : null;
       const alertTitle = <?= json_encode(__('Avviso'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
@@ -2138,7 +2144,7 @@ $htmlLang = substr($currentLocale, 0, 2);
   </div>
 </div>
 
-<script>
+<script<?= csp_nonce_attr() ?>>
 // .pk-stack-table (workspace-ui.css): each cell carries its column name as
 // text, shown above the value when the table stacks as cards on a phone. Rows added later
 // by the page (live scans, paged lists) are labelled as they arrive.

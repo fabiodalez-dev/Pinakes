@@ -533,7 +533,7 @@ unset($workspaceHeader);
     </form>
   </div>
 </div>
-<script>
+<script<?= csp_nonce_attr() ?>>
 // "Genera dall'ISSN": the EAN-13 (977 prefix + check digit) is derived
 // SERVER-SIDE at save time, by the same IssnHelper that validates the ISSN.
 // Deriving it here too would mean two implementations of the same check
@@ -555,7 +555,7 @@ unset($workspaceHeader);
     });
 })();
 </script>
-<script src="<?= $e(url('/plugins/emeroteca/assets/js/emeroteca-upload.js?v=1.3.0')) ?>" defer></script>
-<script src="<?= $e(url('/plugins/emeroteca/assets/js/emeroteca-code-picker.js?v=1.0.0')) ?>" defer></script>
+<script<?= csp_nonce_attr() ?> src="<?= $e(url('/plugins/emeroteca/assets/js/emeroteca-upload.js?v=1.3.0')) ?>" defer></script>
+<script<?= csp_nonce_attr() ?> src="<?= $e(url('/plugins/emeroteca/assets/js/emeroteca-code-picker.js?v=1.0.0')) ?>" defer></script>
 
-<script src="<?= $e(url('/plugins/emeroteca/assets/js/emeroteca-credits.js?v=1.14.0')) ?>"></script>
+<script<?= csp_nonce_attr() ?> src="<?= $e(url('/plugins/emeroteca/assets/js/emeroteca-credits.js?v=1.14.0')) ?>"></script>

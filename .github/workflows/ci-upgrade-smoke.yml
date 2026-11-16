@@ -624,6 +624,16 @@ jobs:
           else
             echo "  ↳ prestiti.pickup_notification_sent not expected before stable 0.7.64"
           fi
+          # v0.9.6 — public API keys stored as SHA-256 + display prefix.
+          EXPECT_096=$(TARGET_VERSION="$TARGET_VERSION" php -r '
+            echo version_compare((string) getenv("TARGET_VERSION"), "0.9.6", ">=") ? "yes" : "no";
+          ')
+          if [ "$BASELINE_SKIPPED" = "true" ] || [ "$EXPECT_096" = "yes" ]; then
+            check_col api_keys key_hash
+            check_col api_keys key_prefix
+          else
+            echo "  ↳ api_keys.key_hash not expected before 0.9.6"
+          fi
 
           [ "$FAILED" -eq 0 ] || exit 1
 

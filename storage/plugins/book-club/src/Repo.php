@@ -11,6 +11,9 @@ use App\Support\ContentCache;
 use App\Support\DbAtomic;
 use mysqli;
 
+// setMemberStatus() purges the affinity lists of a departing member.
+require_once __DIR__ . '/AffinityRepo.php';
+
 /**
  * Data access for the Book Club plugin. Hand-written mysqli prepared
  * statements, same style as app/Models/*Repository.
@@ -650,7 +653,7 @@ class Repo
 
         $changed = false;
         try {
-            $before = $this->row('SELECT club_id, status FROM bookclub_members WHERE id = ? FOR UPDATE', 'i', [$memberId]);
+            $before = $this->row('SELECT club_id, user_id, status FROM bookclub_members WHERE id = ? FOR UPDATE', 'i', [$memberId]);
             if ($before !== null && ($onlyFrom === null || in_array($before['status'], $onlyFrom, true))) {
                 if (!$this->exec('UPDATE bookclub_members SET status = ? WHERE id = ?', 'si', [$status, $memberId])) {
                     throw new \RuntimeException('member status update failed');
@@ -658,6 +661,13 @@ class Repo
                 if ($status !== 'active' && $before['status'] === 'active'
                     && !$this->rotateIcsToken((int) $before['club_id'])) {
                     throw new \RuntimeException('calendar token rotation failed');
+                }
+                // Leaving, a suspension or a ban takes the member out of the
+                // affinity lists at once (pairs + opt-in), not at the next
+                // daily recompute, in this same transaction.
+                if (in_array($status, AffinityRepo::PURGING_STATUSES, true)
+                    && !(new AffinityRepo($this->db))->purgeMember((int) $before['club_id'], (int) $before['user_id'])) {
+                    throw new \RuntimeException('affinity purge failed');
                 }
                 $changed = true;
             }

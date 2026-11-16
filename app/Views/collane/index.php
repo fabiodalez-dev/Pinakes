@@ -32,7 +32,7 @@ $workspaceHeader['context'] = (string) ob_get_clean();
 ob_start();
 ?>
 
-    <button type="button" onclick="createCollana()" class="inline-flex items-center px-4 py-2 bg-gray-800 text-white hover:bg-gray-900 rounded-lg transition-colors text-sm font-medium">
+    <button type="button" data-pk-action="collane-create" class="inline-flex items-center px-4 py-2 bg-gray-800 text-white hover:bg-gray-900 rounded-lg transition-colors text-sm font-medium">
       <i class="fas fa-plus mr-2"></i><?= __("Nuova Collana") ?>
     </button>
   <?php
@@ -50,7 +50,8 @@ require dirname(__DIR__, 3) . '/app/Views/partials/workspace-header.php';
 unset($workspaceHeader);
 ?>
 
-  <script>
+  <script<?= csp_nonce_attr() ?>>
+  window.PinakesActions.register('collane-create', () => createCollana());
   async function createCollana() {
     const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
     const { value: name } = await Swal.fire({
@@ -122,7 +123,7 @@ unset($workspaceHeader);
   $seriesBlockSize = array_count_values(array_map('strval', $seriesKeys));
   ?>
 
-  <style>
+  <style<?= csp_nonce_attr() ?>>
   /* #428 — the hierarchy is drawn here rather than with utility classes: the
      compiled stylesheet is purged, so a class that appears only in this view
      would have no rule behind it. Scoped to .series-tree. */

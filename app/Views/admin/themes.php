@@ -183,7 +183,7 @@ unset($workspaceHeader);
                         <!-- Actions -->
                         <div class="flex gap-2">
                             <?php if (!$isActive): ?>
-                                <button onclick="activateTheme(<?= (int)$theme['id'] ?>)"
+                                <button data-pk-action="themes-activate" data-theme-id="<?= (int)$theme['id'] ?>"
                                         class="inline-flex items-center justify-center flex-1 px-3 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition-colors text-sm font-medium">
                                     <i class="fas fa-check mr-1"></i>
                                     <?= __("Attiva tema") ?>
@@ -203,7 +203,7 @@ unset($workspaceHeader);
     </div>
 </div>
 
-<script>
+<script<?= csp_nonce_attr() ?>>
 function activateTheme(themeId) {
     window.SwalApp.confirm({
         title: <?= json_encode(__("Attivare questo tema?"), JSON_HEX_TAG) ?>,
@@ -233,4 +233,7 @@ function activateTheme(themeId) {
         });
     });
 }
+
+// Delegated actions (CSP script-src-attr 'none': no inline on* attributes).
+PinakesActions.register('themes-activate', (el) => activateTheme(parseInt(el.dataset.themeId, 10)));
 </script>

@@ -250,12 +250,12 @@ test.describe('H-4: XSS prevention in views', () => {
     expect(criticalErrors).toHaveLength(0);
   });
 
-  test('catalog filter buttons work (onclick escaping intact)', async ({ page }) => {
+  test('catalog filter buttons work (delegated data-pk-action filters)', async ({ page }) => {
     await page.goto(`${BASE}/catalogo`);
     await page.waitForLoadState('networkidle');
 
     // Check that filter buttons exist and are clickable
-    const availabilityFilter = page.locator('[onclick*="updateFilter"]').first();
+    const availabilityFilter = page.locator('[data-pk-action="catalog-filter"]').first();
     if (await availabilityFilter.isVisible({ timeout: 3000 }).catch(() => false)) {
       await availabilityFilter.click();
       // Should not cause JS error — just filter the results

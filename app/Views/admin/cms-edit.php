@@ -192,8 +192,8 @@ unset($workspaceHeader);
 </div>
 
 <!-- TinyMCE -->
-<script src="<?= htmlspecialchars(assetUrl('tinymce/tinymce.min.js'), ENT_QUOTES, 'UTF-8') ?>"></script>
-<script>
+<script<?= csp_nonce_attr() ?> src="<?= htmlspecialchars(assetUrl('tinymce/tinymce.min.js'), ENT_QUOTES, 'UTF-8') ?>"></script>
+<script<?= csp_nonce_attr() ?>>
 document.addEventListener('DOMContentLoaded', function() {
   if (window.tinymce) {
    tinymce.init({
@@ -231,7 +231,7 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 
 <!-- Uppy - CSS bundled in vendor.css, JS bundled in vendor.bundle.js -->
-<script>
+<script<?= csp_nonce_attr() ?>>
 document.addEventListener('DOMContentLoaded', function() {
   // Use globally available Uppy from vendor.bundle.js
   const { Uppy } = window;
@@ -348,7 +348,7 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 
-<style>
+<style<?= csp_nonce_attr() ?>>
 .uppy-Dashboard-inner {
   border: 2px dashed #d1d5db;
   border-radius: 12px;

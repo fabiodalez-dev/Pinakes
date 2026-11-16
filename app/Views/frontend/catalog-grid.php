@@ -13,13 +13,13 @@ use App\Support\HtmlHelper;
         <i class="fas fa-search empty-state-icon"></i>
         <h4 class="empty-state-title"><?= __("Nessun risultato trovato") ?></h4>
         <p class="empty-state-text"><?= __("Prova a modificare i filtri o la tua ricerca") ?></p>
-        <button type="button" class="btn-cta btn-cta-sm" onclick="clearAllFilters()">
+        <button type="button" class="btn-cta btn-cta-sm" data-pk-action="catalog-clear">
             <i class="fas fa-redo mr-2"></i>
             <?= __("Pulisci filtri") ?>
         </button>
     </div>
 <?php endif; ?>
-<script>
+<script<?= csp_nonce_attr() ?>>
 /* #298: equalise title AND subtitle height PER GRID ROW. A row where no card
    has a subtitle stays compact; a row where at least one card has a subtitle
    gets the same reserved subtitle height on every card of that row — including

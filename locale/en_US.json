@@ -9361,5 +9361,15 @@
   "L'utente aveva già verificato il proprio indirizzo e può accedere. L'email non è stata inviata: controlla che APP_CANONICAL_URL sia impostato nel file .env e che la posta funzioni.": "The user had already verified their address and can sign in. The email was not sent: check that APP_CANONICAL_URL is set in the .env file and that mail works.",
   "Approvazione annullata: l'email non è stata inviata": "Approval undone: the email was not sent",
   "L'utente è rimasto sospeso perché non è stato possibile inviargli l'email di verifica. Controlla che APP_CANONICAL_URL sia impostato nel file .env e che la posta funzioni, poi riprova ad approvarlo oppure usa «Attiva Direttamente».": "The user stayed suspended because the verification email could not be sent to them. Check that APP_CANONICAL_URL is set in the .env file and that mail works, then try approving again or use “Activate directly”.",
-  "contiene caratteri non validi": "contains invalid characters"
+  "contiene caratteri non validi": "contains invalid characters",
+  "Attiva HTTP Strict Transport Security sulle connessioni HTTPS (max-age: 1 anno, sottodomini esclusi). Disattivato per impostazione predefinita.": "Enables HTTP Strict Transport Security on HTTPS connections (max-age: 1 year, subdomains excluded). Off by default.",
+  "Copia ora la nuova API key: non verrà più mostrata.": "Copy the new API key now: it will not be shown again.",
+  "Viene salvata solo un'impronta della chiave. Se la perdi, eliminala e creane una nuova.": "Only a fingerprint of the key is stored. If you lose it, delete it and create a new one.",
+  "Non puoi gestire i prestiti del tuo stesso account: chiedi a un altro operatore o a un amministratore.": "You cannot manage loans on your own account: ask another operator or an administrator.",
+  "Prestito n. %d": "Loan no. %d",
+  "Il prestito è scaduto: per spostarne la scadenza serve una motivazione, con cui la multa maturata finora viene condonata.": "The loan is overdue: moving its due date requires a reason, and the fine accrued so far is waived with it.",
+  "Il prestito è in ritardo di %1$d giorni, con una multa maturata di %2$s. Spostando in avanti la scadenza, la multa viene registrata e condonata: indica la motivazione.": "The loan is %1$d days overdue, with an accrued fine of %2$s. Moving the due date forward records and waives the fine: enter the reason.",
+  "Obbligatoria solo se sposti in avanti la scadenza.": "Required only if you move the due date forward.",
+  "Estensione annullata: il prestito n. %d è scaduto e sta maturando una multa. Estendilo singolarmente indicando una motivazione, con cui la multa viene condonata.": "Extension cancelled: loan no. %d is overdue and accruing a fine. Extend it individually with a reason, which waives the fine.",
+  "Estensione annullata: un prestito scaduto sta maturando una multa. Estendilo singolarmente indicando una motivazione, con cui la multa viene condonata.": "Extension cancelled: an overdue loan is accruing a fine. Extend it individually with a reason, which waives the fine."
 }

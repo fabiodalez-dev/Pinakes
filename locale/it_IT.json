@@ -9361,5 +9361,15 @@
   "L'utente aveva già verificato il proprio indirizzo e può accedere. L'email non è stata inviata: controlla che APP_CANONICAL_URL sia impostato nel file .env e che la posta funzioni.": "L'utente aveva già verificato il proprio indirizzo e può accedere. L'email non è stata inviata: controlla che APP_CANONICAL_URL sia impostato nel file .env e che la posta funzioni.",
   "Approvazione annullata: l'email non è stata inviata": "Approvazione annullata: l'email non è stata inviata",
   "L'utente è rimasto sospeso perché non è stato possibile inviargli l'email di verifica. Controlla che APP_CANONICAL_URL sia impostato nel file .env e che la posta funzioni, poi riprova ad approvarlo oppure usa «Attiva Direttamente».": "L'utente è rimasto sospeso perché non è stato possibile inviargli l'email di verifica. Controlla che APP_CANONICAL_URL sia impostato nel file .env e che la posta funzioni, poi riprova ad approvarlo oppure usa «Attiva Direttamente».",
-  "contiene caratteri non validi": "contiene caratteri non validi"
+  "contiene caratteri non validi": "contiene caratteri non validi",
+  "Attiva HTTP Strict Transport Security sulle connessioni HTTPS (max-age: 1 anno, sottodomini esclusi). Disattivato per impostazione predefinita.": "Attiva HTTP Strict Transport Security sulle connessioni HTTPS (max-age: 1 anno, sottodomini esclusi). Disattivato per impostazione predefinita.",
+  "Copia ora la nuova API key: non verrà più mostrata.": "Copia ora la nuova API key: non verrà più mostrata.",
+  "Viene salvata solo un'impronta della chiave. Se la perdi, eliminala e creane una nuova.": "Viene salvata solo un'impronta della chiave. Se la perdi, eliminala e creane una nuova.",
+  "Non puoi gestire i prestiti del tuo stesso account: chiedi a un altro operatore o a un amministratore.": "Non puoi gestire i prestiti del tuo stesso account: chiedi a un altro operatore o a un amministratore.",
+  "Prestito n. %d": "Prestito n. %d",
+  "Il prestito è scaduto: per spostarne la scadenza serve una motivazione, con cui la multa maturata finora viene condonata.": "Il prestito è scaduto: per spostarne la scadenza serve una motivazione, con cui la multa maturata finora viene condonata.",
+  "Il prestito è in ritardo di %1$d giorni, con una multa maturata di %2$s. Spostando in avanti la scadenza, la multa viene registrata e condonata: indica la motivazione.": "Il prestito è in ritardo di %1$d giorni, con una multa maturata di %2$s. Spostando in avanti la scadenza, la multa viene registrata e condonata: indica la motivazione.",
+  "Obbligatoria solo se sposti in avanti la scadenza.": "Obbligatoria solo se sposti in avanti la scadenza.",
+  "Estensione annullata: il prestito n. %d è scaduto e sta maturando una multa. Estendilo singolarmente indicando una motivazione, con cui la multa viene condonata.": "Estensione annullata: il prestito n. %d è scaduto e sta maturando una multa. Estendilo singolarmente indicando una motivazione, con cui la multa viene condonata.",
+  "Estensione annullata: un prestito scaduto sta maturando una multa. Estendilo singolarmente indicando una motivazione, con cui la multa viene condonata.": "Estensione annullata: un prestito scaduto sta maturando una multa. Estendilo singolarmente indicando una motivazione, con cui la multa viene condonata."
 }

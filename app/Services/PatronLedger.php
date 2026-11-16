@@ -582,6 +582,62 @@ final class PatronLedger
     }
 
     /**
+     * The due date of an overdue loan is moved forward by an operator
+     * (PrestitiController::update, #281). The fine accrued up to $asOf
+     * (default today) would otherwise vanish: the return computes the fine
+     * from the new due date. It is written as a late fine and waived at once
+     * with the operator's reason, in the caller's transaction, so the ledger
+     * keeps the same trace a waiver at the return desk leaves and the balance
+     * does not change. Idempotent per loan and replaced due date.
+     *
+     * Call it BEFORE the due date is changed: the figure is computed from the
+     * due date stored on the loan.
+     *
+     * @return int cents recorded and waived (0 when nothing has accrued, the
+     *             fines module is off, or this extension was recorded already)
+     * @throws \InvalidArgumentException 'reason_required' on an empty reason
+     */
+    public function waiveAccruedOnExtension(int $loanId, string $reason, ?int $staffId, ?string $asOf = null): int
+    {
+        if (trim($reason) === '') {
+            throw new \InvalidArgumentException('reason_required');
+        }
+        $date = $asOf ?? DateHelper::today();
+        $preview = $this->previewLateFine($loanId, $date);
+        $cents = min((int) $preview['cents'], self::MAX_AMOUNT_CENTS);
+        if ($cents <= 0) {
+            return 0;
+        }
+        $loan = $this->loanRow($loanId);
+        if ($loan === null) {
+            return 0;
+        }
+        $userId = (int) $loan['utente_id'];
+        $due = substr((string) $loan['data_scadenza'], 0, 10);
+        $keyBase = $loanId . ':' . $due;
+        $written = 0;
+        $this->inTransaction(function () use ($userId, $loanId, $cents, $preview, $due, $date, $reason, $staffId, $keyBase, &$written): void {
+            $this->lockUser($userId);
+            $chargeId = $this->insert(
+                $userId,
+                $loanId,
+                'multa_ritardo',
+                $cents,
+                sprintf('%d|%s|%s', (int) $preview['days'], $due, $date),
+                null,
+                $staffId,
+                'late-extend:' . $keyBase
+            );
+            if ($chargeId === null) {
+                return; // this extension was recorded already
+            }
+            $this->insert($userId, $loanId, 'condono', -$cents, self::clip($reason), null, $staffId, 'waiver-extend:' . $keyBase);
+            $written = $cents;
+        });
+        return $written;
+    }
+
+    /**
      * Fines accruing on the patron's open overdue loans, computed for today and
      * never written (plan §7: shown, charged only at return).
      *

@@ -12,7 +12,7 @@ use App\Support\HtmlHelper;
 $pageTitle = __('Editor Classificazione Dewey');
 ?>
 
-<style>
+<style<?= csp_nonce_attr() ?>>
     .dewey-tree { font-family: ui-monospace, monospace; font-size: 14px; }
     .dewey-node { border-left: 2px solid #e5e7eb; margin-left: 20px; padding-left: 12px; }
     .dewey-node.level-1 { border-left: none; margin-left: 0; padding-left: 0; }
@@ -168,7 +168,7 @@ unset($workspaceHeader);
     </div>
 </div>
 
-<script>
+<script<?= csp_nonce_attr() ?>>
 (function() {
     'use strict';
 

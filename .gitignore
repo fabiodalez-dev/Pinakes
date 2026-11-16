@@ -23,6 +23,7 @@ backups/*
 *.sql
 !installer/database/*.sql
 !installer/database/migrations/*.sql
+!installer/database/migrations/pending/*.sql
 *.backup
 *.backup*
 !/backups/.htaccess

@@ -88,7 +88,7 @@ use App\Support\HtmlHelper;
     </div>
 </div>
 
-<script>
+<script<?= csp_nonce_attr() ?>>
 (function () {
     const panel = document.getElementById('viaf-authority-panel');
     if (!panel || panel.dataset.viafInit === '1') { return; }

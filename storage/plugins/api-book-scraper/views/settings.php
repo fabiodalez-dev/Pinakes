@@ -180,7 +180,7 @@ unset($workspaceHeader);
                                placeholder="<?= $hasApiKey ? htmlspecialchars(__('Chiave configurata — lascia vuoto per mantenere'), ENT_QUOTES, 'UTF-8') : 'your-api-key-here' ?>"
                                <?= $hasApiKey ? '' : 'required' ?>>
                         <button type="button"
-                                onclick="togglePasswordVisibility('api_key')"
+                                data-pk-action="scraper-toggle-password" data-scraper-input="api_key"
                                 aria-label="<?= htmlspecialchars(__('Mostra/nascondi chiave'), ENT_QUOTES, 'UTF-8') ?>"
                                 class="btn-icon btn-secondary absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700">
                             <i class="fas fa-eye" id="api_key_icon"></i>
@@ -267,7 +267,7 @@ unset($workspaceHeader);
 
     <!-- Documentazione Rapida -->
     <div class="mt-8 bg-white border border-gray-200 rounded-2xl overflow-hidden max-sm:!bg-transparent max-sm:!border-0 max-sm:!rounded-none max-sm:!shadow-none">
-        <div class="border-b border-gray-200 px-6 py-4 cursor-pointer hover:bg-gray-50 transition-colors" onclick="toggleSection('quick-docs')">
+        <div class="border-b border-gray-200 px-6 py-4 cursor-pointer hover:bg-gray-50 transition-colors" data-pk-action="scraper-toggle-section" data-scraper-section="quick-docs">
             <div class="flex items-center justify-between">
                 <h2 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
                     <i class="fas fa-book text-gray-500"></i>
@@ -337,7 +337,7 @@ unset($workspaceHeader);
     </div>
 </div>
 
-<script>
+<script<?= csp_nonce_attr() ?>>
 function togglePasswordVisibility(inputId) {
     const input = document.getElementById(inputId);
     const icon = document.getElementById(inputId + '_icon');
@@ -364,5 +364,14 @@ function toggleSection(sectionId) {
         content.style.display = 'none';
         icon.classList.remove('rotate-180');
     }
+}
+
+if (window.PinakesActions) {
+    window.PinakesActions.register('scraper-toggle-password', function (el) {
+        togglePasswordVisibility(el.dataset.scraperInput);
+    });
+    window.PinakesActions.register('scraper-toggle-section', function (el) {
+        toggleSection(el.dataset.scraperSection);
+    });
 }
 </script>

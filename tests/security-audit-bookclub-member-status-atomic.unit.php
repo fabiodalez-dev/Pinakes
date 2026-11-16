@@ -164,6 +164,14 @@ try {
         id INT NOT NULL AUTO_INCREMENT, club_id INT NOT NULL, user_id INT NOT NULL, role_id INT NOT NULL,
         status ENUM('pending','active','suspended','left','banned') NOT NULL DEFAULT 'active',
         invited_by INT NULL, PRIMARY KEY (id), UNIQUE KEY uq_m (club_id, user_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+    // setMemberStatus() also purges the affinity lists of a member who
+    // leaves, is suspended or banned: shadow those tables too, so the purge
+    // never reaches a real table of the database the test runs against.
+    $db->query("CREATE TEMPORARY TABLE bookclub_affinity (
+        id INT NOT NULL AUTO_INCREMENT, club_id INT NOT NULL, user_a INT NOT NULL, user_b INT NOT NULL,
+        score TINYINT UNSIGNED NULL, computed_at DATETIME NOT NULL, PRIMARY KEY (id)) ENGINE=InnoDB");
+    $db->query("CREATE TEMPORARY TABLE bookclub_affinity_optin (
+        id INT NOT NULL AUTO_INCREMENT, club_id INT NOT NULL, user_id INT NOT NULL, PRIMARY KEY (id)) ENGINE=InnoDB");
     $db->query("INSERT INTO bookclub_clubs (id, slug, name, ics_token) VALUES (1, 'audit-atomic', 'Audit atomic', '" . str_repeat('0', 32) . "')");
 
     $repo = new BcRotationProbeRepo($db);

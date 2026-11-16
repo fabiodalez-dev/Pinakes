@@ -1,0 +1,362 @@
+<?php
+declare(strict_types=1);
+
+/**
+ * Security audit 2026-11, "needs decision" items now decided — web group (A).
+ *
+ *   A. [13] Private mode fails CLOSED: a settings read that failed (DB down,
+ *      query error) makes PrivateModeMiddleware treat the site as private for
+ *      that request, while an absent / '0' setting keeps it public and the
+ *      login route stays reachable. ConfigStore::getStrict() surfaces the
+ *      failure; ConfigStore::get() keeps falling back to defaults.
+ *   B. [65] HSTS is opt-in (advanced.enable_hsts) and HTTPS-only, one year,
+ *      no includeSubDomains/preload; the unconditional preload header is gone;
+ *      the installer defaults FORCE_HTTPS to true only for an HTTPS install
+ *      (forwarded headers count only from TRUSTED_PROXIES).
+ *   C. [90] DB statement time limit: the SQL per server flavour, the env
+ *      override, the exempt long-running paths, skipped in CLI, failures never
+ *      throw, and (with a reachable MySQL/MariaDB) the session variable is
+ *      really set on the web path and lifted by lift().
+ *
+ * Run: php tests/security-decisions-web.unit.php
+ */
+
+$ROOT = dirname(__DIR__);
+require $ROOT . '/vendor/autoload.php';
+require_once $ROOT . '/installer/classes/Installer.php';
+
+use App\Middleware\PrivateModeMiddleware;
+use App\Support\ConfigStore;
+use App\Support\DbStatementTimeout;
+use App\Support\Hsts;
+use Psr\Http\Message\ResponseInterface;
+use Psr\Http\Message\ServerRequestInterface;
+use Psr\Http\Server\RequestHandlerInterface;
+use Slim\Psr7\Factory\ServerRequestFactory;
+use Slim\Psr7\Response;
+
+// createEnvFile() binds the install to the PHP session: start one now, before
+// any output, in a private temp directory.
+$sessionDir = sys_get_temp_dir() . '/pk_sec_dec_web_sess_' . bin2hex(random_bytes(4));
+mkdir($sessionDir, 0700, true);
+session_save_path($sessionDir);
+session_start();
+
+$pass = 0;
+$fail = 0;
+$skip = 0;
+$check = static function (bool $ok, string $label) use (&$pass, &$fail): void {
+    if ($ok) { $pass++; echo "  OK   {$label}\n"; }
+    else     { $fail++; echo "  FAIL {$label}\n"; }
+};
+$guard = static function (callable $fn, string $label) use ($check): void {
+    try {
+        $fn();
+    } catch (\Throwable $e) {
+        $check(false, $label . ' — threw ' . get_class($e) . ': ' . $e->getMessage());
+    }
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+echo "A. [13] Private mode fails closed\n";
+$_SESSION = [];
+$handler = new class implements RequestHandlerInterface {
+    public int $calls = 0;
+    public function handle(ServerRequestInterface $request): ResponseInterface
+    {
+        $this->calls++;
+        return new Response(204);
+    }
+};
+$factory = new ServerRequestFactory();
+$run = static function (PrivateModeMiddleware $mw, string $path) use ($handler, $factory): array {
+    $before = $handler->calls;
+    $res = $mw->process($factory->createServerRequest('GET', $path), $handler);
+    return [$res, $handler->calls === $before + 1];
+};
+
+$guard(function () use ($check, $run): void {
+    $throwing = new PrivateModeMiddleware(static function (): mixed {
+        throw new \RuntimeException('simulated settings read failure');
+    });
+    [$res, $passed] = $run($throwing, '/');
+    $check(!$passed && $res->getStatusCode() === 302
+        && str_contains($res->getHeaderLine('Location'), 'error=private_mode'),
+        'read failure: anonymous home page is redirected to the login page');
+
+    [$res, $passed] = $run($throwing, '/api/books/1/availability');
+    $check(!$passed && $res->getStatusCode() === 401, 'read failure: anonymous internal API gets 401');
+
+    [, $passed] = $run($throwing, '/login');
+    $check($passed, 'read failure: the login route stays reachable');
+    [, $passed] = $run($throwing, '/assets/app.css');
+    $check($passed, 'read failure: static assets stay reachable');
+    [, $passed] = $run($throwing, '/health');
+    $check($passed, 'read failure: health check stays reachable');
+
+    $_SESSION = ['user' => ['id' => 1]];
+    [, $passed] = $run($throwing, '/');
+    $check($passed, 'read failure: an authenticated user is never restricted');
+    $_SESSION = [];
+
+    [, $passed] = $run(new PrivateModeMiddleware(static fn (): mixed => '0'), '/');
+    $check($passed, "setting '0': site stays public");
+    [, $passed] = $run(new PrivateModeMiddleware(static fn (): mixed => null), '/');
+    $check($passed, 'setting absent (null): site stays public');
+    [, $passed] = $run(new PrivateModeMiddleware(static fn (): mixed => false), '/');
+    $check($passed, 'setting false: site stays public');
+    [$res, $passed] = $run(new PrivateModeMiddleware(static fn (): mixed => '1'), '/');
+    $check(!$passed && $res->getStatusCode() === 302, "setting '1': site is private");
+    [$res, $passed] = $run(new PrivateModeMiddleware(static fn (): mixed => true), '/');
+    $check(!$passed && $res->getStatusCode() === 302, 'setting true (after ConfigStore::set): site is private');
+}, 'injected reader scenarios');
+
+// The real default path: ConfigStore with a connection that failed this request.
+$guard(function () use ($check, $run): void {
+    $failed = new ReflectionProperty(ConfigStore::class, 'connectionFailed');
+    $shared = new ReflectionProperty(ConfigStore::class, 'sharedConnection');
+    $prevFailed = $failed->getValue();
+    $prevShared = $shared->getValue();
+    try {
+        $shared->setValue(null, null);
+        $failed->setValue(null, true);
+        ConfigStore::clearCache();
+
+        $threw = false;
+        try {
+            ConfigStore::getStrict('advanced.private_mode', '0');
+        } catch (\RuntimeException) {
+            $threw = true;
+        }
+        $check($threw, 'ConfigStore::getStrict() throws when the settings read failed');
+        $check(ConfigStore::get('advanced.private_mode', '0') === '0',
+            'ConfigStore::get() keeps returning the default for every other caller');
+
+        [$res, $passed] = $run(new PrivateModeMiddleware(), '/');
+        $check(!$passed && $res->getStatusCode() === 302,
+            'default middleware + failed ConfigStore read: anonymous visitor is sent to login');
+
+        // Settings readable and private mode absent -> public (as before).
+        $failed->setValue(null, false);
+        ConfigStore::clearCache();
+        $runtime = new ReflectionProperty(ConfigStore::class, 'runtimeCache');
+        $runtime->setValue(null, ['advanced' => []]);
+        [, $passed] = $run(new PrivateModeMiddleware(), '/');
+        $check($passed, 'default middleware + readable settings without the flag: site stays public');
+    } finally {
+        $failed->setValue(null, $prevFailed);
+        $shared->setValue(null, $prevShared);
+        ConfigStore::clearCache();
+    }
+}, 'ConfigStore failure scenarios');
+
+// ─────────────────────────────────────────────────────────────────────────────
+echo "B. [65] HSTS opt-in, HTTPS only; installer FORCE_HTTPS default\n";
+$guard(function () use ($check): void {
+    $check(Hsts::headerValue('1', true) === 'max-age=31536000', "enabled '1' over HTTPS: max-age=31536000");
+    $check(Hsts::headerValue(true, true) === 'max-age=31536000', 'enabled true over HTTPS: header sent');
+    $check(Hsts::headerValue('1', false) === null, 'enabled but plain HTTP: no header');
+    $check(Hsts::headerValue('0', true) === null, "setting '0' over HTTPS: no header (off by default)");
+    $check(Hsts::headerValue(false, true) === null, 'setting false/absent over HTTPS: no header');
+    $value = (string) Hsts::headerValue('1', true);
+    $check(!str_contains(strtolower($value), 'includesubdomains') && !str_contains(strtolower($value), 'preload'),
+        'header carries neither includeSubDomains nor preload');
+}, 'Hsts::headerValue');
+
+$guard(function () use ($check, $ROOT): void {
+    $index = (string) file_get_contents($ROOT . '/public/index.php');
+    $check(preg_match('/withHeader\(\s*[\'"]Strict-Transport-Security/', $index) !== 1
+        && !str_contains($index, 'includeSubDomains; preload'),
+        'public/index.php no longer adds an unconditional HSTS (preload) header');
+    $check(preg_match('/Hsts::headerValue\(\s*\\\\App\\\\Support\\\\ConfigStore::get\(\'advanced\.enable_hsts\'.*?\$httpsForSharedHeaders\s*\)/s', $index) === 1,
+        'public/index.php gates HSTS on advanced.enable_hsts and trusted-proxy HTTPS detection');
+}, 'index.php wiring');
+
+$guard(function () use ($check): void {
+    $prevEnv = $_ENV['TRUSTED_PROXIES'] ?? null;
+    $prevGetenv = getenv('TRUSTED_PROXIES');
+    try {
+        unset($_ENV['TRUSTED_PROXIES']);
+        putenv('TRUSTED_PROXIES');
+        $check(Installer::isInstallRequestHttps(['HTTPS' => 'on', 'REMOTE_ADDR' => '203.0.113.9']) === true,
+            'installer over direct HTTPS: FORCE_HTTPS defaults to true');
+        $check(Installer::isInstallRequestHttps(['HTTPS' => 'off', 'REMOTE_ADDR' => '203.0.113.9']) === false,
+            'installer over plain HTTP: FORCE_HTTPS stays false');
+        $check(Installer::isInstallRequestHttps(['REMOTE_ADDR' => '203.0.113.9', 'HTTP_X_FORWARDED_PROTO' => 'https']) === false,
+            'installer: X-Forwarded-Proto from an untrusted peer is ignored');
+
+        $_ENV['TRUSTED_PROXIES'] = '10.0.0.0/8';
+        $check(Installer::isInstallRequestHttps(['REMOTE_ADDR' => '10.1.2.3', 'HTTP_X_FORWARDED_PROTO' => 'https, http']) === true,
+            'installer: X-Forwarded-Proto from a TRUSTED_PROXIES peer is honoured');
+        $check(Installer::isInstallRequestHttps(['REMOTE_ADDR' => '10.1.2.3', 'HTTP_X_FORWARDED_SSL' => 'on']) === true,
+            'installer: X-Forwarded-SSL from a TRUSTED_PROXIES peer is honoured');
+        $check(Installer::isInstallRequestHttps(['REMOTE_ADDR' => '198.51.100.1', 'HTTP_X_FORWARDED_PROTO' => 'https']) === false,
+            'installer: forwarded HTTPS from a peer outside TRUSTED_PROXIES is ignored');
+    } finally {
+        if ($prevEnv === null) { unset($_ENV['TRUSTED_PROXIES']); } else { $_ENV['TRUSTED_PROXIES'] = $prevEnv; }
+        if ($prevGetenv === false) { putenv('TRUSTED_PROXIES'); } else { putenv('TRUSTED_PROXIES=' . $prevGetenv); }
+    }
+
+    // createEnvFile() writes what isInstallRequestHttps() says (behavioural, on a temp dir).
+    $tmp = sys_get_temp_dir() . '/pk_sec_dec_web_' . bin2hex(random_bytes(4));
+    mkdir($tmp, 0700, true);
+    $prevServer = $_SERVER;
+    try {
+        $installer = new Installer($tmp);
+        $method = new ReflectionMethod(Installer::class, 'createEnvFile');
+        $writeEnv = static function () use ($installer, $method, $tmp): string {
+            @unlink($tmp . '/.env');
+            $args = [];
+            foreach ($method->getParameters() as $p) {
+                $args[] = match ($p->getName()) {
+                    'host' => 'localhost', 'user' => 'u', 'password' => 'p', 'database' => 'd',
+                    'port' => 3306, 'socket' => '', 'locale' => 'it_IT',
+                    default => $p->isDefaultValueAvailable() ? $p->getDefaultValue() : '',
+                };
+            }
+            $method->invokeArgs($installer, $args);
+            return is_file($tmp . '/.env') ? (string) file_get_contents($tmp . '/.env') : '';
+        };
+        $_SERVER['HTTPS'] = 'on';
+        $_SERVER['HTTP_HOST'] = 'library.example';
+        $env = $writeEnv();
+        $check(preg_match('/^FORCE_HTTPS=true$/m', $env) === 1, 'createEnvFile over HTTPS writes FORCE_HTTPS=true');
+        unset($_SERVER['HTTPS']);
+        $env = $writeEnv();
+        $check(preg_match('/^FORCE_HTTPS=false$/m', $env) === 1, 'createEnvFile over HTTP writes FORCE_HTTPS=false');
+    } finally {
+        $_SERVER = $prevServer;
+        $rm = static function (string $dir) use (&$rm): void {
+            foreach (scandir($dir) ?: [] as $e) {
+                if ($e === '.' || $e === '..') { continue; }
+                $p = $dir . '/' . $e;
+                is_dir($p) && !is_link($p) ? $rm($p) : @unlink($p);
+            }
+            @rmdir($dir);
+        };
+        $rm($tmp);
+    }
+}, 'installer HTTPS detection');
+
+// ─────────────────────────────────────────────────────────────────────────────
+echo "C. [90] DB statement time limit\n";
+$guard(function () use ($check): void {
+    $my = '8.4.3';
+    $maria = '11.4.2-MariaDB-log';
+    $check(DbStatementTimeout::isMariaDb($maria) && !DbStatementTimeout::isMariaDb($my), 'server flavour detected from VERSION()');
+    $check(DbStatementTimeout::statementFor($my, 30) === 'SET SESSION max_execution_time = 30000',
+        'MySQL: max_execution_time in milliseconds');
+    $check(DbStatementTimeout::statementFor($maria, 60) === 'SET SESSION max_statement_time = 60',
+        'MariaDB: max_statement_time in seconds');
+    $check(DbStatementTimeout::statementFor($my, 0) === null && DbStatementTimeout::statementFor($maria, 0) === null,
+        '0 seconds disables the limit');
+    $check(DbStatementTimeout::configuredSeconds($my, '') === 30, 'default MySQL limit is 30 s');
+    $check(DbStatementTimeout::configuredSeconds($maria, '') === 60, 'default MariaDB limit is a more generous 60 s');
+    $check(DbStatementTimeout::configuredSeconds($my, '12') === 12 && DbStatementTimeout::configuredSeconds($maria, '12') === 12,
+        'DB_STATEMENT_TIMEOUT overrides both flavours');
+    $check(DbStatementTimeout::configuredSeconds($my, '0') === 0, 'DB_STATEMENT_TIMEOUT=0 disables');
+    $check(DbStatementTimeout::configuredSeconds($my, 'abc') === 30 && DbStatementTimeout::configuredSeconds($my, '-5') === 30,
+        'an invalid DB_STATEMENT_TIMEOUT falls back to the default');
+
+    foreach (['/admin/updates/perform', '/sub/admin/updates/backup', '/admin/maintenance/perform',
+              '/installer/', '/admin/books/import/chunk', '/admin/users/import/upload', '/admin/books/export/csv',
+              '/admin/archives/export.xml', '/api/autori/bulk-export', '/admin/updates/backup/restore',
+              '/api/dewey-editor/restore/it_IT', '/admin/settings/advanced/regenerate-sitemap',
+              '/admin/books/import-sbn', '/admin/loans/export-csv'] as $path) {
+        $check(DbStatementTimeout::isExemptPath($path), "exempt long-running path: {$path}");
+    }
+    foreach (['/', '/catalogo', '/api/search/autori', '/api/libri', '/admin/books', '/libro/12/titolo',
+              '/admin/updatesx', '/admin/settings'] as $path) {
+        $check(!DbStatementTimeout::isExemptPath($path), "interactive path is bounded: {$path}");
+    }
+}, 'pure helpers');
+
+$guard(function () use ($check): void {
+    // A mysqli that never connects: records queries, optionally throws.
+    $makeStub = static function (bool $throw): \mysqli {
+        return new class ($throw) extends \mysqli {
+            /** @var list<string> */
+            public array $queries = [];
+            public function __construct(private bool $throwOnQuery) {}
+            #[\ReturnTypeWillChange]
+            public function query(string $query, int $result_mode = MYSQLI_STORE_RESULT): \mysqli_result|bool
+            {
+                $this->queries[] = $query;
+                if ($this->throwOnQuery) {
+                    throw new \mysqli_sql_exception('simulated failure');
+                }
+                return true;
+            }
+        };
+    };
+    $stub = $makeStub(false);
+    DbStatementTimeout::applyForWebRequest($stub, '/catalogo', true);
+    $check($stub->queries === [], 'CLI: no query is sent at all');
+    DbStatementTimeout::applyForWebRequest($stub, '/admin/updates/perform', false);
+    $check($stub->queries === [], 'web + exempt path: no query is sent');
+    DbStatementTimeout::lift($stub);
+    $check($stub->queries === [], 'lift() on a connection that never had the limit sends nothing');
+
+    $broken = $makeStub(true);
+    $threw = false;
+    try {
+        DbStatementTimeout::applyForWebRequest($broken, '/catalogo', false);
+    } catch (\Throwable) {
+        $threw = true;
+    }
+    $check(!$threw && $broken->queries !== [], 'a failure while setting the limit is logged and ignored');
+
+    // container.php wires it on the web connection.
+    $container = (string) file_get_contents(dirname(__DIR__) . '/config/container.php');
+    $check(str_contains($container, 'DbStatementTimeout::applyForWebRequest($mysqli)'),
+        'config/container.php applies the limit to the shared web connection');
+    foreach (['app/Support/Updater.php', 'app/Support/BackupManager.php'] as $file) {
+        $src = (string) file_get_contents(dirname(__DIR__) . '/' . $file);
+        $check(str_contains($src, 'DbStatementTimeout::lift($db)'), "{$file} lifts the limit on its connection");
+    }
+}, 'apply/lift with stub connections');
+
+// Live servers: MySQL from E2E_DB_* / the worktree .env, MariaDB on 3307 if present.
+$liveTargets = [];
+$envFile = Installer::readEnvFile(dirname(__DIR__) . '/.env') ?? [];
+$cfg = static fn (string $k, string $d = '') => (string) (getenv('E2E_' . $k) ?: ($envFile[$k] ?? $d));
+$liveTargets['MySQL (app DB)'] = [
+    'host' => $cfg('DB_HOST', 'localhost'), 'user' => $cfg('DB_USER'), 'pass' => $cfg('DB_PASS'),
+    'port' => (int) $cfg('DB_PORT', '3306'), 'socket' => $cfg('DB_SOCKET'),
+];
+if (is_file('/opt/homebrew/var/mariadb.sock') || @fsockopen('127.0.0.1', 3307, $en, $es, 0.3)) {
+    $liveTargets['MariaDB (:3307)'] = ['host' => '127.0.0.1', 'user' => 'root', 'pass' => '', 'port' => 3307, 'socket' => ''];
+}
+mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
+foreach ($liveTargets as $label => $t) {
+    if ($t['user'] === '') { $skip++; echo "  SKIP {$label}: no credentials\n"; continue; }
+    try {
+        $host = ($t['host'] === 'localhost' && $t['socket'] === '') ? '127.0.0.1' : $t['host'];
+        $db = new \mysqli($host, $t['user'], $t['pass'], '', $t['port'], $t['socket'] !== '' ? $t['socket'] : null);
+    } catch (\Throwable $e) {
+        $skip++;
+        echo "  SKIP {$label}: not reachable\n";
+        continue;
+    }
+    $version = (string) ($db->query('SELECT VERSION()')->fetch_row()[0] ?? '');
+    $isMaria = DbStatementTimeout::isMariaDb($version);
+    $var = $isMaria ? 'max_statement_time' : 'max_execution_time';
+    $read = static fn (): float => (float) ($db->query('SELECT @@SESSION.' . $var)->fetch_row()[0] ?? -1);
+    $before = $read();
+    DbStatementTimeout::applyForWebRequest($db, '/catalogo', true);
+    $check($read() === $before, "{$label}: CLI leaves @@{$var} untouched");
+    DbStatementTimeout::applyForWebRequest($db, '/admin/books/import/chunk', false);
+    $check($read() === $before, "{$label}: exempt path leaves @@{$var} untouched");
+    DbStatementTimeout::applyForWebRequest($db, '/catalogo', false);
+    $expected = $isMaria ? (float) DbStatementTimeout::configuredSeconds($version) : (float) (DbStatementTimeout::configuredSeconds($version) * 1000);
+    $check($read() === $expected, "{$label}: web path sets @@{$var} = {$expected}");
+    DbStatementTimeout::lift($db);
+    $check($read() === 0.0, "{$label}: lift() resets @@{$var} to 0");
+    $db->close();
+}
+
+session_destroy();
+array_map('unlink', glob($sessionDir . '/*') ?: []);
+@rmdir($sessionDir);
+echo "\nPassed: {$pass}   Failed: {$fail}   Skipped: {$skip}\n";
+exit($fail > 0 ? 1 : 0);

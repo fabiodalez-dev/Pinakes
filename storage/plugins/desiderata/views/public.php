@@ -25,10 +25,10 @@ $wantedTotal = (int) ($wantedTotal ?? count($books));
 // Page one has no ?page=: a link that says "1" and a link that says nothing
 // would be two URLs for one list, which is one canonical URL too many.
 $pageUrl = static fn(int $n): string => url(DesiderataPlugin::PATH_PUBLIC) . ($n > 1 ? '?page=' . $n : '') . '#desiderata-results';
-// The fallback the browser uses when a cover 404s, as a JS string literal: it
-// sits inside an onerror= attribute, where htmlspecialchars() of a raw path
-// would be HTML-decoded before the JS parser ever sees it.
-$placeholderJson = json_encode(url(DesiderataPlugin::PLACEHOLDER_COVER), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
+// The fallback the browser uses when a cover 404s. It travels as plain data in
+// data-pk-fallback-src (pk-actions.js swaps it in); the script after the
+// section turns the frame into the blank book, as the old onerror did.
+$placeholderUrl = url(DesiderataPlugin::PLACEHOLDER_COVER);
 ?>
 <section class="desiderata-section" aria-labelledby="desiderata-heading">
   <div class="container">
@@ -47,7 +47,7 @@ $placeholderJson = json_encode(url(DesiderataPlugin::PLACEHOLDER_COVER), JSON_HE
         <?php // No cover (or one that fails to load): the frame turns into a blank book carrying the title, as the catalogue's cards do.
               $coverSrc = (string) ($b['cover'] ?? url(DesiderataPlugin::PLACEHOLDER_COVER));
               $coverBlank = str_ends_with($coverSrc, DesiderataPlugin::PLACEHOLDER_COVER); ?>
-        <li><?php if ($href !== ''): ?><a class="dw-cover-link" href="<?= $e($href) ?>" tabindex="-1" aria-hidden="true"><?php endif; ?><span class="dw-cover-frame<?= $coverBlank ? ' is-blank' : '' ?>" data-title="<?= $e($b['titolo']) ?>"><img class="dw-cover" src="<?= $e($coverSrc) ?>" alt="" loading="lazy" decoding="async" onerror="this.onerror=null;this.src=<?= $e($placeholderJson) ?>;this.parentNode.classList.add('is-blank')"></span><?php if ($href !== ''): ?></a><?php endif; ?>
+        <li><?php if ($href !== ''): ?><a class="dw-cover-link" href="<?= $e($href) ?>" tabindex="-1" aria-hidden="true"><?php endif; ?><span class="dw-cover-frame<?= $coverBlank ? ' is-blank' : '' ?>" data-title="<?= $e($b['titolo']) ?>"><img class="dw-cover" src="<?= $e($coverSrc) ?>" alt="" loading="lazy" decoding="async" data-pk-fallback-src="<?= $e($placeholderUrl) ?>"></span><?php if ($href !== ''): ?></a><?php endif; ?>
         <div><strong><?php if ($href !== ''): ?><a class="dw-title-link" href="<?= $e($href) ?>"><?= $e($b['titolo']) ?></a><?php else: ?><?= $e($b['titolo']) ?><?php endif; ?></strong><p class="dw-muted"><?= $e(implode(' · ', array_filter([$b['autore'], $b['editore'], $b['isbn13'] ?: $b['isbn10']]))) ?></p></div>
         <button type="button" class="btn btn-outline-primary dw-select" data-book="<?= $e(json_encode($b, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE)) ?>"><?= __('Ce l’ho, posso donarlo') ?></button></li>
         <?php endforeach; ?>
@@ -76,4 +76,15 @@ $placeholderJson = json_encode(url(DesiderataPlugin::PLACEHOLDER_COVER), JSON_HE
     <?php require __DIR__ . '/partials/offer-form.php'; ?>
   </div>
 </section>
+<script<?= csp_nonce_attr() ?>>
+(() => {
+  // A cover that fails to load: pk-actions.js swaps in the placeholder, this
+  // marks the frame blank so it shows the title, as the catalogue's cards do.
+  document.querySelectorAll('#desiderata-results img.dw-cover[data-pk-fallback-src]').forEach((img) => {
+    const blank = () => { if (img.parentNode) img.parentNode.classList.add('is-blank'); };
+    if (img.dataset.pkFallbackDone === '1' || (img.complete && img.naturalWidth === 0 && img.getAttribute('src'))) { blank(); return; }
+    img.addEventListener('error', blank, { once: true });
+  });
+})();
+</script>
 <?php require __DIR__ . '/partials/offer-assets.php'; ?>

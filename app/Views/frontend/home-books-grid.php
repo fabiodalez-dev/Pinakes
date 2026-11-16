@@ -20,7 +20,7 @@
         <i class="fas fa-search empty-state-icon"></i>
         <h4 class="empty-state-title"><?= __("Nessun libro trovato") ?></h4>
         <p class="empty-state-text"><?= __("Prova a modificare i filtri o la tua ricerca") ?></p>
-        <button type="button" class="btn-cta btn-cta-sm" onclick="clearAllFilters()">
+        <button type="button" class="btn-cta btn-cta-sm" data-pk-action="catalog-clear">
             <i class="fas fa-redo mr-2"></i>
             <?= __("Pulisci filtri") ?>
         </button>

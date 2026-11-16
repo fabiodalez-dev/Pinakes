@@ -140,6 +140,9 @@ class Updater
     public function __construct(mysqli $db)
     {
         $this->db = $db;
+        // Migrations and backups run long statements: never under the web
+        // request's statement time limit.
+        DbStatementTimeout::lift($db);
         $this->rootPath = dirname(__DIR__, 2);
         $this->backupPath = $this->rootPath . '/storage/backups';
 

@@ -14,9 +14,6 @@ $check = static function (bool $ok, string $label) use (&$passed, &$failed): voi
 
 $nonce = ContentSecurityPolicy::createNonce();
 $header = ContentSecurityPolicy::header($nonce);
-$html = '<style>.x{color:red}</style><script>window.ok=true</script>'
-    . '<script nonce="0123456789abcdef0123456789abcdef">window.existing=true</script>';
-$rewritten = ContentSecurityPolicy::addNonceAttributes($html, $nonce);
 
 $check((bool) preg_match('/^(?:[a-f0-9]{8}-){3}[a-f0-9]{8}$/D', $nonce), 'nonce is cryptographically sized and CSP-safe');
 $check((bool) preg_match('/^[a-f0-9]{32}$/D', str_replace('-', '', $nonce)), 'nonce preserves 128 bits of hexadecimal payload');
@@ -49,13 +46,18 @@ $check(str_contains($header, "frame-src 'self' data: blob: about: https:"), 'rem
 $check(str_contains($header, "connect-src 'self' data: blob: https://www.google.com"), 'browser API calls remain same-origin except the explicit Google integration');
 $check(str_contains($header, "object-src 'none'"), 'object embedding is denied');
 $check(str_contains($header, "base-uri 'self'") && str_contains($header, "form-action 'self'"), 'no-fallback navigation directives are explicit');
-$check(substr_count($rewritten, 'nonce="' . $nonce . '"') === 2, 'nonce is attached to every untrusted script/style element');
-$check(substr_count($rewritten, 'nonce="0123456789abcdef0123456789abcdef"') === 1, 'an existing nonce is never overwritten');
+// [39] The response is no longer stamped as a whole: only the templates'
+// own tags carry the nonce, through csp_nonce_attr().
+$check(!(new ReflectionClass(ContentSecurityPolicy::class))->hasMethod('addNonceAttributes'), 'no whole-response nonce stamping is available');
+$requestNonce = ContentSecurityPolicy::beginRequest();
+$check(ContentSecurityPolicy::requestNonce() === $requestNonce, 'templates read the nonce generated for the request');
+$check(csp_nonce_attr() === ' nonce="' . $requestNonce . '"', 'csp_nonce_attr() renders the request nonce attribute');
+$check(ContentSecurityPolicy::nonceFromHeader(ContentSecurityPolicy::header($requestNonce)) === $requestNonce, 'the request nonce can be read back from the CSP header');
 $check(str_ends_with(ContentSecurityPolicy::header($nonce, true), '; upgrade-insecure-requests'), 'HTTPS production policy upgrades insecure requests');
 $check(ContentSecurityPolicy::isHtmlResponse('', "<!doctype html>\n<html></html>"), 'legacy HTML without Content-Type is detected');
 $check(ContentSecurityPolicy::isHtmlResponse('text/html; charset=UTF-8', '<html></html>'), 'declared HTML is detected');
-$check(!ContentSecurityPolicy::isHtmlResponse('application/json', '{"script":"<script>"}'), 'JSON is never nonce-rewritten');
-$check(!ContentSecurityPolicy::isHtmlResponse('', '<div>fragment</div>'), 'untyped non-document fragments are not rewritten');
+$check(!ContentSecurityPolicy::isHtmlResponse('application/json', '{"script":"<script>"}'), 'JSON is never treated as HTML');
+$check(!ContentSecurityPolicy::isHtmlResponse('', '<div>fragment</div>'), 'untyped non-document fragments are not treated as HTML');
 
 $frontController = file_get_contents(dirname(__DIR__) . '/public/index.php');
 $errorMiddlewarePosition = strpos((string) $frontController, '$app->addErrorMiddleware');

@@ -413,17 +413,6 @@ class DesiderataPlugin
         }
     }
     public static function e(mixed $value): string { return htmlspecialchars((string)$value, ENT_QUOTES, 'UTF-8'); }
-    /**
-     * The body of an `onclick` confirmation, built the one way that is safe
-     * there: json_encode with the HEX flags, never htmlspecialchars of a JS
-     * string — the attribute is HTML-decoded before the script is parsed, so an
-     * entity-escaped quote would break straight back out into the code. The
-     * result still goes through e() when it is printed into the attribute.
-     */
-    public static function confirmJs(string $text): string
-    {
-        return 'return confirm(' . json_encode($text, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT) . ');';
-    }
     public function bookField(?array $book, ?int $id): void
     {
         $hasCopies = false;

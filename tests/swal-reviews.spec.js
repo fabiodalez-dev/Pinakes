@@ -234,7 +234,7 @@ test.describe.serial('Reviews cluster SweetAlerts', () => {
     await gotoReviews(page);
 
     // Expand the "approved" collapsible so the delete button is interactable.
-    await page.click('button[onclick="toggleSection(\'approved\')"]');
+    await page.click('button[data-pk-action="reviews-toggle-section"][data-section="approved"]');
 
     const btn = page.locator(`.delete-btn[data-review-id="${reviewId}"]`);
     await btn.waitFor({ state: 'visible', timeout: 10000 });

@@ -46,7 +46,7 @@ $icsUrl = url(\App\Support\RouteTranslator::route('book_club') . '/' . $slug . '
 $kindLabels = ['in_person' => __('In presenza'), 'online' => __('Online'), 'hybrid' => __('Ibrido')];
 ?>
 <?php $bookClubStyles = true; ?>
-<style>
+<style<?= csp_nonce_attr() ?>>
   /* Page-local helpers (club page only; partials rely on the kit above). */
   .bc-preline{white-space:pre-line}
   .bc-row{padding:.9rem 0;border-top:1px solid var(--border-color)}
@@ -109,7 +109,7 @@ ob_start();
           <span class="bc-badge bc-badge-warn"><?= $e(__('Richiesta in attesa di approvazione')) ?></span>
         <?php else: ?>
           <form method="post" action="<?= $e(url(\App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/leave')) ?>"
-                onsubmit="return confirm(<?= $e(json_encode(__('Vuoi davvero lasciare il club?'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP)) ?>);">
+                data-pk-confirm="<?= $e(__('Vuoi davvero lasciare il club?')) ?>">
             <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
             <button type="submit" class="bc-btn bc-btn-danger bc-btn-sm"><?= $e(__('Lascia il club')) ?></button>
           </form>
@@ -329,7 +329,7 @@ include $corePartials . '/resource-hero.php';
               <button type="submit" class="bc-btn bc-btn-outline"><?= $e(__('Proponi libro esterno')) ?></button>
             </form>
           </details>
-          <script>
+          <script<?= csp_nonce_attr() ?>>
             (function () {
               var input = document.getElementById('bc-book-search');
               var box = document.getElementById('bc-book-results');
@@ -534,7 +534,7 @@ include $corePartials . '/resource-hero.php';
                 <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
                 <button name="status" value="done" class="bc-btn bc-btn-outline bc-btn-sm"><?= $e(__('Segna come svolto')) ?></button>
                 <button name="status" value="cancelled" class="bc-btn bc-btn-danger bc-btn-sm"
-                        onclick="return confirm(<?= $e(json_encode(__('Annullare questo incontro?'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP)) ?>);"><?= $e(__('Annulla incontro')) ?></button>
+                        data-pk-confirm="<?= $e(__('Annullare questo incontro?')) ?>"><?= $e(__('Annulla incontro')) ?></button>
               </form>
               <details class="mt-2 bc-meeting-edit">
                 <summary class="bc-summary"><?= $e(__('Modifica incontro')) ?></summary>

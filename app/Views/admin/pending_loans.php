@@ -498,7 +498,7 @@ require __DIR__ . '/../partials/loan-actions-swal.php';
 unset($loanActionTranslations);
 ?>
 
-<script>
+<script<?= csp_nonce_attr() ?>>
 document.addEventListener('DOMContentLoaded', function() {
     // Get CSRF token for protected requests
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';

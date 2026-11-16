@@ -2,21 +2,21 @@
 declare(strict_types=1);
 
 /**
- * Security guard for the per-copy fields rendered into inline onclick handlers
- * on the admin book-detail page (app/Views/libri/scheda_libro.php).
+ * Security guard for the per-copy fields rendered into the copy edit/delete
+ * buttons on the admin book-detail page (app/Views/libri/scheda_libro.php).
  *
  * numero_inventario / stato / note are staff-writable free text (copy-tracking
- * #238). They were emitted into `onclick="fn(id, '<value>')"` with only
- * htmlspecialchars(ENT_QUOTES). That is the WRONG encoding for a JS string
- * inside an HTML attribute: the browser HTML-decodes the attribute (`&#039;`→`'`)
- * BEFORE the JS parser runs, so a value like `');alert(1)//` breaks out of the
- * string and executes — a stored XSS that fires in another admin's browser when
- * they click the copy edit/delete button.
+ * #238). They used to be emitted into `onclick="fn(id, '<value>')"`, a JS string
+ * inside an HTML attribute, where htmlspecialchars() alone is the wrong encoding
+ * (the browser HTML-decodes the attribute before the JS parser runs). The CSP now
+ * forbids inline handlers (script-src-attr 'none'), so the values travel in
+ * data-copy-* attributes and the page script reads them through `dataset`: there
+ * is no JS parsing of the value any more, only HTML attribute decoding, for which
+ * htmlspecialchars(ENT_QUOTES) is the right and sufficient encoding.
  *
- * The fix wraps the value in json_encode() with the JSON_HEX_* flags (so the JS
- * string cannot be broken) and then htmlspecialchars() (so the JSON's delimiting
- * quotes cannot terminate the HTML attribute). This test reproduces that exact
- * expression and asserts the rendered handler is inert for every payload.
+ * This test reproduces that exact expression, asserts every payload round-trips
+ * through attribute decoding unchanged and cannot terminate the attribute, and
+ * checks that the view really renders the copy buttons that way.
  *
  * Run:  php tests/xss-copy-fields-encoding.unit.php   (exit 0 iff all pass)
  */
@@ -29,19 +29,9 @@ $check = static function (bool $ok, string $label) use (&$pass, &$fail): void {
 };
 
 /** The exact PHP expression scheda_libro.php now uses for a copy field. */
-$encode = static fn (string $value): string => htmlspecialchars(
-    (string) json_encode($value, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE),
-    ENT_QUOTES,
-    'UTF-8'
-);
+$encode = static fn (string $value): string => htmlspecialchars($value, ENT_QUOTES, 'UTF-8');
 
-/**
- * Emulate a browser: the HTML attribute value is HTML-decoded, then the JS
- * argument is parsed. We assert the decoded-then-evaluated argument equals the
- * original string exactly (no breakout), and that neither the raw nor the
- * HTML-decoded attribute can terminate the attribute or the JS string early.
- */
-echo "A. onclick JS-string context — no breakout\n";
+echo "A. data-* attribute context — no breakout\n";
 $payloads = [
     'string-break-alert'  => "');alert(document.domain)//",
     'double-quote-break'  => '");alert(1)//',
@@ -58,28 +48,27 @@ $payloads = [
 foreach ($payloads as $name => $raw) {
     $attr = $encode($raw);
 
-    // 1. The rendered attribute value must not contain a raw " that would end
-    //    the double-quoted onclick="…" attribute early.
-    $check(!str_contains($attr, '"'), "payload '{$name}': no raw double-quote in attribute");
+    // 1. Nothing in the value can end the double-quoted attribute or open a tag.
+    $check(!str_contains($attr, '"') && !str_contains($attr, '<') && !str_contains($attr, '>'),
+        "payload '{$name}': no raw quote/angle-bracket in attribute");
 
-    // 2. HTML-decode the attribute the way a browser does before running the JS.
-    $decoded = html_entity_decode($attr, ENT_QUOTES, 'UTF-8');
-
-    // 3. The decoded text is a JS expression argument: `"<escaped>"`. It must be
-    //    a single well-formed JS string literal — i.e. exactly one opening and
-    //    one closing unescaped double quote, with nothing after it. json_decode
-    //    parses JS/JSON string escapes identically, so it recovers the original.
-    $recovered = json_decode($decoded, true);
-    $check($recovered === $raw,
-        "payload '{$name}': JS string literal round-trips to the original (no breakout)");
-
-    // 4. Belt-and-suspenders: the decoded literal has no unescaped `'`/`"`/`<`
-    //    that could break the string or the surrounding markup, apart from the
-    //    two delimiting quotes.
-    $inner = substr($decoded, 1, -1); // strip the delimiting quotes
-    $check(!preg_match('/(?<!\\\\)["\']/', $inner) && !str_contains($inner, '<') && !str_contains($inner, '>'),
-        "payload '{$name}': inner JS string has no live quote/angle-bracket");
+    // 2. The browser HTML-decodes the attribute; dataset hands the script exactly
+    //    the original string, which is only ever used as data.
+    $check(html_entity_decode($attr, ENT_QUOTES | ENT_HTML5, 'UTF-8') === $raw,
+        "payload '{$name}': attribute round-trips to the original value");
 }
+
+echo "\nB. the view renders copy buttons without inline handlers\n";
+$view = (string) file_get_contents(__DIR__ . '/../app/Views/libri/scheda_libro.php');
+$check(!preg_match('/\son[a-z]+\s*=/i', $view), 'scheda_libro.php has no inline on* handler');
+$check(str_contains($view, 'data-copy-stato="<?php echo htmlspecialchars((string) ($copia[\'stato\'] ?? \'\'), ENT_QUOTES, \'UTF-8\'); ?>"'),
+    'copy stato travels in an escaped data attribute');
+$check(str_contains($view, 'data-copy-note="<?php echo htmlspecialchars((string) ($copia[\'note\'] ?? \'\'), ENT_QUOTES, \'UTF-8\'); ?>"'),
+    'copy note travels in an escaped data attribute');
+$check(str_contains($view, 'data-copy-inventario="<?php echo htmlspecialchars((string) ($copia[\'numero_inventario\'] ?? \'\'), ENT_QUOTES, \'UTF-8\'); ?>"'),
+    'copy inventory number travels in an escaped data attribute');
+$check(str_contains($view, "PinakesActions.register('book-copy-edit'") && str_contains($view, "PinakesActions.register('book-copy-delete'"),
+    'copy edit/delete verbs are registered by the page script');
 
 echo "\n" . ($fail === 0 ? "ALL {$pass} PASS\n" : "{$pass} PASS, {$fail} FAIL\n");
 exit($fail === 0 ? 0 : 1);

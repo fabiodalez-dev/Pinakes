@@ -65,7 +65,7 @@ $isPdf = $hasEbook && strtolower(pathinfo($ebookPath, PATHINFO_EXTENSION)) === '
 </div>
 
 <?php if ($hasAudiobook): ?>
-<script>
+<script<?= csp_nonce_attr() ?>>
 // Toggle audiobook player visibility and stop playback if needed
 document.addEventListener('DOMContentLoaded', function() {
     var toggleBtn = document.getElementById('btn-toggle-audiobook');

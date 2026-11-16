@@ -126,7 +126,7 @@ final class StaffCirculationOpenApi
                 'put' => O::op($t, 'staffUpdateLoan', 'Edit borrower or dates (merged over the current row)', [
                     '200' => $loan,
                 ] + O::notFound() + O::invalid() + O::conflict('`loan_closed`, `concurrent_retry`, `not_available`, `not_eligible`, `duplicate`, `max_loans_reached`.'), $loanId + [
-                    'requestBody' => O::inlineBody(['user_id' => ['type' => 'integer'], 'loaned_at' => ['type' => 'string', 'format' => 'date'], 'due_at' => ['type' => 'string', 'format' => 'date']]),
+                    'requestBody' => O::inlineBody(['user_id' => ['type' => 'integer'], 'loaned_at' => ['type' => 'string', 'format' => 'date'], 'due_at' => ['type' => 'string', 'format' => 'date'], 'waive_reason' => ['type' => 'string', 'maxLength' => 255, 'description' => 'Required when due_at moves an overdue loan forward while a late fine is accruing: the fine accrued so far is recorded and waived with this reason (422 validation_error, meta.field waive_reason, meta.reason extension_reason_required).']]),
                 ]),
             ],
             '/staff/loans/{id}/approve' => ['post' => O::op($t, 'staffApproveLoan', 'Approve a pending request', ['200' => $loan] + $approvalErrors, $loanId)],

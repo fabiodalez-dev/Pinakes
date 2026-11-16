@@ -329,7 +329,7 @@ unset($workspaceHeader);
             </button>
           </div>
         </form>
-        <script>
+        <script<?= csp_nonce_attr() ?>>
           (function () {
             var btn = document.getElementById('btn-test-email');
             if (!btn) { return; }
@@ -471,7 +471,7 @@ unset($workspaceHeader);
             </button>
           </div>
         </form>
-        <script>
+        <script<?= csp_nonce_attr() ?>>
           // Deleting a custom field cascades to every user's stored value —
           // confirm before submitting when any "Elimina" box is checked.
           (function () {
@@ -503,7 +503,7 @@ unset($workspaceHeader);
               <input type="hidden" name="tab" value="templates">
               <div>
                 <label for="template-locale" class="block text-xs font-medium text-gray-600 mb-1"><?= __("Lingua dei template") ?></label>
-                <select id="template-locale" name="template_locale" class="rounded-lg border-gray-300 text-sm py-2 px-3" onchange="this.form.submit()">
+                <select id="template-locale" name="template_locale" class="rounded-lg border-gray-300 text-sm py-2 px-3" data-pk-action="submit-form">
                   <?php foreach ($templateLocales as $localeCode => $localeName): ?>
                     <option value="<?php echo htmlspecialchars((string) $localeCode, ENT_QUOTES, 'UTF-8'); ?>"<?php echo $localeCode === $templateLocale ? ' selected' : ''; ?>>
                       <?php echo htmlspecialchars((string) $localeName, ENT_QUOTES, 'UTF-8'); ?>
@@ -964,7 +964,7 @@ unset($workspaceHeader);
   </div>
 </div>
 
-<style>
+<style<?= csp_nonce_attr() ?>>
   /* Fix radio button size - override contrast-fixes.css */
   input[type="radio"][name="label_format"] {
     width: 1rem !important;
@@ -974,8 +974,8 @@ unset($workspaceHeader);
   }
 </style>
 
-<script src="<?= htmlspecialchars(assetUrl('tinymce/tinymce.min.js'), ENT_QUOTES, 'UTF-8') ?>"></script>
-<script>
+<script<?= csp_nonce_attr() ?> src="<?= htmlspecialchars(assetUrl('tinymce/tinymce.min.js'), ENT_QUOTES, 'UTF-8') ?>"></script>
+<script<?= csp_nonce_attr() ?>>
   document.addEventListener('DOMContentLoaded', () => {
     const sections = <?= json_encode($settingsSections, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) ?>;
     const links = document.querySelectorAll('[data-settings-section]');

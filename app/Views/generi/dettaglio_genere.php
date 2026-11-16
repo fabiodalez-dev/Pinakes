@@ -265,7 +265,7 @@ unset($workspaceHeader);
   </div>
 </div>
 
-<script>
+<script<?= csp_nonce_attr() ?>>
 document.addEventListener('DOMContentLoaded', function() {
   const editBtn = document.getElementById('btn-edit-genre');
   const cancelBtn = document.getElementById('btn-cancel-edit');

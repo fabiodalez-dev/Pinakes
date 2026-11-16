@@ -220,6 +220,12 @@ final class StaffCirculationController
                 }
                 $form[$column] = $date;
             }
+            // Moving an overdue loan forward waives the fine accrued so far:
+            // PrestitiController::update() requires this reason for it.
+            $waiveReason = StaffPaging::text($json['waive_reason'] ?? null, 255);
+            if ($waiveReason !== null && $waiveReason !== '') {
+                $form['waive_reason'] = $waiveReason;
+            }
 
             $db = $this->db;
             $outcome = Delegation::run(static fn (): ResponseInterface => (new PrestitiController())->update(
@@ -289,7 +295,8 @@ final class StaffCirculationController
             });
             $message = is_string($outcome->json['message'] ?? null) ? (string) $outcome->json['message'] : '';
             if ($outcome->status !== 200 || ($outcome->json['success'] ?? false) !== true) {
-                return CirculationOutcome::approvalError($response, $outcome->status === 200 ? 400 : $outcome->status, $message, 'staff ' . $method);
+                $coreCode = is_string($outcome->json['code'] ?? null) ? (string) $outcome->json['code'] : '';
+                return CirculationOutcome::approvalError($response, $outcome->status === 200 ? 400 : $outcome->status, $message, 'staff ' . $method, $coreCode);
             }
             $loan = $this->reader->loan($id);
             if ($loan === null) {

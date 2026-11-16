@@ -175,7 +175,7 @@ unset($workspaceHeader);
                                            class="flex-1 px-3 py-2 border rounded-lg bg-gray-50 font-mono text-sm"
                                            readonly>
                                     <button type="button"
-                                            onclick="autoDetectButtonTextColor()"
+                                            data-pk-action="theme-auto-button-text"
                                             class="btn-icon btn-secondary px-3 py-2 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg"
                                             title="<?= htmlspecialchars(__("Auto"), ENT_QUOTES, 'UTF-8') ?>" aria-label="<?= htmlspecialchars(__("Auto"), ENT_QUOTES, 'UTF-8') ?>">
                                         <i class="fas fa-magic"></i>
@@ -269,7 +269,7 @@ unset($workspaceHeader);
                             </button>
 
                             <button type="button"
-                                    onclick="resetToDefaults()"
+                                    data-pk-action="theme-reset-defaults"
                                     class="w-full px-6 py-3 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 font-medium">
                                 <i class="fas fa-undo mr-2"></i>
                                 <?= __("Ripristina") ?>
@@ -282,7 +282,7 @@ unset($workspaceHeader);
     </div>
 </div>
 
-<script>
+<script<?= csp_nonce_attr() ?>>
 document.querySelectorAll('input[type="color"]').forEach(input => {
     const id = input.id;
     const textInput = document.getElementById(id + '-text') ||
@@ -425,4 +425,8 @@ function resetToDefaults() {
 }
 
 checkContrast();
+
+// Delegated actions (CSP script-src-attr 'none': no inline on* attributes).
+PinakesActions.register('theme-auto-button-text', () => autoDetectButtonTextColor());
+PinakesActions.register('theme-reset-defaults', () => resetToDefaults());
 </script>

@@ -85,7 +85,8 @@ class Installer {
         $envContent .= "# Force HTTPS\n";
         $envContent .= "# Set to 'true' only if your server supports HTTPS (requires valid SSL certificate)\n";
         $envContent .= "# Leave 'false' for local development or HTTP-only production servers\n";
-        $envContent .= "FORCE_HTTPS=false\n";
+        $envContent .= "# Defaults to 'true' when the installation itself ran over HTTPS\n";
+        $envContent .= "FORCE_HTTPS=" . (self::isInstallRequestHttps() ? 'true' : 'false') . "\n";
         $envContent .= "\n# Canonical URL (auto-detected during installation)\n";
         $envContent .= "APP_CANONICAL_URL=" . $this->detectCanonicalUrl() . "\n";
 
@@ -196,6 +197,38 @@ class Installer {
      *
      * @return array<string, string>|null
      */
+    /**
+     * Whether the installer request itself arrived over HTTPS.
+     *
+     * A direct TLS connection always counts. X-Forwarded-Proto / X-Forwarded-SSL
+     * count only when REMOTE_ADDR is a TRUSTED_PROXIES peer, using the same
+     * matcher as the application (App\Support\HtmlHelper), so a client cannot
+     * talk the installer into FORCE_HTTPS=true on an HTTP-only server (which
+     * would redirect-loop the freshly installed site).
+     *
+     * @param array<string, mixed>|null $server defaults to $_SERVER (injectable for tests)
+     */
+    public static function isInstallRequestHttps(?array $server = null): bool
+    {
+        $server ??= $_SERVER;
+        if (!empty($server['HTTPS']) && strtolower((string) $server['HTTPS']) !== 'off') {
+            return true;
+        }
+        if (!class_exists(\App\Support\HtmlHelper::class)) {
+            $helper = dirname(__DIR__, 2) . '/app/Support/HtmlHelper.php';
+            if (!is_file($helper)) {
+                return false;
+            }
+            require_once $helper;
+        }
+        if (!\App\Support\HtmlHelper::isTrustedProxyIp((string) ($server['REMOTE_ADDR'] ?? ''))) {
+            return false;
+        }
+        $proto = strtolower(trim(explode(',', (string) ($server['HTTP_X_FORWARDED_PROTO'] ?? ''))[0]));
+        $ssl = strtolower(trim((string) ($server['HTTP_X_FORWARDED_SSL'] ?? '')));
+        return $proto === 'https' || $ssl === 'on';
+    }
+
     public static function readEnvFile(string $path): ?array
     {
         if (!is_file($path) || !is_readable($path)) {

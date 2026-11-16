@@ -120,7 +120,8 @@ test.describe.serial('SweetAlert — settings-admin-tools cluster', () => {
 
     // API key fixture.
     dbExec(`DELETE FROM api_keys WHERE name='${escapeSql(API_KEY_NAME)}'`);
-    dbExec(`INSERT INTO api_keys (api_key, name, is_active) VALUES ('${escapeSql(API_KEY_VALUE)}', '${escapeSql(API_KEY_NAME)}', 1)`);
+    // 0.9.6+: only the key's SHA-256 and a display prefix are stored.
+    dbExec(`INSERT INTO api_keys (key_hash, key_prefix, name, is_active) VALUES (SHA2(LOWER('${escapeSql(API_KEY_VALUE)}'), 256), LEFT(LOWER('${escapeSql(API_KEY_VALUE)}'), 8), '${escapeSql(API_KEY_NAME)}', 1)`);
     apiKeyId = parseInt(dbQuery(`SELECT id FROM api_keys WHERE name='${escapeSql(API_KEY_NAME)}' LIMIT 1`), 10);
 
     // Backup fixture dir (for deleteBackup).
@@ -276,8 +277,8 @@ test.describe.serial('SweetAlert — settings-admin-tools cluster', () => {
   // integrity_report.php:419 — recalculateAvailability (info / loading + result)
   test('integrity:419 recalculateAvailability — result toast', async () => {
     await page.goto(`${BASE}/admin/maintenance/integrity-report`);
-    await page.waitForSelector('button[onclick="recalculateAvailability()"]', { timeout: 15000 });
-    await page.click('button[onclick="recalculateAvailability()"]');
+    await page.waitForSelector('button[data-pk-action="integrity-recalculate"]', { timeout: 15000 });
+    await page.click('button[data-pk-action="integrity-recalculate"]');
     // Loading modal shows first, then the result popup (success/error).
     const popup = await waitSwal(page);
     // Wait for the result (loading auto-closes); the result has a confirm button.
@@ -290,8 +291,8 @@ test.describe.serial('SweetAlert — settings-admin-tools cluster', () => {
   // integrity_report.php:443 — fixIssues (confirm-action)
   test('integrity:443 fixIssues — confirm-action then result', async () => {
     await page.goto(`${BASE}/admin/maintenance/integrity-report`);
-    await page.waitForSelector('button[onclick="fixIssues()"]', { timeout: 15000 });
-    await page.click('button[onclick="fixIssues()"]');
+    await page.waitForSelector('button[data-pk-action="integrity-fix-issues"]', { timeout: 15000 });
+    await page.click('button[data-pk-action="integrity-fix-issues"]');
     const confirm = await waitSwal(page);
     await expect(confirm).toContainText(/integrità|Confermi/i);
     await page.click('.swal2-confirm');
@@ -306,7 +307,7 @@ test.describe.serial('SweetAlert — settings-admin-tools cluster', () => {
   test('integrity:477 performMaintenance — confirm-action then result', async () => {
     await page.goto(`${BASE}/admin/maintenance/integrity-report`);
     // There are two performMaintenance() buttons; the bottom card one is fine.
-    const btn = page.locator('button[onclick="performMaintenance()"]').last();
+    const btn = page.locator('button[data-pk-action="integrity-maintenance"]').last();
     await btn.waitFor({ state: 'visible', timeout: 15000 });
     await btn.click();
     const confirm = await waitSwal(page);
@@ -323,7 +324,7 @@ test.describe.serial('SweetAlert — settings-admin-tools cluster', () => {
   // CANCEL (it would persist APP_CANONICAL_URL otherwise).
   test('integrity:515 applyConfigFix — confirm-action (cancelled)', async () => {
     await page.goto(`${BASE}/admin/maintenance/integrity-report`);
-    await page.waitForSelector('button[onclick="recalculateAvailability()"]', { timeout: 15000 });
+    await page.waitForSelector('button[data-pk-action="integrity-recalculate"]', { timeout: 15000 });
     await page.evaluate(() => {
       // @ts-ignore — exposed at window scope by the view
       window.applyConfigFix('app_canonical_url', 'http://localhost:8081');
@@ -338,7 +339,7 @@ test.describe.serial('SweetAlert — settings-admin-tools cluster', () => {
   // (CREATE ... IF NOT EXISTS); invoke via window fn, confirm, assert result.
   test('integrity:558 createMissingIndexes — confirm-action then result', async () => {
     await page.goto(`${BASE}/admin/maintenance/integrity-report`);
-    await page.waitForSelector('button[onclick="recalculateAvailability()"]', { timeout: 15000 });
+    await page.waitForSelector('button[data-pk-action="integrity-recalculate"]', { timeout: 15000 });
     await page.evaluate(() => {
       // @ts-ignore
       window.createMissingIndexes();
@@ -356,7 +357,7 @@ test.describe.serial('SweetAlert — settings-admin-tools cluster', () => {
   // Idempotent (CREATE TABLE IF NOT EXISTS); invoke via window fn.
   test('integrity:603 createMissingSystemTables — confirm-action then result', async () => {
     await page.goto(`${BASE}/admin/maintenance/integrity-report`);
-    await page.waitForSelector('button[onclick="recalculateAvailability()"]', { timeout: 15000 });
+    await page.waitForSelector('button[data-pk-action="integrity-recalculate"]', { timeout: 15000 });
     await page.evaluate(() => {
       // @ts-ignore
       window.createMissingSystemTables();
@@ -562,8 +563,8 @@ test.describe.serial('SweetAlert — settings-admin-tools cluster', () => {
   // to avoid a full DB dump on the shared install.
   test('updates:676 createBackup — confirm-action (cancelled)', async () => {
     await page.goto(`${BASE}/admin/updates`);
-    await page.waitForSelector('button[onclick="createBackup()"]', { timeout: 15000 });
-    await page.click('button[onclick="createBackup()"]');
+    await page.waitForSelector('button[data-pk-action="updates-create-backup"]', { timeout: 15000 });
+    await page.click('button[data-pk-action="updates-create-backup"]');
     const popup = await waitSwal(page);
     await expect(popup).toContainText(/backup/i);
     await page.click('.swal2-cancel');

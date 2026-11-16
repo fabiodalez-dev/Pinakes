@@ -13,7 +13,7 @@ declare(strict_types=1);
 
 $e = static fn(mixed $v): string => htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8');
 ?>
-<style>
+<style<?= csp_nonce_attr() ?>>
   #book-club-quotes{background:var(--white);border-radius:20px;box-shadow:var(--card-shadow);padding:clamp(1.5rem,3vw,2rem);margin-bottom:1.5rem}
   #book-club-quotes .bcq-header{display:flex;align-items:center;gap:.75rem;margin-bottom:1.25rem}
   #book-club-quotes .bcq-header i{color:var(--primary-text, var(--primary-color));font-size:1.15rem}

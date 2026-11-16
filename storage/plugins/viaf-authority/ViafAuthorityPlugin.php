@@ -911,7 +911,7 @@ class ViafAuthorityPlugin
         $viafUri = htmlspecialchars((string) ($row['viaf_uri'] ?? ''), ENT_QUOTES, 'UTF-8');
         $isniId  = htmlspecialchars((string) ($row['isni_id'] ?? ''), ENT_QUOTES, 'UTF-8');
         $html  = "<!DOCTYPE html><html><head><meta charset='utf-8'>";
-        $html .= "<style>body{font-family:sans-serif;padding:8px;font-size:13px;}h2{margin:0 0 6px;}p{margin:3px 0;color:#555;}a{color:#1a73e8;}</style></head><body>";
+        $html .= "<style" . csp_nonce_attr() . ">body{font-family:sans-serif;padding:8px;font-size:13px;}h2{margin:0 0 6px;}p{margin:3px 0;color:#555;}a{color:#1a73e8;}</style></head><body>";
         $html .= "<h2>{$name}</h2>";
         if ($viafId !== '') {
             $html .= "<p>VIAF: <a href='{$viafUri}' target='_blank' rel='noopener noreferrer'>{$viafId}</a></p>";

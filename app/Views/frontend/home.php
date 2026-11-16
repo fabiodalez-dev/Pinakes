@@ -493,7 +493,7 @@ if (!empty($sectionsOrdered)) {
 
 <?php
 $additional_js = "
-<script>
+<script" . csp_nonce_attr() . ">
 // Traduzioni per JavaScript
 const i18n = {
     loading: " . json_encode(__("Caricamento..."), JSON_HEX_TAG) . ",

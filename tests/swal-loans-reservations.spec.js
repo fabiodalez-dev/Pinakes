@@ -314,7 +314,7 @@ test.describe.serial('SweetAlert: loans & reservations cluster', () => {
     // The pickup button is rendered by the server-side DataTable. Wait for the
     // row to render then click it, or call the global directly if the button
     // is paginated out of view.
-    const pickupBtn = adminPage.locator(`button[onclick="confirmPickup(${loanId})"]`);
+    const pickupBtn = adminPage.locator(`button[data-pk-action="loans-confirm-pickup"][data-loan-id="${loanId}"]`);
     await adminPage.locator('#prestiti-table tbody tr').first().waitFor({ timeout: 10000 });
     if (await pickupBtn.isVisible({ timeout: 4000 }).catch(() => false)) {
       await pickupBtn.click();

@@ -38,7 +38,7 @@ $workspaceHeader['context'] = (string) ob_get_clean();
 ob_start();
 ?>
 
-            <button onclick="checkForUpdatesManual()"
+            <button data-pk-action="updates-check"
                 class="inline-flex items-center px-6 py-3 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition-all duration-200 shadow-sm hover:shadow-md">
                 <i class="fas fa-sync-alt mr-2"></i>
                 <?= __("Controlla Aggiornamenti") ?>
@@ -89,7 +89,7 @@ unset($workspaceHeader);
                 <!-- Update Button -->
                 <?php if ($updateInfo['available'] && $requirements['met']): ?>
                 <div>
-                    <button onclick="startUpdate(this.dataset.version)" data-version="<?= HtmlHelper::e($updateInfo['latest']) ?>"
+                    <button data-pk-action="updates-start" data-version="<?= HtmlHelper::e($updateInfo['latest']) ?>"
                         class="inline-flex items-center px-6 py-3 bg-gray-800 text-white rounded-xl hover:bg-gray-700 transition-all duration-200 shadow-md hover:shadow-lg">
                         <i class="fas fa-download mr-2"></i>
                         <?= __("Aggiorna Ora") ?>
@@ -160,18 +160,18 @@ unset($workspaceHeader);
                     <label for="github-token" class="block text-sm font-medium text-gray-700 mb-2">
                         <?= __("Personal Access Token (classic)") ?>
                     </label>
-                    <form class="flex gap-2 pk-token-form" id="github-token-form" onsubmit="event.preventDefault(); saveGitHubToken();">
+                    <form class="flex gap-2 pk-token-form" id="github-token-form">
                         <input type="<?= $hasGithubToken ? 'text' : 'password' ?>" id="github-token"
                             name="github_token"
                             placeholder="<?= $hasGithubToken ? HtmlHelper::e($githubTokenMasked) : 'ghp_xxxxxxxxxxxxxxxxxxxx' ?>"
                             class="flex-1 rounded-lg border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500 text-sm font-mono"
                             autocomplete="new-password"
-                            <?= $hasGithubToken ? 'readonly onfocus="this.removeAttribute(\'readonly\');this.type=\'password\';this.value=\'\';this.placeholder=\'ghp_xxxxxxxxxxxxxxxxxxxx\';"' : '' ?>>
+                            <?= $hasGithubToken ? 'readonly data-pk-action="updates-token-unlock" data-pk-on="focusin"' : '' ?>>
                         <button type="submit" class="inline-flex items-center px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-700 transition-colors text-sm">
                             <i class="fas fa-save mr-1"></i><?= __("Salva") ?>
                         </button>
                         <?php if ($hasGithubToken): ?>
-                        <button type="button" onclick="removeGitHubToken()" aria-label="<?= htmlspecialchars(__("Rimuovi token GitHub"), ENT_QUOTES, 'UTF-8') ?>" title="<?= htmlspecialchars(__("Rimuovi token GitHub"), ENT_QUOTES, 'UTF-8') ?>" class="btn-icon btn-danger-outline px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm">
+                        <button type="button" data-pk-action="updates-remove-token" aria-label="<?= htmlspecialchars(__("Rimuovi token GitHub"), ENT_QUOTES, 'UTF-8') ?>" title="<?= htmlspecialchars(__("Rimuovi token GitHub"), ENT_QUOTES, 'UTF-8') ?>" class="btn-icon btn-danger-outline px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm">
                             <i class="fas fa-trash mr-1"></i>
                         </button>
                         <?php endif; ?>
@@ -247,7 +247,7 @@ unset($workspaceHeader);
                                 </p>
 <?php if (($_SESSION['user']['tipo_utente'] ?? '') === 'admin'): ?>
                                 <label class="mt-3 flex items-center gap-2 text-sm text-blue-800 cursor-pointer">
-                                    <input type="checkbox" id="preUpdateIncludeFiles" onchange="saveBackupSetting()" <?= !empty($backupIncludeFiles) ? 'checked' : '' ?>
+                                    <input type="checkbox" id="preUpdateIncludeFiles" data-pk-action="updates-save-backup-setting" <?= !empty($backupIncludeFiles) ? 'checked' : '' ?>
                                         class="rounded border-blue-300 text-blue-600 focus:ring-blue-500">
                                     <?= __("Includi i file caricati nel backup pre-aggiornamento") ?>
                                 </label>
@@ -263,7 +263,7 @@ unset($workspaceHeader);
                             <option value="full"><?= __("Completo (database + file caricati)") ?></option>
                             <option value="db"><?= __("Solo database") ?></option>
                         </select>
-                        <button onclick="createBackup()"
+                        <button data-pk-action="updates-create-backup"
                             class="w-full inline-flex items-center justify-center px-6 py-3 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition-all duration-200">
                             <i class="fas fa-database mr-2"></i>
                             <?= __("Crea Backup Manuale") ?>
@@ -276,7 +276,7 @@ unset($workspaceHeader);
                         <label class="block text-sm font-medium text-gray-700 mb-2"><?= __("Ripristina da file") ?></label>
                         <input type="file" id="restoreFileInput" accept=".zip"
                             class="block w-full text-sm text-gray-600 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-gray-100 file:text-gray-700 hover:file:bg-gray-200">
-                        <button onclick="uploadRestoreFile()"
+                        <button data-pk-action="updates-upload-restore"
                             class="mt-3 w-full inline-flex items-center justify-center px-6 py-3 bg-red-600 text-white rounded-xl hover:bg-red-700 transition-all duration-200">
                             <i class="fas fa-upload mr-2"></i>
                             <?= __("Carica e Ripristina") ?>
@@ -314,7 +314,7 @@ unset($workspaceHeader);
                     </h3>
                     <div id="uppy-manual-update" class="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:border-gray-400 transition-colors bg-gray-50"></div>
                     <div class="mt-4">
-                        <button id="manual-update-submit-btn" onclick="submitManualUpdate()" disabled
+                        <button id="manual-update-submit-btn" data-pk-action="updates-submit-manual" disabled
                             class="inline-flex items-center justify-center w-full px-6 py-3 bg-gray-800 text-white rounded-xl hover:bg-gray-700 transition-all duration-200 shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-gray-800">
                             <i class="fas fa-upload mr-2"></i>
                             <span id="manual-update-btn-text"><?= __("Avvia Aggiornamento") ?></span>
@@ -378,7 +378,7 @@ unset($workspaceHeader);
         <div class="p-6 border-b border-gray-200">
             <div class="flex items-center justify-between">
                 <h2 class="text-lg font-semibold text-gray-900"><?= __("Backup Salvati") ?></h2>
-                <button onclick="loadBackups()" class="text-sm text-gray-500 hover:text-gray-700">
+                <button data-pk-action="updates-load-backups" class="text-sm text-gray-500 hover:text-gray-700">
                     <i class="fas fa-sync-alt mr-1"></i><?= __("Aggiorna") ?>
                 </button>
             </div>
@@ -571,7 +571,7 @@ unset($workspaceHeader);
                 </div>
 
                 <div id="updateActions" class="mt-6 hidden">
-                    <button onclick="closeUpdateModal()" class="w-full px-6 py-3 bg-gray-800 text-white rounded-xl hover:bg-gray-700 transition-all">
+                    <button data-pk-action="updates-close-modal" class="w-full px-6 py-3 bg-gray-800 text-white rounded-xl hover:bg-gray-700 transition-all">
                         <?= __("Chiudi") ?>
                     </button>
                 </div>
@@ -580,7 +580,7 @@ unset($workspaceHeader);
     </div>
 </div>
 
-<script>
+<script<?= csp_nonce_attr() ?>>
 const csrfToken = <?= json_encode(Csrf::ensureToken(), JSON_HEX_TAG) ?>;
 const IS_ADMIN = <?= json_encode(($_SESSION['user']['tipo_utente'] ?? '') === 'admin', JSON_HEX_TAG) ?>;
 // formatDateLocale and appLocale are defined globally in layout.php
@@ -848,7 +848,7 @@ async function startUpdate(version) {
         document.getElementById('updateIcon').className = 'w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4';
         document.getElementById('updateTitle').textContent = <?= json_encode(__("Errore"), JSON_HEX_TAG) ?>;
         document.getElementById('updateMessage').innerHTML = escapeHtml(error.message) +
-            '<br><br><button onclick="clearMaintenanceMode()" class="mt-2 px-4 py-2 text-sm bg-yellow-100 text-yellow-800 rounded-lg hover:bg-yellow-200">' +
+            '<br><br><button type="button" data-pk-action="updates-clear-maintenance" class="mt-2 px-4 py-2 text-sm bg-yellow-100 text-yellow-800 rounded-lg hover:bg-yellow-200">' +
             '<i class="fas fa-unlock mr-1"><\/i>' + <?= json_encode(__("Disattiva modalità manutenzione"), JSON_HEX_TAG) ?> + '</button>';
         document.getElementById('updateActions').classList.remove('hidden');
     }
@@ -1731,4 +1731,29 @@ async function submitManualUpdate() {
         submitBtn.disabled = false;
     }
 }
+
+// Delegated actions (CSP script-src-attr 'none': no inline on* attributes).
+// The backup list keeps its own data-action delegation further up.
+PinakesActions.register('updates-check', () => checkForUpdatesManual());
+PinakesActions.register('updates-start', (el) => startUpdate(el.dataset.version));
+PinakesActions.register('updates-remove-token', () => removeGitHubToken());
+PinakesActions.register('updates-save-backup-setting', () => saveBackupSetting());
+PinakesActions.register('updates-create-backup', () => createBackup());
+PinakesActions.register('updates-upload-restore', () => uploadRestoreFile());
+PinakesActions.register('updates-submit-manual', () => submitManualUpdate());
+PinakesActions.register('updates-load-backups', () => loadBackups());
+PinakesActions.register('updates-close-modal', () => closeUpdateModal());
+PinakesActions.register('updates-clear-maintenance', () => clearMaintenanceMode());
+// The saved token is shown masked and read-only; focusing the field clears it
+// so a new token can be typed.
+PinakesActions.register('updates-token-unlock', (el) => {
+    el.removeAttribute('readonly');
+    el.type = 'password';
+    el.value = '';
+    el.placeholder = 'ghp_xxxxxxxxxxxxxxxxxxxx';
+});
+document.getElementById('github-token-form')?.addEventListener('submit', (event) => {
+    event.preventDefault();
+    saveGitHubToken();
+});
 </script>

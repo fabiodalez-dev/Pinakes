@@ -153,7 +153,7 @@ $reicatHasData = $reicat['sbn_bid'] !== '' || !empty($reicat['soggetti']);
     </div><!-- /#reicat-sbn-body -->
 </div>
 
-<script>
+<script<?= csp_nonce_attr() ?>>
 (function () {
     const panel = document.getElementById('reicat-sbn-panel');
     if (!panel || panel.dataset.reicatInit === '1') { return; }

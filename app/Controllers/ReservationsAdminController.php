@@ -240,6 +240,12 @@ class ReservationsAdminController
                 $db->rollback();
                 return $response->withHeader('Location', url('/admin/reservations') . '?error=not_found')->withStatus(302);
             }
+            // Separation of duties: an operator who is not an administrator
+            // never manages their own reservation from the desk.
+            if (\App\Support\SelfDealingGuard::blocks($utenteId)) {
+                $db->rollback();
+                return $response->withHeader('Location', url('/admin/reservations/edit/' . $id) . '?error=' . \App\Support\SelfDealingGuard::ERROR)->withStatus(302);
+            }
 
             // Snapshot AFTER the FOR UPDATE lock: taken earlier, a concurrent
             // request could change the row between the read and the lock and
@@ -633,6 +639,12 @@ class ReservationsAdminController
             if (!\App\Support\Permissions::mayActOnBorrower($db, $utenteId)) {
                 $db->rollback();
                 return $response->withHeader('Location', url('/admin/reservations/create') . '?error=user_not_found')->withStatus(302);
+            }
+            // Separation of duties: an operator who is not an administrator
+            // never queues a reservation for their own account from the desk.
+            if (\App\Support\SelfDealingGuard::blocks($utenteId)) {
+                $db->rollback();
+                return $response->withHeader('Location', url('/admin/reservations/create') . '?error=' . \App\Support\SelfDealingGuard::ERROR)->withStatus(302);
             }
             $eligibilityError = \App\Support\LoanEligibility::checkUser($db, $utenteId);
             if ($eligibilityError !== null) {

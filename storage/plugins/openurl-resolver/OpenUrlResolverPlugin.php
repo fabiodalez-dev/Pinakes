@@ -180,7 +180,7 @@ class OpenUrlResolverPlugin
         // constant is ever defined by the app.
         $coinsEndpoint = url('/api/coins/');
         // Only inject a lightweight script; it self-disables on non-book pages.
-        echo '<script>
+        echo '<script' . csp_nonce_attr() . '>
 (function(){
   document.addEventListener("DOMContentLoaded",function(){
     var el=document.querySelector("[data-libro-id]");

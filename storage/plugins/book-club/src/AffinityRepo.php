@@ -235,6 +235,71 @@ class AffinityRepo
         return $ok && $purged;
     }
 
+    /** Member statuses that end a member's place in the club's affinity lists. */
+    public const PURGING_STATUSES = ['left', 'suspended', 'banned'];
+
+    /**
+     * A member left the club, or was suspended or banned: drop every stored
+     * pair involving them (both directions) and their opt-in row, so they
+     * leave everyone's list at once and a later re-join starts opted out.
+     * Called by Repo::setMemberStatus() inside the status change's
+     * transaction, which every leave/suspend/ban path goes through (the
+     * bookclub.member.left event included). A club that never enabled the
+     * affinity module has no tables: nothing to purge, success.
+     *
+     * @return bool false when a delete failed (the caller rolls back)
+     */
+    public function purgeMember(int $clubId, int $userId): bool
+    {
+        $pairs = $this->deleteIfTable(
+            'DELETE FROM bookclub_affinity WHERE club_id = ? AND (user_a = ? OR user_b = ?)',
+            'iii',
+            [$clubId, $userId, $userId]
+        );
+        $optIn = $this->deleteIfTable(
+            'DELETE FROM bookclub_affinity_optin WHERE club_id = ? AND user_id = ?',
+            'ii',
+            [$clubId, $userId]
+        );
+        return $pairs && $optIn;
+    }
+
+    /**
+     * A DELETE that counts as done when its table does not exist (module never
+     * enabled). Run as is rather than after an INFORMATION_SCHEMA probe, so a
+     * session-local table of the same name is honoured too.
+     *
+     * @param array<int, mixed> $params
+     */
+    private function deleteIfTable(string $sql, string $types, array $params): bool
+    {
+        try {
+            $stmt = $this->db->prepare($sql);
+        } catch (\mysqli_sql_exception $e) {
+            if ($e->getCode() === 1146) {
+                return true;
+            }
+            SecureLogger::error('[BookClub:affinity] purge prepare failed: ' . $e->getMessage());
+            return false;
+        }
+        if ($stmt === false) {
+            if ($this->db->errno === 1146) {
+                return true;
+            }
+            SecureLogger::error('[BookClub:affinity] purge prepare failed: ' . $this->db->error);
+            return false;
+        }
+        $stmt->bind_param($types, ...$params);
+        try {
+            $ok = $stmt->execute();
+        } catch (\mysqli_sql_exception $e) {
+            SecureLogger::error('[BookClub:affinity] purge failed: ' . $e->getMessage());
+            $ok = false;
+        }
+        $stmt->close();
+        return $ok;
+    }
+
     /**
      * Opted-in users who are still ACTIVE members of the club (suspended,
      * banned or departed members are excluded even if their opt-in row

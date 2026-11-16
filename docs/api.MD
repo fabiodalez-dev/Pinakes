@@ -97,8 +97,13 @@ session-based admin endpoints.
 
 1. The setting `api.enabled` must equal `'1'` (Admin → Settings → API tab).
    If disabled, **every** `/api/public/*` request returns `403`.
-2. Create an API key (stored in the `api_keys` table, managed by
-   `ApiKeyRepository`). Inactive/unknown keys return `401`.
+2. Create an API key (Admin → Settings → Advanced → API Keys). The full key is
+   shown **once**, right after creation: copy it then. Only a SHA-256 of the key
+   and its first 8 characters are stored (`api_keys.key_hash` /
+   `api_keys.key_prefix`, managed by `ApiKeyRepository`), so the settings page
+   afterwards shows just the prefix and a lost key cannot be recovered: delete it
+   and create a new one. Inactive/unknown keys return `401`. Keys created before
+   0.9.6 keep working: the upgrade hashes them and clears the stored plaintext.
 
 ### Passing the key
 
@@ -176,12 +181,16 @@ curl "https://example.com/api/public/books/search?isbn13=9788842935780" \
 The full per-book object also includes: `data_acquisizione`, `data_pubblicazione`,
 `tipo_acquisizione`, `copertina_url`, `descrizione`, `parole_chiave`, `formato`,
 `tipo_media`, `peso`, `dimensioni`, `prezzo`, `numero_pagine`, `traduttore`,
-`collana`, `numero_serie`, `numero_inventario`, `note_varie`, `file_url`,
+`collana`, `numero_serie`, `numero_inventario`, `file_url`,
 `audio_url`, `created_at`, `updated_at`. The `prestito` object (when a loan is
-active) carries `data_prestito`, `data_scadenza`, `data_restituzione`, `stato`,
-`attivo` and the borrowing `utente`. `recensioni` only contains reviews with
-`stato = 'approvata'`; each review's `utente` carries the reviewer's `nome` and
-`cognome` only (no account id).
+active) carries `id`, `data_prestito`, `data_scadenza`, `data_restituzione`,
+`stato` and `attivo` only: the borrower is never identified. `recensioni` only
+contains reviews with `stato = 'approvata'`; each review's `utente` carries the
+reviewer's `nome` and `cognome` only.
+
+Not exposed to API-key holders: the internal notes (`note_varie`, shown only on
+the admin book page) and any user account id (neither the reviewer's nor the
+borrower's).
 
 **Status Codes**:
 - `200 OK`: success

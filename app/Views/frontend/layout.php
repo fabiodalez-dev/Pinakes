@@ -344,7 +344,7 @@ $htmlLang = substr($currentLocale, 0, 2);
     <meta name="csrf-token"
         content="<?php echo htmlspecialchars($csrfMetaToken, ENT_QUOTES, 'UTF-8'); ?>" />
     <link rel="icon" type="image/x-icon" href="<?= htmlspecialchars(url('/favicon.ico'), ENT_QUOTES, 'UTF-8') ?>">
-    <script>window.BASE_PATH = <?= json_encode(\App\Support\HtmlHelper::getBasePath(), JSON_HEX_TAG | JSON_HEX_AMP) ?>;</script>
+    <script<?= csp_nonce_attr() ?>>window.BASE_PATH = <?= json_encode(\App\Support\HtmlHelper::getBasePath(), JSON_HEX_TAG | JSON_HEX_AMP) ?>;</script>
 
     <!-- CSS moderno e minimale -->
     <link href="<?= htmlspecialchars(assetUrl('/vendor.css'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($frontendVendorVersion, ENT_QUOTES, 'UTF-8') ?>" rel="stylesheet">
@@ -383,7 +383,7 @@ $htmlLang = substr($currentLocale, 0, 2);
     }
     ?>
 
-    <style>
+    <style<?= csp_nonce_attr() ?>>
         :root {
             /* Theme colors - Dynamically loaded from database */
             --primary-color:
@@ -1533,6 +1533,20 @@ $htmlLang = substr($currentLocale, 0, 2);
             border-top: 1px solid var(--border-color);
         }
 
+        /* Live-search dropdown rows: hover colours that used to be inline
+           onmouseover/onmouseout handlers (forbidden by the CSP). */
+        .search-result-item:hover {
+            background-color: var(--light-bg);
+        }
+
+        .search-view-all {
+            background: var(--accent-color);
+        }
+
+        .search-view-all:hover {
+            background-color: var(--border-color);
+        }
+
         <?= $additional_css ?? '' ?>
     </style>
     <?php if (!empty($catalogPageStyles)): ?>
@@ -1572,8 +1586,9 @@ $htmlLang = substr($currentLocale, 0, 2);
     <!-- Silktide Consent Manager CSS -->
     <link rel="stylesheet" href="<?= htmlspecialchars(assetUrl('/css/silktide-consent-manager.css'), ENT_QUOTES, 'UTF-8') ?>">
     <?php // Translation table: one cacheable script per locale, see TranslationScript. ?>
-    <script src="<?= htmlspecialchars(\App\Support\TranslationScript::url(\App\Support\I18n::getLocale()), ENT_QUOTES, 'UTF-8') ?>"></script>
-    <script>
+    <script<?= csp_nonce_attr() ?> src="<?= htmlspecialchars(\App\Support\TranslationScript::url(\App\Support\I18n::getLocale()), ENT_QUOTES, 'UTF-8') ?>"></script>
+    <script<?= csp_nonce_attr() ?> src="<?= htmlspecialchars(assetUrl('/js/pk-actions.js'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($appVersion, ENT_QUOTES, 'UTF-8') ?>"></script>
+    <script<?= csp_nonce_attr() ?>>
         // Translation helper for the public frontend (was an identity-function
         // no-op before, leaving JS strings in Italian for non-IT visitors).
         // Mirrors the admin and user-area layouts.
@@ -1704,7 +1719,7 @@ $htmlLang = substr($currentLocale, 0, 2);
                                             <div class="user-dropdown-divider"></div>
                                             <form method="post" action="<?= htmlspecialchars(route_path('logout'), ENT_QUOTES, 'UTF-8') ?>" style="display:contents;">
                                                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(\App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8') ?>">
-                                                <a href="<?= htmlspecialchars(route_path('logout'), ENT_QUOTES, 'UTF-8') ?>" onclick="event.preventDefault();this.closest('form').submit();" class="logout-link" role="menuitem">
+                                                <a href="<?= htmlspecialchars(route_path('logout'), ENT_QUOTES, 'UTF-8') ?>" data-pk-action="submit-form" class="logout-link" role="menuitem">
                                                     <i class="fas fa-sign-out-alt"></i>
                                                     <?= __('Esci') ?>
                                                 </a>
@@ -1893,16 +1908,16 @@ $htmlLang = substr($currentLocale, 0, 2);
         'wishError' => __("Errore nell'aggiornare i preferiti."),
     ];
     ?>
-    <script>window.PK = <?= json_encode($pkState, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_SLASHES) ?>;</script>
-    <script src="<?= htmlspecialchars(assetUrl('/pinakes-2026.js'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($pinakes2026Version, ENT_QUOTES, 'UTF-8') ?>" defer></script>
+    <script<?= csp_nonce_attr() ?>>window.PK = <?= json_encode($pkState, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_SLASHES) ?>;</script>
+    <script<?= csp_nonce_attr() ?> src="<?= htmlspecialchars(assetUrl('/pinakes-2026.js'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($pinakes2026Version, ENT_QUOTES, 'UTF-8') ?>" defer></script>
 
     <!-- Scripts -->
-    <script src="<?= htmlspecialchars(assetUrl('/vendor.bundle.js'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($frontendVendorBundleVersion, ENT_QUOTES, 'UTF-8') ?>"></script>
-    <script src="<?= htmlspecialchars(assetUrl('/flatpickr-init.js'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($appVersion, ENT_QUOTES, 'UTF-8') ?>" defer></script>
-    <script src="<?= htmlspecialchars(assetUrl('/main.bundle.js'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($frontendBundleVersion, ENT_QUOTES, 'UTF-8') ?>" defer></script>
-    <script src="<?= htmlspecialchars(assetUrl('/js/swal-config.js'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($appVersion, ENT_QUOTES, 'UTF-8') ?>" defer></script>
-    <script src="<?= htmlspecialchars(assetUrl('/js/live-availability.js'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($appVersion, ENT_QUOTES, 'UTF-8') ?>" defer></script>
-    <script>
+    <script<?= csp_nonce_attr() ?> src="<?= htmlspecialchars(assetUrl('/vendor.bundle.js'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($frontendVendorBundleVersion, ENT_QUOTES, 'UTF-8') ?>"></script>
+    <script<?= csp_nonce_attr() ?> src="<?= htmlspecialchars(assetUrl('/flatpickr-init.js'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($appVersion, ENT_QUOTES, 'UTF-8') ?>" defer></script>
+    <script<?= csp_nonce_attr() ?> src="<?= htmlspecialchars(assetUrl('/main.bundle.js'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($frontendBundleVersion, ENT_QUOTES, 'UTF-8') ?>" defer></script>
+    <script<?= csp_nonce_attr() ?> src="<?= htmlspecialchars(assetUrl('/js/swal-config.js'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($appVersion, ENT_QUOTES, 'UTF-8') ?>" defer></script>
+    <script<?= csp_nonce_attr() ?> src="<?= htmlspecialchars(assetUrl('/js/live-availability.js'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($appVersion, ENT_QUOTES, 'UTF-8') ?>" defer></script>
+    <script<?= csp_nonce_attr() ?>>
         // Smooth scrolling
         document.querySelectorAll('a[href^="#"]').forEach(anchor => {
             anchor.addEventListener('click', function (e) {
@@ -2103,7 +2118,7 @@ $htmlLang = substr($currentLocale, 0, 2);
                         const bookAuthor = escapeHtml(book.author ?? '');
                         const bookYear = escapeHtml(book.year ?? '');
 
-                        html += '<a href="' + bookUrl + '" class="search-result-item book-result" style="display: flex; align-items: center; padding: 0.75rem 1rem; text-decoration: none; color: var(--text-color); transition: background-color 0.2s;" onmouseover="this.style.backgroundColor=\'var(--light-bg)\'" onmouseout="this.style.backgroundColor=\'transparent\'">' +
+                        html += '<a href="' + bookUrl + '" class="search-result-item book-result" style="display: flex; align-items: center; padding: 0.75rem 1rem; text-decoration: none; color: var(--text-color); transition: background-color 0.2s;">' +
                             '<img src="' + coverUrl + '" alt="' + bookTitle + '" class="search-book-cover" style="width: 40px; height: 60px; object-fit: contain; border-radius: 0.25rem; margin-right: 0.75rem;">' +
                             '<div class="search-book-info">' +
                             '<div class="search-book-title" style="font-weight: 600; font-size: 0.875rem; margin-bottom: 0.25rem; line-height: 1.2; color: var(--text-color); text-align: left;">' + bookTitle + '</div>' +
@@ -2126,7 +2141,7 @@ $htmlLang = substr($currentLocale, 0, 2);
                         const authorBooks = escapeHtml(author.book_count ?? '0') + __(' libri');
                         const authorBio = escapeHtml(author.biography ?? '');
 
-                        html += '<a href="' + authorUrl + '" class="search-result-item author-result" style="display: flex; align-items: center; padding: 0.75rem 1rem; text-decoration: none; color: var(--text-color); transition: background-color 0.2s;" onmouseover="this.style.backgroundColor=\'var(--light-bg)\'" onmouseout="this.style.backgroundColor=\'transparent\'">' +
+                        html += '<a href="' + authorUrl + '" class="search-result-item author-result" style="display: flex; align-items: center; padding: 0.75rem 1rem; text-decoration: none; color: var(--text-color); transition: background-color 0.2s;">' +
                             '<div class="search-author-icon" style="width: 40px; height: 40px; background: var(--accent-color); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-right: 0.75rem; color: var(--text-light);"><i class="fas fa-user"></i></div>' +
                             '<div class="search-author-info">' +
                             '<div class="search-author-name" style="font-weight: 600; font-size: 0.875rem; margin-bottom: 0.25rem; color: var(--text-color);">' + authorName + '</div>' +
@@ -2147,7 +2162,7 @@ $htmlLang = substr($currentLocale, 0, 2);
                         const publisherBooks = escapeHtml(publisher.book_count ?? '0') + __(' libri');
                         const publisherDesc = escapeHtml(publisher.description ?? '');
 
-                        html += '<a href="' + publisherUrl + '" class="search-result-item publisher-result" style="display: flex; align-items: center; padding: 0.75rem 1rem; text-decoration: none; color: var(--text-color); transition: background-color 0.2s;" onmouseover="this.style.backgroundColor=\'var(--light-bg)\'" onmouseout="this.style.backgroundColor=\'transparent\'">' +
+                        html += '<a href="' + publisherUrl + '" class="search-result-item publisher-result" style="display: flex; align-items: center; padding: 0.75rem 1rem; text-decoration: none; color: var(--text-color); transition: background-color 0.2s;">' +
                             '<div class="search-publisher-icon" style="width: 40px; height: 40px; background: var(--accent-color); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-right: 0.75rem; color: var(--text-light);"><i class="fas fa-building"></i></div>' +
                             '<div class="search-publisher-info">' +
                             '<div class="search-publisher-name" style="font-weight: 600; font-size: 0.875rem; margin-bottom: 0.25rem; color: var(--text-color);">' + publisherName + '</div>' +
@@ -2176,7 +2191,7 @@ $htmlLang = substr($currentLocale, 0, 2);
                         const artThumb = artCover !== '#'
                             ? '<img src="' + artCover + '" alt="" class="search-book-cover search-article-cover" loading="lazy" style="width: 40px; height: 60px; object-fit: contain; border-radius: 0.25rem; margin-right: 0.75rem; flex-shrink: 0;">'
                             : '<div class="search-article-cover" style="width: 40px; height: 60px; background: var(--accent-color); border-radius: 0.25rem; display: flex; align-items: center; justify-content: center; margin-right: 0.75rem; color: var(--text-light); flex-shrink: 0;"><i class="fas fa-newspaper" aria-hidden="true"></i></div>';
-                        html += '<a href="' + artUrl + '" class="search-result-item article-result" style="display: flex; align-items: center; padding: 0.75rem 1rem; text-decoration: none; color: var(--text-color); transition: background-color 0.2s;" onmouseover="this.style.backgroundColor=\'var(--light-bg)\'" onmouseout="this.style.backgroundColor=\'transparent\'">' +
+                        html += '<a href="' + artUrl + '" class="search-result-item article-result" style="display: flex; align-items: center; padding: 0.75rem 1rem; text-decoration: none; color: var(--text-color); transition: background-color 0.2s;">' +
                             artThumb +
                             '<div>' +
                             '<div style="font-weight: 600; font-size: 0.875rem; margin-bottom: 0.125rem; color: var(--text-color); text-align: left;">' + artLabel + '</div>' +
@@ -2195,7 +2210,7 @@ $htmlLang = substr($currentLocale, 0, 2);
                         const arcUrl = sanitizeUrl(arc.url ?? '#');
                         const arcLabel = escapeHtml(arc.label ?? '');
                         const arcRef = escapeHtml(arc.identifier ?? '');
-                        html += '<a href="' + arcUrl + '" class="search-result-item archive-result" style="display: flex; align-items: center; padding: 0.75rem 1rem; text-decoration: none; color: var(--text-color); transition: background-color 0.2s;" onmouseover="this.style.backgroundColor=\'var(--light-bg)\'" onmouseout="this.style.backgroundColor=\'transparent\'">' +
+                        html += '<a href="' + arcUrl + '" class="search-result-item archive-result" style="display: flex; align-items: center; padding: 0.75rem 1rem; text-decoration: none; color: var(--text-color); transition: background-color 0.2s;">' +
                             '<div style="width: 40px; height: 40px; background: color-mix(in srgb, var(--success-color) 15%, transparent); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-right: 0.75rem; color: var(--success-color); flex-shrink: 0;"><i class="fas fa-archive" aria-hidden="true"></i></div>' +
                             '<div>' +
                             '<div style="font-weight: 600; font-size: 0.875rem; margin-bottom: 0.125rem; color: var(--text-color);">' + arcLabel + '</div>' +
@@ -2209,7 +2224,7 @@ $htmlLang = substr($currentLocale, 0, 2);
                 // Add "View all results" link
                 html += '<div class="search-section" style="padding: 0.75rem 1rem;">' +
                     '<a href="' + <?= json_encode(absoluteUrl($catalogRoute), JSON_HEX_TAG | JSON_HEX_AMP) ?> + '?q=' + encodeURIComponent(query) + '"' +
-                    ' class="search-view-all" style="display: flex; align-items: center; justify-content: center; padding: 0.5rem; background: var(--accent-color); border-radius: 0.375rem; text-decoration: none; color: var(--text-color); font-weight: 500; font-size: 0.875rem; transition: background-color 0.2s;" onmouseover="this.style.backgroundColor=\'var(--border-color)\'" onmouseout="this.style.backgroundColor=\'var(--accent-color)\'">' +
+                    ' class="search-view-all" style="display: flex; align-items: center; justify-content: center; padding: 0.5rem; border-radius: 0.375rem; text-decoration: none; color: var(--text-color); font-weight: 500; font-size: 0.875rem; transition: background-color 0.2s;">' +
                     searchViewAllLabel + ' <i class="fas fa-arrow-right" style="margin-left: 0.5rem; font-size: 0.75rem;"></i>' +
                     '</a>' +
                     '</div>';
@@ -2228,7 +2243,7 @@ $htmlLang = substr($currentLocale, 0, 2);
     </script>
 
     <!-- Mobile Menu Script -->
-    <script>
+    <script<?= csp_nonce_attr() ?>>
         (function () {
             const mobileMenuToggle = document.getElementById('mobileMenuToggle');
             const mobileMenuClose = document.getElementById('mobileMenuClose');
@@ -2322,7 +2337,7 @@ $htmlLang = substr($currentLocale, 0, 2);
         });
     </script>
 
-    <script>
+    <script<?= csp_nonce_attr() ?>>
         (function () {
             const nativeAlert = typeof window.alert === 'function' ? window.alert.bind(window) : null;
             const alertTitle = <?= json_encode(__('Avviso'), JSON_HEX_TAG) ?>;
@@ -2345,7 +2360,7 @@ $htmlLang = substr($currentLocale, 0, 2);
     </script>
 
     <!-- User Dropdown Toggle -->
-    <script>
+    <script<?= csp_nonce_attr() ?>>
     (function() {
         const dropdown = document.getElementById('userDropdown');
         if (!dropdown) return;
