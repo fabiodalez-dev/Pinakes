@@ -75,6 +75,7 @@ final class SchemaRepair
     public static function repair(\mysqli $db, ?string $rootPath = null): array
     {
         $root = $rootPath ?? dirname(__DIR__, 2);
+        SitemapCache::withdrawIfPrivate($db, $root . '/public/sitemap.xml');
         $result = ['tables' => [], 'columns' => [], 'failed' => []];
         $sql = @file_get_contents($root . '/installer/database/schema.sql');
         $schema = is_string($sql) && $sql !== '' ? self::parse($sql) : [];

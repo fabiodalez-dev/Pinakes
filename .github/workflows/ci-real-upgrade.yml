@@ -256,6 +256,7 @@ jobs:
           E2E_BASE_URL: ${{ env.UPGRADE_URL }}
           E2E_DB_NAME: pinakes_upgrade
           E2E_412_UPGRADE_PHASE: upgrade
+          E2E_INSTALL_ROOT: ${{ env.UPGRADE_ROOT }}
           E2E_ZIP_PATH: ${{ env.CANDIDATE_ZIP }}
           PLAYWRIGHT_JSON_OUTPUT_FILE: test-results/upgrade-upgrade.json
         run: |
