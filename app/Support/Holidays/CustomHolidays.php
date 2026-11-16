@@ -177,7 +177,9 @@ final class CustomHolidays
     {
         $str = static fn (string $k): string => is_scalar($data[$k] ?? null) ? trim((string) $data[$k]) : '';
         $int = static function (string $k) use ($str): ?int {
-            $v = filter_var($str($k), FILTER_VALIDATE_INT);
+            // A number field submits what was typed: "01" is the first of the
+            // month, and FILTER_VALIDATE_INT alone refuses a leading zero.
+            $v = filter_var(preg_replace('/^([+-]?)0+(?=\d)/', '$1', $str($k)), FILTER_VALIDATE_INT);
             return $v === false ? null : (int) $v;
         };
         $name = mb_substr($str('nome'), 0, 255);
