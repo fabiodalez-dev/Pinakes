@@ -56,15 +56,21 @@ class ApiKeyRepository
         // A table created before 0.9.6 whose migration has not run yet (the
         // short window of an upgrade, or a database restored from an old
         // backup): bring it to the hashed shape here, mirroring
-        // migrate_0.9.6.sql, so existing keys keep authenticating.
-        $col = $this->db->query("SHOW COLUMNS FROM api_keys LIKE 'key_hash'");
-        if ($col === false) {
-            throw new RuntimeException('Unable to inspect api_keys table: ' . $this->db->error);
+        // migrate_0.9.6.sql, so existing keys keep authenticating. Every step
+        // is checked on its own, so a heal interrupted half-way (a concurrent
+        // request, a crash) is finished by the next call instead of leaving a
+        // table with key_hash but a NOT NULL api_key that rejects new keys.
+        $pending = $this->pendingLegacySteps();
+        if ($pending !== []) {
+            $this->upgradeLegacyTable($pending);
+            return;
         }
-        $hasHash = $col->num_rows > 0;
-        $col->free();
-        if (!$hasHash) {
-            $this->upgradeLegacyTable();
+        // Schema already in shape, but a heal that stopped before its backfill
+        // can leave plaintext keys behind: finish it.
+        $left = $this->db->query('SELECT 1 FROM api_keys WHERE api_key IS NOT NULL LIMIT 1');
+        if ($left !== false && $left->num_rows > 0) {
+            $left->free();
+            $this->backfillHashes();
         }
     }
 
@@ -223,19 +229,69 @@ class ApiKeyRepository
      * Same steps as migrate_0.9.6.sql, for a table still in the pre-0.9.6
      * plaintext shape. Each step tolerates having already been applied.
      */
-    private function upgradeLegacyTable(): void
+
+    /** @return string[] the ALTER statements still needed, in order */
+    private function pendingLegacySteps(): array
     {
-        $steps = [
-            "ALTER TABLE api_keys ADD COLUMN key_hash CHAR(64) COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL AFTER api_key",
-            "ALTER TABLE api_keys ADD COLUMN key_prefix VARCHAR(16) COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL AFTER key_hash",
-            "ALTER TABLE api_keys MODIFY COLUMN api_key VARCHAR(64) COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL",
-            "ALTER TABLE api_keys ADD UNIQUE KEY uniq_key_hash (key_hash)",
-        ];
+        $columns = [];
+        $res = $this->db->query(
+            "SELECT COLUMN_NAME, IS_NULLABLE FROM INFORMATION_SCHEMA.COLUMNS
+              WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'api_keys'
+                AND COLUMN_NAME IN ('api_key', 'key_hash', 'key_prefix')"
+        );
+        if ($res === false) {
+            throw new RuntimeException('Unable to inspect api_keys table: ' . $this->db->error);
+        }
+        while ($row = $res->fetch_assoc()) {
+            $columns[(string) $row['COLUMN_NAME']] = (string) $row['IS_NULLABLE'];
+        }
+        $res->free();
+
+        $idx = $this->db->query(
+            "SELECT 1 FROM INFORMATION_SCHEMA.STATISTICS
+              WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'api_keys'
+                AND INDEX_NAME = 'uniq_key_hash' LIMIT 1"
+        );
+        if ($idx === false) {
+            throw new RuntimeException('Unable to inspect api_keys indexes: ' . $this->db->error);
+        }
+        $hasIndex = $idx->num_rows > 0;
+        $idx->free();
+
+        $steps = [];
+        if (!isset($columns['key_hash'])) {
+            $steps[] = "ALTER TABLE api_keys ADD COLUMN key_hash CHAR(64) COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL AFTER api_key";
+        }
+        if (!isset($columns['key_prefix'])) {
+            $steps[] = "ALTER TABLE api_keys ADD COLUMN key_prefix VARCHAR(16) COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL AFTER key_hash";
+        }
+        if (($columns['api_key'] ?? 'YES') !== 'YES') {
+            $steps[] = "ALTER TABLE api_keys MODIFY COLUMN api_key VARCHAR(64) COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL";
+        }
+        if (!$hasIndex) {
+            $steps[] = "ALTER TABLE api_keys ADD UNIQUE KEY uniq_key_hash (key_hash)";
+        }
+        return $steps;
+    }
+
+    /** @param string[] $steps */
+    private function upgradeLegacyTable(array $steps): void
+    {
         // 1060 duplicate column, 1061 duplicate key name: a concurrent request
-        // (or the migration) applied the step first.
+        // (or the migration) applied the step first. mysqli may report that
+        // either as false or as an exception, depending on its report mode.
         foreach ($steps as $sql) {
-            if ($this->db->query($sql) === false && !in_array($this->db->errno, [1060, 1061], true)) {
-                throw new RuntimeException('Unable to upgrade api_keys table: ' . $this->db->error);
+            try {
+                $ok = $this->db->query($sql) !== false;
+                $errno = $this->db->errno;
+                $error = $this->db->error;
+            } catch (\mysqli_sql_exception $e) {
+                $ok = false;
+                $errno = (int) $e->getCode();
+                $error = $e->getMessage();
+            }
+            if (!$ok && !in_array($errno, [1060, 1061], true)) {
+                throw new RuntimeException('Unable to upgrade api_keys table: ' . $error);
             }
         }
         $this->backfillHashes();

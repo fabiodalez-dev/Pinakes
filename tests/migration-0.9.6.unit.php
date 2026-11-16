@@ -201,6 +201,19 @@ try {
     $errors = $runMigration();
     $check($errors === [] && $rows() === $healed, 'the migration after a self-heal is a no-op');
 
+    echo "A heal interrupted half-way is finished by the next call\n";
+    $seed();
+    // What a concurrent or crashed first heal leaves: key_hash added, nothing else.
+    $db->query('ALTER TABLE api_keys ADD COLUMN key_hash CHAR(64) COLLATE utf8mb4_unicode_ci NULL DEFAULT NULL AFTER api_key');
+    $repo->ensureTable();
+    $check($columns() === $cols, 'ensureTable() completes the columns (key_prefix added, api_key nullable)');
+    $check(($indexes()['uniq_key_hash'] ?? '') === '0:key_hash', 'ensureTable() adds the missing unique index');
+    $half = $rows();
+    $check($half[0]['key_hash'] === hash('sha256', $keyA) && $half[0]['api_key'] === null, 'ensureTable() backfills and clears the plaintext');
+    $probe = $repo->create('Integration half-heal', null);
+    $check(is_array($repo->getByKey((string) $probe['api_key'])), 'a key created afterwards is stored and authenticates');
+    $db->query('DELETE FROM api_keys WHERE id = ' . (int) $probe['id']);
+
     echo "New keys after the upgrade\n";
     $new = $repo->create('Integration C', null);
     $stored = $db->query('SELECT api_key, key_hash, key_prefix FROM api_keys WHERE id = ' . (int) $new['id'])->fetch_assoc();
