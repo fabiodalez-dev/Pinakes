@@ -29,6 +29,34 @@ final class SitemapCache
         return dirname(__DIR__, 2) . '/public/sitemap.xml';
     }
 
+    /** Reconcile a static copy carried over from an earlier release. */
+    public static function withdrawIfPrivate(\mysqli $db, ?string $path = null): void
+    {
+        $target = $path ?? self::publishedPath();
+        if (!is_file($target)) {
+            return;
+        }
+
+        $locked = self::acquirePublishLock();
+        try {
+            try {
+                $settings = new \App\Models\SettingsRepository($db);
+                if ($settings->get('advanced', 'private_mode', '0') !== '1') {
+                    return;
+                }
+            } catch (\Throwable $e) {
+                SecureLogger::warning('[SitemapCache] Could not verify visibility of the carried-over sitemap', ['error' => $e->getMessage()]);
+            }
+            if (!self::withdraw('reconciling a carried-over sitemap', $target)) {
+                SecureLogger::error('[SitemapCache] A sitemap that should be private is still served from public/sitemap.xml');
+            }
+        } finally {
+            if ($locked) {
+                self::releasePublishLock();
+            }
+        }
+    }
+
     /** Absolute path of the revision counter. */
     private static function revisionPath(): string
     {
