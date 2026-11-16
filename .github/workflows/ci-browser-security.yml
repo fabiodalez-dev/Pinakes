@@ -118,6 +118,12 @@ jobs:
           sudo chmod -R 777 "$PACKAGE_ROOT/storage"
           sudo mkdir -p "$PACKAGE_ROOT/public/uploads"
           sudo chmod -R 777 "$PACKAGE_ROOT/public/uploads"
+          # Keep the runner's server version out of static and PHP responses.
+          sudo tee /etc/apache2/conf-available/zz-pinakes-server.conf >/dev/null <<'EOF'
+          ServerTokens Prod
+          ServerSignature Off
+          EOF
+          sudo a2enconf zz-pinakes-server
           sudo tee /etc/apache2/sites-available/pinakes.conf >/dev/null <<EOF
           Listen 8081
           <VirtualHost *:8081>

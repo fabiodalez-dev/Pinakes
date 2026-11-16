@@ -88,6 +88,10 @@ $eq(is_string($valid(['tipo' => 'fixed', 'fixed_mese' => '2', 'fixed_giorno' => 
 $leap = $valid(['tipo' => 'fixed', 'fixed_mese' => '2', 'fixed_giorno' => '29']);
 $eq(is_array($leap) && $leap['mese'] === 2 && $leap['giorno'] === 29, true, '29 February is accepted');
 $eq(H::datesOf(CustomHolidays::rule($leap + ['id' => 1]), 2027), [], '29 February is skipped in a common year');
+$padded = $valid(['tipo' => 'fixed', 'fixed_mese' => '01', 'fixed_giorno' => '09', 'durata_giorni' => '02']);
+$eq(is_array($padded) ? [$padded['mese'], $padded['giorno'], $padded['durata_giorni']] : $padded, [1, 9, 2], 'a day typed as 09 is the ninth, not a date that does not exist');
+$eq(is_string($valid(['tipo' => 'fixed', 'fixed_mese' => '1', 'fixed_giorno' => '00'])), true, 'day 00 is still refused');
+$eq(is_string($valid(['tipo' => 'fixed', 'fixed_mese' => '1', 'fixed_giorno' => '1x'])), true, 'a day that is not a number is still refused');
 $eq(is_string($valid(['tipo' => 'nth_weekday', 'nth_mese' => '10', 'nth_giorno_settimana' => '1', 'nth_occorrenza' => '6'])), true, 'a sixth weekday is refused');
 $eq(is_string($valid(['tipo' => 'easter', 'scarto' => '201'])), true, 'an Easter offset beyond 200 days is refused');
 $eq(is_string($valid(['tipo' => 'calendar', 'calendario' => 'mayan', 'cal_giorno' => '1'])), true, 'an unknown calendar is refused');
