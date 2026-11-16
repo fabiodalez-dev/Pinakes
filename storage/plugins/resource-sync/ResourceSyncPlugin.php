@@ -216,21 +216,28 @@ class ResourceSyncPlugin
         }
 
         // Session-based admin/staff access
+        // Fails CLOSED on a stale role: the role is read from the database on
+        // this request, not taken from the login-time session snapshot.
         if (
             isset($_SESSION['user']) &&
-            in_array($_SESSION['user']['tipo_utente'] ?? '', ['admin', 'staff'], true)
+            \App\Support\SessionRoleRevalidator::holdsActiveRole(['admin', 'staff'], $this->db)
         ) {
             return true;
         }
 
         $auth = $request->getHeaderLine('Authorization');
         if ($auth !== '' && str_starts_with($auth, 'Basic ')) {
-            // Throttle credential guessing per client IP. This is the only
-            // brute-force control on the Basic Auth gate, so every attempt must
-            // count toward the limit (mirrors the core login throttle:
-            // RateLimitMiddleware(15, 300, 'login') and mobile_login 10/300).
-            $ip   = (string) ($request->getServerParams()['REMOTE_ADDR'] ?? 'unknown');
-            $rlId = 'resourcesync_basic:' . $ip;
+            // Throttle credential guessing per client IP AND account. This is
+            // the only brute-force control on the Basic Auth gate, so every
+            // attempt must count toward the limit (mirrors the core login
+            // throttle: RateLimitMiddleware(15, 300, 'login') and mobile_login
+            // 10/300). A success clears only that account's counter, so a
+            // valid staff login cannot reset the guesses at another account
+            // made from the same IP (same key shape as NCIP).
+            $ip      = (string) ($request->getServerParams()['REMOTE_ADDR'] ?? 'unknown');
+            $decoded = base64_decode(substr($auth, 6), true);
+            $parts   = $decoded !== false ? explode(':', $decoded, 2) : [];
+            $rlId    = 'resourcesync_basic:' . RateLimiter::clientKey($ip) . ':' . strtolower($parts[0] ?? '');
             if (RateLimiter::isLimited($rlId, 10, 300)) {
                 $out = $response
                     ->withStatus(429)
@@ -238,14 +245,9 @@ class ResourceSyncPlugin
                 return false;
             }
 
-            $decoded = base64_decode(substr($auth, 6), true);
-            if ($decoded !== false) {
-                $parts = explode(':', $decoded, 2);
-                if (count($parts) === 2 && $this->authenticateBasic($parts[0], $parts[1])) {
-                    // Successful auth clears the throttle for this IP.
-                    RateLimiter::reset($rlId);
-                    return true;
-                }
+            if (count($parts) === 2 && $this->authenticateBasic($parts[0], $parts[1])) {
+                RateLimiter::reset($rlId);
+                return true;
             }
         }
 

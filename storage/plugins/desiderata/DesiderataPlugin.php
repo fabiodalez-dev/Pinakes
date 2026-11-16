@@ -128,6 +128,7 @@ class DesiderataPlugin
         // Nullable for existing/browser offers. A device retry is scoped to the
         // authenticated account, never to a donor email supplied by the client.
         foreach (['mobile_user_id' => 'INT NULL', 'mobile_request_id' => 'CHAR(36) NULL', 'mobile_request_hash' => 'CHAR(64) NULL'] as $column => $definition) {
+            self::assertIdentifier($column);
             $check = $this->db->query("SHOW COLUMNS FROM desiderata_offers LIKE '$column'");
             if ($check === false) { $this->fail('cannot inspect donation request fields'); }
             if ($check->num_rows === 0 && $this->db->query("ALTER TABLE desiderata_offers ADD COLUMN $column $definition") === false) {
@@ -141,6 +142,18 @@ class DesiderataPlugin
         }
     }
     /** @return never */
+    /**
+     * Schema DDL interpolates identifiers (they cannot be bound). Every caller
+     * passes a literal today; this keeps a future caller from turning the
+     * column loop into an injection sink.
+     */
+    private static function assertIdentifier(string $name): void
+    {
+        if (preg_match('/^[a-z_][a-z0-9_]*$/', $name) !== 1) {
+            throw new \InvalidArgumentException('Invalid SQL identifier: ' . substr($name, 0, 64));
+        }
+    }
+
     private function fail(string $what): void
     {
         $message = '[Desiderata] ' . $what . ': ' . $this->db->error;
@@ -1861,7 +1874,11 @@ class DesiderataPlugin
         // this list IS the operator's backlog. An empty one here would read as
         // "no proposals to judge" when the truth is "the query failed", so a
         // half-finished activation must say so instead of hiding the queue.
-        $offersResult = $this->db->query('SELECT * FROM desiderata_offers ORDER BY id DESC LIMIT 31 OFFSET ' . $offersOffset);
+        $offersStmt = $this->db->prepare('SELECT * FROM desiderata_offers ORDER BY id DESC LIMIT 31 OFFSET ?');
+        if ($offersStmt === false) { $this->fail('cannot read the donation proposals'); }
+        $offersStmt->bind_param('i', $offersOffset);
+        $offersResult = $offersStmt->execute() ? $offersStmt->get_result() : false;
+        $offersStmt->close();
         if ($offersResult === false) { $this->fail('cannot read the donation proposals'); }
         $offers = $offersResult->fetch_all(MYSQLI_ASSOC);
         $more = count($offers) > 30; $offers = array_slice($offers, 0, 30);

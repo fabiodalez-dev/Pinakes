@@ -120,7 +120,7 @@ class CsvImportController
     /**
      * Delete a saved import temp file, but only when it really resolves inside
      * the import uploads directory. Paths here are server-generated
-     * (session_id + uniqid); this realpath-containment guard makes path
+     * (random staging id); this realpath-containment guard makes path
      * traversal impossible and confines the unlink to the import scratch area.
      */
     private function safeUnlinkImportTmp(string $path): void
@@ -274,7 +274,10 @@ class CsvImportController
         if (!is_dir($uploadDir)) {
             mkdir($uploadDir, 0755, true);
         }
-        $savedFilePath = $uploadDir . '/csv_import_' . session_id() . '_' . uniqid('', true) . '.csv';
+        // Random staging id, not the session id: the path is kept in the
+        // session, so nothing needs to find the file by its owner, and a
+        // session identifier never lands on disk.
+        $savedFilePath = $uploadDir . '/csv_import_' . bin2hex(random_bytes(16)) . '.csv';
         if (!@copy($tmpFile, $savedFilePath)) {
             $_SESSION['error'] = __('Impossibile salvare il file CSV caricato');
             return $response->withHeader('Location', url('/admin/books/import'))->withStatus(302);

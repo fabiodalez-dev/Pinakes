@@ -170,8 +170,8 @@ class SettingsController
         $removeLogo = (string) ($data['remove_logo'] ?? '') === '1';
         if ($removeLogo) {
             if ($logoPath !== '') {
-                $absoluteLogoPath = dirname(__DIR__, 2) . '/public' . $logoPath;
-                if (is_file($absoluteLogoPath)) {
+                $absoluteLogoPath = self::removableLogoFile(dirname(__DIR__, 2) . '/public', $logoPath);
+                if ($absoluteLogoPath !== null) {
                     @unlink($absoluteLogoPath);
                 }
             }
@@ -731,6 +731,32 @@ class SettingsController
         // forcing the installation locale — otherwise an en_US admin on an
         // it_IT install would open the editor on the Italian templates.
         return \App\Support\I18n::resolveUserLocale(\App\Support\I18n::getLocale());
+    }
+
+    /**
+     * The file a stored logo path may delete, or null. Only the two places a
+     * logo is ever written qualify: anything under public/uploads/settings
+     * (this controller's upload handler) and a logo_* image directly in
+     * public/assets (the installer's step 5), resolved with realpath() so a
+     * '..' segment or a symlink cannot point the unlink at another file.
+     */
+    public static function removableLogoFile(string $publicDir, string $logoPath): ?string
+    {
+        $real = realpath($publicDir . '/' . ltrim($logoPath, '/'));
+        if ($real === false || !is_file($real)) {
+            return null;
+        }
+        $settingsDir = realpath($publicDir . '/uploads/settings');
+        if ($settingsDir !== false && str_starts_with($real, $settingsDir . DIRECTORY_SEPARATOR)) {
+            return $real;
+        }
+        $assetsDir = realpath($publicDir . '/assets');
+        if ($assetsDir !== false
+            && dirname($real) === $assetsDir
+            && preg_match('/^logo[\w.-]*\.(?:png|jpe?g|webp|gif|svg)$/i', basename($real)) === 1) {
+            return $real;
+        }
+        return null;
     }
 
     /**

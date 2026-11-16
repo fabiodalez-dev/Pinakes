@@ -69,6 +69,51 @@ final class LoanCalendarLinks
         return $token !== '' && hash_equals($this->token($loanId), $token);
     }
 
+    /** Days a per-loan .ics link keeps working after the loan's due date. */
+    public const LINK_GRACE_DAYS = 30;
+
+    /**
+     * Whether the emailed .ics link of $loanId is still live: while the loan
+     * is open (an overdue copy keeps its calendar event current), and up to
+     * LINK_GRACE_DAYS after the due date once it is closed. A forwarded
+     * confirmation email therefore stops disclosing the loan a month after
+     * it ended, instead of forever. An unknown loan is not live.
+     */
+    public function isLinkLive(int $loanId): bool
+    {
+        $stmt = $this->db->prepare('SELECT data_scadenza, attivo FROM prestiti WHERE id = ? LIMIT 1');
+        if ($stmt === false) {
+            return false;
+        }
+        $stmt->bind_param('i', $loanId);
+        $stmt->execute();
+        $row = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        if (!is_array($row)) {
+            return false;
+        }
+
+        return self::linkLiveOn(
+            $row['data_scadenza'] !== null ? (string) $row['data_scadenza'] : null,
+            (int) ($row['attivo'] ?? 0) === 1,
+            new \DateTimeImmutable('today')
+        );
+    }
+
+    /** Pure rule behind isLinkLive(), on the library-local date $today. */
+    public static function linkLiveOn(?string $dueDate, bool $open, \DateTimeImmutable $today): bool
+    {
+        if ($open || $dueDate === null || $dueDate === '') {
+            return true;
+        }
+        $due = \DateTimeImmutable::createFromFormat('!Y-m-d', substr($dueDate, 0, 10));
+        if ($due === false) {
+            return true;
+        }
+
+        return $due->modify('+' . self::LINK_GRACE_DAYS . ' days') >= $today->setTime(0, 0);
+    }
+
     /**
      * Operator subscription URL of the whole library calendar (dashboard
      * "copy link"). Only this link unlocks borrower names and emails in the

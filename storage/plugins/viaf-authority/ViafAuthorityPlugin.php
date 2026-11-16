@@ -438,7 +438,7 @@ class ViafAuthorityPlugin
 
         $server = $request->getServerParams();
         $remoteAddr = is_string($server['REMOTE_ADDR'] ?? null) ? (string) $server['REMOTE_ADDR'] : 'unknown';
-        if (RateLimiter::isLimited('viaf_suggest:' . $remoteAddr, 60, 60)) {
+        if (RateLimiter::isLimited('viaf_suggest:' . RateLimiter::clientKey($remoteAddr), 60, 60)) {
             return $this->json($response, ['error' => true, 'message' => __('Troppe richieste. Riprova più tardi.')], 429);
         }
 
@@ -1067,9 +1067,11 @@ class ViafAuthorityPlugin
         ?ServerRequestInterface $request = null
     ): bool {
         // Session-based auth (browser/admin panel)
+        // The role is read from the database on this request (fails CLOSED on
+        // a lookup error or a demoted/suspended account), never taken from the
+        // login-time session snapshot — same contract as AdminAuthMiddleware.
         $user = $_SESSION['user'] ?? null;
-        $role = is_array($user) ? (string) ($user['tipo_utente'] ?? '') : '';
-        if ($user && in_array($role, ['admin', 'staff'], true)) {
+        if (is_array($user) && \App\Support\SessionRoleRevalidator::holdsActiveRole(['admin', 'staff'], $this->db)) {
             $out = $response;
             return true;
         }
@@ -1084,16 +1086,19 @@ class ViafAuthorityPlugin
             // Throttle credential guessing per client IP before any password
             // check (same limits as the resource-sync Basic gate): every
             // attempt counts, a success clears the counter.
-            $server = $request !== null ? $request->getServerParams() : $_SERVER;
-            $ip     = is_string($server['REMOTE_ADDR'] ?? null) ? (string) $server['REMOTE_ADDR'] : 'unknown';
-            $rlId   = 'viaf_basic:' . $ip;
+            // Keyed on IP AND account (as NCIP): a success clears only that
+            // account's counter, never the guesses at another account.
+            $server  = $request !== null ? $request->getServerParams() : $_SERVER;
+            $ip      = is_string($server['REMOTE_ADDR'] ?? null) ? (string) $server['REMOTE_ADDR'] : 'unknown';
+            $decoded = base64_decode(substr($authHeader, 6), true);
+            $rlUser  = $decoded !== false ? explode(':', $decoded, 2)[0] : '';
+            $rlId    = 'viaf_basic:' . RateLimiter::clientKey($ip) . ':' . strtolower($rlUser);
             if (RateLimiter::isLimited($rlId, 10, 300)) {
                 $out = $this->json($response, ['error' => true, 'message' => __('Troppe richieste. Riprova più tardi.')], 429)
                     ->withHeader('Retry-After', '300');
                 return false;
             }
 
-            $decoded = base64_decode(substr($authHeader, 6), true);
             if ($decoded !== false && str_contains($decoded, ':')) {
                 [$email, $pass] = explode(':', $decoded, 2);
                 if ($this->authenticateBasic($email, $pass)) {

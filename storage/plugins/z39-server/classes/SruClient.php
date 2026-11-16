@@ -474,7 +474,9 @@ class SruClient
         if (function_exists('apcu_enabled') && apcu_enabled() && function_exists('apcu_cas')) {
             $slot = self::reserveApcuSlot('sru_rate_' . md5($serverKey), (int) ($minIntervalSeconds * 1_000_000));
             if ($slot !== null) {
-                $wait = $slot - (int) (microtime(true) * 1_000_000);
+                // Clamp to one interval: a far-future slot written by another
+                // user of the same APCu segment must not stall this worker.
+                $wait = min($slot - (int) (microtime(true) * 1_000_000), (int) ($minIntervalSeconds * 1_000_000));
                 if ($wait > 0) {
                     usleep($wait);
                 }
@@ -483,7 +485,11 @@ class SruClient
         }
 
         // Tier 2: file lock shared across workers on the same machine
-        $lockDir = sys_get_temp_dir();
+        // Install-owned directory first; the host-shared temp dir only as fallback.
+        $lockDir = dirname(__DIR__, 4) . DIRECTORY_SEPARATOR . 'storage' . DIRECTORY_SEPARATOR . 'cache';
+        if (!is_dir($lockDir) || !is_writable($lockDir)) {
+            $lockDir = sys_get_temp_dir();
+        }
         if ($lockDir !== '' && is_writable($lockDir)) {
             $lockPath = $lockDir . DIRECTORY_SEPARATOR . 'pinakes_sru_rate_' . md5($serverKey) . '.lock';
             $fh = @fopen($lockPath, 'c+');
@@ -494,6 +500,8 @@ class SruClient
                         $contents = stream_get_contents($fh);
                         $previous = is_string($contents) && is_numeric(trim($contents)) ? (float)trim($contents) : 0.0;
                         $elapsed = microtime(true) - $previous;
+                        // A timestamp in the future (pre-created file) counts as "just now".
+                        $elapsed = max(0.0, $elapsed);
                         if ($previous > 0 && $elapsed < $minIntervalSeconds) {
                             usleep((int)(($minIntervalSeconds - $elapsed) * 1_000_000));
                         }

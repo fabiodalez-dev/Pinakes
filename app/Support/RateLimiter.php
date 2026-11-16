@@ -87,7 +87,79 @@ class RateLimiter
         } finally {
             flock($handle, LOCK_UN);
             fclose($handle);
+            self::pruneExpired();
         }
+    }
+
+    /**
+     * Bucket key for a client IP. An IPv6 client is keyed on its /64: one
+     * end-site normally owns a whole /64, so keying the full /128 let a
+     * client rotate through fresh addresses — and fresh, empty counters —
+     * at will. An IPv4-mapped IPv6 address is keyed as the IPv4 it carries.
+     * Anything that is not an IP (e.g. 'unknown') is returned unchanged.
+     */
+    public static function clientKey(string $ip): string
+    {
+        $packed = @inet_pton(trim($ip, '[]'));
+        if ($packed === false) {
+            return $ip;
+        }
+        if (strlen($packed) !== 16) {
+            return (string) inet_ntop($packed);
+        }
+        if (str_starts_with($packed, str_repeat("\0", 10) . "\xff\xff")) {
+            return (string) inet_ntop(substr($packed, 12));
+        }
+
+        return inet_ntop(substr($packed, 0, 8) . str_repeat("\0", 8)) . '/64';
+    }
+
+    /** State files untouched for this long are expired for every window in use (max 1 h). */
+    private const PRUNE_AGE = 86400;
+    /** One isLimited() call in PRUNE_ODDS sweeps the directory. */
+    private const PRUNE_ODDS = 100;
+    /** Upper bound of directory entries one sweep looks at. */
+    private const PRUNE_BATCH = 500;
+
+    /**
+     * Opportunistic garbage collection of expired state files: every file is
+     * one identifier, and nothing else ever removes the ones whose client
+     * never came back. Cheap and bounded — runs on a small fraction of
+     * calls and inspects at most PRUNE_BATCH entries.
+     */
+    public static function pruneExpired(?int $now = null, bool $force = false): int
+    {
+        if (!$force && random_int(1, self::PRUNE_ODDS) !== 1) {
+            return 0;
+        }
+        $dir = self::stateDirectory();
+        if (is_link($dir) || !is_dir($dir)) {
+            return 0;
+        }
+        $handle = @opendir($dir);
+        if ($handle === false) {
+            return 0;
+        }
+        $cutoff = ($now ?? time()) - self::PRUNE_AGE;
+        $removed = 0;
+        $seen = 0;
+        try {
+            while ($seen < self::PRUNE_BATCH && ($entry = readdir($handle)) !== false) {
+                if (preg_match('/^[0-9a-f]{64}\.json$/D', $entry) !== 1) {
+                    continue;
+                }
+                $seen++;
+                $path = $dir . '/' . $entry;
+                $mtime = @filemtime($path);
+                if ($mtime !== false && $mtime < $cutoff && @unlink($path)) {
+                    $removed++;
+                }
+            }
+        } finally {
+            closedir($handle);
+        }
+
+        return $removed;
     }
 
     /**

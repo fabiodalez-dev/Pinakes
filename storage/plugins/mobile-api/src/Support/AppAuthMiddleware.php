@@ -93,6 +93,9 @@ final class AppAuthMiddleware implements MiddlewareInterface
             // The identity is the token (revoked through mobile_app_tokens), not a
             // browser sign-in: SessionRoleRevalidator skips its session-pin check.
             'auth_via'    => 'mobile_token',
+            // The device this request comes from: a password change made from
+            // the app keeps this token (CredentialRevoker::revokeAll).
+            'mobile_token_id' => (int) $row['id'],
         ];
 
         $freshPermissions = \App\Support\Permissions::viewer((int) $user['id'], $this->db);

@@ -162,7 +162,9 @@ jobs:
           # The pre-immutability v0.7.63 release can technically have both its
           # ZIP and sidecar replaced. Its GitHub provenance attestation pins the
           # archive digest and source repository independently of those assets.
-          gh attestation verify "${RELEASE_DIR}/${ARCHIVE_NAME}" --repo "$GH_REPO"
+          gh attestation verify "${RELEASE_DIR}/${ARCHIVE_NAME}" --repo "$GH_REPO" \
+            --signer-workflow "${GH_REPO}/.github/workflows/release.yml" \
+            --source-ref "refs/tags/${RELEASE_TAG}"
           ARCHIVE_PATH="${RELEASE_DIR}/${ARCHIVE_NAME}" EXPECTED_ROOT="pinakes-${RELEASE_TAG}" python3 <<'PY'
           import os
           import stat

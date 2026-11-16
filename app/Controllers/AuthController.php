@@ -41,17 +41,19 @@ class AuthController
         // when the session data does not). HttpOnly + SameSite=Lax keep it out
         // of cross-site forged login POSTs.
         //
-        // HTTPS detection mirrors HtmlHelper::getBaseUrl(): honour
-        // X-Forwarded-Proto / X-Forwarded-Ssl so the Secure flag is still set
-        // behind a TLS-terminating reverse proxy (where $_SERVER['HTTPS'] is
-        // unset). Max-Age bounds the cookie's lifetime (2h) so it does not
-        // linger as a session cookie that survives a browser/tab restore.
-        $forwardedProto = strtolower((string) ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? ''));
-        $forwardedSsl = strtolower((string) ($_SERVER['HTTP_X_FORWARDED_SSL'] ?? ''));
-        $secure = (!empty($_SERVER['HTTPS']) && strtolower((string) $_SERVER['HTTPS']) !== 'off')
-            || $forwardedProto === 'https'
-            || $forwardedSsl === 'on';
-        $cookie = 'csrf_login=' . $token . '; Path=/; Max-Age=7200; SameSite=Lax; HttpOnly' . ($secure ? '; Secure' : '');
+        // HTTPS detection honours X-Forwarded-Proto / X-Forwarded-Ssl so the
+        // Secure flag is still set behind a TLS-terminating reverse proxy
+        // (where $_SERVER['HTTPS'] is unset). Max-Age bounds the cookie's
+        // lifetime (2h) so it does not linger as a session cookie that
+        // survives a browser/tab restore.
+        //
+        // Over HTTPS the cookie is named `__Host-csrf_login`: the browser then
+        // only accepts it from this exact host (Secure, Path=/, no Domain), so
+        // a sibling subdomain cannot plant a matching value. CsrfMiddleware
+        // reads the name that matches the request's scheme.
+        $secure = \App\Middleware\CsrfMiddleware::isHttpsRequest($_SERVER);
+        $cookieName = \App\Middleware\CsrfMiddleware::loginCookieName($_SERVER);
+        $cookie = $cookieName . '=' . $token . '; Path=/; Max-Age=7200; SameSite=Lax; HttpOnly' . ($secure ? '; Secure' : '');
         $response = $response->withAddedHeader('Set-Cookie', $cookie);
 
         return $response;

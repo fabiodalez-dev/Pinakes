@@ -360,7 +360,6 @@ class PublicApiController
                 r.titolo AS titolo_recensione,
                 r.descrizione,
                 r.created_at,
-                u.id AS utente_id,
                 u.nome AS utente_nome,
                 u.cognome AS utente_cognome
             FROM recensioni r
@@ -388,8 +387,10 @@ class PublicApiController
                 'descrizione' => $row['descrizione'] ?? '',
                 'testo' => $row['descrizione'] ?? '',
                 'created_at' => $row['created_at'],
+                // The reviewer's display name is public on the book page; the
+                // internal account id is not, so it is not handed to API-key
+                // holders either.
                 'utente' => [
-                    'id' => (int)$row['utente_id'],
                     'nome' => $row['utente_nome'],
                     'cognome' => $row['utente_cognome']
                 ]

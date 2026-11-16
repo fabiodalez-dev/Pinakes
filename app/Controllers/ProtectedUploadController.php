@@ -93,6 +93,9 @@ class ProtectedUploadController
         if ($candidate === null) {
             return new SlimResponse(404);
         }
+        if (str_starts_with($rel, 'archives/documents/') && !$this->archiveDocumentVisible('/uploads/' . $rel)) {
+            return new SlimResponse(404);
+        }
 
         if ($digitalName !== null) {
             $refused = $this->authorize($request, $digitalName);
@@ -250,6 +253,97 @@ class ProtectedUploadController
             }
         }
         return null;
+    }
+
+    /**
+     * Whether an archive document may be served by its raw path.
+     *
+     * The public surfaces link /archives/{id}/documents/{fileId}, which checks
+     * that the unit is published and not deleted. This raw path used to skip
+     * that, so unpublishing or deleting a unit did not revoke a link someone
+     * already held. A file now opens here only while it belongs to a live,
+     * published unit (archival_unit_files, or the legacy document_path column).
+     * Admin and staff keep access to every file: the back-office unit page links
+     * the raw path, unpublished units included.
+     *
+     * Installs without the archives tables keep the old behaviour; a failing
+     * lookup refuses.
+     */
+    private function archiveDocumentVisible(string $storedPath): bool
+    {
+        if (in_array($_SESSION['user']['tipo_utente'] ?? '', ['admin', 'staff'], true)) {
+            return true;
+        }
+        if ($this->db === null) {
+            return false;
+        }
+        try {
+            $schema = $this->archiveSchema();
+            if (!$schema['units']) {
+                return true;
+            }
+            $live = 'u.deleted_at IS NULL' . ($schema['published'] ? ' AND u.published = 1' : '');
+            $parts = [];
+            $params = [];
+            if ($schema['legacy']) {
+                $parts[] = 'SELECT 1 FROM archival_units u WHERE u.document_path = ? AND ' . $live;
+                $params[] = $storedPath;
+            }
+            if ($schema['files']) {
+                $parts[] = 'SELECT 1 FROM archival_unit_files f'
+                    . ' JOIN archival_units u ON u.id = f.unit_id'
+                    . ' WHERE f.file_path = ? AND ' . $live;
+                $params[] = $storedPath;
+            }
+            if ($parts === []) {
+                return false;
+            }
+            $stmt = $this->db->prepare(implode(' UNION ALL ', $parts) . ' LIMIT 1');
+            if ($stmt === false) {
+                return false;
+            }
+            $stmt->bind_param(str_repeat('s', count($params)), ...$params);
+            $stmt->execute();
+            $res = $stmt->get_result();
+            $found = $res instanceof \mysqli_result && $res->fetch_row() !== null;
+            $stmt->close();
+            return $found;
+        } catch (\Throwable $e) {
+            \App\Support\SecureLogger::warning('[ProtectedUpload] archive document lookup failed', ['error' => $e->getMessage()]);
+            return false;
+        }
+    }
+
+    /** @return array{units: bool, legacy: bool, files: bool, published: bool} */
+    private function archiveSchema(): array
+    {
+        $db = $this->db;
+        if ($db === null) {
+            return ['units' => false, 'legacy' => false, 'files' => false, 'published' => false];
+        }
+        $res = $db->query(
+            "SELECT TABLE_NAME, COLUMN_NAME FROM information_schema.COLUMNS
+              WHERE TABLE_SCHEMA = DATABASE()
+                AND ((TABLE_NAME = 'archival_units' AND COLUMN_NAME IN ('id', 'document_path', 'published'))
+                  OR (TABLE_NAME = 'archival_unit_files' AND COLUMN_NAME = 'file_path'))"
+        );
+        $out = ['units' => false, 'legacy' => false, 'files' => false, 'published' => false];
+        if (!$res instanceof \mysqli_result) {
+            throw new \RuntimeException('information_schema lookup failed');
+        }
+        while ($row = $res->fetch_row()) {
+            if ($row[0] === 'archival_units' && $row[1] === 'id') {
+                $out['units'] = true;
+            } elseif ($row[0] === 'archival_units' && $row[1] === 'document_path') {
+                $out['legacy'] = true;
+            } elseif ($row[0] === 'archival_units' && $row[1] === 'published') {
+                $out['published'] = true;
+            } elseif ($row[0] === 'archival_unit_files') {
+                $out['files'] = true;
+            }
+        }
+        $res->free();
+        return $out;
     }
 
     /** Null when the viewer may open the file; otherwise the response that refuses it. */

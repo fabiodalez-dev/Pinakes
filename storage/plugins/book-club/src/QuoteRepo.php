@@ -166,26 +166,46 @@ class QuoteRepo
     /**
      * PUBLIC quotes of one catalog book across ALL clubs, newest first —
      * the core book detail page section (hook book.frontend.details).
-     * Public visibility is an explicit author choice, so no per-club
-     * enablement filter applies; quotes of deleted clubs are dropped by
-     * the JOIN.
+     *
+     * Public visibility is the author's choice, but the page also prints the
+     * club's name, so only quotes of clubs that are themselves visible count:
+     * active, not deleted, not hidden, with the quotes module still enabled
+     * ($quotesModule, same per-club rule as Registry::clubEnabled()).
      *
      * @return list<array<string, mixed>>
      */
-    public function publicQuotesForBook(int $libroId, int $limit = 5): array
+    public function publicQuotesForBook(int $libroId, int $limit = 5, ?Modules\ModuleInterface $quotesModule = null): array
     {
-        return $this->rows(
+        $limit = max(1, min(10, $limit));
+        // Module enablement lives in the club's JSON settings, so it is
+        // checked in PHP: fetch a bounded surplus, then trim to $limit.
+        $rows = $this->rows(
             "SELECT q.id, q.quote, q.page, q.created_at,
-                    u.nome AS member_nome, c.name AS club_name
+                    u.nome AS member_nome, c.name AS club_name, c.settings AS club_settings
                FROM bookclub_quotes q
                JOIN utenti u ON u.id = q.user_id
                JOIN bookclub_clubs c ON c.id = q.club_id AND c.deleted_at IS NULL
+                AND c.is_active = 1 AND c.privacy <> 'hidden'
               WHERE q.libro_id = ? AND q.visibility = 'public'
               ORDER BY q.created_at DESC, q.id DESC
               LIMIT ?",
             'ii',
-            [$libroId, max(1, min(10, $limit))]
+            [$libroId, $limit * 10]
         );
+        $out = [];
+        foreach ($rows as $row) {
+            $settings = json_decode((string) ($row['club_settings'] ?? ''), true);
+            unset($row['club_settings']);
+            if ($quotesModule !== null
+                && !Modules\Registry::clubEnabled(['settings' => is_array($settings) ? $settings : []], $quotesModule)) {
+                continue;
+            }
+            $out[] = $row;
+            if (count($out) >= $limit) {
+                break;
+            }
+        }
+        return $out;
     }
 
     public function addQuote(int $userId, int $libroId, ?int $clubId, string $quote, ?int $page, string $note, string $visibility): ?int

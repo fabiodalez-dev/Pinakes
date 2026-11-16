@@ -177,7 +177,25 @@ if (file_exists($maintenanceFile)) {
         // Only an operator — or the restore itself, on the way out — clears it.
         $maintenanceTime = $maintenanceData['time'] ?? 0;
         $maintenanceSticky = !empty($maintenanceData['sticky']);
+        // The 30-minute timer is a safety net for an updater that died, not a
+        // deadline for one still working: a long update never refreshes
+        // 'time'. While the updater holds storage/cache/update.lock (an
+        // exclusive flock, released by the kernel if the process dies) the
+        // flag stays, so SchemaRepair cannot start next to its migrations.
+        $maintenanceUpdateRunning = false;
         if (!$maintenanceSticky && time() - $maintenanceTime > 1800) {
+            $updateLockFile = __DIR__ . '/../storage/cache/update.lock';
+            $updateLockHandle = is_file($updateLockFile) ? @fopen($updateLockFile, 'r') : false;
+            if ($updateLockHandle !== false) {
+                if (flock($updateLockHandle, LOCK_SH | LOCK_NB)) {
+                    flock($updateLockHandle, LOCK_UN);
+                } else {
+                    $maintenanceUpdateRunning = true;
+                }
+                fclose($updateLockHandle);
+            }
+        }
+        if (!$maintenanceSticky && !$maintenanceUpdateRunning && time() - $maintenanceTime > 1800) {
             // Stale maintenance file, remove it and continue
             unlink($maintenanceFile);
         } else {
@@ -288,6 +306,25 @@ use Slim\Factory\AppFactory;
 $httpsDetected = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
     || (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && strtolower((string)$_SERVER['HTTP_X_FORWARDED_PROTO']) === 'https')
     || (isset($_SERVER['HTTP_X_FORWARDED_SSL']) && strtolower((string)$_SERVER['HTTP_X_FORWARDED_SSL']) === 'on');
+
+// Scheme used for decisions that end up in SHARED responses. $httpsDetected
+// above keeps honouring X-Forwarded-* from any peer (it only drives per-request
+// choices — session cookie Secure flag, HTTPS/canonical redirects — and a proxy
+// install without TRUSTED_PROXIES relies on it to avoid redirect loops). The
+// CSP header, however, is copied into the LiteSpeed edge cache: there a client
+// spoofing X-Forwarded-Proto on an HTTP-only install would poison the cached
+// page with upgrade-insecure-requests for every visitor. So the forwarded
+// headers count here only from a TRUSTED_PROXIES peer, or when the operator's
+// own APP_CANONICAL_URL already says the site is https.
+$httpsForSharedHeaders = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off');
+if (!$httpsForSharedHeaders && \App\Support\HtmlHelper::isRemoteAddrTrustedProxy()) {
+    $httpsForSharedHeaders = (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && strtolower(trim(explode(',', (string)$_SERVER['HTTP_X_FORWARDED_PROTO'])[0])) === 'https')
+        || (isset($_SERVER['HTTP_X_FORWARDED_SSL']) && strtolower((string)$_SERVER['HTTP_X_FORWARDED_SSL']) === 'on');
+}
+if (!$httpsForSharedHeaders && $httpsDetected) {
+    $canonicalForScheme = getenv('APP_CANONICAL_URL') ?: ($_ENV['APP_CANONICAL_URL'] ?? '');
+    $httpsForSharedHeaders = is_string($canonicalForScheme) && stripos(trim($canonicalForScheme), 'https://') === 0;
+}
 
 // Secure session configuration. The ini parameters below are ALWAYS applied
 // (even when no session is started for this request) so that any session
@@ -511,7 +548,9 @@ if (!$isCli) {
 // lacks. The update that installs a release runs the previous release's
 // updater, so this is where a newer repair first runs. Not while an update
 // holds maintenance mode: its migrations may still be running.
-if (!$isCli && !file_exists($maintenanceFile)) {
+// Not during a fresh install either (.env written, .installed not yet):
+// an anonymous request would race the installer's own CREATE TABLE steps.
+if (!$isCli && !file_exists($maintenanceFile) && file_exists($installerLockFile)) {
     try {
         \App\Support\SchemaRepair::runOncePerVersion($container->get('db'));
     } catch (\Throwable $e) {
@@ -658,7 +697,7 @@ if (!$displayErrorDetails) {
 // order, so this MUST be added after ErrorMiddleware: otherwise exceptions and
 // 404/405 responses are rendered outside this layer and leave the application
 // without CSP precisely on attacker-controlled paths.
-$app->add(function ($request, $handler) use ($httpsDetected) {
+$app->add(function ($request, $handler) use ($httpsForSharedHeaders) {
     $cspNonce = \App\Support\ContentSecurityPolicy::createNonce();
     $response = $handler->handle($request);
 
@@ -693,7 +732,7 @@ $app->add(function ($request, $handler) use ($httpsDetected) {
 
     $csp = \App\Support\ContentSecurityPolicy::header(
         $cspNonce,
-        getenv('APP_ENV') === 'production' && $httpsDetected
+        getenv('APP_ENV') === 'production' && $httpsForSharedHeaders
     );
 
     $response = $response->withHeader('X-Frame-Options', 'SAMEORIGIN')

@@ -1533,7 +1533,7 @@ class MobileApiPlugin
     public function adminRevokeDevice(int $tokenId): bool
     {
         $stmt = $this->db->prepare(
-            'UPDATE mobile_app_tokens SET revoked_at = NOW()
+            'UPDATE mobile_app_tokens SET revoked_at = UTC_TIMESTAMP()
              WHERE id = ? AND revoked_at IS NULL'
         );
 

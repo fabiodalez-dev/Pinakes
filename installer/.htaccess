@@ -4,11 +4,13 @@
     RewriteEngine On
     RewriteBase /installer/
 
-    # Block access if .installed file exists (allow ?force parameter for reinstall)
-    RewriteCond %{DOCUMENT_ROOT}/.installed -f
-    RewriteCond %{REQUEST_URI} !force [NC]
-    RewriteCond %{QUERY_STRING} !force [NC]
-    RewriteRule ^(.*)$ / [L,R=302]
+    # No "already installed" redirect here: installer/index.php decides (it
+    # checks .installed, .env, the configured database and the ?force admin
+    # gate on every request). The former rule looked for
+    # %{DOCUMENT_ROOT}/.installed, which never exists when the document root is
+    # public/, and let through any URL containing the substring "force", while
+    # bouncing the follow-up steps of an authenticated reinstall (which carry
+    # no ?force) back to the site root.
 
     # Allow access to assets (CSS, JS, images)
     RewriteCond %{REQUEST_FILENAME} !-f

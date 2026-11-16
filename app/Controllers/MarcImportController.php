@@ -135,7 +135,8 @@ class MarcImportController
         if (!is_dir($dir)) {
             @mkdir($dir, 0755, true);
         }
-        $staging = $dir . '/marc_import_' . preg_replace('/[^A-Za-z0-9]/', '', session_id()) . '_' . bin2hex(random_bytes(6)) . '.jsonl';
+        // Random staging id, not the session id (kept in the session instead).
+        $staging = $dir . '/marc_import_' . bin2hex(random_bytes(16)) . '.jsonl';
         $out = @fopen($staging, 'wb');
         if ($out === false) {
             return $this->json($response, ['success' => false, 'error' => __('Impossibile salvare il file caricato')], 500);

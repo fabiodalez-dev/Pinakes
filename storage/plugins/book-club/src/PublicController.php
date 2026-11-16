@@ -307,6 +307,12 @@ class PublicController extends BaseController
             $this->flash('error', __('Non puoi unirti a questo club.'));
             return $this->redirect($response, \App\Support\RouteTranslator::route('book_club'));
         }
+        // An active member is already in: accepting would only re-fire the
+        // joined event and consume the invitation. The membership (and an
+        // owner/moderator role) is left exactly as it is.
+        if ($existing !== null && $existing['status'] === 'active') {
+            return $this->redirect($response, \App\Support\RouteTranslator::route('book_club') . '/' . $club['slug']);
+        }
         $roleId = $invitation['role_id'] !== null ? (int) $invitation['role_id'] : $this->repo->roleIdBySlug('member');
         if ($roleId === null) {
             return $this->notFound($response);

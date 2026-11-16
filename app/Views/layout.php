@@ -1537,7 +1537,31 @@ $htmlLang = substr($currentLocale, 0, 2);
             }
 
             const isUnread = !notif.is_read;
-            const hasLink = Boolean(notif.link) && !/^javascript:/i.test(String(notif.link));
+            // Allow-list, not a javascript: deny-list: a leading space or
+            // control character would slip past /^javascript:/ and still run
+            // once assigned to window.location. Only an app-relative path
+            // ('/x', never '//host') or an absolute http(s) URL on
+            // this same origin is followed.
+            const isSafeNotificationLink = (value) => {
+              const s = String(value || '');
+              // Browsers drop tabs/newlines inside a URL ('/\t/evil' becomes
+              // '//evil') and read '\\' as '/': refuse any of them outright.
+              if (/[\u0000-\u0020\u007F\\]/.test(s)) {
+                return false;
+              }
+              if (s.startsWith('/')) {
+                return !s.startsWith('//');
+              }
+              if (!/^https?:\/\//i.test(s)) {
+                return false;
+              }
+              try {
+                return new URL(s).origin === window.location.origin;
+              } catch (e) {
+                return false;
+              }
+            };
+            const hasLink = Boolean(notif.link) && isSafeNotificationLink(notif.link);
             const basePath = window.BASE_PATH || '';
             const link = String(notif.link || '');
             const rawLink = hasLink

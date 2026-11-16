@@ -124,6 +124,24 @@ abstract class AbstractAdminController
     ];
 
     /**
+     * The file name of a managed image URL, or null when the URL is not
+     * exactly '/uploads/emeroteca/<name>' with a name storeManagedImage()
+     * could have produced. Logo URLs are free text, so a value such as
+     * '/uploads/emeroteca/x/<another record's file>' or '/uploads/emeroteca/'
+     * + '.htaccess' must never reach the unlink: the reference check runs on
+     * the canonical URL and the deletion on that same name.
+     */
+    protected static function managedImageFilename(string $url): ?string
+    {
+        $name = basename($url);
+        if ($url !== '/uploads/emeroteca/' . $name
+            || preg_match('/^[A-Za-z0-9_-]+\.(?:jpe?g|png|webp)$/i', $name) !== 1) {
+            return null;
+        }
+        return $name;
+    }
+
+    /**
      * Remove a plugin-managed image after its database row has gone, but only
      * when no title, volume year, issue or article still references it.
      * External URLs and paths outside public/uploads/emeroteca are never
@@ -153,14 +171,18 @@ abstract class AbstractAdminController
     protected function deleteManagedImageIfUnreferenced(string $url): void
     {
         try {
-            if (!str_starts_with($url, '/uploads/emeroteca/')) {
+            $name = self::managedImageFilename($url);
+            if ($name === null) {
                 return;
             }
 
             $parts = [];
             foreach (self::IMAGE_REFERENCES as $table => $column) {
                 if ($this->tableExists($table)) {
-                    $parts[] = "SELECT 1 FROM $table WHERE $column = ?";
+                    // Any spelling that ends in the same file name counts as
+                    // a reference (free-text logo URLs): keeping a file is
+                    // the safe direction.
+                    $parts[] = "SELECT 1 FROM $table WHERE $column = ? OR $column LIKE ?";
                 }
             }
             if ($parts === []) {
@@ -174,7 +196,13 @@ abstract class AbstractAdminController
                 SecureLogger::error('[Emeroteca] image reference check prepare failed: ' . $this->db->error);
                 return;
             }
-            $stmt->bind_param(str_repeat('s', count($parts)), ...array_fill(0, count($parts), $url));
+            $suffix = '%/' . addcslashes($name, '\\%_');
+            $bind = [];
+            foreach ($parts as $_) {
+                $bind[] = $url;
+                $bind[] = $suffix;
+            }
+            $stmt->bind_param(str_repeat('s', count($bind)), ...$bind);
             if (!$stmt->execute()) {
                 SecureLogger::error('[Emeroteca] image reference check failed: ' . $stmt->error);
                 $stmt->close();
@@ -191,7 +219,7 @@ abstract class AbstractAdminController
             if ($baseDir === false) {
                 return;
             }
-            $resolved = realpath($baseDir . DIRECTORY_SEPARATOR . basename($url));
+            $resolved = realpath($baseDir . DIRECTORY_SEPARATOR . $name);
             if ($resolved !== false
                 && str_starts_with($resolved, $baseDir . DIRECTORY_SEPARATOR)
                 && is_file($resolved)

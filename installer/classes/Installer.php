@@ -367,31 +367,59 @@ class Installer {
     }
 
     /**
+     * Feed an SQL file to the mysql client. The credentials go through a 0600
+     * --defaults-extra-file (as BackupManager does), never the command line,
+     * where -p<password> is visible to every local user in the process list.
+     * The file is removed as soon as the client exits.
+     *
+     * @return array{0:int,1:list<string>} exit code, merged stdout/stderr lines
+     */
+    private function runMysqlClientImport(string $sqlFile): array {
+        $host = (string) ($this->config['DB_HOST'] ?? 'localhost');
+        $port = (int) ($this->config['DB_PORT'] ?? 3306);
+        $database = (string) ($this->config['DB_NAME'] ?? '');
+        $username = (string) ($this->config['DB_USER'] ?? 'root');
+        $password = (string) ($this->config['DB_PASS'] ?? '');
+
+        $cnf = tempnam(sys_get_temp_dir(), 'pk_inst_cnf_');
+        if ($cnf === false) {
+            throw new Exception('Impossibile creare il file temporaneo delle credenziali per il client mysql');
+        }
+        try {
+            @chmod($cnf, 0600);
+            $escape = static fn (string $v): string => str_replace(['\\', '"'], ['\\\\', '\\"'], $v);
+            $lines = "[client]\n"
+                . 'user="' . $escape($username) . "\"\n"
+                . 'host="' . $escape($host) . "\"\n"
+                . 'port=' . $port . "\n";
+            // Same as before: an empty password sends none.
+            if ($password !== '') {
+                $lines .= 'password="' . $escape($password) . "\"\n";
+            }
+            if (file_put_contents($cnf, $lines) === false) {
+                throw new Exception('Impossibile scrivere il file temporaneo delle credenziali per il client mysql');
+            }
+
+            // --defaults-extra-file must be the first option.
+            $cmd = 'mysql --defaults-extra-file=' . escapeshellarg($cnf)
+                . ' --default-character-set=utf8mb4' // Force UTF-8 to prevent encoding corruption (📚 → ðŸ"š, È → Ãˆ)
+                . ' ' . escapeshellarg($database)
+                . ' < ' . escapeshellarg($sqlFile);
+
+            $output = [];
+            $exitCode = 0;
+            exec($cmd . ' 2>&1', $output, $exitCode);
+            return [$exitCode, $output];
+        } finally {
+            @unlink($cnf);
+        }
+    }
+
+    /**
      * Import schema using MySQL CLI (faster but requires exec())
      */
     private function importSchemaViaExec($schemaFile) {
-        $host = $this->config['DB_HOST'] ?? 'localhost';
-        $port = (int)($this->config['DB_PORT'] ?? 3306);
-        $database = $this->config['DB_NAME'] ?? '';
-        $username = $this->config['DB_USER'] ?? 'root';
-        $password = $this->config['DB_PASS'] ?? '';
-
-        // Build mysql command
-        $cmd = 'mysql';
-        $cmd .= ' -h ' . escapeshellarg($host);
-        $cmd .= ' -P ' . (int)$port;
-        $cmd .= ' -u ' . escapeshellarg($username);
-        if (!empty($password)) {
-            $cmd .= ' -p' . escapeshellarg($password);
-        }
-        $cmd .= ' --default-character-set=utf8mb4'; // Force UTF-8 to prevent encoding corruption (📚 → ðŸ"š, È → Ãˆ)
-        $cmd .= ' ' . escapeshellarg($database);
-        $cmd .= ' < ' . escapeshellarg($schemaFile);
-
-        // Execute mysql command
-        $output = [];
-        $exitCode = 0;
-        exec($cmd . ' 2>&1', $output, $exitCode);
+        [$exitCode, $output] = $this->runMysqlClientImport($schemaFile);
 
         if ($exitCode !== 0) {
             $errorMsg = implode("\n", $output);
@@ -504,28 +532,7 @@ class Installer {
      * Import data using MySQL CLI (faster but requires exec())
      */
     private function importDataViaExec($dataFile) {
-        $host = $this->config['DB_HOST'] ?? 'localhost';
-        $port = (int)($this->config['DB_PORT'] ?? 3306);
-        $database = $this->config['DB_NAME'] ?? '';
-        $username = $this->config['DB_USER'] ?? 'root';
-        $password = $this->config['DB_PASS'] ?? '';
-
-        // Build mysql command
-        $cmd = 'mysql';
-        $cmd .= ' -h ' . escapeshellarg($host);
-        $cmd .= ' -P ' . (int)$port;
-        $cmd .= ' -u ' . escapeshellarg($username);
-        if (!empty($password)) {
-            $cmd .= ' -p' . escapeshellarg($password);
-        }
-        $cmd .= ' --default-character-set=utf8mb4'; // Force UTF-8 to prevent encoding corruption (📚 → ðŸ"š, È → Ãˆ)
-        $cmd .= ' ' . escapeshellarg($database);
-        $cmd .= ' < ' . escapeshellarg($dataFile);
-
-        // Execute mysql command
-        $output = [];
-        $exitCode = 0;
-        exec($cmd . ' 2>&1', $output, $exitCode);
+        [$exitCode, $output] = $this->runMysqlClientImport($dataFile);
 
         if ($exitCode !== 0) {
             $errorMsg = implode("\n", $output);
@@ -1962,12 +1969,15 @@ HTACCESS;
 
     private function generateEncryptionKey(): string
     {
+        // No fallback: a key derived from uniqid()/mt_rand() is guessable, and it
+        // would encrypt every stored plugin secret. Without a CSPRNG the install
+        // stops here rather than write a weak PLUGIN_ENCRYPTION_KEY.
         try {
             $bytes = random_bytes(32);
-            return 'base64:' . base64_encode($bytes);
         } catch (\Throwable $e) {
-            return 'base64:' . base64_encode(hash('sha256', uniqid((string)mt_rand(), true), true));
+            throw new \RuntimeException('Impossibile generare una chiave di cifratura sicura (random_bytes non disponibile): ' . $e->getMessage(), 0, $e);
         }
+        return 'base64:' . base64_encode($bytes);
     }
 
     /**

@@ -100,7 +100,7 @@ class EditoriApiController
         // Parse order parameter from DataTables
         if (isset($q['order'][0]['column']) && isset($q['order'][0]['dir'])) {
             $colIdx = (int) $q['order'][0]['column'];
-            $dir = strtoupper($q['order'][0]['dir']) === 'DESC' ? 'DESC' : 'ASC';
+            $dir = (is_string($q['order'][0]['dir']) && strtoupper($q['order'][0]['dir']) === 'DESC') ? 'DESC' : 'ASC';
 
             if (isset($columnMap[$colIdx])) {
                 $orderColumn = $columnMap[$colIdx];

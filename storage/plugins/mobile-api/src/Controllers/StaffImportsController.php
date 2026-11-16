@@ -350,6 +350,12 @@ final class StaffImportsController
     public function errorsCsv(ServerRequestInterface $request, ResponseInterface $response, string $importId): ResponseInterface
     {
         try {
+            // catalog.manage covers catalogue imports only: a patron import's
+            // report (user rows) is served by /staff/user-imports/{id}/errors.csv
+            // behind its own capability, so it does not exist here.
+            if (!$this->isCatalogImport($importId)) {
+                return $this->notFound($response);
+            }
             $db = $this->db;
             $outcome = Delegation::run(static fn (): ResponseInterface => (new \App\Controllers\ImportHistoryController())->downloadErrors(
                 Delegation::request('GET', '/admin/imports/download-errors', [], ['import_id' => $importId]),
@@ -428,6 +434,28 @@ final class StaffImportsController
             'updated_at'         => (string) $job['updated_at'],
             'expires_at'         => (string) $job['expires_at'],
         ];
+    }
+
+    /** import_logs.import_type values a catalogue import writes. */
+    private const CATALOG_IMPORT_TYPES = ['csv', 'librarything', 'marc'];
+
+    /**
+     * True when $importId is a catalogue import; an unknown id is left to
+     * downloadErrors(), which answers it with its own 404.
+     */
+    private function isCatalogImport(string $importId): bool
+    {
+        $stmt = $this->db->prepare('SELECT import_type FROM import_logs WHERE import_id = ? LIMIT 1');
+        if ($stmt === false) {
+            return false;
+        }
+        $stmt->bind_param('s', $importId);
+        $stmt->execute();
+        $res = $stmt->get_result();
+        $row = $res instanceof \mysqli_result ? $res->fetch_assoc() : null;
+        $stmt->close();
+
+        return $row === null || in_array((string) ($row['import_type'] ?? ''), self::CATALOG_IMPORT_TYPES, true);
     }
 
     /**

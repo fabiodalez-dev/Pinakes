@@ -136,6 +136,11 @@ class StatsController extends BaseController
     private function buildExport(array $club): array
     {
         $clubId = (int) $club['id'];
+        // exports.run can be granted to a custom role: proposals awaiting
+        // moderation and non-active members are manager-only data elsewhere
+        // (club page, reading page, member list), so the export keeps them
+        // for managers only.
+        $canManage = $this->canManage($club);
         $states = $this->repo->workflowStates($club);
         $stateLabel = static function (string $key) use ($states): string {
             $state = Repo::stateByKey($states, $key);
@@ -144,6 +149,9 @@ class StatsController extends BaseController
 
         $books = [];
         foreach ($this->stats->exportBooks($clubId) as $book) {
+            if (!$canManage && $book['state'] === BookClubPlugin::STATE_PENDING) {
+                continue;
+            }
             $books[] = [
                 'titolo' => (string) $book['titolo'],
                 'autori' => (string) ($book['autori'] ?? ''),
@@ -159,6 +167,9 @@ class StatsController extends BaseController
 
         $stateLog = [];
         foreach ($this->stats->exportStateLog($clubId) as $entry) {
+            if (!$canManage && ($entry['current_state'] ?? null) === BookClubPlugin::STATE_PENDING) {
+                continue;
+            }
             $stateLog[] = [
                 'titolo' => (string) $entry['titolo'],
                 'from_state' => (string) $entry['from_state'],
@@ -208,6 +219,9 @@ class StatsController extends BaseController
 
         $members = [];
         foreach ($this->repo->listMembers($clubId) as $member) {
+            if (!$canManage && $member['status'] !== 'active') {
+                continue;
+            }
             // Privacy: name + role + status only — never the email.
             $members[] = [
                 'name' => trim((string) $member['nome'] . ' ' . (string) $member['cognome']),

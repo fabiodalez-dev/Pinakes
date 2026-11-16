@@ -952,25 +952,48 @@ class DiscogsPlugin
      * still respects Discogs' 25-60/min and MusicBrainz' strict 1/s.
      * Falls back to the per-process timestamp when the file cannot be used.
      */
+    /**
+     * Microseconds to wait so that $minInterval separates now from $last,
+     * never more than $minInterval itself: a stored timestamp in the future
+     * (clock skew, a tampered file) must not stall the worker indefinitely.
+     */
+    public static function throttleWaitMicros(float $last, float $minInterval, ?float $now = null): int
+    {
+        $elapsed = ($now ?? microtime(true)) - $last;
+        if ($elapsed >= $minInterval) {
+            return 0;
+        }
+        $wait = min($minInterval, $minInterval - $elapsed);
+
+        return (int) (max(0.0, $wait) * 1_000_000);
+    }
+
     private function throttleHost(string $host, float $minInterval, float &$processLast): void
     {
-        $file = rtrim(sys_get_temp_dir(), DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . 'pinakes-throttle-' . preg_replace('/[^a-z0-9.-]/', '', strtolower($host));
+        // The shared timestamp lives in the install's own storage/cache, not
+        // the host-wide temp dir, where any co-tenant could pre-create it.
+        $dir = dirname(__DIR__, 2) . DIRECTORY_SEPARATOR . 'cache';
+        if (!is_dir($dir)) {
+            @mkdir($dir, 0755, true);
+        }
+        if (!is_dir($dir) || !is_writable($dir)) {
+            $dir = rtrim(sys_get_temp_dir(), DIRECTORY_SEPARATOR);
+        }
+        $file = $dir . DIRECTORY_SEPARATOR . 'pinakes-throttle-' . preg_replace('/[^a-z0-9.-]/', '', strtolower($host));
         $handle = @fopen($file, 'c+');
         if ($handle === false || !flock($handle, LOCK_EX)) {
             if ($handle !== false) {
                 fclose($handle);
             }
-            $elapsed = microtime(true) - $processLast;
-            if ($processLast > 0 && $elapsed < $minInterval) {
-                usleep((int) (($minInterval - $elapsed) * 1_000_000));
+            if ($processLast > 0) {
+                usleep(self::throttleWaitMicros($processLast, $minInterval));
             }
             $processLast = microtime(true);
             return;
         }
         $last = (float) trim((string) stream_get_contents($handle));
-        $elapsed = microtime(true) - $last;
-        if ($last > 0 && $elapsed < $minInterval) {
-            usleep((int) (($minInterval - $elapsed) * 1_000_000));
+        if ($last > 0) {
+            usleep(self::throttleWaitMicros($last, $minInterval));
         }
         $processLast = microtime(true);
         ftruncate($handle, 0);

@@ -39,7 +39,8 @@ class UnimarcLibriParser
 
         $doc = new \DOMDocument();
         $prev = libxml_use_internal_errors(true);
-        $loaded = $doc->loadXML($xml);
+        // LIBXML_NONET: never fetch a DTD or entity over the network (as SruClient).
+        $loaded = $doc->loadXML($xml, LIBXML_NONET);
         libxml_clear_errors();
         libxml_use_internal_errors($prev);
         if (!$loaded) {

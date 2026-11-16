@@ -180,7 +180,8 @@ The full per-book object also includes: `data_acquisizione`, `data_pubblicazione
 `audio_url`, `created_at`, `updated_at`. The `prestito` object (when a loan is
 active) carries `data_prestito`, `data_scadenza`, `data_restituzione`, `stato`,
 `attivo` and the borrowing `utente`. `recensioni` only contains reviews with
-`stato = 'approvata'`.
+`stato = 'approvata'`; each review's `utente` carries the reviewer's `nome` and
+`cognome` only (no account id).
 
 **Status Codes**:
 - `200 OK`: success

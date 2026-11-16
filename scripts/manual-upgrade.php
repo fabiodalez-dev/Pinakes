@@ -21,6 +21,15 @@
 // CONFIGURATION — change the password before uploading!
 // ============================================================
 define('UPGRADE_PASSWORD', 'pinakes2026');
+define('UPGRADE_PASSWORD_MIN_LENGTH', 10);
+
+/** False for the shipped default, an empty value or one shorter than the minimum. */
+function upgradePasswordConfigured(string $password): bool
+{
+    return !hash_equals('pinakes2026', $password)
+        && strlen(trim($password)) >= UPGRADE_PASSWORD_MIN_LENGTH;
+}
+
 define('MAX_ZIP_SIZE', 512 * 1024 * 1024); // 512 MB (aligned with scripts/.user.ini)
 // Coarse floor for an upgrade. One value, used by BOTH the disk_free_space()
 // gate and the write probe that backs it: a probe smaller than the declared
@@ -757,8 +766,11 @@ if ($requestMethod === 'POST' && isset($_POST['password'])) {
         $error = 'Protezione dai tentativi non disponibile: rendi scrivibile storage/cache/ per l\'utente del web server, oppure esegui l\'aggiornamento da riga di comando.';
     } elseif (!$reservation['allowed']) {
         $error = 'Troppi tentativi. Riprova tra qualche minuto.';
-    } elseif (hash_equals('pinakes2026', UPGRADE_PASSWORD)) {
-        $error = 'SICUREZZA: cambia la password nel file prima di procedere.';
+    } elseif (!upgradePasswordConfigured(UPGRADE_PASSWORD)) {
+        // The shipped default, an empty value (which would accept an empty
+        // password) and anything too short to survive guessing all count as
+        // "not configured".
+        $error = 'SICUREZZA: imposta nel file una password personale di almeno ' . UPGRADE_PASSWORD_MIN_LENGTH . ' caratteri prima di procedere.';
     } elseif (hash_equals(UPGRADE_PASSWORD, (string) $_POST['password'])) {
         session_regenerate_id(true);
         $_SESSION['upgrade_auth'] = true;

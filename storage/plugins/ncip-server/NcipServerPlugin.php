@@ -678,8 +678,11 @@ class NcipServerPlugin
 
     private function requireAdminOrStaff(): bool
     {
-        return isset($_SESSION['user']) &&
-            in_array($_SESSION['user']['tipo_utente'] ?? '', ['admin', 'staff'], true);
+        // Decide on the role read from the database on this request, not on
+        // the login-time session snapshot: a lookup failure or a demoted /
+        // suspended account fails CLOSED (same contract as AdminAuthMiddleware).
+        return isset($_SESSION['user'])
+            && \App\Support\SessionRoleRevalidator::holdsActiveRole(['admin', 'staff'], $this->db);
     }
 
     /**
@@ -2974,7 +2977,7 @@ class NcipServerPlugin
 
         $server = $request->getServerParams();
         $remoteAddr = is_string($server['REMOTE_ADDR'] ?? null) ? (string) $server['REMOTE_ADDR'] : 'unknown';
-        $rateKey = 'ncip_basic:' . $remoteAddr . ':' . strtolower($email);
+        $rateKey = 'ncip_basic:' . RateLimiter::clientKey($remoteAddr) . ':' . strtolower($email);
         if (RateLimiter::isLimited($rateKey, 10, 900)) {
             SecureLogger::warning('[NCIP] Basic auth rate limit exceeded', [
                 'remote_addr' => $remoteAddr,
@@ -2984,7 +2987,7 @@ class NcipServerPlugin
         }
 
         $stmt = $this->db->prepare(
-            "SELECT id, nome, email, password, tipo_utente
+            "SELECT id, nome, email, password, tipo_utente, email_verificata
                FROM utenti
               WHERE email = ? AND stato = 'attivo' LIMIT 1"
         );
@@ -3003,8 +3006,16 @@ class NcipServerPlugin
         if (!password_verify($password, (string) ($user['password'] ?? ''))) {
             return null;
         }
+        // Same gates as the interactive login (core AuthController): a
+        // verified email, and the plugin 'login.validate' hook (2FA,
+        // reCAPTCHA, ...), so a future verification plugin also covers NCIP.
+        if ((int) ($user['email_verificata'] ?? 0) !== 1
+            || !\App\Support\Hooks::apply('login.validate', true, [$email, $request])) {
+            return null;
+        }
 
         RateLimiter::reset($rateKey);
+        unset($user['email_verificata']);
 
         return $user;
     }

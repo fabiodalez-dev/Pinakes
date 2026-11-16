@@ -330,18 +330,24 @@ class AffinityRepo
      * Ranked affinity list for one opted-in member: every stored pair the
      * user belongs to, with the OTHER member's display name. Since pairs
      * are only stored between opted-in active members, non-opted members
-     * can never appear here.
+     * can never appear here. The counterpart is re-checked at read time
+     * (still active, still opted in): a member who left, was suspended or
+     * banned since the last daily recompute must not stay listed.
      *
      * @return list<array{name: string, score: int|null, computed_at: string}>
      */
     public function affinitiesFor(int $clubId, int $userId): array
     {
         $rows = $this->rows(
-            'SELECT af.score, af.computed_at, u.nome, u.cognome
+            "SELECT af.score, af.computed_at, u.nome, u.cognome
                FROM bookclub_affinity af
                JOIN utenti u ON u.id = CASE WHEN af.user_a = ? THEN af.user_b ELSE af.user_a END
+               JOIN bookclub_members m
+                 ON m.club_id = af.club_id AND m.user_id = u.id AND m.status = 'active'
+               JOIN bookclub_affinity_optin o
+                 ON o.club_id = af.club_id AND o.user_id = u.id
               WHERE af.club_id = ? AND ? IN (af.user_a, af.user_b)
-              ORDER BY (af.score IS NULL) ASC, af.score DESC, u.cognome ASC, u.nome ASC',
+              ORDER BY (af.score IS NULL) ASC, af.score DESC, u.cognome ASC, u.nome ASC",
             'iii',
             [$userId, $clubId, $userId]
         );

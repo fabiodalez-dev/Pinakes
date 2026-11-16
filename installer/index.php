@@ -13,6 +13,20 @@ if (is_dir($sessionPath) && is_writable($sessionPath)) {
     ini_set('session.save_path', $sessionPath);
 }
 
+// The installer shares the main app's session store (the ?force gate reads
+// the admin's main-app session), so it must not run that store's garbage
+// collection with PHP's 24-minute default: an anonymous installer hit would
+// then expire main-app sessions the app itself keeps for up to 24 hours
+// (advanced.session_lifetime is clamped to 5..1440 minutes, and the installer
+// cannot read the configured value). Strict mode refuses a session id that
+// has no session behind it, as public/index.php does (unless the embedding
+// code already chose the id with session_id(), as the CLI test harness does).
+ini_set('session.use_only_cookies', '1');
+if (session_id() === '') {
+    ini_set('session.use_strict_mode', '1');
+}
+ini_set('session.gc_maxlifetime', (string) (1440 * 60));
+
 // Set secure session cookie params
 session_set_cookie_params([
     'httponly' => true,
@@ -25,23 +39,6 @@ session_set_cookie_params([
 ]);
 
 session_start();
-
-// Only destroy session on explicit reset request
-if (isset($_GET['reset'])) {
-    // Keep the install-ownership binding (token + import proof): it is what lets
-    // this browser go on with a claimed install. Dropping it would leave the
-    // on-disk claim pointing at no session, and the wizard shut out until it
-    // expires. The token is still checked against the hash on disk and its TTL.
-    // (Literal keys: the Installer class is not loaded yet.)
-    $keptBinding = array_intersect_key($_SESSION ?? [], array_flip(['installer_owner_token', 'installer_populated_by_owner']));
-    session_destroy();
-    session_start(); // Start a fresh session
-    foreach ($keptBinding as $bindingKey => $bindingValue) {
-        if (is_string($bindingValue) && $bindingValue !== '') {
-            $_SESSION[$bindingKey] = $bindingValue;
-        }
-    }
-}
 
 // Normalize locale to canonical form (it_IT, en_US, de_DE, fr_FR, da_DK)
 function normalizeInstallerLocale(string $locale): string {
@@ -104,8 +101,13 @@ $validator = new Validator();
 // lost during extraction; writing it here (PHP, on disk) makes the installer
 // render correctly and self-heals routing for the installed app. Idempotent and
 // best-effort: a non-writable root simply leaves things as they are.
+// Only while not installed: on an installed site an anonymous request must not
+// append the routing block to a root .htaccess the operator manages (step 7
+// writes it at the end of an install, a reinstall included).
 try {
-    $installer->createHtaccess();
+    if (!$installer->isInstalled()) {
+        $installer->createHtaccess();
+    }
 } catch (\Throwable $e) {
     // Non-fatal: the install can still proceed; routing may need a manual .htaccess.
 }
@@ -115,28 +117,6 @@ $installerBasePath = rtrim(dirname(dirname($_SERVER['SCRIPT_NAME'] ?? '')), '/\\
 if ($installerBasePath === '.' || $installerBasePath === DIRECTORY_SEPARATOR) $installerBasePath = '';
 $installerBasePath = htmlspecialchars($installerBasePath, ENT_QUOTES, 'UTF-8');
 
-// Handle AJAX requests
-if (isset($_GET['action']) && $_GET['action'] === 'detect_socket') {
-    header('Content-Type: application/json');
-
-    $socketPaths = [
-        '/tmp/mysql.sock',
-        '/var/run/mysqld/mysqld.sock',
-        '/usr/local/var/mysql/mysql.sock',
-        '/opt/homebrew/var/mysql/mysql.sock'
-    ];
-
-    $detectedSocket = '';
-    foreach ($socketPaths as $path) {
-        if (file_exists($path)) {
-            $detectedSocket = $path;
-            break;
-        }
-    }
-
-    echo json_encode(['socket' => $detectedSocket]);
-    exit;
-}
 
 // Security: If force parameter is used, require admin authentication.
 //
@@ -387,8 +367,11 @@ if (!$forceRequested && $installer->isInstalled()) {
         $installer->loadEnvConfig();
         $installer->verifyInstallation();
         $installationStatus['db_verified'] = true;
-    } catch (Exception $e) {
-        $installationStatus['db_error'] = $e->getMessage();
+    } catch (\Throwable $e) {
+        // Logged, never rendered: this page answers anonymous requests, and the
+        // driver message names the database user, host and missing tables.
+        error_log('[Installer] installation check failed: ' . $e->getMessage());
+        $installationStatus['db_error'] = true;
     }
 
     // If database verification failed, show detailed error
@@ -417,8 +400,6 @@ if (!$forceRequested && $installer->isInstalled()) {
                             <li>' . __("File .installed:") . ' ' . ($installationStatus['lock_exists'] ? '✓ ' . __("Trovato") : '✗ ' . __("Mancante")) . '</li>
                             <li>' . __("Database:") . ' ' . ($installationStatus['db_verified'] ? '✓ ' . __("Verificato") : '✗ ' . __("Errore")) . '</li>
                         </ul>
-
-                        ' . (!empty($installationStatus['db_error']) ? '<div class="alert alert-warning mt-3"><strong>' . __("Errore database:") . '</strong><br><code>' . htmlspecialchars($installationStatus['db_error']) . '</code></div>' : '') . '
 
                         <p class="mt-4">
                             <strong>' . __("Possibili soluzioni:") . '</strong>
@@ -472,6 +453,49 @@ if (!$forceRequested && $installer->isInstalled()) {
         </body>
         </html>
     ');
+}
+
+// Only destroy session on explicit reset request. Placed after the installed
+// gate: on an installed site a cross-site GET /installer/?reset must not end
+// the main-app session it shares.
+if (isset($_GET['reset'])) {
+    // Keep the install-ownership binding (token + import proof): it is what lets
+    // this browser go on with a claimed install. Dropping it would leave the
+    // on-disk claim pointing at no session, and the wizard shut out until it
+    // expires. The token is still checked against the hash on disk and its TTL.
+    // (Literal keys, as the owner-binding helpers in Installer store them.)
+    $keptBinding = array_intersect_key($_SESSION ?? [], array_flip(['installer_owner_token', 'installer_populated_by_owner']));
+    session_destroy();
+    session_start(); // Start a fresh session
+    foreach ($keptBinding as $bindingKey => $bindingValue) {
+        if (is_string($bindingValue) && $bindingValue !== '') {
+            $_SESSION[$bindingKey] = $bindingValue;
+        }
+    }
+}
+
+// Handle AJAX requests (after the installed gate: an installed site does not
+// disclose which MySQL socket paths exist).
+if (isset($_GET['action']) && $_GET['action'] === 'detect_socket') {
+    header('Content-Type: application/json');
+
+    $socketPaths = [
+        '/tmp/mysql.sock',
+        '/var/run/mysqld/mysqld.sock',
+        '/usr/local/var/mysql/mysql.sock',
+        '/opt/homebrew/var/mysql/mysql.sock'
+    ];
+
+    $detectedSocket = '';
+    foreach ($socketPaths as $path) {
+        if (file_exists($path)) {
+            $detectedSocket = $path;
+            break;
+        }
+    }
+
+    echo json_encode(['socket' => $detectedSocket]);
+    exit;
 }
 
 // Get current step (start from 0 for language selection)

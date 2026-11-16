@@ -1399,7 +1399,11 @@ class BackupManager
         file_put_contents($cnf, $lines);
         @chmod($cnf, 0600);
 
+        // --defaults-extra-file must stay the FIRST option (the client only
+        // honours it in that position); the sandbox flag follows it.
+        $sandbox = self::clientSandboxOption($this->mysqlHelpText($bin));
         $cmd = escapeshellarg($bin) . ' --defaults-extra-file=' . escapeshellarg($cnf)
+            . ($sandbox !== '' ? ' ' . $sandbox : '')
             . ' --default-character-set=utf8mb4 ' . escapeshellarg($cfg['name'])
             . ' < ' . escapeshellarg($sqlPath) . ' 2>&1';
         $out = [];
@@ -1420,6 +1424,37 @@ class BackupManager
         @unlink($cnf);
 
         return $code === 0;
+    }
+
+    /**
+     * The option that stops the mysql client from running its own commands
+     * (`system`/`\!`, `tee`, `source`, …) while it reads a dump. A restored
+     * archive may come from an upload, and the dump this class writes only ever
+     * needs DELIMITER, which both modes still allow.
+     *
+     * MariaDB clients call it --sandbox; Oracle MySQL 8.4.3+/9.1+ clients can
+     * switch off just the shell escape with --system-command=OFF. Older clients
+     * know neither, and passing an unknown option would make every restore fail,
+     * so the flag is only added when the client's own --help lists it.
+     */
+    public static function clientSandboxOption(string $helpText): string
+    {
+        if (preg_match('/^\s*--sandbox\b/m', $helpText) === 1) {
+            return '--sandbox';
+        }
+        if (preg_match('/^\s*--system-command\b/m', $helpText) === 1) {
+            return '--system-command=OFF';
+        }
+        return '';
+    }
+
+    private function mysqlHelpText(string $bin): string
+    {
+        $out = [];
+        $code = 0;
+        // nosemgrep: php.lang.security.exec-use.exec-use -- $bin is an absolute path from locateMysqlBinary(), escaped
+        @exec(escapeshellarg($bin) . ' --no-defaults --help 2>/dev/null', $out, $code);
+        return $code === 0 ? implode("\n", $out) : '';
     }
 
     /**
@@ -1845,7 +1880,10 @@ class BackupManager
      */
     private function resolveBackup(string $name): ?string
     {
-        if ($name === '' || preg_match('/[\/\\\\]|\.\./', $name)) {
+        // '.' resolves to the backups directory itself (deleting it would wipe
+        // every restore point), so only a plain entry name below it is accepted.
+        if ($name === '' || $name === '.' || basename($name) !== $name
+            || preg_match('/[\/\\\\]|\.\./', $name)) {
             return null;
         }
         $path = $this->backupPath . '/' . $name;
@@ -1856,7 +1894,7 @@ class BackupManager
         }
         $real = str_replace('\\', '/', $real);
         $realBase = str_replace('\\', '/', $realBase);
-        if ($real !== $realBase && !str_starts_with($real, $realBase . '/')) {
+        if (!str_starts_with($real, $realBase . '/')) {
             return null;
         }
         return $path;

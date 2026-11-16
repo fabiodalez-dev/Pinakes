@@ -719,7 +719,7 @@ SQL;
         $pages = max(1, (int)ceil($total / $perPage));
         $page = min($pages, max(1, $page));
         $offset = ($page - 1) * $perPage;
-        $rows = $this->rows("SELECT c.*, " . self::PLACEMENT_COLUMNS . " FROM emeroteca_contributi c" . self::PLACEMENT_JOINS . " WHERE $sql ORDER BY c.id DESC LIMIT $perPage OFFSET $offset", $params);
+        $rows = $this->rows("SELECT c.*, " . self::PLACEMENT_COLUMNS . " FROM emeroteca_contributi c" . self::PLACEMENT_JOINS . " WHERE $sql ORDER BY c.id DESC LIMIT ? OFFSET ?", array_merge($params, [(int) $perPage, (int) $offset]));
         $rows = $this->hydrateAuthors($rows);
         return compact('rows', 'total', 'page', 'pages');
     }
@@ -794,8 +794,8 @@ SQL;
         $limit = max(1, min(24, $limit));
         $rows = $this->rows(
             'SELECT c.*, ' . self::PLACEMENT_COLUMNS . ' FROM emeroteca_contributi c' . self::PLACEMENT_JOINS
-            . " WHERE c.pubblico = 1 AND c.testata_id = ? AND c.id <> ? ORDER BY c.id DESC LIMIT $limit",
-            [$testata, $excludeId]
+            . ' WHERE c.pubblico = 1 AND c.testata_id = ? AND c.id <> ? ORDER BY c.id DESC LIMIT ?',
+            [$testata, $excludeId, $limit]
         );
         return $this->hydrateAuthors($rows);
     }
@@ -815,8 +815,8 @@ SQL;
         $rows = $this->rows(
             'SELECT c.*, ' . self::PLACEMENT_COLUMNS . ' FROM emeroteca_contributi c' . self::PLACEMENT_JOINS
             . ' WHERE c.pubblico = 1 AND c.id <> ? AND EXISTS (SELECT 1 FROM emeroteca_contributi_autori ca WHERE ca.contributo_id = c.id AND ca.autore_id = ?)'
-            . " ORDER BY c.id DESC LIMIT $limit",
-            [$excludeId, $autore]
+            . ' ORDER BY c.id DESC LIMIT ?',
+            [$excludeId, $autore, $limit]
         );
         return $this->hydrateAuthors($rows);
     }
@@ -840,7 +840,7 @@ SQL;
         $pages = max(1, (int)ceil($total / 50));
         $page = min($pages, max(1, $page));
         $offset = ($page - 1) * 50;
-        $rows = $this->rows("SELECT ar.id,ar.titolo,ar.autori,ar.fascicolo_id,t.titolo contenitore_titolo,t.titolo testata_titolo,f.data_copertina data_pubblicazione_testo,a.volume,f.numero,CONCAT_WS('–',ar.pagina_inizio,ar.pagina_fine) pagine,(f.stato<>'scartato') pubblico".$from." ORDER BY ar.id DESC LIMIT 50 OFFSET $offset", $params);
+        $rows = $this->rows("SELECT ar.id,ar.titolo,ar.autori,ar.fascicolo_id,t.titolo contenitore_titolo,t.titolo testata_titolo,f.data_copertina data_pubblicazione_testo,a.volume,f.numero,CONCAT_WS('–',ar.pagina_inizio,ar.pagina_fine) pagine,(f.stato<>'scartato') pubblico".$from." ORDER BY ar.id DESC LIMIT 50 OFFSET ?", array_merge($params, [(int) $offset]));
         return compact('rows', 'total', 'page', 'pages');
     }
 
