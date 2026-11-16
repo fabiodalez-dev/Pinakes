@@ -443,7 +443,7 @@ if ($payload !== '') {
     $map = [];
     // eval() reads a PHP string literal matched in the repository view source.
     foreach (array_diff($in[1], $out[1]) as $literal) { $map[(string) eval('return ' . $literal . ';')] = $payload; }
-    fwrite(STDOUT, json_encode(array_keys($map)) . "\n");
+    echo json_encode(array_keys($map)) . "\n";
     (new ReflectionProperty(App\Support\I18n::class, 'translations'))->setValue(null, $map);
     (new ReflectionProperty(App\Support\I18n::class, 'translationsLoaded'))->setValue(null, true);
 }
@@ -457,7 +457,7 @@ try {
     include $root . '/' . $view;
 } catch (Throwable $t) {
     ob_end_clean();
-    fwrite(STDERR, get_class($t) . ': ' . $t->getMessage());
+    file_put_contents('php://stderr', get_class($t) . ': ' . $t->getMessage());
     exit(2);
 }
 echo ob_get_clean();
