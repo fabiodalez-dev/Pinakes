@@ -37,16 +37,16 @@ function assertKey(key) {
   if (!FEATURE_KEYS.includes(key)) throw new Error(`Unknown feature: ${key}`);
 }
 
-/** The stored rows: key → '1' | '0' | null (no row = upgrade default). */
+/** The stored rows: a string, SQL NULL, or undefined when the row is absent. */
 function readFeatures(keys = FEATURE_KEYS) {
-  /** @type {Record<string, string|null>} */
+  /** @type {Record<string, string|null|undefined>} */
   const out = {};
   for (const key of keys) {
     assertKey(key);
-    const n = dbQuery(`SELECT COUNT(*) FROM system_settings WHERE category='features' AND setting_key='${key}'`);
-    out[key] = n === '1'
-      ? dbQuery(`SELECT setting_value FROM system_settings WHERE category='features' AND setting_key='${key}'`)
-      : null;
+    // The mysql CLI escapes text in batch mode and dbQuery trims its output.
+    // A prefix keeps an empty string distinct from a missing row.
+    const encoded = dbQuery(`SELECT IF(setting_value IS NULL, 'N', CONCAT('V', HEX(setting_value))) FROM system_settings WHERE category='features' AND setting_key='${key}'`);
+    out[key] = encoded === '' ? undefined : encoded === 'N' ? null : Buffer.from(encoded.slice(1), 'hex').toString('utf8');
   }
   return out;
 }
@@ -82,21 +82,20 @@ async function disableFeatures(keys) {
 }
 
 /**
- * Put back a snapshot from readFeatures() exactly as it was stored: a row
- * that held 'true', 'yes' or 'on' (all read as on by Features::stored()) is
- * not normalized to '0', and a key that had no row loses the one the spec
- * wrote. Then flush the app cache.
+ * Restore the original values and row presence, then flush the app cache.
+ * @param {Record<string, string|null|undefined>|null|undefined} snapshot
  */
 async function restoreFeatures(snapshot) {
   if (!snapshot) return;
-  for (const [key, value] of Object.entries(snapshot)) {
+  const statements = Object.entries(snapshot).map(([key, value]) => {
     assertKey(key);
-    if (value === null || value === undefined) {
-      dbQuery(`DELETE FROM system_settings WHERE category='features' AND setting_key='${key}'`);
-    } else {
-      dbQuery(`INSERT INTO system_settings (category, setting_key, setting_value) VALUES ('features', '${key}', ${sqlString(String(value))}) ON DUPLICATE KEY UPDATE setting_value=VALUES(setting_value)`);
+    if (value === undefined) {
+      return `DELETE FROM system_settings WHERE category='features' AND setting_key='${key}'`;
     }
-  }
+    const literal = value === null ? 'NULL' : `CONVERT(X'${Buffer.from(value, 'utf8').toString('hex')}' USING utf8mb4)`;
+    return `INSERT INTO system_settings (category, setting_key, setting_value) VALUES ('features', '${key}', ${literal}) ON DUPLICATE KEY UPDATE setting_value=VALUES(setting_value)`;
+  });
+  dbQuery(['START TRANSACTION', ...statements, 'COMMIT'].join('; '));
   await flushCache();
 }
 

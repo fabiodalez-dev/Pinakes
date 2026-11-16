@@ -59,6 +59,24 @@ test.describe.serial('Feature toggles: settings', () => {
     }
   });
 
+  test('feature snapshots restore stored text, SQL NULL and missing rows', async () => {
+    const keys = ['stocktake', 'marc', 'automatic_fines', 'suppliers'];
+    const before = ft.readFeatures(keys);
+    const where = "category='features' AND setting_key IN ('stocktake','marc','automatic_fines','suppliers')";
+    const rows = () => ft.dbQuery(`SELECT setting_key, IFNULL(CONCAT('text:', HEX(setting_value)), 'null') FROM system_settings WHERE ${where} ORDER BY setting_key`);
+    try {
+      ft.dbQuery(`DELETE FROM system_settings WHERE ${where}`);
+      ft.dbQuery("INSERT INTO system_settings (category, setting_key, setting_value) VALUES ('features','stocktake',X'2020747275652020'),('features','marc',''),('features','automatic_fines',NULL)");
+      const original = rows();
+      const saved = await ft.enableFeatures(keys);
+      expect(saved).toStrictEqual({ stocktake: '  true  ', marc: '', automatic_fines: null, suppliers: undefined });
+      await ft.restoreFeatures(saved);
+      expect(rows()).toBe(original);
+    } finally {
+      await ft.restoreFeatures(before);
+    }
+  });
+
   test('2. every switch is labelled and described, and the keyboard toggles it', async () => {
     await page.goto(`${ft.BASE}/admin/settings?tab=modules`);
     for (const key of MODULE_KEYS) {

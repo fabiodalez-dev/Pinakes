@@ -273,7 +273,7 @@ test.describe('Holidays in circulation', () => {
       }
       if (prev.weekdays === '') db("DELETE FROM system_settings WHERE category='loans' AND setting_key='closed_weekdays'");
       else db(`INSERT INTO system_settings (category, setting_key, setting_value) VALUES ('loans','closed_weekdays',UNHEX('${prev.weekdays}')) ON DUPLICATE KEY UPDATE setting_value=VALUES(setting_value)`);
-      await ft.writeFeatures(prev.features);
+      await ft.restoreFeatures(prev.features);
     }
     restoreLoans(db, loanSnap, ADMIN_EMAIL);
     db(`DROP TABLE IF EXISTS ${prev.closureBackup}`);

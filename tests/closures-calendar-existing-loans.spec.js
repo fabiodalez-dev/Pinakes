@@ -185,7 +185,7 @@ test.describe.serial('Closures added after the loan', () => {
         db(`INSERT INTO system_settings (category, setting_key, setting_value) VALUES ('calendar', UNHEX('${key}'), UNHEX('${value}'))`);
       }
       for (const [category, key] of SETTINGS) F.restoreSettingState(category, key, prev.settings[key]);
-      await ft.writeFeatures(prev.features);
+      await ft.restoreFeatures(prev.features);
     }
     restoreLoans(db, loanSnap, F.ADMIN_EMAIL);
     db(`DROP TABLE IF EXISTS ${prev.closureBackup}`);
