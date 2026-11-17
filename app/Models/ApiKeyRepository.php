@@ -163,15 +163,17 @@ class ApiKeyRepository
     /** Seconds a failed conversion is not retried by the public API path. */
     private const UPGRADE_RETRY_AFTER = 600;
 
-    /** Flag file of the last failed conversion; null = the install's default. */
-    private static ?string $upgradeFailureFlag = null;
+    /** Flag file of the last failed conversion; '' = the install's default (tests point it elsewhere). */
+    private static string $upgradeFailureFlag = '';
 
     /** Last failed conversion in this process (when the flag cannot be written). */
     private static ?int $upgradeFailedAt = null;
 
     private static function upgradeFailureFlag(): string
     {
-        return self::$upgradeFailureFlag ?? dirname(__DIR__, 2) . '/storage/cache/api_keys_upgrade_failed';
+        return self::$upgradeFailureFlag !== ''
+            ? self::$upgradeFailureFlag
+            : dirname(__DIR__, 2) . '/storage/cache/api_keys_upgrade_failed';
     }
 
     /**
