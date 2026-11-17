@@ -339,7 +339,11 @@ unset($workspaceHeader);
               var to = (document.getElementById('test_email') || {}).value || '';
               btn.disabled = true;
               var original = btn.innerHTML;
-              btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> ' + escapeHtml(<?= json_encode(__("Invio in corso…"), JSON_HEX_TAG) ?>);
+              // Built from nodes: the translation is text, and the handler does
+              // not depend on the layout's escapeHtml() having loaded yet.
+              var spinner = document.createElement('i');
+              spinner.className = 'fas fa-spinner fa-spin';
+              btn.replaceChildren(spinner, document.createTextNode(' ' + <?= json_encode(__("Invio in corso…"), JSON_HEX_TAG) ?>));
               out.className = 'mt-3 text-sm text-gray-500';
               out.textContent = '';
               var body = 'test_email=' + encodeURIComponent(to);

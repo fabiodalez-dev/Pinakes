@@ -26,6 +26,8 @@ final class ApprovalTestConnection extends mysqli
     public ?Closure $duringSend = null;
     /** Runs once, right before the direct activation's UPDATE is prepared. */
     public ?Closure $beforeActivate = null;
+    /** Runs once, right before the approval's claiming UPDATE is prepared. */
+    public ?Closure $beforeApprove = null;
     /** Makes the undo of a failed approval fail, as a lost connection would. */
     public bool $failRevert = false;
     /** Keeps the welcome email of a direct activation from reaching mail(). */
@@ -43,6 +45,10 @@ final class ApprovalTestConnection extends mysqli
         if ($this->beforeActivate !== null && str_contains($query, 'email_verificata = 1')) {
             ($this->beforeActivate)();
             $this->beforeActivate = null;
+        }
+        if ($this->beforeApprove !== null && str_contains($query, "SET stato = 'attivo',") && str_contains($query, 'token_verifica_email = ?,')) {
+            ($this->beforeApprove)();
+            $this->beforeApprove = null;
         }
         if ($this->failRevert && str_contains($query, 'SET stato = ?,')) {
             throw new mysqli_sql_exception('revert failed (simulated)');
@@ -271,6 +277,29 @@ try {
     $location = $activate($promoted);
     $check(str_contains($location, 'error=state_changed') && $state($promoted)['stato'] === 'sospeso',
         'a role changed after the permission check is not activated (' . $location . ')');
+
+    echo "Staff decides on ruolo_id and accesso_digitale too\n";
+    $granted = $mk(0);
+    $db->beforeActivate = static function () use ($db, $granted): void {
+        $db->query("UPDATE utenti SET accesso_digitale = 1 WHERE id = {$granted}");
+    };
+    $location = $activate($granted);
+    $check(str_contains($location, 'error=state_changed') && $state($granted)['stato'] === 'sospeso',
+        'digital access granted after the check: staff does not activate it (' . $location . ')');
+    $roleId = (int) ($db->query('SELECT id FROM ruoli ORDER BY id LIMIT 1')->fetch_row()[0] ?? 0);
+    $withRole = $mk(0);
+    $db->beforeApprove = static function () use ($db, $withRole, $roleId): void {
+        $db->query($roleId > 0
+            ? "UPDATE utenti SET ruolo_id = {$roleId} WHERE id = {$withRole}"
+            : "UPDATE utenti SET accesso_digitale = 1 WHERE id = {$withRole}");
+    };
+    $location = $approve($withRole);
+    $check(str_contains($location, 'error=state_changed') && $state($withRole)['stato'] === 'sospeso',
+        ($roleId > 0 ? 'a staff role' : 'digital access') . ' assigned after the check: staff does not approve it (' . $location . ')');
+    $plain = $mk(0);
+    $location = $activate($plain);
+    $check(str_contains($location, 'success=activated_directly'), 'an unchanged reader is still activated by staff (' . $location . ')');
+
     $nullRole = $mk(0, null);
     $location = $activate($nullRole, 'admin');
     $check(str_contains($location, 'success=activated_directly'), 'a NULL role can still be activated directly (' . $location . ')');
