@@ -177,8 +177,29 @@ class QuoteRepo
     public function publicQuotesForBook(int $libroId, int $limit = 5, ?Modules\ModuleInterface $quotesModule = null): array
     {
         $limit = max(1, min(10, $limit));
-        // Module enablement lives in the club's JSON settings, so it is
-        // checked in PHP: fetch a bounded surplus, then trim to $limit.
+        // Module enablement lives in the club's JSON settings. It is filtered
+        // in SQL BEFORE the LIMIT, with the rule of Registry::clubEnabled()
+        // (no "modules" list: the module default; a list: the slug must be in
+        // it), so newer quotes of clubs with the module off cannot fill the
+        // window and starve the clubs that have it on. A "modules" object is
+        // left to the PHP check below, which stays the final word.
+        $moduleSql = '';
+        $types = 'i';
+        $params = [$libroId];
+        if ($quotesModule !== null) {
+            $moduleSql = " AND (CASE
+                    WHEN c.settings IS NULL OR NOT JSON_VALID(c.settings) THEN ?
+                    WHEN JSON_TYPE(JSON_EXTRACT(c.settings, '$.modules')) = 'ARRAY'
+                        THEN JSON_CONTAINS(JSON_EXTRACT(c.settings, '$.modules'), JSON_QUOTE(?))
+                    WHEN JSON_TYPE(JSON_EXTRACT(c.settings, '$.modules')) = 'OBJECT' THEN 1
+                    ELSE ?
+                END) = 1";
+            $default = $quotesModule->defaultEnabled() ? 1 : 0;
+            $types .= 'isi';
+            array_push($params, $default, $quotesModule->slug(), $default);
+        }
+        $types .= 'i';
+        $params[] = $limit * 10;
         $rows = $this->rows(
             "SELECT q.id, q.quote, q.page, q.created_at,
                     u.nome AS member_nome, c.name AS club_name, c.settings AS club_settings
@@ -186,11 +207,11 @@ class QuoteRepo
                JOIN utenti u ON u.id = q.user_id
                JOIN bookclub_clubs c ON c.id = q.club_id AND c.deleted_at IS NULL
                 AND c.is_active = 1 AND c.privacy <> 'hidden'
-              WHERE q.libro_id = ? AND q.visibility = 'public'
+              WHERE q.libro_id = ? AND q.visibility = 'public'{$moduleSql}
               ORDER BY q.created_at DESC, q.id DESC
               LIMIT ?",
-            'ii',
-            [$libroId, $limit * 10]
+            $types,
+            $params
         );
         $out = [];
         foreach ($rows as $row) {

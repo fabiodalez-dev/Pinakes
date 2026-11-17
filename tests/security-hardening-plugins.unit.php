@@ -440,6 +440,24 @@ if ($sandboxError !== null) {
         foreach (['HBQ-hidden-club' => 'a hidden club', 'HBQ-inactive-club' => 'an inactive club', 'HBQ-module-off' => 'a club with the quotes module off', 'HBQ-deleted-club' => 'a deleted club'] as $text => $why) {
             $check(!str_contains($html, $text), "book page: a quote of {$why} is not shown");
         }
+        // Newer quotes of clubs with the module off (an explicit list without
+        // it, or no list at all: the module is off by default) must not fill
+        // the fetch window and starve the club that has it on.
+        $offList = $quoteClub('hb-q-nomod2', 'public', 1, ['stats']);
+        $offDefault = $q("INSERT INTO bookclub_clubs (slug, name, privacy, settings, ics_token, is_active) VALUES ('hb-q-default', 'hb-q-default', 'public', ?, REPEAT('c', 32), 1)", 's', ['{"color":"x"}']);
+        $offBroken = $q("INSERT INTO bookclub_clubs (slug, name, privacy, settings, ics_token, is_active) VALUES ('hb-q-broken', 'hb-q-broken', 'public', ?, REPEAT('d', 32), 1)", 's', ['{not json']);
+        for ($i = 0; $i < 40; $i++) {
+            foreach ([$offList, $offDefault, $offBroken] as $offClub) {
+                $q("INSERT INTO bookclub_quotes (user_id, libro_id, club_id, quote, visibility, created_at) VALUES (?, ?, ?, ?, 'public', NOW() + INTERVAL 1 HOUR)", 'iiis', [$users['member'], $quoteLibro, $offClub, "HBQ-flood-{$i}"]);
+            }
+        }
+        $html = $modules['quotes']->renderBookDetailQuotes($quoteLibro);
+        $check(str_contains($html, 'HBQ-visible') && !str_contains($html, 'HBQ-flood-'),
+            'book page: 120 newer quotes of clubs with the module off do not hide the enabled club\'s quote');
+        $onMany = $quoteClub('hb-q-many', 'public', 1, ['stats', 'quotes']);
+        $q("INSERT INTO bookclub_quotes (user_id, libro_id, club_id, quote, visibility, created_at) VALUES (?, ?, ?, 'HBQ-second-enabled', 'public', NOW() + INTERVAL 2 HOUR)", 'iii', [$users['member'], $quoteLibro, $onMany]);
+        $html = $modules['quotes']->renderBookDetailQuotes($quoteLibro);
+        $check(str_contains($html, 'HBQ-second-enabled') && str_contains($html, 'HBQ-visible'), 'book page: a module list holding quotes among others counts as enabled');
 
         // ── #68 AI cap: the attempt is booked before the paid call ────────
         $ai = new \App\Plugins\BookClub\AiService($db);
