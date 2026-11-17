@@ -336,6 +336,37 @@ $check($envPos !== false && $resetPos !== false && $resetPos > $envPos && $reset
     'step 2 resets the progress right after a successful .env write, before marking step 2 done');
 $_SESSION = [];
 
+// The reinstall gate (?force=1) runs with .installed present, where isInstalled()
+// answers before its own renewal: the owner's binding must still slide.
+$siteR = $mkSite();
+$instR = new ProbeInstaller($siteR);
+$instR->emptyDb = true;
+$_SESSION = [];
+$instR->createEnvFile('127.0.0.1', 'u', 'p', 'newdb');
+file_put_contents($siteR . '/.installed', 'x');
+$markerR = $siteR . '/storage/.install_in_progress';
+$aged = time() - Installer::INSTALL_OWNER_TTL + 60;
+touch($markerR, $aged);
+clearstatcache(true, $markerR);
+$check($instR->isInstalled() === true && (int) filemtime($markerR) === $aged,
+    'with .installed present isInstalled() answers installed and does not renew the binding (why the gate must)');
+$check($instR->ownerMayContinue() === true, 'the owner still passes ownerMayContinue() over the empty database');
+$instR->renewInstallOwnership();
+clearstatcache(true, $markerR);
+$check((int) filemtime($markerR) >= time() - 5, 'renewInstallOwnership() restarts the binding of the owner');
+touch($markerR, $aged);
+clearstatcache(true, $markerR);
+$_SESSION = [];
+$instR->renewInstallOwnership();
+clearstatcache(true, $markerR);
+$check((int) filemtime($markerR) === $aged, 'a session that does not own the install cannot keep the binding alive');
+$_SESSION = [];
+$gateSrc = (string) file_get_contents($ROOT . '/installer/index.php');
+$ownerMayPos = strpos($gateSrc, 'if ($installer->ownerMayContinue()) {');
+$renewPos = strpos($gateSrc, '$installer->renewInstallOwnership();');
+$check($ownerMayPos !== false && $renewPos !== false && $renewPos > $ownerMayPos && $renewPos < strpos($gateSrc, '$forceAuthenticated = true;', $ownerMayPos),
+    'the ?force=1 gate renews the owner right after ownerMayContinue() confirms it');
+
 $step3 = (string) file_get_contents($ROOT . '/installer/steps/step3.php');
 $recPos = strpos($step3, '$installer->recordSchemaImportByOwner();');
 $impPos = strpos($step3, '$installer->importSchema();');

@@ -995,6 +995,12 @@ class PrestitiController
                 $db->rollback();
                 return $response->withHeader('Location', url('/admin/loans') . '?error=loan_closed')->withStatus(302);
             }
+            // The owner may have changed since the scope check above (an administrator can
+            // hand the loan to a Staff account in between): ask again about the locked row.
+            if (!\App\Support\Permissions::mayActOnBorrower($db, (int) $locked['utente_id'])) {
+                $db->rollback();
+                return $response->withHeader('Location', url('/admin/loans') . '?error=loan_not_found')->withStatus(302);
+            }
             if ((int) $locked['libro_id'] !== $libroId) {
                 $db->rollback();
                 return $response->withHeader('Location', url('/admin/loans') . '?error=loan_update_failed')->withStatus(302);
@@ -2437,7 +2443,7 @@ class PrestitiController
 
             // Lock the loan row to prevent concurrent renewals and re-validate under lock
             $lockLoanStmt = $db->prepare("
-                SELECT id, attivo, stato, renewals, data_scadenza, libro_id, copia_id
+                SELECT id, attivo, stato, renewals, data_scadenza, libro_id, copia_id, utente_id
                 FROM prestiti WHERE id = ? FOR UPDATE
             ");
             $lockLoanStmt->bind_param('i', $id);
@@ -2451,6 +2457,13 @@ class PrestitiController
                 $errorUrl = $redirectTo ?? url('/admin/loans');
                 $separator = strpos($errorUrl, '?') === false ? '?' : '&';
                 return $response->withHeader('Location', url($errorUrl . $separator . 'error=loan_not_active'))->withStatus(302);
+            }
+            // Same for the owner: the scope check above ran before the lock.
+            if (!\App\Support\Permissions::mayActOnBorrower($db, (int) $lockedLoan['utente_id'])) {
+                $db->rollback();
+                $errorUrl = $redirectTo ?? url('/admin/loans');
+                $separator = strpos($errorUrl, '?') === false ? '?' : '&';
+                return $response->withHeader('Location', url($errorUrl . $separator . 'error=loan_not_found'))->withStatus(302);
             }
             if (in_array($lockedLoan['stato'], ['in_corso', 'in_ritardo'], true)
                 && \App\Support\LibraryCalendar::isPastDue($db, (string) $lockedLoan['data_scadenza'], isset($lockedLoan['copia_id']) ? (int) $lockedLoan['copia_id'] : null, $todayApp)) {
