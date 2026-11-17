@@ -46,7 +46,7 @@ class Updater
      * A release version as tagged on GitHub (same rule UpdateController applies
      * before downloading a package).
      */
-    public const RELEASE_VERSION_PATTERN = '/^v?\d+\.\d+\.\d+(?:-[0-9A-Za-z.]+)?$/';
+    public const RELEASE_VERSION_PATTERN = '/^v?\d+\.\d+\.\d+(?:-[0-9A-Za-z.]+)?$/D';
 
     /**
      * Directories copied aside for rollback before an update — and therefore

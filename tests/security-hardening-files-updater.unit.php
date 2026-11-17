@@ -106,6 +106,11 @@ try {
     foreach (['1.0.0/../../../users/x', '../latest', 'v1.0.0?x=1', 'manual-2026-01-01-000000', ''] as $bad) {
         $check($getRelease->invoke($up, $bad) === null, 'getReleaseByVersion refuses ' . var_export($bad, true) . ' (no API call)');
     }
+    // `$` without D also matches before a trailing newline; the version is a URL path segment.
+    foreach (["1.0.0\n", "v0.9.5\n", "0.9.0-rc.3\n"] as $bad) {
+        $check(preg_match(\App\Support\Updater::RELEASE_VERSION_PATTERN, $bad) !== 1, 'release version pattern refuses ' . json_encode($bad) . ' (trailing newline)');
+        $check($getRelease->invoke($up, $bad) === null, 'getReleaseByVersion refuses ' . json_encode($bad) . ' (no API call)');
+    }
     foreach (['0.9.5', 'v0.9.5', '0.9.0-rc.3'] as $good) {
         $check(defined(\App\Support\Updater::class . '::RELEASE_VERSION_PATTERN') && preg_match(constant(\App\Support\Updater::class . '::RELEASE_VERSION_PATTERN'), $good) === 1, "release version pattern accepts {$good}");
     }
@@ -400,6 +405,20 @@ PHP);
     $check(str_contains($cover, 'SsrfGuard::fetchImage(') && !str_contains($cover, 'gethostbyname($host)') && !str_contains($cover, 'curl_init('), 'handleCoverUrl fetches through SsrfGuard::fetchImage only');
     $check(str_contains($cover, 'isValidImageMimeType($img)') && str_contains($cover, '2 * 1024 * 1024'), 'same 2 MB cap and image-type check');
     $check(!str_contains($libri, 'strpos($safePath, $baseDir) === 0') && substr_count($libri, 'str_starts_with($safePath, $baseDir . DIRECTORY_SEPARATOR)') === 2, 'both cover unlinks compare with a trailing separator');
+    // The export keeps the "'" prefix (safe in a spreadsheet); the import parser
+    // takes it off again, so an export->import round-trip is byte-stable.
+    $lt = new \App\Controllers\LibraryThingImportController();
+    $ltParse = new \ReflectionMethod($lt, 'parseLibraryThingRow');
+    $ltWriter = \App\Support\Csv::writerToString("\t", "'");
+    $ltWriter->insertOne(['Title', 'Primary Author', 'Comments']);
+    $ltWriter->insertOne(['=SUM(A1)', '-Anon, Plus', '@note']);
+    $ltRows = iterator_to_array(\App\Support\Csv::readerFromString($ltWriter->toString(), "\t", true)->getRecords(), false);
+    $check(($ltRows[0]['Title'] ?? '') === "'=SUM(A1)", 'LibraryThing TSV export still writes the formula prefix');
+    $ltParsed = $ltParse->invoke($lt, $ltRows[0] ?? []);
+    $check(($ltParsed['titolo'] ?? null) === '=SUM(A1)', 'LibraryThing import strips the export formula prefix from the title (round-trip)');
+    $check(str_contains((string) ($ltParsed['autori'] ?? ''), '-Anon') && !str_contains((string) ($ltParsed['autori'] ?? ''), "'"), 'LibraryThing import strips the prefix from the author too');
+    $ltPlain = $ltParse->invoke($lt, ['Title' => "'Twas the night", 'Primary Author' => "O'Brien, Flann"]);
+    $check(($ltPlain['titolo'] ?? null) === "'Twas the night", 'LibraryThing import keeps a leading apostrophe that is not a formula escape');
     $check(str_contains($libri, '$formulaPrefix = "\'";') && !str_contains($libri, "\$format === 'librarything' ? null"), 'LibraryThing export uses the same formula prefix as the dedicated export');
     $check(!str_contains($src('app/Controllers/CsvImportController.php'), "'/csv_import_' . session_id()"), 'CSV staging file name carries no session id');
     $check(!str_contains($src('app/Controllers/MarcImportController.php'), "session_id()) . '_'"), 'MARC staging file name carries no session id');

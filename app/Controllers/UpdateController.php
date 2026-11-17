@@ -695,7 +695,7 @@ class UpdateController
         }
 
         $version = trim((string) ($data['version'] ?? ''));
-        if ($version === '' || preg_match('/^v?\d+\.\d+\.\d+(?:-[0-9A-Za-z.]+)?$/', $version) !== 1) {
+        if ($version === '' || preg_match(\App\Support\Updater::RELEASE_VERSION_PATTERN, $version) !== 1) {
             return $this->jsonResponse($response, ['error' => __('Versione non specificata')], 400);
         }
 
