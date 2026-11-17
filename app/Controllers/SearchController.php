@@ -47,9 +47,10 @@ class SearchController
         // otherwise create a second author literally called "Pen name (Real
         // name)". Pickers that bind on the id simply ignore the extra key.
         // Life dates tell homonyms apart in the staff article-author picker, but
-        // this route is public: only operator sessions (re-validated by
-        // SessionRoleRefreshMiddleware) receive them, as on the admin-only /api/autori.
-        $isOperator = $this->isOperatorSession($request);
+        // this route is public: only cataloguing sessions (operators, or a
+        // custom role with 'catalog.manage', re-validated by
+        // SessionRoleRefreshMiddleware) receive them, as on /api/autori.
+        $isOperator = $this->isCatalogueSession($request);
         $lifeDates = $isOperator ? ', data_nascita, data_morte' : '';
         // The route is public. Only an operator session (the staff book form's
         // Choices.js initial load) gets the unbounded list; anyone else gets a
@@ -76,7 +77,7 @@ class SearchController
                 $rows[] = $r;
             }
         } elseif ($isOperator) {
-            // Return all authors (for the staff Choices.js initial load)
+            // Return all authors (for the cataloguing Choices.js initial load)
             $res = $db->query("SELECT {$select} FROM autori ORDER BY " . \App\Support\AuthorName::preferredSql('autori'));
             while ($r = $res->fetch_assoc()) {
                 $r['label'] = HtmlHelper::decode($r['label']);
@@ -246,6 +247,16 @@ class SearchController
      * operator until the session expires (CWE-613). Absent attribute means
      * false, so a route that forgets the middleware discloses nothing.
      */
+    /**
+     * Operators and custom-role cataloguers: the book form's author picker
+     * needs the full list for them, or they create duplicate authors.
+     */
+    private function isCatalogueSession(Request $request): bool
+    {
+        return $this->isOperatorSession($request)
+            || $request->getAttribute(\App\Middleware\SessionRoleRefreshMiddleware::CATALOG_ATTRIBUTE, false) === true;
+    }
+
     private function isOperatorSession(Request $request): bool
     {
         return $request->getAttribute(
