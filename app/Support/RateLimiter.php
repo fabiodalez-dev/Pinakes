@@ -25,7 +25,7 @@ class RateLimiter
             // Answering "limited" here locked every login, registration and
             // password reset out with no way back; the degraded limiter keeps
             // counting in APCu or in the session instead.
-            return self::degradedIsLimited($identifier, $maxAttempts, $window);
+            return self::degradedIsLimited($identifier, $maxAttempts, $window, $count);
         }
 
         // Open (or create) state file with exclusive lock for atomic read-modify-write
@@ -34,7 +34,7 @@ class RateLimiter
             // Same reasoning: a counter file we cannot open (e.g. left behind
             // by another user) must not lock this identifier out for good.
             self::logDegraded('RateLimiter: failed to open the state file, using the degraded limiter', ['file' => basename($file)]);
-            return self::degradedIsLimited($identifier, $maxAttempts, $window);
+            return self::degradedIsLimited($identifier, $maxAttempts, $window, $count);
         }
 
         // The opened handle must be the regular file that sits at $file, not
@@ -304,10 +304,17 @@ class RateLimiter
      * (shared by the PHP processes of this server, see apcuCount()) when APCu is enabled,
      * otherwise a counter in the PHP session when one is active. Only when
      * neither exists does it let the request through, and that is logged.
+     *
+     * $count = false is the same read-only check as on the file-backed path:
+     * it reports whether the bucket is already at its budget and never spends
+     * an attempt, so a failures-only bucket does not grow on every success.
      */
-    private static function degradedIsLimited(string $identifier, int $maxAttempts, int $window): bool
+    private static function degradedIsLimited(string $identifier, int $maxAttempts, int $window, bool $count = true): bool
     {
         $key = self::degradedKey($identifier);
+        if (!$count) {
+            return self::degradedAttempts($key, $window) >= $maxAttempts;
+        }
         if (self::apcuAvailable()) {
             $attempts = self::apcuCount($key, $window);
             if ($attempts !== null) {
@@ -335,6 +342,36 @@ class RateLimiter
             SecureLogger::error('RateLimiter: no state directory, no APCu and no session, throttling is off for this request');
         }
         return false;
+    }
+
+    /**
+     * Attempts already counted in the current window of a degraded bucket,
+     * read without counting one (APCu first, then the session, as
+     * degradedIsLimited() counts them). 0 when nothing holds a counter.
+     */
+    private static function degradedAttempts(string $key, int $window): int
+    {
+        if (self::apcuAvailable() && PHP_INT_SIZE >= 8) {
+            $current = apcu_fetch($key, $found);
+            if (!$found || !is_int($current) || $current <= 0) {
+                return 0; // missing, corrupt, or a window being reset
+            }
+            $start = $current >> self::APCU_COUNT_BITS;
+            $now = time();
+            if ($now - $start >= max(1, $window) || $start > $now) {
+                return 0;
+            }
+            return $current & ((1 << self::APCU_COUNT_BITS) - 1);
+        }
+        if (session_status() === PHP_SESSION_ACTIVE) {
+            $bucket = $_SESSION[self::SESSION_KEY] ?? [];
+            $state = is_array($bucket) ? ($bucket[$key] ?? null) : null;
+            if (!is_array($state) || (microtime(true) - (float) ($state['first'] ?? 0)) > $window) {
+                return 0;
+            }
+            return (int) ($state['attempts'] ?? 0);
+        }
+        return 0;
     }
 
     /** Bits of the packed APCu value that hold the attempt count. */

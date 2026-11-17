@@ -237,9 +237,33 @@ try {
             . ' -r ' . escapeshellarg($code) . ' 2>&1';
         return trim((string) shell_exec($cmd));
     };
+    // Read-only checks ($count = false) in degraded mode: five of them on an
+    // empty bucket spend nothing, one counted failure fills a budget of 1, and
+    // only then does the read-only check report the bucket as limited.
+    $runChildReadOnly = static function (bool $apcu, bool $session) use ($root, $notDir, $id4, $testAppKey): string {
+        $id = var_export($id4 . ':ro', true);
+        $code = 'require ' . var_export($root . '/vendor/autoload.php', true) . ';'
+            . ($session ? 'ini_set("session.use_cookies","0"); session_save_path(' . var_export(dirname($notDir), true) . '); session_start();' : '')
+            . '$r = ""; for ($i = 0; $i < 5; $i++) { $r .= \App\Support\RateLimiter::isLimited(' . $id . ', 1, 60, false) ? "L" : "-"; }'
+            . '$r .= \App\Support\RateLimiter::isLimited(' . $id . ', 1, 60) ? "L" : "-";'
+            . '$r .= \App\Support\RateLimiter::isLimited(' . $id . ', 1, 60, false) ? "L" : "-";'
+            . '\App\Support\RateLimiter::reset(' . $id . ');'
+            . 'echo $r;';
+        $cmd = 'APP_KEY=' . escapeshellarg($testAppKey) . ' ' . escapeshellarg(PHP_BINARY)
+            . ' -d sys_temp_dir=' . escapeshellarg($notDir . '/sub')
+            . ' -d apc.enable_cli=' . ($apcu ? '1' : '0')
+            . ' -r ' . escapeshellarg($code) . ' 2>&1';
+        return trim((string) shell_exec($cmd));
+    };
     try {
         symlink($scratch, $expectedDir);
         file_put_contents($notDir, 'x');
+        if (function_exists('apcu_enabled')) {
+            $ro = $runChildReadOnly(true, false);
+            $check($ro === '------L', "APCu: read-only checks never spend an attempt in degraded mode (got {$ro})");
+        }
+        $ro = $runChildReadOnly(false, true);
+        $check($ro === '------L', "session: read-only checks never spend an attempt in degraded mode (got {$ro})");
         $before = $countLog('RateLimiter: no usable state directory');
         if (function_exists('apcu_enabled')) {
             $check($runChild(true, false) === '-LL-', 'APCu: attempts over the limit are still limited, reset() clears it');
