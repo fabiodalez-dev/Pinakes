@@ -60,21 +60,23 @@ require dirname(__DIR__, 3) . '/app/Views/partials/workspace-header.php';
 unset($workspaceHeader);
 ?>
 
-    <?php if ($errorKey !== ''): ?>
+    <?php
+    // Only the keys this box words itself. The others (wrong_current_password,
+    // password_too_short, ...) arrive with their message in the layout flash,
+    // and an unmatched key used to leave an empty red box beside it.
+    $errorBoxMessage = match ($errorKey) {
+        'missing_fields' => __("Compila tutti i campi obbligatori prima di salvare."),
+        'email_exists' => __("Email già registrata"),
+        'cf_exists' => __("Codice fiscale già registrato"),
+        'tessera_exists' => __("Codice tessera già assegnato"),
+        'db_error' => __("Impossibile aggiornare l'utente. Riprova più tardi."),
+        'csrf' => __("La sessione è scaduta. Aggiorna la pagina e riprova."),
+        default => null,
+    };
+    ?>
+    <?php if ($errorBoxMessage !== null): ?>
       <div class="mb-6 border border-red-200 bg-red-50 text-red-700 rounded-lg px-4 py-3 text-sm" role="alert">
-        <?php if ($errorKey === 'missing_fields'): ?>
-          <?= __("Compila tutti i campi obbligatori prima di salvare.") ?>
-        <?php elseif ($errorKey === 'email_exists'): ?>
-          <?= __("Email già registrata") ?>
-        <?php elseif ($errorKey === 'cf_exists'): ?>
-          <?= __("Codice fiscale già registrato") ?>
-        <?php elseif ($errorKey === 'tessera_exists'): ?>
-          <?= __("Codice tessera già assegnato") ?>
-        <?php elseif ($errorKey === 'db_error'): ?>
-          <?= __("Impossibile aggiornare l'utente. Riprova più tardi.") ?>
-        <?php elseif ($errorKey === 'csrf'): ?>
-          <?= __("La sessione è scaduta. Aggiorna la pagina e riprova.") ?>
-        <?php endif; ?>
+        <?= $errorBoxMessage ?>
       </div>
     <?php endif; ?>
 

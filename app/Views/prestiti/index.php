@@ -138,6 +138,9 @@ $applicationToday = \App\Support\DateHelper::today();
                 case 'book_not_found':
                     echo __('Libro non trovato o non più disponibile.');
                     break;
+                case 'loan_not_found':
+                    echo __('Prestito non trovato o non modificabile con il tuo ruolo.');
+                    break;
                 case 'renewal_failed':
                     echo __('Rinnovo non riuscito. Riprova.');
                     break;

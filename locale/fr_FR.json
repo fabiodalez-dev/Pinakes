@@ -9369,5 +9369,7 @@
   "Le tue prenotazioni sono nel tuo profilo sul sito della biblioteca.": "Vos réservations se trouvent dans votre profil sur le site de la bibliothèque.",
   "Dopo aver impostato la password apri l'area di amministrazione dal sito della biblioteca.": "Une fois votre mot de passe défini, ouvrez l'espace d'administration depuis le site de la bibliothèque.",
   "Email di attivazione non inviata": "E-mail d'activation non envoyé",
-  "L'indirizzo del sito non è configurato (APP_CANONICAL_URL o APP_TRUSTED_HOSTS), quindi il link di verifica non può essere inviato. L'utente è ancora sospeso: attivalo con \"Attiva utente\", oppure imposta APP_CANONICAL_URL.": "L'adresse du site n'est pas configurée (APP_CANONICAL_URL ou APP_TRUSTED_HOSTS), le lien de vérification ne peut donc pas être envoyé. L'utilisateur est toujours suspendu : activez-le avec \"Activer l'utilisateur\", ou définissez APP_CANONICAL_URL."
+  "L'indirizzo del sito non è configurato (APP_CANONICAL_URL o APP_TRUSTED_HOSTS), quindi il link di verifica non può essere inviato. L'utente è ancora sospeso: attivalo con \"Attiva utente\", oppure imposta APP_CANONICAL_URL.": "L'adresse du site n'est pas configurée (APP_CANONICAL_URL ou APP_TRUSTED_HOSTS), le lien de vérification ne peut donc pas être envoyé. L'utilisateur est toujours suspendu : activez-le avec \"Activer l'utilisateur\", ou définissez APP_CANONICAL_URL.",
+  "Prenotazione non trovata o non modificabile con il tuo ruolo.": "Réservation introuvable, ou votre rôle ne permet pas de la modifier.",
+  "Prestito non trovato o non modificabile con il tuo ruolo.": "Prêt introuvable, ou votre rôle ne permet pas de le modifier."
 }

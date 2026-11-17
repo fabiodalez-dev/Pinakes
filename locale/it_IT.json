@@ -9369,5 +9369,7 @@
   "Le tue prenotazioni sono nel tuo profilo sul sito della biblioteca.": "Le tue prenotazioni sono nel tuo profilo sul sito della biblioteca.",
   "Dopo aver impostato la password apri l'area di amministrazione dal sito della biblioteca.": "Dopo aver impostato la password apri l'area di amministrazione dal sito della biblioteca.",
   "Email di attivazione non inviata": "Email di attivazione non inviata",
-  "L'indirizzo del sito non è configurato (APP_CANONICAL_URL o APP_TRUSTED_HOSTS), quindi il link di verifica non può essere inviato. L'utente è ancora sospeso: attivalo con \"Attiva utente\", oppure imposta APP_CANONICAL_URL.": "L'indirizzo del sito non è configurato (APP_CANONICAL_URL o APP_TRUSTED_HOSTS), quindi il link di verifica non può essere inviato. L'utente è ancora sospeso: attivalo con \"Attiva utente\", oppure imposta APP_CANONICAL_URL."
+  "L'indirizzo del sito non è configurato (APP_CANONICAL_URL o APP_TRUSTED_HOSTS), quindi il link di verifica non può essere inviato. L'utente è ancora sospeso: attivalo con \"Attiva utente\", oppure imposta APP_CANONICAL_URL.": "L'indirizzo del sito non è configurato (APP_CANONICAL_URL o APP_TRUSTED_HOSTS), quindi il link di verifica non può essere inviato. L'utente è ancora sospeso: attivalo con \"Attiva utente\", oppure imposta APP_CANONICAL_URL.",
+  "Prenotazione non trovata o non modificabile con il tuo ruolo.": "Prenotazione non trovata o non modificabile con il tuo ruolo.",
+  "Prestito non trovato o non modificabile con il tuo ruolo.": "Prestito non trovato o non modificabile con il tuo ruolo."
 }

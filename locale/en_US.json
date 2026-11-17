@@ -9369,5 +9369,7 @@
   "Le tue prenotazioni sono nel tuo profilo sul sito della biblioteca.": "Your reservations are in your profile on the library's website.",
   "Dopo aver impostato la password apri l'area di amministrazione dal sito della biblioteca.": "Once your password is set, open the administration area from the library's website.",
   "Email di attivazione non inviata": "Activation email not sent",
-  "L'indirizzo del sito non è configurato (APP_CANONICAL_URL o APP_TRUSTED_HOSTS), quindi il link di verifica non può essere inviato. L'utente è ancora sospeso: attivalo con \"Attiva utente\", oppure imposta APP_CANONICAL_URL.": "The site address is not configured (APP_CANONICAL_URL or APP_TRUSTED_HOSTS), so the verification link cannot be sent. The user is still suspended: activate them with \"Activate user\", or set APP_CANONICAL_URL."
+  "L'indirizzo del sito non è configurato (APP_CANONICAL_URL o APP_TRUSTED_HOSTS), quindi il link di verifica non può essere inviato. L'utente è ancora sospeso: attivalo con \"Attiva utente\", oppure imposta APP_CANONICAL_URL.": "The site address is not configured (APP_CANONICAL_URL or APP_TRUSTED_HOSTS), so the verification link cannot be sent. The user is still suspended: activate them with \"Activate user\", or set APP_CANONICAL_URL.",
+  "Prenotazione non trovata o non modificabile con il tuo ruolo.": "Reservation not found, or your role cannot change it.",
+  "Prestito non trovato o non modificabile con il tuo ruolo.": "Loan not found, or your role cannot change it."
 }
