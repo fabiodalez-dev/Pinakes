@@ -1421,7 +1421,7 @@ Eseguito nel `<head>` sia del layout admin sia di quello frontend. Permette di i
 
 Controparte di `assets.head` in fondo al `<body>`: invocato con l'helper `do_action('assets.footer')`, senza argomenti, sia nel layout admin (dopo gli script inline del layout, prima del partial `scroll-to-top`) sia in quello frontend (dopo `$additional_js`, prima dei partial `cookie-banner` e `scroll-to-top`). Scatta quindi su ogni pagina HTML resa con uno dei due layout. Il valore di ritorno non viene letto. Adatto a `<script>` che devono girare dopo il markup della pagina.
 
-L'handler emette HTML (echo) direttamente nel documento, senza escape da parte del core. Il middleware CSP di `public/index.php` aggiunge il nonce della risposta a ogni `<script>` e `<style>` inline che non ne ha già uno, quindi gli script inline funzionano; gli script esterni restano soggetti a `script-src` (`'self'` e pochi host CDN elencati in `ContentSecurityPolicy::header()`). I dati PHP passati a JavaScript vanno codificati con `json_encode(..., JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP)`, come fa `openurl-resolver` in `assets.head`. Sul frontend, se la cache LiteSpeed opzionale è attiva, home, catalogo e scheda libro possono essere servite dalla cache condivisa: non emettere dati legati all'utente o alla sessione. Nessun plugin bundled registra oggi questo hook.
+L'handler emette HTML (echo) direttamente nel documento, senza escape da parte del core. Il core NON riscrive la risposta per aggiungere nonce: ogni `<script>` e `<style>` inline emesso da un plugin deve portare da sé il nonce della risposta, con `<script<?= csp_nonce_attr() ?>>` (o `'<script' . csp_nonce_attr() . '>'` in una stringa PHP), altrimenti il browser lo blocca. Gli attributi evento inline (`onclick="..."`, `onload="..."`, ...) sono sempre bloccati (`script-src-attr 'none'`): collega gli eventi da JavaScript con `addEventListener`, o con gli attributi `data-pk-action` / `data-pk-confirm` gestiti da `pk-actions.js`. Gli script esterni restano soggetti a `script-src` (`'self'` e pochi host CDN elencati in `ContentSecurityPolicy::header()`). I dati PHP passati a JavaScript vanno codificati con `json_encode(..., JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP)`, come fa `openurl-resolver` in `assets.head`. Sul frontend, se la cache LiteSpeed opzionale è attiva, home, catalogo e scheda libro possono essere servite dalla cache condivisa: non emettere dati legati all'utente o alla sessione. Nessun plugin bundled registra oggi questo hook.
 
 **Esempio:**
 
@@ -1429,8 +1429,8 @@ L'handler emette HTML (echo) direttamente nel documento, senza escape da parte d
 public function injectFooterScript(): void
 {
     $config = ['endpoint' => url('/api/mio-plugin')];
-    // Script inline: il nonce CSP viene aggiunto dal middleware
-    echo '<script>window.mioPlugin = ' . json_encode($config, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP) . ';</script>';
+    // Script inline: porta il nonce CSP della risposta
+    echo '<script' . csp_nonce_attr() . '>window.mioPlugin = ' . json_encode($config, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP) . ';</script>';
 }
 ```
 

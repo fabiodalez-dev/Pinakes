@@ -222,7 +222,8 @@ $check(str_contains($policy, "script-src-attr 'none'") && !str_contains($policy,
 $cachedPolicy = \App\Support\ContentSecurityPolicy::headerForCachedHtml('<p>x</p>', \App\Support\ContentSecurityPolicy::createNonce(), false);
 $check(str_contains($cachedPolicy, "script-src-attr 'none'"), "the shared-cache policy sends script-src-attr 'none' too");
 $handlerHits = [];
-$scanRoots = [$ROOT . '/app/Views', $ROOT . '/storage/plugins', $ROOT . '/public/assets/js'];
+// docs/examples too: plugin authors copy the example plugin as it is.
+$scanRoots = [$ROOT . '/app/Views', $ROOT . '/storage/plugins', $ROOT . '/public/assets/js', $ROOT . '/docs/examples'];
 foreach ($scanRoots as $scanRoot) {
     $it = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($scanRoot, FilesystemIterator::SKIP_DOTS));
     foreach ($it as $f) {
@@ -240,6 +241,26 @@ foreach ($scanRoots as $scanRoot) {
     }
 }
 $check($handlerHits === [], 'no inline on*= handler left in views, plugins or page scripts' . ($handlerHits === [] ? '' : ': ' . implode(', ', array_slice($handlerHits, 0, 10))));
+
+// The example plugin's inline scripts carry the response nonce: the core does
+// not add it to plugin output.
+$bareScripts = [];
+$it = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($ROOT . '/docs/examples', FilesystemIterator::SKIP_DOTS));
+foreach ($it as $f) {
+    $path = (string) $f;
+    if (!str_ends_with($path, '.php')) {
+        continue;
+    }
+    foreach (file($path) ?: [] as $n => $line) {
+        if (preg_match('/<script(?![^>]*(?:csp_nonce_attr|\bsrc=))[^>]*>/i', $line) && !preg_match('#^\s*(//|\*|/\*)#', $line)) {
+            $bareScripts[] = substr($path, strlen($ROOT) + 1) . ':' . ($n + 1);
+        }
+    }
+}
+$check($bareScripts === [], 'every inline <script> of the example plugin carries csp_nonce_attr()' . ($bareScripts === [] ? '' : ': ' . implode(', ', $bareScripts)));
+$hooksDoc = (string) file_get_contents($ROOT . '/docs/PLUGIN_HOOKS.md');
+$check(!str_contains($hooksDoc, 'il nonce CSP viene aggiunto dal middleware') && str_contains($hooksDoc, "script-src-attr 'none'"),
+    'PLUGIN_HOOKS.md tells plugin authors to add the nonce themselves and that inline handlers are blocked');
 
 array_map('unlink', glob($scratch . '/*') ?: []);
 @rmdir($scratch);
