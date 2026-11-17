@@ -262,6 +262,34 @@ try {
             @unlink($sf);
         }
     }
+    echo "H. APCu counter: the window comes from the stored start, never from the TTL\n";
+    if (extension_loaded('apcu')) {
+        // In a child with APCu on in the CLI. Each line printed is "OK|FAIL label".
+        $code = 'require ' . var_export($root . '/vendor/autoload.php', true) . ';'
+            . '$m = new ReflectionMethod(\App\Support\RateLimiter::class, "apcuCount"); $m->setAccessible(true);'
+            . '$k = "pinakes_rl_test_" . bin2hex(random_bytes(6)); $w = 60; $now = time();'
+            . '$o = function ($ok, $l) { echo ($ok ? "OK" : "FAIL") . "|" . $l . "\n"; };'
+            . '$o($m->invoke(null, $k, $w) === 1 && $m->invoke(null, $k, $w) === 2 && $m->invoke(null, $k, $w) === 3, "counts 1, 2, 3 within a window");'
+            . '$info = apcu_key_info($k); $o(is_array($info) && (int) $info["ttl"] === $w, "the entry starting a window carries the TTL");'
+            // The race outcome: an entry with no TTL, a full count, and a window long gone.
+            . 'apcu_store($k, (($now - $w - 5) << 20) | 99, 0);'
+            . '$o($m->invoke(null, $k, $w) === 1, "an expired window whose entry still exists (no TTL) starts a fresh window: no permanent lock-out");'
+            . '$info = apcu_key_info($k); $o(is_array($info) && (int) $info["ttl"] === $w, "and the fresh window is written with its TTL again");'
+            . 'apcu_store($k, (($now - 10) << 20) | 99, 0);'
+            . '$o($m->invoke(null, $k, $w) === 100, "a live window keeps counting (still limited)");'
+            . 'apcu_store($k, "garbage", 0);'
+            . '$o($m->invoke(null, $k, $w) === 1, "a foreign value under the key is replaced by a fresh window");'
+            . 'apcu_delete($k);';
+        $out = (string) shell_exec(escapeshellarg(PHP_BINARY) . ' -d apc.enable_cli=1 -r ' . escapeshellarg($code) . ' 2>&1');
+        $lines = array_filter(explode("\n", trim($out)));
+        $check(count($lines) === 6, 'the APCu child ran all its checks' . (count($lines) === 6 ? '' : ': ' . trim($out)));
+        foreach ($lines as $line) {
+            [$status, $label] = array_pad(explode('|', $line, 2), 2, $line);
+            $check($status === 'OK', 'APCu: ' . $label);
+        }
+    } else {
+        echo "  note: APCu extension not loaded, APCu counter checks not run\n";
+    }
 } finally {
     foreach ($ids as $cleanupId) {
         RateLimiter::reset($cleanupId);

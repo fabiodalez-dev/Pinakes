@@ -203,7 +203,7 @@ class RateLimiter
 
     /**
      * Limiter used when no state directory can be used: an APCu counter
-     * (shared by the PHP processes of this server) when APCu is enabled,
+     * (shared by the PHP processes of this server, see apcuCount()) when APCu is enabled,
      * otherwise a counter in the PHP session when one is active. Only when
      * neither exists does it let the request through, and that is logged.
      */
@@ -211,10 +211,8 @@ class RateLimiter
     {
         $key = self::degradedKey($identifier);
         if (self::apcuAvailable()) {
-            // apcu_add() starts the window with the entry's TTL; apcu_inc() is atomic.
-            apcu_add($key, 0, max(1, $window));
-            $attempts = apcu_inc($key);
-            if (is_int($attempts)) {
+            $attempts = self::apcuCount($key, $window);
+            if ($attempts !== null) {
                 return $attempts > $maxAttempts;
             }
         }
@@ -239,6 +237,56 @@ class RateLimiter
             SecureLogger::error('RateLimiter: no state directory, no APCu and no session, throttling is off for this request');
         }
         return false;
+    }
+
+    /** Bits of the packed APCu value that hold the attempt count. */
+    private const APCU_COUNT_BITS = 20;
+
+    /**
+     * Count one attempt in APCu and return the attempts in the current window,
+     * or null when APCu would not cooperate.
+     *
+     * The entry is one integer packing [window_start, count], updated with
+     * apcu_add()/apcu_cas() so concurrent requests never lose an attempt. The
+     * window is judged from window_start, never from the entry's TTL: an entry
+     * that outlived its TTL, or one recreated without a TTL, starts a fresh
+     * window instead of locking the identifier out for good. Every write that
+     * starts a window carries the TTL, so idle entries still go away.
+     */
+    private static function apcuCount(string $key, int $window): ?int
+    {
+        $window = max(1, $window);
+        $mask = (1 << self::APCU_COUNT_BITS) - 1;
+        for ($try = 0; $try < 16; $try++) {
+            $now = time();
+            $fresh = ($now << self::APCU_COUNT_BITS) | 1;
+            $current = apcu_fetch($key, $found);
+            if (!$found || !is_int($current)) {
+                if ($found) {
+                    apcu_delete($key); // not ours / corrupt: start over
+                }
+                if (apcu_add($key, $fresh, $window)) {
+                    return 1;
+                }
+                continue; // somebody else created it first
+            }
+            $start = $current >> self::APCU_COUNT_BITS;
+            $count = $current & $mask;
+            if ($now - $start >= $window || $start > $now) {
+                // A new window: written with its TTL. apcu_store() is not
+                // conditional, so a racing reset can cost one attempt, never
+                // a permanent lock-out.
+                if (apcu_store($key, $fresh, $window)) {
+                    return 1;
+                }
+                continue;
+            }
+            $next = ($start << self::APCU_COUNT_BITS) | min($count + 1, $mask);
+            if (apcu_cas($key, $current, $next)) {
+                return min($count + 1, $mask);
+            }
+        }
+        return null;
     }
 
     /**
