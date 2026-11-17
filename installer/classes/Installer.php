@@ -1283,10 +1283,24 @@ HTACCESS;
      * Every other client, anonymous or not, gets the installed-state gates
      * (admin authentication for ?force=1). An unreadable .env or an unreachable
      * database counts as installed: fail closed.
+     *
+     * Under the CLI SAPI the answer is the lock file alone, as before. The
+     * stricter predicate above guards the web wizard; command-line callers
+     * are trusted operators, and the already released Docker images call this
+     * from config/headless-install.php as their first guard, after the
+     * entrypoint has written .env and before their own logic that re-writes a
+     * lost .installed when the database already holds users. With the web
+     * predicate a container recreate or image upgrade (the lock lives in the
+     * ephemeral layer) would exit there and leave the site on the installer,
+     * and on a first install an unreachable database would make it skip the
+     * install silently. No web gate goes through this branch.
      */
     public function isInstalled() {
         if ($this->hasLockFile()) {
             return true;
+        }
+        if ($this->runsUnderCli()) {
+            return false;
         }
         if (!file_exists($this->baseDir . '/.env')) {
             return false;
@@ -1294,12 +1308,21 @@ HTACCESS;
         if ($this->ownsInstallInProgress()) {
             // The owner goes on only while that is still verifiable without
             // an account: see ownerMayContinue().
-            return !$this->ownerMayContinue();
+            if ($this->ownerMayContinue()) {
+                $this->renewInstallOwnership();
+                return false;
+            }
+            return true;
         }
         if ($this->installClaimedByAnotherSession()) {
             return true;
         }
         return !$this->configuredDatabaseIsEmpty();
+    }
+
+    /** True under the command-line SAPI (see isInstalled()). Overridable in tests. */
+    protected function runsUnderCli(): bool {
+        return PHP_SAPI === 'cli';
     }
 
     /** @var bool|null memo of configuredDatabaseIsEmpty() for this request */
@@ -1355,8 +1378,15 @@ HTACCESS;
         );
     }
 
-    /** Lifetime of an install-in-progress binding, in seconds. */
-    public const INSTALL_OWNER_TTL = 43200;
+    /**
+     * Lifetime of an install-in-progress binding without activity, in seconds.
+     * Each request of the owning session that may go on renews it (sliding),
+     * so a slow install is not cut off; a binding whose session was lost (GC'd,
+     * cookie cleared, other browser) stops shutting everyone else out after
+     * this much inactivity. It was 12 hours, which left a lost session's
+     * install stuck for half a day.
+     */
+    public const INSTALL_OWNER_TTL = 7200;
 
     /** Session key holding the raw ownership token. */
     public const INSTALL_OWNER_SESSION_KEY = 'installer_owner_token';
@@ -1539,7 +1569,18 @@ HTACCESS;
         return hash_equals(trim($state['content']), hash('sha256', $token));
     }
 
-    /** End the install-in-progress binding (called once .installed exists). */
+    /**
+     * Restart INSTALL_OWNER_TTL for the owning session (sliding expiry). Only
+     * the mtime changes, so the binding stays the same token. Best-effort.
+     */
+    private function renewInstallOwnership(): void {
+        $marker = $this->installOwnerMarkerPath();
+        if (is_file($marker) && !is_link($marker)) {
+            @touch($marker);
+            clearstatcache(true, $marker);
+        }
+    }
+
     /**
      * After step 2 wrote a new .env: drop every progress flag that described the
      * previous database (schema/data import, admin, finalisation, later steps).
@@ -1559,6 +1600,7 @@ HTACCESS;
         }
     }
 
+    /** End the install-in-progress binding (called once .installed exists). */
     public function releaseInstallOwnership(): void {
         $marker = $this->installOwnerMarkerPath();
         if (is_file($marker)) {

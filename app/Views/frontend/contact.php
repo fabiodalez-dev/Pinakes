@@ -513,7 +513,7 @@ document.getElementById('contact-form').addEventListener('submit', function(e) {
     const submitBtn = form.querySelector('.btn-submit');
 
     submitBtn.disabled = true;
-    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i><span>' + <?= json_encode(__("Invio in corso..."), JSON_HEX_TAG) ?> + '</span>';
+    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i><span>' + <?= json_encode(htmlspecialchars(__("Invio in corso..."), ENT_QUOTES, 'UTF-8'), JSON_HEX_TAG) ?> + '</span>';
 
     grecaptcha.ready(function() {
         grecaptcha.execute(<?= json_encode($recaptchaSiteKey, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP) ?>, {action: 'contact_form'}).then(function(token) {

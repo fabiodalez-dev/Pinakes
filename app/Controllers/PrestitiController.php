@@ -916,6 +916,11 @@ class PrestitiController
         if (!$current) {
             return $response->withHeader('Location', url('/admin/loans'))->withStatus(302);
         }
+        // Borrower scope on the write (Permissions::mayActOnBorrower): a custom
+        // role edits (dates, extension) only loans of accounts in its scope.
+        if (!\App\Support\Permissions::mayActOnBorrower($db, (int) $current['utente_id'])) {
+            return $response->withHeader('Location', url('/admin/loans') . '?error=loan_not_found')->withStatus(302);
+        }
         // Rifiuta la modifica di un prestito CHIUSO: editarlo non deve riattivarlo
         // (I1/I2 — BUG1). Un prestito è chiuso se attivo=0 o data_restituzione valorizzata.
         // (Ri-verificato più sotto, sotto lock.)
@@ -2203,6 +2208,12 @@ class PrestitiController
                 if (\App\Support\LoanEligibility::checkUser($db, (int) $loan['utente_id']) !== null) {
                     continue;
                 }
+                // Borrower scope on the write: a custom role extends only loans
+                // of accounts in its scope; the others are skipped like an
+                // ineligible borrower.
+                if (!\App\Support\Permissions::mayActOnBorrower($db, (int) $loan['utente_id'])) {
+                    continue;
+                }
                 // Re-checked under the lock: the loan may have been reassigned
                 // to the operator after the scan above.
                 if (\App\Support\SelfDealingGuard::blocks((int) $loan['utente_id'])) {
@@ -2402,6 +2413,12 @@ class PrestitiController
         $loan = $result->fetch_assoc();
         $stmt->close();
 
+        // Borrower scope on the write: answer as for a missing loan.
+        if (!\App\Support\Permissions::mayActOnBorrower($db, (int) $loan['utente_id'])) {
+            $errorUrl = $redirectTo ?? url('/admin/loans');
+            $separator = strpos($errorUrl, '?') === false ? '?' : '&';
+            return $response->withHeader('Location', url($errorUrl . $separator . 'error=loan_not_found'))->withStatus(302);
+        }
         // Separation of duties: an operator who is not an administrator never
         // renews their own loan from the desk (SelfDealingGuard).
         if (\App\Support\SelfDealingGuard::blocks((int) $loan['utente_id'])) {

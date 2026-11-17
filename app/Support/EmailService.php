@@ -192,6 +192,29 @@ class EmailService {
     }
 
     /**
+     * sendTemplate() with $bodyFilter applied to the template body BEFORE the
+     * variables are substituted, so the filter sees the placeholders (e.g. to
+     * drop a link whose URL cannot be built) and never user data.
+     *
+     * @param callable(string): string $bodyFilter
+     */
+    public function sendTemplateWithBodyFilter(string $to, string $templateName, array $variables, ?string $locale, callable $bodyFilter): bool {
+        try {
+            $template = $this->getEmailTemplate($templateName, $locale);
+            if (!$template) {
+                throw new Exception("Template '{$templateName}' not found");
+            }
+            $subject = $this->replaceVariables($template['subject'], $variables, false);
+            $body = $this->replaceVariables($bodyFilter((string) $template['body']), $variables);
+
+            return $this->sendEmail($to, $subject, $body, '', $locale);
+        } catch (\Throwable $e) {
+            error_log("Failed to send template email '{$templateName}' to {$to}: " . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
      * Send plain email
      *
      * @param array $attachments Each entry: ['content' => binary string, 'filename' => string, 'type' => MIME type].

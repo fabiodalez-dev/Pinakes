@@ -137,6 +137,8 @@ try {
     $check($row['stato'] === 'attivo' && $row['token_verifica_email'] === $replacement,
         'rollback leaves an approval with a different token untouched');
     $check(!str_contains($location, 'error=approval_email_failed'), 'the response does not claim that the approval was undone');
+    $check(str_contains($location, 'error=state_changed') && !str_contains($location, 'not_suspended'),
+        'it says the account changed meanwhile, not that it was never suspended (' . $location . ')');
 
     echo "An account that already verified its address\n";
     $verified = $mk(1);

@@ -1491,7 +1491,7 @@ async function removeCoverImage() {
     container.innerHTML = `
         <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-sm text-yellow-800 flex items-center gap-2" role="alert">
             <i class="fas fa-info-circle"></i>
-            <span>${<?= json_encode(__("La copertina verrà rimossa al salvataggio del libro"), JSON_HEX_TAG) ?>}</span>
+            <span>${escapeHtml(<?= json_encode(__("La copertina verrà rimossa al salvataggio del libro"), JSON_HEX_TAG) ?>)}</span>
         </div>
     `;
 }
@@ -1531,7 +1531,7 @@ function initializeChoicesJS() {
             placeholderValue: <?= json_encode(__("Cerca autori esistenti o aggiungine di nuovi..."), JSON_HEX_TAG) ?>,
             noChoicesText: <?= json_encode(__("Nessun autore trovato, premi Invio per aggiungerne uno nuovo"), JSON_HEX_TAG) ?>,
             itemSelectText: <?= json_encode(__("Clicca per selezionare"), JSON_HEX_TAG) ?>,
-            addItemText: (value) => `${<?= json_encode(__('Aggiungi'), JSON_HEX_TAG) ?>} <b>"${value}"</b> ${<?= json_encode(__('come nuovo autore'), JSON_HEX_TAG) ?>}`,
+            addItemText: (value) => `${escapeHtml(<?= json_encode(__('Aggiungi'), JSON_HEX_TAG) ?>)} <b>"${value}"</b> ${escapeHtml(<?= json_encode(__('come nuovo autore'), JSON_HEX_TAG) ?>)}`,
             maxItemText: (maxItemCount) => <?= json_encode(__("Solo %d autori possono essere aggiunti"), JSON_HEX_TAG) ?>.replace('%d', maxItemCount),
             shouldSort: false,
             searchResultLimit: -1,
@@ -2250,7 +2250,7 @@ function initializePublishersChoices() {
             placeholderValue: <?= json_encode(__("Cerca editori esistenti o aggiungine di nuovi..."), JSON_HEX_TAG) ?>,
             noChoicesText: <?= json_encode(__("Nessun editore trovato, premi Invio per aggiungerne uno nuovo"), JSON_HEX_TAG) ?>,
             itemSelectText: <?= json_encode(__("Clicca per selezionare"), JSON_HEX_TAG) ?>,
-            addItemText: (value) => `${<?= json_encode(__('Aggiungi'), JSON_HEX_TAG) ?>} <b>"${value}"</b> ${<?= json_encode(__('come nuovo editore'), JSON_HEX_TAG) ?>}`,
+            addItemText: (value) => `${escapeHtml(<?= json_encode(__('Aggiungi'), JSON_HEX_TAG) ?>)} <b>"${value}"</b> ${escapeHtml(<?= json_encode(__('come nuovo editore'), JSON_HEX_TAG) ?>)}`,
             shouldSort: false,
             searchResultLimit: -1,
             searchFloor: 1,
@@ -2763,7 +2763,7 @@ function initializeCollocationFilters() {
       if (window.Toast && posizioneInput.value) {
         window.Toast.fire({
           icon: 'success',
-          title: `${<?= json_encode(__("Posizione generata:"), JSON_HEX_TAG) ?>} ${posizioneInput.value}`
+          title: `${escapeHtml(<?= json_encode(__("Posizione generata:"), JSON_HEX_TAG) ?>)} ${escapeHtml(posizioneInput.value)}`
         });
       }
     });
@@ -3510,32 +3510,32 @@ function showAlternativesPanel(alternatives) {
 
         // Show key fields from this source (using data-* attributes for event delegation)
         if (sourceData.title && typeof sourceData.title === 'string') {
-            html += `<div><span class="font-medium">${<?= json_encode(__("Titolo:"), JSON_HEX_TAG) ?>}</span> ${escapeHtml(sourceData.title)}
-                <button type="button" class="ml-2 text-gray-800 hover:underline apply-alt-value" data-field="titolo" data-value="${escapeAttr(sourceData.title)}">${<?= json_encode(__("Usa"), JSON_HEX_TAG) ?>}</button></div>`;
+            html += `<div><span class="font-medium">${escapeHtml(<?= json_encode(__("Titolo:"), JSON_HEX_TAG) ?>)}</span> ${escapeHtml(sourceData.title)}
+                <button type="button" class="ml-2 text-gray-800 hover:underline apply-alt-value" data-field="titolo" data-value="${escapeAttr(sourceData.title)}">${escapeHtml(<?= json_encode(__("Usa"), JSON_HEX_TAG) ?>)}</button></div>`;
         }
         if (sourceData.publisher && typeof sourceData.publisher === 'string') {
-            html += `<div><span class="font-medium">${<?= json_encode(__("Editore:"), JSON_HEX_TAG) ?>}</span> ${escapeHtml(sourceData.publisher)}
-                <button type="button" class="ml-2 text-gray-800 hover:underline apply-alt-publisher" data-publisher="${escapeAttr(sourceData.publisher)}">${<?= json_encode(__("Usa"), JSON_HEX_TAG) ?>}</button></div>`;
+            html += `<div><span class="font-medium">${escapeHtml(<?= json_encode(__("Editore:"), JSON_HEX_TAG) ?>)}</span> ${escapeHtml(sourceData.publisher)}
+                <button type="button" class="ml-2 text-gray-800 hover:underline apply-alt-publisher" data-publisher="${escapeAttr(sourceData.publisher)}">${escapeHtml(<?= json_encode(__("Usa"), JSON_HEX_TAG) ?>)}</button></div>`;
         }
         // Show cover only if it's not an SBN/LibraryThing cover (requires API key)
         // Also sanitize URL to prevent javascript: and other unsafe protocols
         const safeImage = sanitizeUrl(sourceData.image);
         if (safeImage && !safeImage.includes('librarything.com/devkey')) {
-            html += `<div><span class="font-medium">${<?= json_encode(__("Copertina:"), JSON_HEX_TAG) ?>}</span>
-                <a href="${escapeAttr(safeImage)}" target="_blank" rel="noopener noreferrer" class="text-gray-800 hover:underline">${<?= json_encode(__("Vedi"), JSON_HEX_TAG) ?>}</a>
-                <button type="button" class="ml-2 text-gray-800 hover:underline apply-alt-cover" data-cover="${escapeAttr(safeImage)}">${<?= json_encode(__("Usa"), JSON_HEX_TAG) ?>}</button></div>`;
+            html += `<div><span class="font-medium">${escapeHtml(<?= json_encode(__("Copertina:"), JSON_HEX_TAG) ?>)}</span>
+                <a href="${escapeAttr(safeImage)}" target="_blank" rel="noopener noreferrer" class="text-gray-800 hover:underline">${escapeHtml(<?= json_encode(__("Vedi"), JSON_HEX_TAG) ?>)}</a>
+                <button type="button" class="ml-2 text-gray-800 hover:underline apply-alt-cover" data-cover="${escapeAttr(safeImage)}">${escapeHtml(<?= json_encode(__("Usa"), JSON_HEX_TAG) ?>)}</button></div>`;
         }
         if (sourceData.description && typeof sourceData.description === 'string') {
             const shortDesc = sourceData.description.substring(0, 100) + (sourceData.description.length > 100 ? '...' : '');
-            html += `<div><span class="font-medium">${<?= json_encode(__("Descrizione:"), JSON_HEX_TAG) ?>}</span> ${escapeHtml(shortDesc)}
-                <button type="button" class="ml-2 text-gray-800 hover:underline apply-alt-value" data-field="descrizione" data-value="${escapeAttr(sourceData.description)}">${<?= json_encode(__("Usa"), JSON_HEX_TAG) ?>}</button></div>`;
+            html += `<div><span class="font-medium">${escapeHtml(<?= json_encode(__("Descrizione:"), JSON_HEX_TAG) ?>)}</span> ${escapeHtml(shortDesc)}
+                <button type="button" class="ml-2 text-gray-800 hover:underline apply-alt-value" data-field="descrizione" data-value="${escapeAttr(sourceData.description)}">${escapeHtml(<?= json_encode(__("Usa"), JSON_HEX_TAG) ?>)}</button></div>`;
         }
 
         html += `</div></div>`;
     }
 
     if (html === '') {
-        html = `<p class="text-gray-500">${<?= json_encode(__("Nessuna alternativa disponibile"), JSON_HEX_TAG) ?>}</p>`;
+        html = `<p class="text-gray-500">${escapeHtml(<?= json_encode(__("Nessuna alternativa disponibile"), JSON_HEX_TAG) ?>)}</p>`;
     }
 
     content.innerHTML = html;
@@ -4379,8 +4379,8 @@ function displayScrapedCover(imageUrl) {
                 <div class="text-gray-400 mb-2">
                     <i class="fas fa-image text-3xl"></i>
                 </div>
-                <p class="text-sm text-gray-600 mb-2">${<?= json_encode(__("Anteprima non disponibile"), JSON_HEX_TAG) ?>}</p>
-                <p class="text-xs text-gray-500 mb-3">${<?= json_encode(__("L'immagine verrà scaricata al salvataggio"), JSON_HEX_TAG) ?>}</p>
+                <p class="text-sm text-gray-600 mb-2">${escapeHtml(<?= json_encode(__("Anteprima non disponibile"), JSON_HEX_TAG) ?>)}</p>
+                <p class="text-xs text-gray-500 mb-3">${escapeHtml(<?= json_encode(__("L'immagine verrà scaricata al salvataggio"), JSON_HEX_TAG) ?>)}</p>
                 <a href="${escapeAttr(imageSrc)}" target="_blank" rel="noopener noreferrer" class="text-xs text-gray-700 hover:text-gray-900 underline break-all">${escapeHtml(imageUrl)}</a>
             </div>
         `;
@@ -4396,7 +4396,7 @@ function displayScrapedCover(imageUrl) {
             <div class="flex items-center gap-4">
                 <div class="flex items-center gap-2 text-sm text-gray-600">
                     <i class="fas fa-globe text-gray-600"></i>
-                    <span>${<?= json_encode(__("Copertina recuperata automaticamente"), JSON_HEX_TAG) ?>}</span>
+                    <span>${escapeHtml(<?= json_encode(__("Copertina recuperata automaticamente"), JSON_HEX_TAG) ?>)}</span>
                 </div>
                 <button type="button" data-pk-action="book-cover-remove" class="text-xs text-red-600 hover:text-red-800 hover:underline flex items-center gap-1">
                     <i class="fas fa-trash"></i>

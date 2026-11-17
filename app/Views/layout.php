@@ -1589,7 +1589,7 @@ $htmlLang = substr($currentLocale, 0, 2);
                     <i class="${iconClass}"></i>
                   </div>
                   <div class="flex-1 min-w-0">
-                    <div class="text-xs text-gray-500 font-medium uppercase tracking-wide mb-2">${notif.relative_time || formatNotificationTime(notif.created_at)}</div>
+                    <div class="text-xs text-gray-500 font-medium uppercase tracking-wide mb-2">${escapeHtml(notif.relative_time || formatNotificationTime(notif.created_at))}</div>
                     <p class="text-sm font-semibold text-gray-900 group-hover:text-gray-800 transition-colors">
                       ${escapeHtml(notif.title || '')}
                       ${isUnread ? '<span class="ml-1 inline-block w-2 h-2 bg-blue-500 rounded-full"></span>' : ''}

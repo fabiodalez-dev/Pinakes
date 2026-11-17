@@ -148,6 +148,34 @@ class LoanApprovalController
         return $response;
     }
 
+    /**
+     * Borrower scope on the approval desk's writes (Permissions::mayActOnBorrower):
+     * a custom role acts only on loans and reservations of accounts in its scope.
+     * Null when the row is in scope or does not exist (the handler's own lookup
+     * answers that); otherwise the JSON "not found" response, as if absent.
+     */
+    private function outOfBorrowerScope(mysqli $db, Response $response, string $table, int $id): ?Response
+    {
+        $sql = $table === 'prenotazioni'
+            ? 'SELECT utente_id FROM prenotazioni WHERE id = ?'
+            : 'SELECT utente_id FROM prestiti WHERE id = ?';
+        try {
+            $stmt = $db->prepare($sql);
+            $stmt->bind_param('i', $id);
+            $stmt->execute();
+            $row = $stmt->get_result()->fetch_assoc();
+            $stmt->close();
+        } catch (\Throwable $e) {
+            $row = ['utente_id' => 0]; // cannot check: fail closed below
+        }
+        if (!is_array($row) || \App\Support\Permissions::mayActOnBorrower($db, (int) $row['utente_id'])) {
+            return null;
+        }
+        $message = $table === 'prenotazioni' ? __('Prenotazione non trovata.') : __('Prestito non trovato');
+        $response->getBody()->write(json_encode(['success' => false, 'message' => $message]));
+        return $response->withHeader('Content-Type', 'application/json')->withStatus(404);
+    }
+
     public function approveLoan(Request $request, Response $response, mysqli $db): Response
     {
         $data = $request->getParsedBody();
@@ -167,6 +195,10 @@ class LoanApprovalController
         if ($loanId <= 0) {
             $response->getBody()->write(json_encode(['success' => false, 'message' => __('ID prestito non valido')]));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+        }
+        // (An automatic approval is the system acting on the requester's own loan.)
+        if (!$automaticApproval && ($scopeDenied = $this->outOfBorrowerScope($db, $response, 'prestiti', $loanId))) {
+            return $scopeDenied;
         }
         // Separation of duties: an operator who is not an administrator never
         // approves their own request. An automatic approval (the reader's own
@@ -758,6 +790,9 @@ class LoanApprovalController
             $response->getBody()->write(json_encode(['success' => false, 'message' => __('ID prestito non valido')]));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
         }
+        if ($scopeDenied = $this->outOfBorrowerScope($db, $response, 'prestiti', $loanId)) {
+            return $scopeDenied;
+        }
         // Separation of duties: an operator who is not an administrator never
         // acts on their own loan from the desk (SelfDealingGuard).
         if (\App\Support\SelfDealingGuard::blocksLoan($db, $loanId)) {
@@ -960,6 +995,9 @@ class LoanApprovalController
         if ($loanId <= 0) {
             $response->getBody()->write(json_encode(['success' => false, 'message' => __('ID prestito non valido')]));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+        }
+        if ($scopeDenied = $this->outOfBorrowerScope($db, $response, 'prestiti', $loanId)) {
+            return $scopeDenied;
         }
         // Separation of duties: an operator who is not an administrator never
         // acts on their own loan from the desk (SelfDealingGuard).
@@ -1244,6 +1282,9 @@ class LoanApprovalController
         if ($loanId <= 0) {
             $response->getBody()->write(json_encode(['success' => false, 'message' => __('ID prestito non valido')]));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+        }
+        if ($scopeDenied = $this->outOfBorrowerScope($db, $response, 'prestiti', $loanId)) {
+            return $scopeDenied;
         }
         // Separation of duties: an operator who is not an administrator never
         // acts on their own loan from the desk (SelfDealingGuard).
@@ -1723,6 +1764,9 @@ class LoanApprovalController
         if ($reservationId <= 0) {
             $response->getBody()->write(json_encode(['success' => false, 'message' => __('ID prenotazione non valido')]));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+        }
+        if ($scopeDenied = $this->outOfBorrowerScope($db, $response, 'prenotazioni', $reservationId)) {
+            return $scopeDenied;
         }
 
         try {

@@ -13,12 +13,19 @@ declare(strict_types=1);
  *    translation inside a JS string/template literal, no translation echoed into
  *    JS code without json_encode(), no translation in an HTML attribute without
  *    an HTML escape (json_encode + HTML escape for on* handlers), no JS __()
- *    interpolated raw into a template literal. Exceptions are listed below with
- *    the reason they are safe.
- * C. Three of the fixed views rendered with a hostile override on every key
- *    they use: the payload stays text (no extra element, no handler attribute,
- *    no early end of a <script>) and inside a script it only ever appears inside
- *    a JSON string literal; with node available, every script still parses.
+ *    interpolated raw into a template literal. A json_encode()d translation is a
+ *    JS string, not markup: concatenated (+, +=) or interpolated (${…}) it must
+ *    be HTML-escaped first (htmlspecialchars inside the json_encode, or an
+ *    escapeHtml() call around it), and so must a JS __() / window.__() that is
+ *    concatenated. Assignments to textContent/innerText are recognised as text;
+ *    every other text-only sink is listed below with the reason it is safe.
+ * C. Fixed views rendered with a hostile override on every key they use (each
+ *    key tagged, so a literal traces back to it): the payload stays text (no
+ *    extra element, no handler attribute, no early end of a <script>), inside a
+ *    script it only ever appears inside a JSON string literal, a literal that is
+ *    concatenated or interpolated into markup is the argument of an escaping
+ *    helper, and with node available every script that parses without the
+ *    payload still parses with it.
  *
  * DB-free. Run:  php tests/security-audit-translation-echo-contexts.unit.php [alternative-root]
  * (exit 0 iff all pass). The optional root points the scanner and the renders at
@@ -151,6 +158,75 @@ function tx_js_literal(string $e): bool
     return preg_match('/^\\\\?json_encode\s*\(/', $e) === 1 && tx_wraps_whole($e);
 }
 
+/** A JSON literal of an already HTML-escaped translation: safe as markup. */
+function tx_json_of_html(string $e, array $esc): bool
+{
+    $e = tx_strip($e);
+    if (!tx_js_literal($e)) { return false; }
+    $inner = (string) preg_replace('/^\\\\?json_encode\s*\(\s*/', '', $e);
+    return tx_html_escaped($inner, $esc) || preg_match('/^(?:\\\\?htmlspecialchars|\\\\?htmlentities|' . tx_alt($esc['html']) . ')\s*\(/', $inner) === 1;
+}
+
+/** Name of a JS helper that HTML-escapes its argument. */
+const TX_JS_ESCAPE = '(?:escapeHtml|escHtml|escapeHtmlAttr|escapeAttr|esc)\s*\(\s*';
+
+/**
+ * Where a JS value at $start..$end of the script skeleton lands: 'template
+ * interpolation' inside ${…}, 'concatenation' next to a + / +=, or null when it
+ * is an argument of an HTML-escaping helper, assigned to a text-only property,
+ * or used on its own. $interp is [start of the outermost template literal, start
+ * of the innermost ${] when the value sits inside an interpolation.
+ *
+ * @param array{0:int,1:int}|null $interp
+ */
+function tx_markup_position(string $sk, int $start, int $end, ?array $interp): ?string
+{
+    // The statement starts at the last ; { or } before it (outside the
+    // template literal it belongs to). It is text-only when it is an assignment
+    // to x.textContent / x.innerText. Anything that fools the boundary search
+    // only makes the prefix fail, i.e. reports more.
+    $head = substr($sk, 0, $interp !== null ? $interp[0] : $start);
+    $stmtStart = max((int) strrpos($head, ';'), (int) strrpos($head, '{'), (int) strrpos($head, '}'));
+    if (preg_match('/^[;{}]?\s*[^;{}=\n]+?\.(?:textContent|innerText)\s*=(?!=)/', substr($sk, $stmtStart)) === 1) {
+        return null;
+    }
+    // Inside the arguments of an escaping helper, at any depth: escaped.
+    $scopeStart = $interp !== null ? $interp[1] + 2 : $stmtStart;
+    for ($i = $start - 1, $depth = 0; $i >= $scopeStart; $i--) {
+        $c = $sk[$i];
+        if ($c === ')') { $depth++; continue; }
+        if ($c !== '(') { continue; }
+        if ($depth > 0) { $depth--; continue; }
+        if (preg_match('/(?<![\w$.])' . substr(TX_JS_ESCAPE, 0, -strlen('\s*\(\s*')) . '\s*$/', substr($sk, max(0, $i - 40), min(40, $i))) === 1) {
+            return null;
+        }
+    }
+    if ($interp !== null) { return 'template interpolation'; }
+    $before = substr($sk, max(0, $start - 160), min(160, $start));
+    if (preg_match('/(?<![+])\+=?\s*$/', $before) === 1 || preg_match('/^\s*\+(?![+=])/', substr($sk, $end, 160)) === 1) {
+        return 'concatenation';
+    }
+    return null;
+}
+
+/** Index just past the ) that closes the ( at $open, quote-aware; false if none. */
+function tx_close_paren(string $sk, int $open): int|false
+{
+    $depth = 0; $q = null; $L = strlen($sk);
+    for ($i = $open; $i < $L; $i++) {
+        $c = $sk[$i];
+        if ($q !== null) {
+            if ($c === '\\') { $i++; continue; }
+            if ($c === $q) { $q = null; }
+            continue;
+        }
+        if ($c === '"' || $c === "'" || $c === '`') { $q = $c; continue; }
+        if ($c === '(') { $depth++; }
+        elseif ($c === ')') { $depth--; if ($depth === 0) { return $i + 1; } }
+    }
+    return false;
+}
+
 /**
  * Report every translation that reaches a script or an attribute unescaped.
  * @return list<array{line: int, context: string, expr: string}>
@@ -226,6 +302,9 @@ function tx_scan(string $src): array
     $js = null;
     /** @var list<int> $braces brace depth inside each open ${ … } */
     $braces = [];
+    /** @var list<array{0:int,1:int}> $interps [template start, ${ start] of each open ${ … } */
+    $interps = [];
+    $tpl = 0;
     for ($p = 0; $p < $L; $p++) {
         $c = $sk[$p];
         if ($mode === 'text') {
@@ -256,6 +335,7 @@ function tx_scan(string $src): array
                     $js = null;
                     /** @var list<int> $braces */
                     $braces = [];
+                    $interps = [];
                 } elseif (!$closing && in_array($tag, ['style', 'textarea', 'title'], true)) {
                     $mode = 'rawtext';
                     $rawEnd = '</' . $tag;
@@ -292,7 +372,35 @@ function tx_scan(string $src): array
         if (strncasecmp(substr($sk, $p, 8), '</script', 8) === 0) { $mode = 'tag'; $closing = true; $tag = 'script'; $p += 7; continue; }
         if ($c === "\x01") {
             if ($js !== null) { $flag($p, $js === '`' ? 'JS template literal' : 'JS string'); }
-            else { $verify($p, 'JS code'); }
+            else {
+                $verify($p, 'JS code');
+                // A JSON literal is a JS string, not markup: next to a + or
+                // inside ${…} it is about to become HTML, so the translation
+                // must be HTML-escaped (in PHP, or by escapeHtml() in JS).
+                $where = tx_markup_position($sk, $p, $p + 1, $interps === [] ? null : [$interps[0][0], $interps[count($interps) - 1][1]]);
+                if ($where !== null) {
+                    foreach ($regions[$p][1] as $x) {
+                        if (!tx_branches_ok($x, static fn(string $b): bool => tx_json_of_html($b, $esc))) {
+                            $flag($p, "JSON literal in a {$where}");
+                            break;
+                        }
+                    }
+                }
+            }
+            continue;
+        }
+        if ($js === null && ($c === '_' || $c === 'w') && preg_match('/\G(?:window\.)?__n?\s*\(/', $sk, $m, 0, $p) === 1
+            && ($p === 0 || preg_match('/[\w.$]/', $sk[$p - 1]) !== 1)) {
+            $close = tx_close_paren($sk, $p + strlen($m[0]) - 1);
+            $before = rtrim(substr($sk, max(0, $p - 160), min(160, $p)));
+            if ($close !== false && !str_ends_with($before, '${')) { // ${__()} is reported by the template-literal check
+                $where = tx_markup_position($sk, $p, $close, $interps === [] ? null : [$interps[0][0], $interps[count($interps) - 1][1]]);
+                if ($where !== null) {
+                    $found[] = ['line' => substr_count($sk, "\n", 0, $p) + 1, 'context' => "JS __() in a {$where}",
+                        'expr' => substr($sk, $p, $close - $p)];
+                }
+            }
+            $p += strlen($m[0]) - 1;
             continue;
         }
         if ($js === null) {
@@ -313,10 +421,10 @@ function tx_scan(string $src): array
                     continue;
                 }
             }
-            if ($c === '`' || $c === '"' || $c === "'") { $js = $c; }
+            if ($c === '`' || $c === '"' || $c === "'") { $js = $c; if ($c === '`') { $tpl = $p; } }
             elseif ($c === '{' && $braces !== []) { $braces[count($braces) - 1]++; }
             elseif ($c === '}' && $braces !== []) {
-                if ($braces[count($braces) - 1] === 0) { array_pop($braces); $js = '`'; }
+                if ($braces[count($braces) - 1] === 0) { array_pop($braces); $tpl = (int) (array_pop($interps)[0] ?? 0); $js = '`'; }
                 else { $braces[count($braces) - 1]--; }
             }
             continue;
@@ -327,7 +435,7 @@ function tx_scan(string $src): array
                 $found[] = ['line' => substr_count($sk, "\n", 0, $p) + 1, 'context' => 'JS __() in a template literal',
                     'expr' => substr($sk, $p, (int) strcspn($sk, "}\n", $p) + 1)];
             }
-            $braces[] = 0; $js = null; $p++;
+            $braces[] = 0; $interps[] = [$tpl, $p]; $js = null; $p++;
             continue;
         }
         if ($c === $js || ($c === "\n" && $js !== '`')) { $js = null; }
@@ -352,6 +460,16 @@ $bad = [
     'json_encode alone in onclick'           => "<button onclick=\"return confirm(<?= json_encode(__('Sicuro?')) ?>)\">x</button>",
     'unescaped ternary branch'               => "<a title=\"<?= \$x ? htmlspecialchars(__('A'), ENT_QUOTES, 'UTF-8') : __('B') ?>\">x</a>",
     'echo between attributes'                => "<div <?= __('x') ?>>y</div>",
+    'json literal in ${} of a template'      => "<script>el.innerHTML = `<p>\${<?= json_encode(__('Salva'), JSON_HEX_TAG) ?>}</p>`;</script>",
+    'json literal in a ternary inside ${}'   => "<script>el.innerHTML = `<p>\${ok ? <?= json_encode(__('Salva')) ?> : ''}</p>`;</script>",
+    'json literal + markup'                  => "<script>btn.innerHTML = '<i></i>' + <?= json_encode(__('Salva'), JSON_HEX_TAG) ?>;</script>",
+    'json literal + markup after it'         => "<script>h = <?= json_encode(__('Salva')) ?> + '<b>x</b>';</script>",
+    'json literal +='                        => "<script>html += <?= json_encode(__('Salva')) ?>;</script>",
+    'Swal title concatenation'               => "<script>Swal.fire({ title: <?= json_encode(__('A')) ?> + ' ' + n });</script>",
+    'JS __() + markup'                       => "<script>el.innerHTML = '<label>' + __('Campo') + '</label>';</script>",
+    'window.__() + markup'                   => "<script>el.innerHTML = '<b>' + window.__('Campo');</script>",
+    'JS __() with args + markup'             => "<script>h = __('%d libri', n) + '<br>';</script>",
+    'escaped, then concatenated raw'         => "<script>el.innerHTML = escapeHtml(<?= json_encode(__('A')) ?>) + <?= json_encode(__('B')) ?>;</script>",
 ];
 foreach ($bad as $label => $snippet) {
     $check(tx_scan($snippet) !== [], "reported: {$label}");
@@ -367,6 +485,16 @@ $good = [
     'escaped ternary'                        => "<a title=\"<?= \$x ? htmlspecialchars(__('A'), ENT_QUOTES, 'UTF-8') : 'B' ?>\">x</a>",
     'text node'                              => "<p><?= __('Testo con <strong>markup</strong>') ?></p>",
     'regex literal with a quote'             => "<script>const r = /'/g; const t = <?= json_encode(__('Salva')) ?>;</script>",
+    'escapeHtml(json literal) + markup'      => "<script>btn.innerHTML = '<i></i>' + escapeHtml(<?= json_encode(__('Salva'), JSON_HEX_TAG) ?>);</script>",
+    'json(htmlspecialchars) + markup'        => "<script>btn.innerHTML = '<i></i>' + <?= json_encode(htmlspecialchars(__('Salva'), ENT_QUOTES, 'UTF-8'), JSON_HEX_TAG) ?>;</script>",
+    'escapeHtml(cond ? __() : __()) in ${}'  => "<script>el.innerHTML = `<i></i>\${escapeHtml(edit ? __('A') : __('B'))}`;</script>",
+    'escapeHtml(json + value)'               => "<script>t = escapeHtml(<?= json_encode(__('A')) ?> + ' ' + name);</script>",
+    'escapeHtml(__()) + markup'              => "<script>el.innerHTML = '<label>' + escapeHtml(__('Campo')) + '</label>';</script>",
+    'textContent = json + value'             => "<script>el.textContent = <?= json_encode(__('Totale')) ?> + ': ' + n;</script>",
+    'getElementById().textContent ='         => "<script>{ document.getElementById('x').textContent = n + ' ' + <?= json_encode(__('libri')) ?>; }</script>",
+    'textContent = template with ${json}'    => "<script>t.textContent = `\${<?= json_encode(__('Crea')) ?>} \"\${v}\"`;</script>",
+    'json literal on its own'                => "<script>Swal.fire({ title: <?= json_encode(__('A')) ?>, text: x });</script>",
+    'bare JS __()'                           => "<script>const t = __('Salva');</script>",
 ];
 foreach ($good as $label => $snippet) {
     $issues = tx_scan($snippet);
@@ -381,7 +509,64 @@ $exceptions = [
     ['app/Views/layout.php', "sidebarBadge.title = `v\${data.latest} \${window.__('disponibile')}`",
         'assigned to the title DOM property: plain text, never parsed as HTML'],
     ['app/Views/libri/scheda_libro.php', "if (confirm(`\${__('Sei sicuro di voler eliminare la copia')}",
-        'window.confirm() shows plain text'],
+        'window.confirm() shows plain text'],    // A JSON literal or JS __() next to a + or inside ${…} whose result is
+    // proven to reach only text (textContent, Swal text, createTextNode, …).
+    ['app/Views/admin/csv_import.php', 'showError(<?= json_encode(__("Errore durante l\'importazione (HTTP")',
+        'showError() passes it to SwalApp.error() as text'],
+    ['app/Views/admin/csv_import.php', 'updateProgress(',
+        'updateProgress() writes the status with textContent'],
+    ['app/Views/admin/integrity_report.php', 'message += \'\\n\\n\' + ',
+        'the message is shown as Swal text'],
+    ['app/Views/admin/languages/edit-routes.php', 'window.SwalApp.error(undefined,',
+        'SwalApp.error() shows it as text'],
+    ['app/Views/admin/plugins.php', 'name: \'[Pinakes] \' +',
+        'a preset server name: data, escaped with escapeHtml(server.name) where it is rendered'],
+    ['app/Views/admin/updates.php', 'text: <?= json_encode(__("Versione")',
+        'Swal text option: plain text'],
+    ['app/Views/admin/updates.php', 'text: <?= json_encode(__("Stai per aggiornare Pinakes alla versione")',
+        'Swal text option: plain text'],
+    ['app/Views/admin/updates.php', 'throw new Error(<?= json_encode(__("Il server ha restituito una risposta non valida.',
+        'an Error message: every reader shows error.message as Swal text or through escapeHtml()'],
+    ['app/Views/admin/updates.php', '? (<?= json_encode(__("Backup di sicurezza creato:")',
+        'Swal text option (text: data.safety_backup ? …): plain text'],
+    ['app/Views/autori/index.php', 'text: <?= json_encode(__("Stai per eliminare")',
+        'Swal text option: plain text'],
+    ['app/Views/dashboard/index.php', 'moreLinkText: function (n)',
+        'FullCalendar renders moreLinkText as a text node'],
+    ['app/Views/editori/modifica_editore.php', 'text: <?= json_encode(__("Sei sicuro di voler aggiornare l\'editore")',
+        'SwalApp.confirm() text option: plain text'],
+    ['app/Views/frontend/book-detail.php', 'window.SwalApp.success(undefined,',
+        'SwalApp.success() shows it as text'],
+    ['app/Views/layout.php', 'if (diffMins < 60) return `',
+        'formatNotificationTime() returns text; its caller escapes it with escapeHtml()'],
+    ['app/Views/layout.php', 'if (diffHours < 24) return `',
+        'formatNotificationTime() returns text; its caller escapes it with escapeHtml()'],
+    ['app/Views/libri/import_librarything.php', 'updateProgress(percent, <?= json_encode(__("Elaborazione libri")',
+        'updateProgress() writes the status with textContent'],
+    ['app/Views/libri/import_librarything.php', 'showError(<?= json_encode(__("Errore") . ": "',
+        'showError() passes it to SwalApp.error() as text'],
+    ['app/Views/libri/index.php', 'activeUrlFilters.push(',
+        'joined into document.createTextNode(): text'],
+    ['app/Views/libri/index.php', 'msg.appendChild(document.createTextNode(',
+        'document.createTextNode(): text'],
+    ['app/Views/libri/index.php', 'filters.push({ key: \'',
+        'chip labels are escaped with escapeHtml(f.label) where rendered'],
+    ['app/Views/libri/index.php', ') message += `${',
+        'joined into the Swal text option: plain text'],
+    ['app/Views/libri/index.php', 'text: data.message ',
+        '| `${ids.length}|Swal text option: plain text'],
+    ['app/Views/libri/index.php', 'text: __(\'Il valore attuale di questo campo sarà sostituito',
+        'Swal text option: plain text'],
+    ['app/Views/libri/partials/book_form.php', 'm => `${<?= json_encode(__("Livello")',
+        'the fillOptions() getText callback: written with textContent'],
+    ['app/Views/libri/scheda_libro.php', 'moreLinkText: function (n)',
+        'FullCalendar renders moreLinkText as a text node'],
+    ['app/Views/settings/advanced-tab.php', 'window.SwalApp.error(undefined, <?= json_encode(__("Errore nella copia:")',
+        'SwalApp.error() shows it as text'],
+    ['app/Views/utenti/index.php', '$(\'#total-count\').text(',
+        'jQuery .text() sets text'],
+    ['storage/plugins/dewey-editor/views/editor.php', 'text: `${<?= json_encode(__(\'Vuoi eliminare\')',
+        'Swal text option: plain text'],
 ];
 
 $files = [];
@@ -406,7 +591,15 @@ foreach ($files as $rel) {
     if (preg_match(TX_CALL, $src) !== 1) { continue; }
     $lines = explode("\n", $src);
     foreach (tx_scan($src) as $hit) {
+        // The hit line, plus up to three lines above it while they continue the
+        // same statement: a multi-line call keeps its callee (the proof that it
+        // is text-only) a few lines up.
         $text = $lines[$hit['line'] - 1] ?? '';
+        for ($up = $hit['line'] - 2; $up >= max(0, $hit['line'] - 4); $up--) {
+            $prev = rtrim($lines[$up] ?? '');
+            if ($prev === '' || preg_match('/[;{}]$/', $prev) === 1) { break; }
+            $text = $prev . "\n" . $text;
+        }
         foreach ($exceptions as $k => [$file, $needle]) {
             if ($rel === $file && str_contains($text, $needle)) { $usedExceptions[$k] = true; continue 2; }
         }
@@ -432,6 +625,13 @@ require getenv('TX_APP') . '/vendor/autoload.php';
 require_once getenv('TX_APP') . '/app/helpers.php';
 set_error_handler(static fn(): bool => true);
 $src = (string) file_get_contents($root . '/' . $view);
+// Partials the view includes render into the same page: their keys count too.
+if (preg_match_all('#(?:include|require)(?:_once)?\s*\(?\s*__DIR__\s*\.\s*\x27([^\x27]+\.php)\x27#', $src, $inc) > 0) {
+    foreach ($inc[1] as $rel) {
+        $part = realpath(dirname($root . '/' . $view) . $rel);
+        if ($part !== false && is_file($part)) { $src .= "\n" . (string) file_get_contents($part); }
+    }
+}
 if ($payload !== '') {
     // Only keys echoed inside a <script> or an attribute value, and nowhere
     // else, get the payload: text nodes are trusted markup by convention.
@@ -442,7 +642,12 @@ if ($payload !== '') {
     preg_match_all($keyRe, (string) preg_replace($ctxRe, '', $src), $out);
     $map = [];
     // eval() reads a PHP string literal matched in the repository view source.
-    foreach (array_diff($in[1], $out[1]) as $literal) { $map[(string) eval('return ' . $literal . ';')] = $payload; }
+    // Each key gets the payload plus its own tag (#k<index>), so a literal in
+    // the page can be traced back to the key it came from.
+    // Compared by value: the same key may be written '…' in one place and "…"
+    // in another.
+    $values = static fn(array $literals): array => array_map(static fn(string $l): string => (string) eval('return ' . $l . ';'), $literals);
+    foreach (array_values(array_unique(array_diff($values($in[1]), $values($out[1])))) as $i => $key) { $map[$key] = $payload . '#k' . $i; }
     echo json_encode(array_keys($map)) . "\n";
     (new ReflectionProperty(App\Support\I18n::class, 'translations'))->setValue(null, $map);
     (new ReflectionProperty(App\Support\I18n::class, 'translationsLoaded'))->setValue(null, true);
@@ -452,6 +657,7 @@ $club = ['id' => 1, 'name' => 'Club', 'slug' => 'club'];
 $states = $members = $roles = $books = $polls = $meetings = [];
 $flash = null;
 $csrfToken = 'token';
+foreach ((array) json_decode((string) getenv('TX_VARS'), true) as $txName => $txValue) { $$txName = $txValue; }
 ob_start();
 try {
     include $root . '/' . $view;
@@ -464,9 +670,10 @@ echo ob_get_clean();
 RUNNER;
 
 /** @return array{0: list<string>, 1: string}|null  hostile keys, page */
-$render = static function (string $view, string $payload) use ($runner, $scanRoot, $root): ?array {
+$render = static function (string $view, string $payload, array $vars = []) use ($runner, $scanRoot, $root): ?array {
     $proc = proc_open([PHP_BINARY], [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes, $root,
-        array_merge(getenv(), ['TX_ROOT' => $scanRoot, 'TX_APP' => $root, 'TX_VIEW' => $view, 'TX_PAYLOAD' => $payload]));
+        array_merge(getenv(), ['TX_ROOT' => $scanRoot, 'TX_APP' => $root, 'TX_VIEW' => $view, 'TX_PAYLOAD' => $payload,
+            'TX_VARS' => (string) json_encode($vars)]));
     if (!is_resource($proc)) { return null; }
     fwrite($pipes[0], $runner);
     fclose($pipes[0]);
@@ -525,6 +732,31 @@ $scriptLeak = static function (string $js) use ($payload): bool {
     return false;
 };
 
+// A JSON literal holding the raw payload that is concatenated (+, +=) or
+// interpolated (${…}) is about to become markup: it must be the argument of an
+// HTML-escaping helper. Returns the keys (by tag) found unescaped there.
+$markupLeaks = static function (string $js, array $keys) use ($payload): array {
+    $leaks = [];
+    $n = strlen($js);
+    for ($i = strpos($js, '"'); $i !== false; $i = strpos($js, '"', $i + 1)) {
+        for ($k = $i + 1; $k < $n; $k++) {
+            if ($js[$k] === '\\') { $k++; continue; }
+            if ($js[$k] === '"' || ord($js[$k]) < 0x20) { break; }
+        }
+        if ($k >= $n || $js[$k] !== '"') { continue; }
+        $v = json_decode(substr($js, $i, $k - $i + 1));
+        if (!is_string($v) || !str_contains($v, $payload) || preg_match('/#k(\d+)$/', $v, $tag) !== 1) { continue; }
+        $before = rtrim(substr($js, 0, $i));
+        $after = ltrim(substr($js, $k + 1));
+        if (preg_match('/(?<![\w$.])' . substr(TX_JS_ESCAPE, 0, -strlen('\s*\(\s*')) . '\s*\(\s*$/', $before) === 1) { continue; }
+        if (preg_match('/(?:\$\{|(?<![+])\+=?)$/', $before) === 1 || preg_match('/^\+(?![+=])/', $after) === 1) {
+            $leaks[] = (string) ($keys[(int) $tag[1]] ?? $tag[1]);
+        }
+        $i = $k;
+    }
+    return array_values(array_unique($leaks));
+};
+
 $node = trim((string) @shell_exec('command -v node 2>/dev/null'));
 $nodeCheck = static function (string $js) use ($node): bool {
     $tmp = tempnam(sys_get_temp_dir(), 'txjs');
@@ -540,15 +772,30 @@ if ($node === '') {
     echo "  --  node not found: script parse check not run\n";
 }
 
-// view => keys of the sinks fixed in it that must carry the payload
+// Keys a view concatenates or interpolates into a string that only ever
+// reaches text (the same sinks section B lists as exceptions).
+$textOnly = [
+    'storage/plugins/dewey-editor/views/editor.php' => ['Vuoi eliminare' => 'Swal text option'],
+    'app/Views/libri/scheda_libro.php' => ['altri' => 'FullCalendar moreLinkText, rendered as text'],
+    'app/Views/libri/partials/book_form.php' => ['Crea nuovo' => 'assigned to textContent', 'Livello' => 'fillOptions() getText, written with textContent'],
+];
+
+// view => [keys of the sinks fixed in it that must carry the payload, variables for the render]
 foreach ([
-    'app/Views/admin/stats.php' => ['Nessun prestito disponibile per generare il grafico'],
-    'storage/plugins/book-club/views/admin/show.php' => ['Chiudi'],
-    'storage/plugins/dewey-editor/views/editor.php' => ['Nessun dato.', 'Modifica', 'Aggiungi decimale', 'Nome della classificazione',
-        'Il codice deve iniziare con le stesse tre cifre della classe principale', 'Salvataggio...', 'Backup disponibili', 'Ripristina'],
-] as $view => $sinkKeys) {
-    $benignRun = $render($view, '');
-    $hostileRun = $render($view, $payload);
+    'app/Views/admin/stats.php' => [['Nessun prestito disponibile per generare il grafico'], []],
+    'storage/plugins/book-club/views/admin/show.php' => [['Chiudi'], []],
+    'storage/plugins/dewey-editor/views/editor.php' => [['Nessun dato.', 'Modifica', 'Aggiungi decimale', 'Nome della classificazione',
+        'Il codice deve iniziare con le stesse tre cifre della classe principale', 'Salvataggio...', 'Backup disponibili', 'Ripristina'], []],
+    // Its fixed sinks are JS __() calls (window.__ at runtime), which section B
+    // covers; the render proves the layout's PHP-side literals stay data.
+    'app/Views/frontend/layout.php' => [[], []],
+    'app/Views/libri/scheda_libro.php' => [['Copia', 'Al'],
+        ['libro' => ['id' => 1, 'titolo' => 'T'], 'copie' => [['id' => 1, 'numero_inventario' => 'INV1', 'stato' => 'disponibile']], 'isAdminOrStaff' => true]],
+    'app/Views/libri/partials/book_form.php' => [['Anteprima non disponibile', "L'immagine verrà scaricata al salvataggio",
+        'Copertina recuperata automaticamente', 'Nessuna alternativa disponibile', 'Titolo:', 'Usa'], []],
+] as $view => [$sinkKeys, $vars]) {
+    $benignRun = $render($view, '', $vars);
+    $hostileRun = $render($view, $payload, $vars);
     if ($benignRun === null || $hostileRun === null) { $check(false, "{$view}: renders"); continue; }
     [, $benign] = $benignRun;
     [$hostileKeys, $hostile] = $hostileRun;
@@ -561,11 +808,19 @@ foreach ([
         "{$view}: no <script> ends early (" . count($b['scripts']) . ' benign, ' . count($h['scripts']) . ' hostile)');
     $check($h['injected'] === 0, "{$view}: no element injected (img src=x: {$h['injected']})");
     $check($h['handlers'] === [], "{$view}: no handler attribute injected" . ($h['handlers'] === [] ? '' : ' (' . implode(', ', $h['handlers']) . ')'));
+    $markup = [];
+    foreach ($h['scripts'] as $js) { $markup = array_merge($markup, $markupLeaks($js, $hostileKeys)); }
+    $markup = array_values(array_diff(array_unique($markup), array_keys($textOnly[$view] ?? [])));
+    $check($markup === [], "{$view}: a translation concatenated or interpolated into markup is HTML-escaped first"
+        . ($markup === [] ? '' : ' (' . implode(', ', array_slice($markup, 0, 8)) . ')'));
     $leaks = array_keys(array_filter($h['scripts'], $scriptLeak));
     $check($leaks === [], "{$view}: inside scripts the payload is only ever a JSON string literal" . ($leaks === [] ? '' : ' (script #' . implode(', #', $leaks) . ')'));
     if ($node !== '') {
         $broken = [];
-        foreach ($h['scripts'] as $k => $js) { if (!$nodeCheck($js)) { $broken[] = $k; } }
+        // Only scripts that parse in the benign render count: DOMDocument's
+        // HTML parser mangles a literal "</" inside a script (as in a
+        // .replace(/</g, …) escape helper), with or without the payload.
+        foreach ($h['scripts'] as $k => $js) { if (!$nodeCheck($js) && $nodeCheck($b['scripts'][$k] ?? '')) { $broken[] = $k; } }
         $check($broken === [], "{$view}: every script parses under the hostile translation" . ($broken === [] ? '' : ' (script #' . implode(', #', $broken) . ')'));
     }
 }

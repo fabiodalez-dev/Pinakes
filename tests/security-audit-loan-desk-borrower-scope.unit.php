@@ -9,7 +9,11 @@ declare(strict_types=1);
  * only" (Permissions::accountScopeSql(SCOPE_BORROWER)). The pickers and the
  * ledger page enforced it, the loan-desk writes did not: such a role created
  * loans and reservations for a Staff or administrator account, reassigned a
- * loan to one, and set a loss penalty or a fine waiver on their returns. The
+ * loan to one, and set a loss penalty or a fine waiver on their returns. Every
+ * other write on an existing loan or reservation of such an account is refused
+ * too (edit dates, renew, bulk extend, approve, reject, confirm or cancel the
+ * pickup, cancel a reservation); a plain return stays possible, the copy has
+ * to come back. The
  * operator-typed penalty could also exceed PatronLedger::MAX_AMOUNT_CENTS.
  *
  * Part 1 is DB-free (penalty cap, Permissions::mayActOnBorrower short-circuits
@@ -144,12 +148,12 @@ try {
     $operator = $insertUser('premium', $roleId);
 
     $title = $tag . ' book';
-    $stmt = $db->prepare('INSERT INTO libri (titolo, copie_totali, copie_disponibili) VALUES (?, 3, 3)');
+    $stmt = $db->prepare('INSERT INTO libri (titolo, copie_totali, copie_disponibili) VALUES (?, 8, 8)');
     $stmt->bind_param('s', $title);
     $stmt->execute();
     $bookId = (int) $stmt->insert_id;
     $stmt->close();
-    for ($i = 1; $i <= 3; $i++) {
+    for ($i = 1; $i <= 8; $i++) {
         $inv = $tag . '-C' . $i;
         $stmt = $db->prepare("INSERT INTO copie (libro_id, numero_inventario, stato) VALUES (?, ?, 'disponibile')");
         $stmt->bind_param('is', $bookId, $inv);
@@ -229,6 +233,87 @@ try {
     $r = (new ReservationsAdminController())->update($post(['libro_id' => (string) $bookId, 'stato' => 'annullata']), new Response(), $db, $staffReservation);
     $check(str_contains($location($r), 'error=not_found'), "a custom role cannot edit a Staff account's reservation");
     $check($count("SELECT COUNT(*) FROM prenotazioni WHERE id = ? AND stato = 'attiva'", [$staffReservation]) === 1, 'the reservation is unchanged');
+
+    echo "  Writes on an existing loan or reservation of an out-of-scope account\n";
+    $insertState = static function (int $userId, ?int $copyId, string $stato, int $attivo) use ($db, &$bookId): int {
+        $today = \App\Support\DateHelper::today();
+        $due = (new DateTimeImmutable($today))->modify('+14 days')->format('Y-m-d');
+        $stmt = $db->prepare('INSERT INTO prestiti (libro_id, copia_id, utente_id, data_prestito, data_scadenza, stato, attivo) VALUES (?, ?, ?, ?, ?, ?, ?)');
+        $stmt->bind_param('iiisssi', $bookId, $copyId, $userId, $today, $due, $stato, $attivo);
+        $stmt->execute();
+        $id = (int) $stmt->insert_id;
+        $stmt->close();
+        return $id;
+    };
+    $one = static function (string $sql, int $id) use ($db): ?array {
+        $stmt = $db->prepare($sql);
+        $stmt->bind_param('i', $id);
+        $stmt->execute();
+        $row = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        return $row ?: null;
+    };
+    $json = static function (\Psr\Http\Message\ResponseInterface $r): array {
+        $body = (string) $r->getBody();
+        return ['status' => $r->getStatusCode(), 'data' => json_decode($body, true) ?: []];
+    };
+    $approval = new \App\Controllers\LoanApprovalController();
+
+    $staffActive = $insertLoan($staff, $copies[3]);
+    $before = $one('SELECT data_scadenza, renewals FROM prestiti WHERE id = ?', $staffActive);
+    $actAs($operator);
+    $later = (new DateTimeImmutable((string) $before['data_scadenza']))->modify('+7 days')->format('Y-m-d');
+    $r = (new PrestitiController())->update($post(['data_prestito' => $today, 'data_scadenza' => $later]), new Response(), $db, $staffActive);
+    $check(str_contains($location($r), 'error=loan_not_found'), "a custom role cannot edit the dates of a Staff account's loan");
+    $r = (new PrestitiController())->renew($post([]), new Response(), $db, $staffActive);
+    $check(str_contains($location($r), 'error=loan_not_found'), '...nor renew it');
+    $r = (new PrestitiController())->bulkExtend($post(['ids' => [(string) $staffActive], 'days' => '7']), new Response(), $db);
+    $check(str_contains($location($r), 'bulk_extended=0'), '...nor extend it in bulk (skipped)');
+    $after = $one('SELECT data_scadenza, renewals FROM prestiti WHERE id = ?', $staffActive);
+    $check($after === $before, 'the Staff loan keeps its due date and renewal count');
+
+    $staffPending = $insertState($staff, null, 'pendente', 0);
+    $actAs($operator);
+    $a = $json($approval->approveLoan($post(['loan_id' => (string) $staffPending]), new Response(), $db));
+    $check($a['status'] === 404 && ($a['data']['success'] ?? null) === false, "a custom role cannot approve a Staff account's loan request");
+    $a = $json($approval->rejectLoan($post(['loan_id' => (string) $staffPending, 'reason' => 'audit']), new Response(), $db));
+    $check($a['status'] === 404, '...nor reject it');
+    $check(($one('SELECT stato FROM prestiti WHERE id = ?', $staffPending)['stato'] ?? '') === 'pendente', 'the request is still pending');
+
+    $staffPickup = $insertState($staff, $copies[4], 'da_ritirare', 1);
+    $actAs($operator);
+    $a = $json($approval->confirmPickup($post(['loan_id' => (string) $staffPickup]), new Response(), $db));
+    $check($a['status'] === 404, "a custom role cannot confirm the pickup of a Staff account's loan");
+    $a = $json($approval->cancelPickup($post(['loan_id' => (string) $staffPickup, 'reason' => 'audit']), new Response(), $db));
+    $check($a['status'] === 404, '...nor cancel it');
+    $check(($one('SELECT stato FROM prestiti WHERE id = ?', $staffPickup)['stato'] ?? '') === 'da_ritirare', 'the loan is still waiting for pickup');
+
+    $actAs($operator);
+    $a = $json($approval->cancelReservation($post(['reservation_id' => (string) $staffReservation, 'reason' => 'audit']), new Response(), $db));
+    $check($a['status'] === 404, "a custom role cannot cancel a Staff account's reservation");
+    $check(($one('SELECT stato FROM prenotazioni WHERE id = ?', $staffReservation)['stato'] ?? '') === 'attiva', 'the reservation is still active');
+
+    echo "  Controls: the same writes on a reader in scope go through\n";
+    $readerActive = $insertLoan($reader, $copies[5]);
+    $actAs($operator);
+    $r = (new PrestitiController())->renew($post([]), new Response(), $db, $readerActive);
+    $check(!str_contains($location($r), 'error=loan_not_found'), 'renewing a reader loan is not refused by the scope');
+    $r = (new PrestitiController())->update($post(['data_prestito' => $today, 'data_scadenza' => $due]), new Response(), $db, $readerActive);
+    $check(!str_contains($location($r), 'error=loan_not_found'), 'editing a reader loan is not refused by the scope');
+    $readerPending = $insertState($reader, null, 'pendente', 0);
+    $actAs($operator);
+    $a = $json($approval->rejectLoan($post(['loan_id' => (string) $readerPending, 'reason' => 'audit']), new Response(), $db));
+    $check($a['status'] === 200 && ($a['data']['success'] ?? null) === true, 'rejecting a reader request goes through');
+    // Staff keeps every account in scope. Its own request is the one exception,
+    // and that refusal comes from separation of duties (SelfDealingGuard), not
+    // from the borrower scope: it never answers "not found".
+    $adminPending = $insertState($admin, null, 'pendente', 0);
+    $actAs($staff);
+    $a = $json($approval->rejectLoan($post(['loan_id' => (string) $adminPending, 'reason' => 'audit']), new Response(), $db));
+    $check($a['status'] === 200 && ($a['data']['success'] ?? null) === true, 'Staff keeps every account: it rejects an admin account request');
+    $a = $json($approval->rejectLoan($post(['loan_id' => (string) $staffPending, 'reason' => 'audit']), new Response(), $db));
+    $check($a['status'] !== 404 && ($a['data']['success'] ?? null) === false, 'Staff cannot reject its own request (separation of duties, not the scope)');
+    $check(($one('SELECT stato FROM prestiti WHERE id = ?', $staffPending)['stato'] ?? '') === 'pendente', 'its own request is still pending');
 } catch (\Throwable $e) {
     $check(false, 'unexpected ' . get_class($e) . ': ' . $e->getMessage() . ' @ ' . basename($e->getFile()) . ':' . $e->getLine());
 } finally {

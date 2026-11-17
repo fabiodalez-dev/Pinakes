@@ -170,7 +170,7 @@ async function initializeDewey(initialValue) {
 
     // Reset navigazione
     container.innerHTML = '';
-    breadcrumb.innerHTML = `<i class="fas fa-home"></i> <span>${<?= json_encode(__("Nessuna selezione"), JSON_HEX_TAG) ?>}</span>`;
+    breadcrumb.innerHTML = `<i class="fas fa-home"></i> <span>${<?= json_encode(htmlspecialchars(__("Nessuna selezione"), ENT_QUOTES, 'UTF-8'), JSON_HEX_TAG) ?>}</span>`;
     loadLevel(null, 0);
   };
 

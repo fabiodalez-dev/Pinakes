@@ -20,8 +20,16 @@ if ($start === false || $end === false || $end <= $start) {
     fwrite(STDERR, "FAIL: throttle helpers not found between their markers\n");
     exit(1);
 }
+// The password-policy helper the login handler calls lives in the
+// configuration block at the top of the script.
+$cfgStart = strpos($source, "define('UPGRADE_PASSWORD_MIN_LENGTH'");
+$cfgEnd = strpos($source, "define('MAX_ZIP_SIZE'");
+if ($cfgStart === false || $cfgEnd === false || $cfgEnd <= $cfgStart) {
+    fwrite(STDERR, "FAIL: upgradePasswordConfigured() not found in the configuration block\n");
+    exit(1);
+}
 $fixture = tempnam(sys_get_temp_dir(), 'upgrade_throttle_fixture_');
-file_put_contents($fixture, "<?php\n" . substr($source, $start, $end - $start));
+file_put_contents($fixture, "<?php\n" . substr($source, $cfgStart, $cfgEnd - $cfgStart) . substr($source, $start, $end - $start));
 require $fixture;
 unlink($fixture); // nosemgrep: php.lang.security.unlink-use.unlink-use -- test temp file
 
@@ -146,17 +154,71 @@ try {
     mkdir($dirFile);
     $check(@upgradeAuthUpdate($dirFile, static fn (array $s): array => $s) === null, 'a directory in place of the state file yields null');
 
-    echo "E. The page uses it and fails closed\n";
+    echo "D2. A directory owned by someone else gets its own message\n";
+    $rootO = $mkRoot('siteO');
+    $foreignUid = (function_exists('posix_geteuid') ? posix_geteuid() : getmyuid()) + 4242;
+    $problem = null;
+    $check(upgradeAuthStateDir($rootO, $problem, $foreignUid) === null && $problem === 'foreign_owner',
+        'a state directory owned by another user is refused as foreign_owner');
+    $msg = upgradeAuthUnavailableMessage($problem, $rootO);
+    $check(str_contains($msg, $rootO . '/storage/cache/upgrade-auth') && str_contains($msg, 'chown') && str_contains($msg, 'Eliminala'),
+        'the message names the folder to delete or chown');
+    $check(!str_contains($msg, 'rendi scrivibile'), 'it no longer blames a non-writable storage/cache');
+    $problem = null;
+    upgradeAuthStateDir($rootE, $problem);
+    $check($problem === 'unavailable' && str_contains(upgradeAuthUnavailableMessage($problem, $rootE), 'rendi scrivibile'),
+        'a directory that cannot be created keeps the writable-storage message');
+    $rootRoot = $mkRoot('siteRoot');
+    $problem = null;
+    $check(upgradeAuthStateDir($rootRoot, $problem, 0) === null && !file_exists($rootRoot . '/storage/cache'),
+        'a run as root never creates storage/cache or the state directory');
+
+    echo "E. The real password POST handler\n";
     $check(!str_contains($source, 'pinakes_upgrade_auth_') && !str_contains($source, "attemptFile = sys_get_temp_dir()"), 'the old temp-dir state file is gone from the script');
-    $loginPos = strpos($source, "if (\$requestMethod === 'POST' && isset(\$_POST['password']))");
-    $login = (string) substr($source, (int) $loginPos, 1800);
-    $reservePos = strpos($login, 'upgradeAuthReserveAttempt(');
-    $nullPos = strpos($login, '$reservation === null');
-    $passPos = strpos($login, 'hash_equals(UPGRADE_PASSWORD');
-    $check($reservePos !== false && $nullPos !== false && $passPos !== false && $reservePos < $nullPos && $nullPos < $passPos,
-        'the attempt is reserved, and a missing counter refused, before the password is compared');
-    $check(!str_contains($login, "\$state['failed']++") && substr_count($login, 'upgradeAuthUpdate(') === 1,
-        'the login records nothing after the comparison except clearing the counter on success');
+    $rootL = $mkRoot('siteL');
+    $addr = '203.0.113.90';
+    $fileL = (string) upgradeAuthStateFile($rootL, $addr);
+    $readL = static fn (): array => (array) upgradeAuthUpdate($fileL, static fn (array $s): array => $s);
+    $pw = 'correct horse battery';
+    $calls = 0;
+    $err = upgradeAuthHandlePasswordPost($rootL, $addr, 'wrong', $pw, 5, 300, static function () use (&$calls): void { $calls++; });
+    $check($err === 'Password errata.' && $calls === 0 && $readL()['failed'] === 1, 'a wrong password is refused and counted');
+    $seenDuringSuccess = null;
+    $err = upgradeAuthHandlePasswordPost($rootL, $addr, $pw, $pw, 5, 300, static function () use (&$calls, &$seenDuringSuccess, $readL): void {
+        $calls++;
+        $seenDuringSuccess = $readL()['failed'];
+    });
+    $check($err === '' && $calls === 1, 'the right password succeeds and runs the success callback once');
+    $check($seenDuringSuccess === 2, 'the attempt was already reserved when the password matched (counter 2 inside the callback, got ' . var_export($seenDuringSuccess, true) . ')');
+    $check($readL() === ['failed' => 0, 'lock_until' => 0], 'and the counter is reset after the success');
+    for ($i = 0; $i < 5; $i++) {
+        upgradeAuthHandlePasswordPost($rootL, $addr, 'wrong', $pw, 5, 300, static function (): void {});
+    }
+    $calls = 0;
+    $err = upgradeAuthHandlePasswordPost($rootL, $addr, $pw, $pw, 5, 300, static function () use (&$calls): void { $calls++; });
+    $check(str_starts_with($err, 'Troppi tentativi') && $calls === 0, 'once locked, even the right password is refused without being compared');
+    $rootDef = $mkRoot('siteDef');
+    $err = upgradeAuthHandlePasswordPost($rootDef, $addr, 'pinakes2026', 'pinakes2026', 5, 300, static function () use (&$calls): void { $calls++; });
+    $check(str_starts_with($err, 'SICUREZZA') && $calls === 0, 'the shipped default password never logs in');
+    $err = upgradeAuthHandlePasswordPost($rootDef, $addr . '1', 'short1', 'short1', 5, 300, static function () use (&$calls): void { $calls++; });
+    $check(str_starts_with($err, 'SICUREZZA') && $calls === 0, 'a configured password shorter than UPGRADE_PASSWORD_MIN_LENGTH never logs in');
+    $err = upgradeAuthHandlePasswordPost($rootO, $addr, $pw, $pw, 5, 300, static function () use (&$calls): void { $calls++; }, $foreignUid);
+    $check(str_contains($err, 'chown') && $calls === 0, 'a foreign-owned state directory fails closed with its own message');
+    $err = upgradeAuthHandlePasswordPost($rootE, $addr, $pw, $pw, 5, 300, static function () use (&$calls): void { $calls++; });
+    $check(str_contains($err, 'rendi scrivibile') && $calls === 0, 'no usable counter: no password check');
+
+    echo "F. The CLI run never touches the throttle state\n";
+    $install = $tmp . '/cli-install';
+    mkdir($install . '/scripts', 0775, true);
+    mkdir($install . '/storage', 0775, true);
+    copy(dirname(__DIR__) . '/scripts/manual-upgrade.php', $install . '/scripts/manual-upgrade.php');
+    file_put_contents($install . '/version.json', '{"version":"0.0.1"}');
+    file_put_contents($install . '/package.zip', '');
+    $p = proc_open([PHP_BINARY, $install . '/scripts/manual-upgrade.php', $install . '/package.zip'], [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
+    $out = (string) stream_get_contents($pipes[1]) . (string) stream_get_contents($pipes[2]);
+    proc_close($p);
+    $check(str_contains($out, '.env non trovato'), 'the CLI run reached the upgrade body (stops on the missing .env)');
+    $check(!file_exists($install . '/storage/cache'), 'and created neither storage/cache nor the state directory');
     $check(str_contains($source, "tempnam(\$rootPath . '/storage/tmp', 'pinakes_dump_')"), 'the mysqldump credentials file is created inside the install, not the shared temp dir');
 } finally {
     if (is_dir($tmp)) {

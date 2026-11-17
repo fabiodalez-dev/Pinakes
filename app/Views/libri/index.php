@@ -774,9 +774,9 @@ document.addEventListener('DOMContentLoaded', function() {
           if (row.prestito_info) {
             const utente = escapeHtml(row.prestito_info.utente);
             const scadenza = escapeHtml(row.prestito_info.scadenza);
-            tooltip += `\n${<?= json_encode(__("Utente"), JSON_HEX_TAG) ?>}: ${utente}\n${<?= json_encode(__("Scadenza"), JSON_HEX_TAG) ?>}: ${scadenza}`;
+            tooltip += `\n${escapeHtml(<?= json_encode(__("Utente"), JSON_HEX_TAG) ?>)}: ${utente}\n${escapeHtml(<?= json_encode(__("Scadenza"), JSON_HEX_TAG) ?>)}: ${scadenza}`;
             if (row.prestito_info.in_ritardo) {
-              tooltip += `\n${<?= json_encode(__("IN RITARDO"), JSON_HEX_TAG) ?>}`;
+              tooltip += `\n${escapeHtml(<?= json_encode(__("IN RITARDO"), JSON_HEX_TAG) ?>)}`;
             }
           }
 
@@ -901,13 +901,13 @@ document.addEventListener('DOMContentLoaded', function() {
           const safeActionId = parseInt(data, 10);
           if (!Number.isFinite(safeActionId)) return '<span class="text-gray-400">-</span>';
           return `<div class="flex items-center justify-center gap-0.5">
-            <a href="${window.BASE_PATH}/admin/books/${safeActionId}" class="btn-icon btn-secondary w-7 h-7 inline-flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded transition-all" title="${<?= json_encode(__('Visualizza'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT) ?>}" aria-label="${<?= json_encode(__('Visualizza'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT) ?>}">
+            <a href="${window.BASE_PATH}/admin/books/${safeActionId}" class="btn-icon btn-secondary w-7 h-7 inline-flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded transition-all" title="${<?= json_encode(htmlspecialchars(__('Visualizza'), ENT_QUOTES, 'UTF-8'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT) ?>}" aria-label="${<?= json_encode(htmlspecialchars(__('Visualizza'), ENT_QUOTES, 'UTF-8'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT) ?>}">
               <i class="fas fa-eye text-xs"></i>
             </a>
-            <a href="${window.BASE_PATH}/admin/books/edit/${safeActionId}" class="btn-icon btn-secondary w-7 h-7 inline-flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded transition-all" title="${<?= json_encode(__('Modifica'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT) ?>}" aria-label="${<?= json_encode(__('Modifica'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT) ?>}">
+            <a href="${window.BASE_PATH}/admin/books/edit/${safeActionId}" class="btn-icon btn-secondary w-7 h-7 inline-flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded transition-all" title="${<?= json_encode(htmlspecialchars(__('Modifica'), ENT_QUOTES, 'UTF-8'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT) ?>}" aria-label="${<?= json_encode(htmlspecialchars(__('Modifica'), ENT_QUOTES, 'UTF-8'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT) ?>}">
               <i class="fas fa-edit text-xs"></i>
             </a>
-            <button type="button" data-pk-action="books-delete" data-book-id="${safeActionId}" class="btn-icon btn-danger-outline w-7 h-7 inline-flex items-center justify-center text-gray-500 hover:text-red-500 hover:bg-red-50 rounded transition-all" title="${<?= json_encode(__('Elimina'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT) ?>}" aria-label="${<?= json_encode(__('Elimina'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT) ?>}">
+            <button type="button" data-pk-action="books-delete" data-book-id="${safeActionId}" class="btn-icon btn-danger-outline w-7 h-7 inline-flex items-center justify-center text-gray-500 hover:text-red-500 hover:bg-red-50 rounded transition-all" title="${<?= json_encode(htmlspecialchars(__('Elimina'), ENT_QUOTES, 'UTF-8'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT) ?>}" aria-label="${<?= json_encode(htmlspecialchars(__('Elimina'), ENT_QUOTES, 'UTF-8'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT) ?>}">
               <i class="fas fa-trash text-xs"></i>
             </button>
           </div>`;
@@ -1087,7 +1087,7 @@ document.addEventListener('DOMContentLoaded', function() {
       suggest.innerHTML = '';
 
       if (data.length === 0) {
-        suggest.innerHTML = `<li class="px-3 py-2 text-gray-400 text-sm">${<?= json_encode(__("Nessun risultato"), JSON_HEX_TAG) ?>}</li>`;
+        suggest.innerHTML = `<li class="px-3 py-2 text-gray-400 text-sm">${escapeHtml(<?= json_encode(__("Nessun risultato"), JSON_HEX_TAG) ?>)}</li>`;
       } else {
         data.slice(0, 6).forEach(item => {
           const li = document.createElement('li');
@@ -1305,10 +1305,10 @@ document.addEventListener('DOMContentLoaded', function() {
     if (selectedBooks.size === 0) return;
     const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
     const { value: collanaName } = await Swal.fire({
-      title: __('Assegna collana'),
+      title: escapeHtml(__('Assegna collana')),
       html: '<div class="text-left">'
-        + '<label class="block text-sm font-medium text-gray-700 mb-1">' + __('Nome della collana') + '</label>'
-        + '<input id="swal-collana-input" class="swal2-input swal-collana-input" placeholder="' + __('es. Harry Potter') + '">'
+        + '<label class="block text-sm font-medium text-gray-700 mb-1">' + escapeHtml(__('Nome della collana')) + '</label>'
+        + '<input id="swal-collana-input" class="swal2-input swal-collana-input" placeholder="' + escapeHtml(__('es. Harry Potter')) + '">'
         + '<div id="swal-collana-results" class="mt-1 max-h-32 overflow-y-auto text-sm"></div>'
         + '</div>',
       showCancelButton: true,
@@ -1391,21 +1391,21 @@ document.addEventListener('DOMContentLoaded', function() {
     let pickedId = null;
 
     const options = bulkEditFields
-      .map(f => '<option value="' + f.key + '">' + f.label + '</option>')
+      .map(f => '<option value="' + f.key + '">' + escapeHtml(f.label) + '</option>')
       .join('');
 
     const result = await Swal.fire({
-      title: __('Modifica campo'),
+      title: escapeHtml(__('Modifica campo')),
       html: '<div class="text-left">'
-        + '<p class="text-sm text-gray-500 mb-3">' + __('La modifica sarà applicata a %d libri selezionati.', count) + '</p>'
-        + '<label class="block text-sm font-medium text-gray-700 mb-1" for="swal-bulk-field">' + __('Campo') + '</label>'
+        + '<p class="text-sm text-gray-500 mb-3">' + escapeHtml(__('La modifica sarà applicata a %d libri selezionati.', count)) + '</p>'
+        + '<label class="block text-sm font-medium text-gray-700 mb-1" for="swal-bulk-field">' + escapeHtml(__('Campo')) + '</label>'
         + '<select id="swal-bulk-field" class="swal2-select swal-bulk-field">' + options + '</select>'
         + '<div class="mt-2 flex items-center gap-4">'
-        + '<label class="text-sm text-gray-700"><input type="radio" name="swal-bulk-mode" value="add" checked> ' + __('Aggiungi') + '</label>'
-        + '<label class="text-sm text-gray-700"><input type="radio" name="swal-bulk-mode" value="replace"> ' + __('Sostituisci') + '</label>'
+        + '<label class="text-sm text-gray-700"><input type="radio" name="swal-bulk-mode" value="add" checked> ' + escapeHtml(__('Aggiungi')) + '</label>'
+        + '<label class="text-sm text-gray-700"><input type="radio" name="swal-bulk-mode" value="replace"> ' + escapeHtml(__('Sostituisci')) + '</label>'
         + '</div>'
         + '<p id="swal-bulk-mode-help" class="text-xs text-gray-500 mt-1"></p>'
-        + '<label class="block text-sm font-medium text-gray-700 mb-1 mt-2" for="swal-bulk-value">' + __('Valore') + '</label>'
+        + '<label class="block text-sm font-medium text-gray-700 mb-1 mt-2" for="swal-bulk-value">' + escapeHtml(__('Valore')) + '</label>'
         + '<input id="swal-bulk-value" class="swal2-input swal-collana-input" autocomplete="off">'
         + '<div id="swal-bulk-results" class="mt-1 max-h-32 overflow-y-auto text-sm"></div>'
         + '<p id="swal-bulk-value-help" class="text-xs text-gray-500 mt-1"></p>'
@@ -1738,8 +1738,8 @@ document.addEventListener('DOMContentLoaded', function() {
             ${autori ? `<p class="text-sm text-gray-600 mt-1">${autori}</p>` : ''}
             ${editore ? `<p class="text-sm text-gray-500">${editore}</p>` : ''}
             <div class="flex gap-2 mt-4">
-              <a href="${window.BASE_PATH}/admin/books/${bookId}" class="flex-1 px-4 py-2 bg-gray-800 text-white text-center rounded-lg text-sm hover:bg-gray-700">${<?= json_encode(__("Dettagli"), JSON_HEX_TAG) ?>}</a>
-              <a href="${window.BASE_PATH}/admin/books/edit/${bookId}" class="flex-1 px-4 py-2 bg-gray-100 text-gray-800 text-center rounded-lg text-sm hover:bg-gray-200">${<?= json_encode(__("Modifica"), JSON_HEX_TAG) ?>}</a>
+              <a href="${window.BASE_PATH}/admin/books/${bookId}" class="flex-1 px-4 py-2 bg-gray-800 text-white text-center rounded-lg text-sm hover:bg-gray-700">${escapeHtml(<?= json_encode(__("Dettagli"), JSON_HEX_TAG) ?>)}</a>
+              <a href="${window.BASE_PATH}/admin/books/edit/${bookId}" class="flex-1 px-4 py-2 bg-gray-100 text-gray-800 text-center rounded-lg text-sm hover:bg-gray-200">${escapeHtml(<?= json_encode(__("Modifica"), JSON_HEX_TAG) ?>)}</a>
             </div>
           </div>
         `,

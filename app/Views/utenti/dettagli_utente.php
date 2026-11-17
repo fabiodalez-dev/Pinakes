@@ -122,6 +122,16 @@ $display = static function (?string $value, string $placeholder = '—'): string
     </div>
   <?php endif; ?>
 
+  <?php if ($error === 'state_changed'): ?>
+    <div class="bg-amber-50 border border-amber-200 rounded-lg p-4 flex items-start gap-3" role="alert">
+      <i class="fas fa-sync-alt text-amber-600 mt-0.5"></i>
+      <div>
+        <p class="font-medium text-amber-900"><?= __("Account modificato nel frattempo") ?></p>
+        <p class="text-sm text-amber-700 mt-1"><?= __("Un'altra operazione ha modificato l'account mentre l'approvazione era in corso. Ricarica la pagina e controlla lo stato attuale prima di riprovare.") ?></p>
+      </div>
+    </div>
+  <?php endif; ?>
+
   <?php if ($error === 'db_error'): ?>
     <div class="bg-red-50 border border-red-200 rounded-lg p-4 flex items-start gap-3" role="alert">
       <i class="fas fa-exclamation-triangle text-red-600 mt-0.5"></i>

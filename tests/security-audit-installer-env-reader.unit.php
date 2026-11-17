@@ -131,6 +131,10 @@ final class CapturingProbe extends Installer
         $this->seen = $env;
         throw new \RuntimeException('no database in this test');
     }
+    protected function runsUnderCli(): bool
+    {
+        return false; // exercise the web wizard's predicate
+    }
 }
 $probe = new CapturingProbe($site);
 $_SESSION = []; // not the owner: the probe runs

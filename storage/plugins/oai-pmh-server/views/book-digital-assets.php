@@ -214,7 +214,7 @@ $oaiHasData = !empty($assets);
     var MSG_DELETED = <?= json_encode(__('Copia digitalizzata eliminata'), JSON_HEX_TAG) ?>;
     var MSG_UNSAFE_URL = <?= json_encode(__('URL non sicuro'), JSON_HEX_TAG) ?>;
     var MSG_LOADING = <?= json_encode(__('Salvataggio...'), JSON_HEX_TAG) ?>;
-    var ADD_BTN_HTML = '<i class="fas fa-check"></i> ' + <?= json_encode(__('Aggiungi'), JSON_HEX_TAG) ?>;
+    var ADD_BTN_HTML = '<i class="fas fa-check"></i> ' + escapeHtml(<?= json_encode(__('Aggiungi'), JSON_HEX_TAG) ?>);
 
     function escapeHtml(s) {
         return String(s == null ? '' : s)

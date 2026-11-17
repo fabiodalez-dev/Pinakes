@@ -563,7 +563,7 @@ document.addEventListener('DOMContentLoaded', function() {
         // Show progress container
         progressContainer.classList.remove('hidden');
         submitBtn.disabled = true;
-        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>' + <?= json_encode(__("Importazione in corso..."), JSON_HEX_TAG) ?>;
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>' + escapeHtml(<?= json_encode(__("Importazione in corso..."), JSON_HEX_TAG) ?>);
 
         // Use XMLHttpRequest for progress monitoring
         const xhr = new XMLHttpRequest();
@@ -646,10 +646,10 @@ document.addEventListener('DOMContentLoaded', function() {
                     if (stats.error_details.length > 0) {
                         const maxShow = 10;
                         const shown = stats.error_details.slice(0, maxShow);
-                        message += '<br><br><strong>' + <?= json_encode(__("Errori durante l'import"), JSON_HEX_TAG) ?> + ':</strong><ul style="text-align:left;margin-top:8px;font-size:0.9em">';
+                        message += '<br><br><strong>' + escapeHtml(<?= json_encode(__("Errori durante l'import"), JSON_HEX_TAG) ?>) + ':</strong><ul style="text-align:left;margin-top:8px;font-size:0.9em">';
                         shown.forEach(e => { message += `<li>${escapeHtml(e)}</li>`; });
                         if (stats.error_details.length > maxShow) {
-                            message += `<li><em>... ${<?= json_encode(__("e altri"), JSON_HEX_TAG) ?>} ${stats.error_details.length - maxShow} ${<?= json_encode(__("errori"), JSON_HEX_TAG) ?>}</em></li>`;
+                            message += `<li><em>... ${escapeHtml(<?= json_encode(__("e altri"), JSON_HEX_TAG) ?>)} ${stats.error_details.length - maxShow} ${escapeHtml(<?= json_encode(__("errori"), JSON_HEX_TAG) ?>)}</em></li>`;
                         }
                         message += '</ul>';
                     }
@@ -756,7 +756,7 @@ document.addEventListener('DOMContentLoaded', function() {
     function showError(message) {
         const submitBtn = document.getElementById('submitBtn');
         submitBtn.disabled = false;
-        submitBtn.innerHTML = '<i class="fas fa-cloud-upload-alt mr-2"></i>' + <?= json_encode(__("Importa"), JSON_HEX_TAG) ?>;
+        submitBtn.innerHTML = '<i class="fas fa-cloud-upload-alt mr-2"></i>' + escapeHtml(<?= json_encode(__("Importa"), JSON_HEX_TAG) ?>);
 
         window.SwalApp.error(<?= json_encode(__("Errore"), JSON_HEX_TAG) ?>, message);
 

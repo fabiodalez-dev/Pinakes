@@ -849,7 +849,7 @@ async function startUpdate(version) {
         document.getElementById('updateTitle').textContent = <?= json_encode(__("Errore"), JSON_HEX_TAG) ?>;
         document.getElementById('updateMessage').innerHTML = escapeHtml(error.message) +
             '<br><br><button type="button" data-pk-action="updates-clear-maintenance" class="mt-2 px-4 py-2 text-sm bg-yellow-100 text-yellow-800 rounded-lg hover:bg-yellow-200">' +
-            '<i class="fas fa-unlock mr-1"><\/i>' + <?= json_encode(__("Disattiva modalità manutenzione"), JSON_HEX_TAG) ?> + '</button>';
+            '<i class="fas fa-unlock mr-1"><\/i>' + escapeHtml(<?= json_encode(__("Disattiva modalità manutenzione"), JSON_HEX_TAG) ?>) + '</button>';
         document.getElementById('updateActions').classList.remove('hidden');
     }
 }
@@ -1068,7 +1068,7 @@ async function loadBackups() {
             <div class="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
                 <i class="fas fa-spinner fa-spin text-gray-400 text-xl"></i>
             </div>
-            <p class="text-gray-600">${<?= json_encode(__("Caricamento backup..."), JSON_HEX_TAG) ?>}</p>
+            <p class="text-gray-600">${escapeHtml(<?= json_encode(__("Caricamento backup..."), JSON_HEX_TAG) ?>)}</p>
         </div>
     `;
 
@@ -1091,8 +1091,8 @@ async function loadBackups() {
                     <div class="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
                         <i class="fas fa-database text-gray-400 text-2xl"></i>
                     </div>
-                    <h3 class="text-lg font-medium text-gray-900 mb-2">${<?= json_encode(__("Nessun backup disponibile"), JSON_HEX_TAG) ?>}</h3>
-                    <p class="text-gray-600">${<?= json_encode(__("Crea un backup manuale o attendi il prossimo aggiornamento."), JSON_HEX_TAG) ?>}</p>
+                    <h3 class="text-lg font-medium text-gray-900 mb-2">${escapeHtml(<?= json_encode(__("Nessun backup disponibile"), JSON_HEX_TAG) ?>)}</h3>
+                    <p class="text-gray-600">${escapeHtml(<?= json_encode(__("Crea un backup manuale o attendi il prossimo aggiornamento."), JSON_HEX_TAG) ?>)}</p>
                 </div>
             `;
             return;
@@ -1103,11 +1103,11 @@ async function loadBackups() {
                 <table class="w-full">
                     <thead class="bg-gray-50">
                         <tr>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">${<?= json_encode(__("Nome File"), JSON_HEX_TAG) ?>}</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">${<?= json_encode(__("Data"), JSON_HEX_TAG) ?>}</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">${<?= json_encode(__("Contenuto"), JSON_HEX_TAG) ?>}</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">${<?= json_encode(__("Dimensione"), JSON_HEX_TAG) ?>}</th>
-                            <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">${<?= json_encode(__("Azioni"), JSON_HEX_TAG) ?>}</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">${escapeHtml(<?= json_encode(__("Nome File"), JSON_HEX_TAG) ?>)}</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">${escapeHtml(<?= json_encode(__("Data"), JSON_HEX_TAG) ?>)}</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">${escapeHtml(<?= json_encode(__("Contenuto"), JSON_HEX_TAG) ?>)}</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">${escapeHtml(<?= json_encode(__("Dimensione"), JSON_HEX_TAG) ?>)}</th>
+                            <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">${escapeHtml(<?= json_encode(__("Azioni"), JSON_HEX_TAG) ?>)}</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-gray-200">
@@ -1142,14 +1142,14 @@ async function loadBackups() {
                         <button data-backup="${escapeHtml(backup.name)}" data-action="download"
                             class="btn-backup-download inline-flex items-center px-3 py-1.5 text-xs font-medium text-blue-700 bg-blue-100 rounded-lg hover:bg-blue-200 mr-2">
                             <i class="fas fa-download mr-1"></i>
-                            ${<?= json_encode(__("Scarica"), JSON_HEX_TAG) ?>}
+                            ${escapeHtml(<?= json_encode(__("Scarica"), JSON_HEX_TAG) ?>)}
                         </button>
                         <button data-backup="${escapeHtml(backup.name)}" data-action="delete"
                             class="btn-backup-delete inline-flex items-center px-3 py-1.5 text-xs font-medium text-red-700 bg-red-100 rounded-lg hover:bg-red-200">
                             <i class="fas fa-trash mr-1"></i>
-                            ${<?= json_encode(__("Elimina"), JSON_HEX_TAG) ?>}
+                            ${escapeHtml(<?= json_encode(__("Elimina"), JSON_HEX_TAG) ?>)}
                         </button>`
-                : (restoreBtn ? '' : `<span class="text-xs text-gray-400">${<?= json_encode(__("Sola lettura"), JSON_HEX_TAG) ?>}</span>`);
+                : (restoreBtn ? '' : `<span class="text-xs text-gray-400">${escapeHtml(<?= json_encode(__("Sola lettura"), JSON_HEX_TAG) ?>)}</span>`);
 
             html += `
                 <tr class="hover:bg-gray-50">
@@ -1256,7 +1256,7 @@ function downloadBackup(backupName) {
 async function restoreBackup(backupName) {
     const result = await Swal.fire({
         title: <?= json_encode(__("Ripristinare questo backup?"), JSON_HEX_TAG) ?>,
-        html: `<p class="font-mono text-sm">${escapeHtml(backupName)}</p><p class="text-sm text-red-600 mt-3">${<?= json_encode(__("I dati attuali (database e file) verranno sovrascritti. Un backup di sicurezza verrà creato prima del ripristino."), JSON_HEX_TAG) ?>}</p>`,
+        html: `<p class="font-mono text-sm">${escapeHtml(backupName)}</p><p class="text-sm text-red-600 mt-3">${escapeHtml(<?= json_encode(__("I dati attuali (database e file) verranno sovrascritti. Un backup di sicurezza verrà creato prima del ripristino."), JSON_HEX_TAG) ?>)}</p>`,
         icon: 'warning',
         showCancelButton: true,
         confirmButtonText: <?= json_encode(__("Ripristina"), JSON_HEX_TAG) ?>,
@@ -1289,7 +1289,7 @@ async function uploadRestoreFile() {
     }
     const result = await Swal.fire({
         title: <?= json_encode(__("Ripristinare da questo file?"), JSON_HEX_TAG) ?>,
-        html: `<p class="font-mono text-sm">${escapeHtml(file.name)}</p><p class="text-sm text-red-600 mt-3">${<?= json_encode(__("I dati attuali (database e file) verranno sovrascritti. Un backup di sicurezza verrà creato prima del ripristino."), JSON_HEX_TAG) ?>}</p><p class="text-xs text-gray-500 mt-3">${<?= json_encode(__("Ripristina solo archivi creati da questa istanza o di cui ti fidi completamente: il contenuto del database verrà sostituito con quello dell'archivio."), JSON_HEX_TAG) ?>}</p>`,
+        html: `<p class="font-mono text-sm">${escapeHtml(file.name)}</p><p class="text-sm text-red-600 mt-3">${escapeHtml(<?= json_encode(__("I dati attuali (database e file) verranno sovrascritti. Un backup di sicurezza verrà creato prima del ripristino."), JSON_HEX_TAG) ?>)}</p><p class="text-xs text-gray-500 mt-3">${escapeHtml(<?= json_encode(__("Ripristina solo archivi creati da questa istanza o di cui ti fidi completamente: il contenuto del database verrà sostituito con quello dell'archivio."), JSON_HEX_TAG) ?>)}</p>`,
         icon: 'warning',
         showCancelButton: true,
         confirmButtonText: <?= json_encode(__("Carica e Ripristina"), JSON_HEX_TAG) ?>,
@@ -1392,8 +1392,8 @@ async function runRestore(url, body, isFormData) {
             await Swal.fire({
                 icon: 'warning',
                 title: <?= json_encode(__("Ripristino parziale"), JSON_HEX_TAG) ?>,
-                html: `<p>${<?= json_encode(__("Il database è stato ripristinato ma il ripristino dei file è fallito. NON riprovare il ripristino: ripristina il backup di sicurezza solo se necessario."), JSON_HEX_TAG) ?>}</p>`
-                    + (data.safety_backup ? `<p class="text-sm mt-3">${<?= json_encode(__("Backup di sicurezza creato:"), JSON_HEX_TAG) ?>} <span class="font-mono">${escapeHtml(String(data.safety_backup))}</span></p>` : '')
+                html: `<p>${escapeHtml(<?= json_encode(__("Il database è stato ripristinato ma il ripristino dei file è fallito. NON riprovare il ripristino: ripristina il backup di sicurezza solo se necessario."), JSON_HEX_TAG) ?>)}</p>`
+                    + (data.safety_backup ? `<p class="text-sm mt-3">${escapeHtml(<?= json_encode(__("Backup di sicurezza creato:"), JSON_HEX_TAG) ?>)} <span class="font-mono">${escapeHtml(String(data.safety_backup))}</span></p>` : '')
             });
             loadBackups();
         } else if (data && data.error) {
@@ -1405,8 +1405,8 @@ async function runRestore(url, body, isFormData) {
             // the backup list so a pre-restore safety backup is visible.
             await Swal.fire({
                 icon: 'warning',
-                title: <?= json_encode(__("Errore durante il ripristino"), JSON_HEX_TAG) ?> + ' (HTTP ' + httpStatus + ')',
-                html: `<p class="text-sm">${<?= json_encode(__("Il server non ha risposto correttamente: l'operazione potrebbe essere ancora in corso o interrotta a metà. Non avviare subito un nuovo ripristino. Verifica la lista backup (potrebbe esserci un backup di sicurezza pre-ripristino) e i log del server."), JSON_HEX_TAG) ?>}</p>`
+                title: escapeHtml(<?= json_encode(__("Errore durante il ripristino"), JSON_HEX_TAG) ?>) + ' (HTTP ' + httpStatus + ')',
+                html: `<p class="text-sm">${escapeHtml(<?= json_encode(__("Il server non ha risposto correttamente: l'operazione potrebbe essere ancora in corso o interrotta a metà. Non avviare subito un nuovo ripristino. Verifica la lista backup (potrebbe esserci un backup di sicurezza pre-ripristino) e i log del server."), JSON_HEX_TAG) ?>)}</p>`
             });
             loadBackups();
         }
@@ -1414,7 +1414,7 @@ async function runRestore(url, body, isFormData) {
         await Swal.fire({
             icon: 'warning',
             title: <?= json_encode(__("Errore durante il ripristino"), JSON_HEX_TAG) ?>,
-            html: `<p class="text-sm">${<?= json_encode(__("Il server non ha risposto correttamente: l'operazione potrebbe essere ancora in corso o interrotta a metà. Non avviare subito un nuovo ripristino. Verifica la lista backup (potrebbe esserci un backup di sicurezza pre-ripristino) e i log del server."), JSON_HEX_TAG) ?>}</p>`
+            html: `<p class="text-sm">${escapeHtml(<?= json_encode(__("Il server non ha risposto correttamente: l'operazione potrebbe essere ancora in corso o interrotta a metà. Non avviare subito un nuovo ripristino. Verifica la lista backup (potrebbe esserci un backup di sicurezza pre-ripristino) e i log del server."), JSON_HEX_TAG) ?>)}</p>`
         });
         loadBackups();
     } finally {
@@ -1608,7 +1608,7 @@ async function submitManualUpdate() {
     const sanitizedName = escapeHtml(uploadedFile.name);
     const result = await Swal.fire({
         title: <?= json_encode(__("Avviare l'aggiornamento manuale?"), JSON_HEX_TAG) ?>,
-        html: <?= json_encode(__("Verrà installato il pacchetto:"), JSON_HEX_TAG) ?> + `<br><code class="text-sm bg-gray-100 px-2 py-1 rounded">${sanitizedName}<\/code><br><br>` + <?= json_encode(__("Prima dell'installazione verrà creato automaticamente un backup del database."), JSON_HEX_TAG) ?>,
+        html: escapeHtml(<?= json_encode(__("Verrà installato il pacchetto:"), JSON_HEX_TAG) ?>) + `<br><code class="text-sm bg-gray-100 px-2 py-1 rounded">${sanitizedName}<\/code><br><br>` + escapeHtml(<?= json_encode(__("Prima dell'installazione verrà creato automaticamente un backup del database."), JSON_HEX_TAG) ?>),
         icon: 'warning',
         showCancelButton: true,
         confirmButtonText: <?= json_encode(__("Avvia Aggiornamento"), JSON_HEX_TAG) ?>,
@@ -1658,23 +1658,23 @@ async function submitManualUpdate() {
             title: <?= json_encode(__("Installazione in corso..."), JSON_HEX_TAG) ?>,
             html: `
                 <div class="mb-4">
-                    <p class="text-sm text-gray-600 mb-2">${<?= json_encode(__("L'aggiornamento può richiedere alcuni minuti. Non chiudere questa pagina."), JSON_HEX_TAG) ?>}</p>
+                    <p class="text-sm text-gray-600 mb-2">${escapeHtml(<?= json_encode(__("L'aggiornamento può richiedere alcuni minuti. Non chiudere questa pagina."), JSON_HEX_TAG) ?>)}</p>
                     <div class="bg-gray-100 rounded-lg p-4 space-y-2 text-sm text-left">
                         <div class="flex items-center gap-2">
                             <i class="fas fa-spinner fa-spin text-green-600"></i>
-                            <span>${<?= json_encode(__("Creazione backup database..."), JSON_HEX_TAG) ?>}</span>
+                            <span>${escapeHtml(<?= json_encode(__("Creazione backup database..."), JSON_HEX_TAG) ?>)}</span>
                         </div>
                         <div class="flex items-center gap-2 text-gray-400">
                             <i class="far fa-circle"></i>
-                            <span>${<?= json_encode(__("Estrazione pacchetto..."), JSON_HEX_TAG) ?>}</span>
+                            <span>${escapeHtml(<?= json_encode(__("Estrazione pacchetto..."), JSON_HEX_TAG) ?>)}</span>
                         </div>
                         <div class="flex items-center gap-2 text-gray-400">
                             <i class="far fa-circle"></i>
-                            <span>${<?= json_encode(__("Installazione file..."), JSON_HEX_TAG) ?>}</span>
+                            <span>${escapeHtml(<?= json_encode(__("Installazione file..."), JSON_HEX_TAG) ?>)}</span>
                         </div>
                         <div class="flex items-center gap-2 text-gray-400">
                             <i class="far fa-circle"></i>
-                            <span>${<?= json_encode(__("Completamento..."), JSON_HEX_TAG) ?>}</span>
+                            <span>${escapeHtml(<?= json_encode(__("Completamento..."), JSON_HEX_TAG) ?>)}</span>
                         </div>
                     </div>
                 </div>
@@ -1689,7 +1689,7 @@ async function submitManualUpdate() {
             () => {
                 Swal.update({
                     title: <?= json_encode(__("Installazione in corso..."), JSON_HEX_TAG) ?>,
-                    html: `<p class="text-sm text-gray-600">${<?= json_encode(__("La connessione si è interrotta, ma l'aggiornamento continua sul server. Attendo che finisca…"), JSON_HEX_TAG) ?>}</p>`
+                    html: `<p class="text-sm text-gray-600">${escapeHtml(<?= json_encode(__("La connessione si è interrotta, ma l'aggiornamento continua sul server. Attendo che finisca…"), JSON_HEX_TAG) ?>)}</p>`
                 });
                 Swal.showLoading();
             }
@@ -1699,7 +1699,7 @@ async function submitManualUpdate() {
             Swal.fire({
                 icon: 'success',
                 title: <?= json_encode(__("Aggiornamento completato!"), JSON_HEX_TAG) ?>,
-                html: `<p>${escapeHtml(installData.message)}</p><p class="text-sm text-gray-600 mt-2">${<?= json_encode(__("La pagina verrà ricaricata automaticamente..."), JSON_HEX_TAG) ?>}</p>`,
+                html: `<p>${escapeHtml(installData.message)}</p><p class="text-sm text-gray-600 mt-2">${escapeHtml(<?= json_encode(__("La pagina verrà ricaricata automaticamente..."), JSON_HEX_TAG) ?>)}</p>`,
                 timer: 3000,
                 showConfirmButton: false
             }).then(() => {

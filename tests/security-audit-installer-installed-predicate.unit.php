@@ -57,8 +57,17 @@ $mkSite = static function () use ($tmpRoot): string {
     return $d;
 };
 
+/** The web wizard's view: these checks run in the CLI but exercise the web predicate. */
+class WebInstaller extends Installer
+{
+    protected function runsUnderCli(): bool
+    {
+        return false;
+    }
+}
+
 /** Installer whose database probe answers what the test says. */
-final class ProbeInstaller extends Installer
+final class ProbeInstaller extends WebInstaller
 {
     public bool $emptyDb = false;
     public int $probes = 0;
@@ -100,9 +109,9 @@ unlink($site . '/.installed');
 // The real probe fails closed on an unreachable database and on a .env without DB_NAME.
 $siteReal = $mkSite();
 file_put_contents($siteReal . '/.env', "DB_HOST=127.0.0.1\nDB_PORT=1\nDB_USER=x\nDB_PASS=x\nDB_NAME=nope\n");
-$check((new Installer($siteReal))->isInstalled() === true, 'real probe: unreachable database counts as installed');
+$check((new WebInstaller($siteReal))->isInstalled() === true, 'real probe: unreachable database counts as installed');
 file_put_contents($siteReal . '/.env', "# no database configured\nAPP_ENV=production\n");
-$check((new Installer($siteReal))->isInstalled() === true, 'real probe: .env without DB_NAME counts as installed');
+$check((new WebInstaller($siteReal))->isInstalled() === true, 'real probe: .env without DB_NAME counts as installed');
 
 // Ownership binding.
 $_SESSION = [];
@@ -130,6 +139,26 @@ $check($inst->isInstalled() === true, 'an expired binding is refused');
 touch($site . '/storage/.install_in_progress');
 clearstatcache();
 $check($inst->isInstalled() === false, 'a live binding is honoured again');
+
+// A lost owner session must not shut everyone out for half a day: the binding
+// lasts INSTALL_OWNER_TTL of inactivity (2 hours), renewed by the owner's use.
+$check(Installer::INSTALL_OWNER_TTL <= 7200, 'the install-in-progress binding lasts at most 2 hours without activity (was 12)');
+$markerPath = $site . '/storage/.install_in_progress';
+touch($markerPath, time() - Installer::INSTALL_OWNER_TTL + 60);
+clearstatcache();
+$check($inst->isInstalled() === false, 'an owner request one minute before expiry still goes on');
+clearstatcache();
+$check(time() - (int) filemtime($markerPath) < 5, '... and renews the binding (sliding expiry)');
+$saved = $_SESSION;
+$_SESSION = [];
+touch($markerPath, time() - Installer::INSTALL_OWNER_TTL + 60);
+clearstatcache();
+$inst->isInstalled();
+clearstatcache();
+$check(time() - (int) filemtime($markerPath) > 60, 'a foreign session never renews the binding');
+$_SESSION = $saved;
+touch($markerPath);
+clearstatcache();
 
 $inst->releaseInstallOwnership();
 clearstatcache();
@@ -314,6 +343,19 @@ $check($recPos !== false && $impPos !== false && $recPos < $impPos, 'step 3 reco
 $index = (string) file_get_contents($ROOT . '/installer/index.php');
 $check(str_contains($index, 'if ($installer->ownerMayContinue()) {') && !str_contains($index, 'if ($installer->ownsInstallInProgress()) {'),
     'the ?force=1 gate lets the owner through only under ownerMayContinue()');
+$interruptedKey = "Installazione interrotta (manca il file .installed). Il browser che l'ha iniziata può continuarla.";
+$check(substr_count($index, "!\$installationStatus['lock_exists'] ? '<div class=\"alert alert-warning mt-3\">' . htmlspecialchars(sprintf(__(\"" . $interruptedKey) === 2
+    && str_contains($index, 'intdiv(Installer::INSTALL_OWNER_TTL, 60)'),
+    'both installed-state pages explain an interrupted install (no .installed): wait for the binding, or delete .env AND empty the database');
+foreach (['it_IT', 'en_US', 'de_DE', 'fr_FR', 'da_DK'] as $loc) {
+    $strings = json_decode((string) file_get_contents($ROOT . '/locale/' . $loc . '.json'), true);
+    $key = null;
+    foreach (array_keys(is_array($strings) ? $strings : []) as $k) {
+        if (str_starts_with((string) $k, $interruptedKey)) { $key = $k; }
+    }
+    $check($key !== null && str_contains((string) $strings[$key], '%d') && str_contains((string) $strings[$key], '.env'),
+        "the interrupted-install notice is translated ({$loc})");
+}
 
 // ---------------------------------------------------------------------------
 echo "C. Step 7 surfaces finalisation failures (real installer/steps/step7.php)\n";
