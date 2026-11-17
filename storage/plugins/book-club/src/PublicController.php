@@ -173,7 +173,7 @@ class PublicController extends BaseController
         $member = $this->membership($club);
         if ($member !== null && in_array($member['status'], ['active', 'pending'], true)) {
             if (!$this->repo->setMemberStatus((int) $member['id'], 'left', ['active', 'pending'])) {
-                $this->flash('error', __("Si è verificato un errore durante l'operazione. Riprova più tardi."));
+                $this->flashStatusChangeFailure((int) $member['id'], ['active', 'pending']);
                 return $this->redirect($response, \App\Support\RouteTranslator::route('book_club') . '/' . $slug);
             }
             if (function_exists('do_action')) {
@@ -206,7 +206,7 @@ class PublicController extends BaseController
         // status is re-checked under the row lock in setMemberStatus().
         if ($action === 'reject') {
             if (!$this->repo->setMemberStatus($memberId, 'left', ['pending'])) {
-                $this->flash('error', __("Si è verificato un errore durante l'operazione. Riprova più tardi."));
+                $this->flashStatusChangeFailure($memberId, ['pending']);
                 return $this->redirect($response, \App\Support\RouteTranslator::route('book_club') . '/' . $slug);
             }
             $this->flash('success', __('Richiesta rifiutata.'));
@@ -216,12 +216,29 @@ class PublicController extends BaseController
                 return $this->redirect($response, \App\Support\RouteTranslator::route('book_club') . '/' . $slug);
             }
             if (!$this->repo->setMemberStatus($memberId, 'active', ['pending'])) {
-                $this->flash('error', __("Si è verificato un errore durante l'operazione. Riprova più tardi."));
+                $this->flashStatusChangeFailure($memberId, ['pending']);
                 return $this->redirect($response, \App\Support\RouteTranslator::route('book_club') . '/' . $slug);
             }
             $this->flash('success', __('Membro approvato.'));
         }
         return $this->redirect($response, \App\Support\RouteTranslator::route('book_club') . '/' . $slug);
+    }
+
+    /**
+     * Repo::setMemberStatus() answers false both for a failure and for a
+     * membership another request changed first (approved, rejected or left
+     * meanwhile). Tell them apart: "try again later" cannot fix the second.
+     *
+     * @param list<string> $onlyFrom
+     */
+    private function flashStatusChangeFailure(int $memberId, array $onlyFrom): void
+    {
+        $now = $this->repo->memberById($memberId);
+        if ($now === null || !in_array($now['status'], $onlyFrom, true)) {
+            $this->flash('warning', __('Questa iscrizione è già stata modificata da un\'altra operazione: la pagina mostra lo stato attuale.'));
+            return;
+        }
+        $this->flash('error', __("Si è verificato un errore durante l'operazione. Riprova più tardi."));
     }
 
     // ------------------------------------------------------------------

@@ -341,6 +341,19 @@ try {
     $list = $render(fn () => (new ReservationsAdminController())->index($get(['libro_id' => (string) $bookId]), new Response(), $db));
     $check(str_contains($list, $editLink($staffReservation)) && str_contains($list, $editLink($readerReservation)), 'Staff keeps every reservation in the list');
 
+    echo "  Loan reads of an out-of-scope borrower (F076)\n";
+    $actAs($operator);
+    $readerLoanR = $insertLoan($reader, $copies[6]);
+    $page = static fn (string $m, int $loanId): string => (string) (new PrestitiController())->{$m}($get(), new Response(), $db, $loanId)->getBody();
+    $check(!str_contains($page('details', $staffActive), $email($staff)), "loan details: a custom role does not see a Staff account's email");
+    $check(str_contains($page('details', $readerLoanR), $email($reader)), "loan details: a reader's email is shown (control)");
+    $check(!str_contains($page('returnForm', $staffActive), $email($staff)), "return form: the copy can come back, the Staff account's email stays hidden");
+    $pdf = (new PrestitiController())->downloadPdf($get(), new Response(), $db, $staffActive);
+    $check($pdf->getStatusCode() === 302 && str_contains($pdf->getHeaderLine('Location'), 'error=loan_not_found'),
+        "loan receipt PDF: refused for a Staff account's loan");
+    $actAs($staff);
+    $check(str_contains($page('details', $staffActive), $email($staff)), 'Staff keeps every borrower in loan details');
+
     echo "  User edit page error box (F065)\n";
     $actAs($admin);
     $editUser = static function (string $error) use ($db, $reader): string {

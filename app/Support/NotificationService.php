@@ -2056,13 +2056,10 @@ class NotificationService {
 
     /**
      * Invia template agli admin
-     */
-    /**
+     *
      * @param array<string,mixed>            $variables     non-date template variables, shared by every admin
      * @param array<string,array{0:string,1?:bool}> $dateVariables raw dates keyed by template variable —
      *        [rawDate, includeTime] — formatted per recipient inside the loop
-     */
-    /**
      * @param (callable(string, string): string)|null $bodyFilter applied to the template body per
      *        recipient, with that recipient's locale (see EmailService::sendTemplateWithBodyFilter())
      */

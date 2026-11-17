@@ -72,6 +72,40 @@ final class BcFakeRepo extends Repo
         return true;
     }
 
+    /** A status another request writes first, so setMemberStatus()'s $onlyFrom no longer matches. */
+    public ?string $statusChangedMeanwhile = null;
+    /** Make setMemberStatus() fail as a database error would. */
+    public bool $statusWriteFails = false;
+
+    public function memberById(int $memberId): ?array
+    {
+        foreach ($this->members as $row) {
+            if ((int) $row['id'] === $memberId) {
+                return $row;
+            }
+        }
+        return null;
+    }
+
+    public function setMemberStatus(int $memberId, string $status, ?array $onlyFrom = null): bool
+    {
+        $this->writes[] = ['setMemberStatus', $memberId, $status];
+        foreach ($this->members as $key => $row) {
+            if ((int) $row['id'] !== $memberId) {
+                continue;
+            }
+            if ($this->statusChangedMeanwhile !== null) {
+                $this->members[$key]['status'] = $row['status'] = $this->statusChangedMeanwhile;
+            }
+            if ($this->statusWriteFails || ($onlyFrom !== null && !in_array($row['status'], $onlyFrom, true))) {
+                return false;
+            }
+            $this->members[$key]['status'] = $status;
+            return true;
+        }
+        return false;
+    }
+
     public function pendingInvitationByToken(string $token): ?array { return $this->invitation; }
 
     public function markInvitationAccepted(int $invitationId): bool
