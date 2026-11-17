@@ -124,7 +124,9 @@ include $corePartials . '/catalog-hero.php';
         $startTs = (int) strtotime((string) $sprint['starts_at']);
         $endTs = $startTs + (int) $sprint['duration_min'] * 60;
         $joined = is_array($sprint['mine'] ?? null);
-        $isCreator = $userId !== null && (int) ($sprint['created_by'] ?? 0) === $userId;
+        // Same rule as SprintController::cancel(): the creator's right to
+        // cancel lasts only while they are an active member of the club.
+        $isCreator = $isMember && $userId !== null && (int) ($sprint['created_by'] ?? 0) === $userId;
         $participants = is_array($sprint['participants'] ?? null) ? $sprint['participants'] : [];
       ?>
       <article class="bc-card">

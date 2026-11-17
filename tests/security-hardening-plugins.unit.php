@@ -382,7 +382,17 @@ if ($sandboxError !== null) {
         $session('creator');
         $res = $sprints->cancel(bcRequest(), bcResponse(), 'hb-club', $sprintId);
         $check($res->getStatusCode() === 404 && $sprintStatus() === 'scheduled', 'sprint cancel(): a creator who left cannot cancel (404, sprint untouched)');
+        // ... and the sprints page does not offer them the cancel form either
+        // (on a public club they can still see the page).
+        $session('creator');
+        $page = $sprints->index(bcRequest('GET'), bcResponse(), 'hb-club');
+        $pageHtml = (string) $page->getBody();
+        $check($page->getStatusCode() === 200 && str_contains($pageHtml, 'HB sprint') && !str_contains($pageHtml, '/' . $sprintId . '/cancel'),
+            'sprints page: a creator who left sees the sprint but no cancel form (HTTP ' . $page->getStatusCode() . ')');
         $db->query("UPDATE bookclub_members SET status = 'active' WHERE id = {$memberIds['creator']}");
+        $session('creator');
+        $pageHtml = (string) $sprints->index(bcRequest('GET'), bcResponse(), 'hb-club')->getBody();
+        $check(str_contains($pageHtml, '/' . $sprintId . '/cancel'), 'control: an active creator is offered the cancel form');
         $session('creator');
         $sprints->cancel(bcRequest(), bcResponse(), 'hb-club', $sprintId);
         $check($sprintStatus() === 'cancelled', 'control: an active creator can cancel');
