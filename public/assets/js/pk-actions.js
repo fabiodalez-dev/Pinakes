@@ -149,6 +149,15 @@
             ask(confirmEl.dataset.pkConfirm).then(function (ok) {
                 if (!ok) return;
                 confirmEl.dataset.pkConfirmed = '1';
+                // A submit button whose form carries its own data-pk-confirm:
+                // the user has just confirmed, so the form must not ask again.
+                // The submit handler consumes the flag; a submit that never
+                // fires (constraint validation) must not leave it behind.
+                var form = confirmEl.matches('button[type=submit], button:not([type]), input[type=submit]') ? confirmEl.form : null;
+                if (form && form.dataset.pkConfirm) {
+                    form.dataset.pkConfirmed = '1';
+                    setTimeout(function () { delete form.dataset.pkConfirmed; }, 0);
+                }
                 try {
                     confirmEl.click();
                 } finally {
@@ -161,7 +170,18 @@
         var el = event.target.closest('[data-pk-action]');
         if (!el || (el.dataset.pkOn && el.dataset.pkOn !== 'click')) return;
         if (!el.dataset.pkOn && isFieldControl(el)) return; // fields act on change
-        if (!verbs[el.dataset.pkAction]) return;
+        if (!verbs[el.dataset.pkAction]) {
+            // The page script that registers this verb has not run yet (or
+            // failed). A placeholder link must still not jump to the top of the
+            // page or run a javascript: URL; a real link or a submit keeps its
+            // default as the no-script fallback.
+            var href = el.matches('a[href]') ? (el.getAttribute('href') || '').trim() : null;
+            if (href !== null && el.dataset.pkAllowDefault === undefined
+                && (href === '' || href === '#' || /^javascript:/i.test(href))) {
+                event.preventDefault();
+            }
+            return;
+        }
         if (el.matches('a[href], button[type=submit], button:not([type]), input[type=submit]') && el.dataset.pkAllowDefault === undefined) {
             event.preventDefault();
         }

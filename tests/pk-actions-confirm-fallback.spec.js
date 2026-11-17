@@ -20,6 +20,12 @@ const PAGE = `<!doctype html><html><head><meta charset="utf-8"></head><body>
 <form id="g" method="post" action="${ORIGIN}/done">
   <button type="submit" id="del" name="op" value="delete" data-pk-confirm="Delete?">Delete</button>
 </form>
+<form id="h" method="post" action="${ORIGIN}/done" data-pk-confirm="Form sure?">
+  <button type="submit" id="both" name="op" value="both" data-pk-confirm="Button sure?">Both</button>
+</form>
+<div style="height: 3000px"></div>
+<a href="#" id="early" data-pk-action="notRegisteredYet">Early</a>
+<a href="${ORIGIN}/elsewhere" id="real" data-pk-action="notRegisteredYet">Real</a>
 </body></html>`;
 
 async function open(page) {
@@ -99,4 +105,33 @@ test('a submit blocked by validation does not skip the next confirmation', async
   await expect(page.locator('#done')).toBeVisible();
   expect(posted).toHaveLength(1);
   expect(asked).toHaveLength(2);
+});
+
+test('a confirmed submit button does not get its form to ask again', async ({ page }) => {
+  const posted = await open(page);
+  const dialogs = [];
+  page.on('dialog', (dialog) => { dialogs.push(dialog.message()); dialog.accept(); });
+
+  await page.click('#both');
+  await expect(page.locator('#done')).toBeVisible();
+  expect(dialogs).toEqual(['Button sure?']);
+  expect(posted).toHaveLength(1);
+  expect(posted[0]).toContain('op=both');
+});
+
+test('a placeholder link whose verb is not registered yet does not jump', async ({ page }) => {
+  await open(page);
+  await page.evaluate(() => document.getElementById('early')?.scrollIntoView());
+  const before = await page.evaluate(() => window.scrollY);
+  expect(before).toBeGreaterThan(0);
+  await page.click('#early');
+  await page.waitForTimeout(100);
+  expect(page.url()).toBe(`${ORIGIN}/`);
+  expect(await page.evaluate(() => window.scrollY)).toBe(before);
+});
+
+test('a real link whose verb is not registered yet still navigates', async ({ page }) => {
+  await open(page);
+  await page.click('#real');
+  await expect.poll(() => page.url()).toBe(`${ORIGIN}/elsewhere`);
 });
