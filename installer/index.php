@@ -99,11 +99,14 @@ $validator = new Validator();
 // — live under public/assets and only resolve once the routing rewrite exists.
 // cPanel's File Manager hides dotfiles, so the packaged root .htaccess is often
 // lost during extraction; writing it here (PHP, on disk) makes the installer
-// render correctly and self-heals routing for the installed app. Idempotent and
-// best-effort: a non-writable root simply leaves things as they are.
+// render correctly and gives the app being installed its routing. Idempotent
+// and best-effort: a non-writable root simply leaves things as they are.
 // Only while not installed: on an installed site an anonymous request must not
 // append the routing block to a root .htaccess the operator manages (step 7
-// writes it at the end of an install, a reinstall included).
+// writes it at the end of an install, a reinstall included). An installed site
+// that lost the file is therefore NOT healed from here any more; the root
+// index.php still forwards every request to /public/, and a reinstall through
+// ?force (an active admin) or a manual copy of .htaccess.example restores it.
 try {
     if (!$installer->isInstalled()) {
         $installer->createHtaccess();

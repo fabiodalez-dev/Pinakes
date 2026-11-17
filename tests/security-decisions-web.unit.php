@@ -229,6 +229,16 @@ $guard(function () use ($check): void {
             'installer over plain HTTP: FORCE_HTTPS stays false');
         $check(Installer::isInstallRequestHttps(['REMOTE_ADDR' => '203.0.113.9', 'HTTP_X_FORWARDED_PROTO' => 'https']) === false,
             'installer: X-Forwarded-Proto from an untrusted peer is ignored');
+        // ... and step 5 says why "Force HTTPS" is not preselected there.
+        $check(Installer::untrustedForwardedHttps(['REMOTE_ADDR' => '203.0.113.9', 'HTTP_X_FORWARDED_PROTO' => 'https']) === true
+            && Installer::untrustedForwardedHttps(['REMOTE_ADDR' => '203.0.113.9', 'HTTP_X_FORWARDED_SSL' => 'on']) === true,
+            'installer: untrusted forwarded HTTPS is reported for the step-5 note');
+        $check(Installer::untrustedForwardedHttps(['HTTPS' => 'on', 'REMOTE_ADDR' => '203.0.113.9', 'HTTP_X_FORWARDED_PROTO' => 'https']) === false
+            && Installer::untrustedForwardedHttps(['REMOTE_ADDR' => '203.0.113.9']) === false,
+            'installer: no note on direct HTTPS or plain HTTP');
+        $step5 = (string) file_get_contents(dirname(__DIR__) . '/installer/steps/step5.php');
+        $check(str_contains($step5, '<?php if (Installer::untrustedForwardedHttps()): ?>') && str_contains($step5, 'install-proxy-https-note'),
+            'installer step 5 shows the note when forwarded HTTPS is not trusted');
 
         $_ENV['TRUSTED_PROXIES'] = '10.0.0.0/8';
         $check(Installer::isInstallRequestHttps(['REMOTE_ADDR' => '10.1.2.3', 'HTTP_X_FORWARDED_PROTO' => 'https, http']) === true,
@@ -237,6 +247,8 @@ $guard(function () use ($check): void {
             'installer: X-Forwarded-SSL from a TRUSTED_PROXIES peer is honoured');
         $check(Installer::isInstallRequestHttps(['REMOTE_ADDR' => '198.51.100.1', 'HTTP_X_FORWARDED_PROTO' => 'https']) === false,
             'installer: forwarded HTTPS from a peer outside TRUSTED_PROXIES is ignored');
+        $check(Installer::untrustedForwardedHttps(['REMOTE_ADDR' => '10.1.2.3', 'HTTP_X_FORWARDED_PROTO' => 'https']) === false,
+            'installer: no note once the proxy is trusted');
     } finally {
         if ($prevEnv === null) { unset($_ENV['TRUSTED_PROXIES']); } else { $_ENV['TRUSTED_PROXIES'] = $prevEnv; }
         if ($prevGetenv === false) { putenv('TRUSTED_PROXIES'); } else { putenv('TRUSTED_PROXIES=' . $prevGetenv); }

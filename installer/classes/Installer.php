@@ -190,14 +190,6 @@ class Installer {
     }
 
     /**
-     * Read a .env file into KEY => decoded value (see parseEnvValue()).
-     * Comment and blank lines are skipped, an optional "export " prefix is
-     * dropped, and a value phpdotenv would reject is left out rather than
-     * guessed. Null when the file cannot be read.
-     *
-     * @return array<string, string>|null
-     */
-    /**
      * Whether the installer request itself arrived over HTTPS.
      *
      * A direct TLS connection always counts. X-Forwarded-Proto / X-Forwarded-SSL
@@ -229,6 +221,35 @@ class Installer {
         return $proto === 'https' || $ssl === 'on';
     }
 
+    /**
+     * True when the request says it is HTTPS through X-Forwarded-Proto /
+     * X-Forwarded-SSL but the peer is not a TRUSTED_PROXIES entry, so
+     * isInstallRequestHttps() refuses it. During an install TRUSTED_PROXIES is
+     * normally not set yet, so a site behind a TLS-terminating proxy lands
+     * here: step 5 then leaves "Force HTTPS" unchecked and says why, instead
+     * of trusting a header any client can send.
+     *
+     * @param array<string, mixed>|null $server defaults to $_SERVER (injectable for tests)
+     */
+    public static function untrustedForwardedHttps(?array $server = null): bool
+    {
+        $server ??= $_SERVER;
+        if (self::isInstallRequestHttps($server)) {
+            return false;
+        }
+        $proto = strtolower(trim(explode(',', (string) ($server['HTTP_X_FORWARDED_PROTO'] ?? ''))[0]));
+        $ssl = strtolower(trim((string) ($server['HTTP_X_FORWARDED_SSL'] ?? '')));
+        return $proto === 'https' || $ssl === 'on';
+    }
+
+    /**
+     * Read a .env file into KEY => decoded value (see parseEnvValue()).
+     * Comment and blank lines are skipped, an optional "export " prefix is
+     * dropped, and a value phpdotenv would reject is left out rather than
+     * guessed. Null when the file cannot be read.
+     *
+     * @return array<string, string>|null
+     */
     public static function readEnvFile(string $path): ?array
     {
         if (!is_file($path) || !is_readable($path)) {

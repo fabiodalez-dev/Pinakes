@@ -120,6 +120,12 @@ renderHeader(5, __('Impostazioni Applicazione'));
                 </div>
             </label>
         </div>
+        <?php if (Installer::untrustedForwardedHttps()): ?>
+        <div class="alert alert-info" style="margin-top: 12px; padding: 12px; font-size: 13px;" data-testid="install-proxy-https-note">
+            <i class="fas fa-info-circle"></i>
+            <?= htmlspecialchars(__("Questa richiesta arriva in HTTPS tramite un proxy che l'installer non può verificare (X-Forwarded-Proto), quindi «Forza HTTPS» non è preselezionato. Se il sito è servito in HTTPS, attivalo e, dopo l'installazione, imposta TRUSTED_PROXIES nel file .env con l'indirizzo del proxy."), ENT_QUOTES, 'UTF-8') ?>
+        </div>
+        <?php endif; ?>
         <div class="alert alert-warning" style="margin-top: 12px; padding: 12px; font-size: 13px;">
             <i class="fas fa-exclamation-triangle"></i>
             <strong><?= __("Attenzione:") ?></strong> <?= __("Attiva questa opzione solo se il tuo server supporta HTTPS. Se il tuo hosting forza già HTTPS automaticamente, non è necessario abilitarla (potrebbe causare redirect loop).") ?>

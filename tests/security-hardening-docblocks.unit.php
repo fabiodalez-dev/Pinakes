@@ -14,6 +14,7 @@ $ROOT = dirname(__DIR__);
 require $ROOT . '/vendor/autoload.php';
 require_once $ROOT . '/storage/plugins/desiderata/DesiderataPlugin.php';
 require_once $ROOT . '/storage/plugins/discogs/DiscogsPlugin.php';
+require_once $ROOT . '/installer/classes/Installer.php';
 
 $pass = 0;
 $fail = 0;
@@ -33,6 +34,8 @@ $cases = [
     [\App\Plugins\Discogs\DiscogsPlugin::class, 'throttleWaitMicros', 'Microseconds to wait', 'from ANY PHP worker'],
     [\App\Controllers\SearchController::class, 'isOperatorSession', 'CWE-613', 'custom-role cataloguers'],
     [\App\Controllers\SearchController::class, 'isCatalogueSession', 'custom-role cataloguers', 'CWE-613'],
+    ['Installer', 'readEnvFile', '@return array<string, string>|null', 'arrived over HTTPS'],
+    ['Installer', 'isInstallRequestHttps', 'arrived over HTTPS', '@return array<string, string>|null'],
 ];
 foreach ($cases as [$class, $method, $has, $hasNot]) {
     if (!class_exists($class)) {
