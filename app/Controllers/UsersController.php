@@ -1030,6 +1030,9 @@ class UsersController
         $previousExpiry = $user['data_token_verifica'];
         $previousVerified = $user['email_verificata'];
         $previousRole = $user['tipo_utente'];
+        // canChangeAccountState() also decided on ruolo_id and accesso_digitale.
+        $previousStaffRole = $user['ruolo_id'] === null ? null : (int) $user['ruolo_id'];
+        $previousDigital = (int) ($user['accesso_digitale'] ?? 0);
         // Claim this approval only while the account still matches what was read.
         $stmt = $db->prepare("
             UPDATE utenti
@@ -1038,9 +1041,10 @@ class UsersController
                 data_token_verifica = ?,
                 updated_at = NOW()
             WHERE id = ? AND stato = 'sospeso' AND tipo_utente <=> ?
+                AND ruolo_id <=> ? AND accesso_digitale = ?
                 AND email_verificata <=> ? AND token_verifica_email <=> ? AND data_token_verifica <=> ?
         ");
-        $stmt->bind_param('ssisiss', $token, $tokenExpiry, $userId, $previousRole, $previousVerified, $previousToken, $previousExpiry);
+        $stmt->bind_param('ssisiiiss', $token, $tokenExpiry, $userId, $previousRole, $previousStaffRole, $previousDigital, $previousVerified, $previousToken, $previousExpiry);
 
         $saved = $stmt->execute();
         $claimed = $stmt->affected_rows === 1;
@@ -1141,6 +1145,8 @@ class UsersController
         // compare-and-set as approveAndSendActivation): a concurrent approval or
         // role change in between must not be overwritten.
         $previousRole = $user['tipo_utente'];
+        $previousStaffRole = $user['ruolo_id'] === null ? null : (int) $user['ruolo_id'];
+        $previousDigital = (int) ($user['accesso_digitale'] ?? 0);
         $stmt = $db->prepare("
             UPDATE utenti
             SET stato = 'attivo',
@@ -1149,8 +1155,9 @@ class UsersController
                 data_token_verifica = NULL,
                 updated_at = NOW()
             WHERE id = ? AND stato = 'sospeso' AND tipo_utente <=> ?
+                AND ruolo_id <=> ? AND accesso_digitale = ?
         ");
-        $stmt->bind_param('is', $userId, $previousRole);
+        $stmt->bind_param('isii', $userId, $previousRole, $previousStaffRole, $previousDigital);
 
         $saved = $stmt->execute();
         $claimed = $stmt->affected_rows === 1;

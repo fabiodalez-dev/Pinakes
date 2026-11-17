@@ -52,6 +52,14 @@ $mkRoot = static function (string $name) use ($tmp): string {
     mkdir($root . '/storage', 0775, true);
     return $root;
 };
+// An install whose state directory is already there, as the web server user
+// leaves it: lets these cases run under a root CI too, where the script
+// refuses to create it (the explicit $euid = 0 case below covers that).
+$mkStateRoot = static function (string $name) use ($mkRoot): string {
+    $root = $mkRoot($name);
+    mkdir($root . '/storage/cache/upgrade-auth', 0700, true);
+    return $root;
+};
 $rm = static function (string $dir) use (&$rm): void {
     foreach (scandir($dir) ?: [] as $e) {
         if ($e === '.' || $e === '..') { continue; }
@@ -64,12 +72,12 @@ $rm = static function (string $dir) use (&$rm): void {
 
 try {
     echo "A. Where the state lives\n";
-    $rootA = $mkRoot('siteA');
+    $rootA = $mkStateRoot('siteA');
     $fileA = upgradeAuthStateFile($rootA, '203.0.113.7');
     $check($fileA !== null && str_starts_with($fileA, $rootA . '/storage/cache/upgrade-auth/'), 'under the install, in storage/cache/upgrade-auth');
     $check($fileA !== null && !str_starts_with($fileA, sys_get_temp_dir() . '/pinakes_upgrade_auth_'), 'not the old predictable temp-dir name');
     $check((fileperms(dirname((string) $fileA)) & 0777) === 0700, 'state directory is 0700');
-    $rootB = $mkRoot('siteB');
+    $rootB = $mkStateRoot('siteB');
     $fileB = upgradeAuthStateFile($rootB, '203.0.113.7');
     $check($fileA !== $fileB && basename((string) $fileA) !== basename((string) $fileB), 'two installs never share a file name for the same address');
     $check(basename((string) $fileA) !== basename((string) upgradeAuthStateFile($rootA, '203.0.113.8')), 'different addresses, different files');
@@ -92,10 +100,19 @@ try {
     $check($read === ['failed' => 0, 'lock_until' => 0], 'a successful login resets it');
     file_put_contents((string) $fileA, 'not json');
     $read = upgradeAuthUpdate((string) $fileA, static fn (array $s): array => $s);
-    $check($read === ['failed' => 0, 'lock_until' => 0], 'a corrupt state file reads as empty');
+    $check($read !== null && $read['failed'] >= 5, 'a corrupt state file counts as attempts used up, never as a reset counter');
+    $r = upgradeAuthReserveAttempt((string) $fileA, 5, 300);
+    $check($r !== null && upgradeAuthUpdate((string) $fileA, static fn (array $s): array => $s)['lock_until'] > time(),
+        'so the next attempt locks');
+    file_put_contents((string) $fileA, '');
+    $check(upgradeAuthUpdate((string) $fileA, static fn (array $s): array => $s) === ['failed' => 0, 'lock_until' => 0],
+        'an empty file, as created, starts from zero');
+    upgradeAuthUpdate((string) $fileA, static fn (array $s): array => ['failed' => 12345, 'lock_until' => 0]);
+    upgradeAuthUpdate((string) $fileA, static fn (array $s): array => ['failed' => 1, 'lock_until' => 0]);
+    $check(file_get_contents((string) $fileA) === '{"failed":1,"lock_until":0}', 'a shorter state overwrites a longer one without leftovers');
 
     echo "B2. The attempt is reserved before the password is checked\n";
-    $rootR = $mkRoot('siteR');
+    $rootR = $mkStateRoot('siteR');
     $fileR = (string) upgradeAuthStateFile($rootR, '203.0.113.50');
     $allowed = 0;
     for ($i = 0; $i < 8; $i++) {
@@ -110,7 +127,7 @@ try {
 
     // Concurrency: 20 processes reserve at the same moment. Check-then-record
     // would let every one of them through; reservation allows exactly 5.
-    $rootP = $mkRoot('siteP');
+    $rootP = $mkStateRoot('siteP');
     $fileP = (string) upgradeAuthStateFile($rootP, '203.0.113.60');
     $helpers = $tmp . '/helpers.php';
     file_put_contents($helpers, "<?php\n" . substr($source, $start, $end - $start));
@@ -134,7 +151,7 @@ try {
     $check($granted === 5, "20 simultaneous attempts: exactly 5 may try the password (got {$granted})");
 
     echo "C. A planted symlink is never followed\n";
-    $rootC = $mkRoot('siteC');
+    $rootC = $mkStateRoot('siteC');
     $victim = $tmp . '/victim.txt';
     file_put_contents($victim, 'KEEP');
     $dirC = upgradeAuthStateDir($rootC);
@@ -177,6 +194,8 @@ try {
     upgradeAuthStateDir($rootE, $problem);
     $check($problem === 'unavailable' && str_contains(upgradeAuthUnavailableMessage($problem, $rootE), 'rendi scrivibile'),
         'a directory that cannot be created keeps the writable-storage message');
+    $check(str_contains(substr($source, $start, $end - $start), "if (\$euid === null) {"),
+        'an unknown process user (no posix, no probe) fails closed instead of skipping the owner check');
     $rootRoot = $mkRoot('siteRoot');
     $problem = null;
     $check(upgradeAuthStateDir($rootRoot, $problem, 0) === null && !file_exists($rootRoot . '/storage/cache'),
@@ -184,7 +203,7 @@ try {
 
     echo "E. The real password POST handler\n";
     $check(!str_contains($source, 'pinakes_upgrade_auth_') && !str_contains($source, "attemptFile = sys_get_temp_dir()"), 'the old temp-dir state file is gone from the script');
-    $rootL = $mkRoot('siteL');
+    $rootL = $mkStateRoot('siteL');
     $addr = '203.0.113.90';
     $fileL = (string) upgradeAuthStateFile($rootL, $addr);
     $readL = static fn (): array => (array) upgradeAuthUpdate($fileL, static fn (array $s): array => $s);
@@ -206,7 +225,7 @@ try {
     $calls = 0;
     $err = upgradeAuthHandlePasswordPost($rootL, $addr, $pw, $pw, 5, 300, static function () use (&$calls): void { $calls++; });
     $check(str_starts_with($err, 'Troppi tentativi') && $calls === 0, 'once locked, even the right password is refused without being compared');
-    $rootDef = $mkRoot('siteDef');
+    $rootDef = $mkStateRoot('siteDef');
     $err = upgradeAuthHandlePasswordPost($rootDef, $addr, 'pinakes2026', 'pinakes2026', 5, 300, static function () use (&$calls): void { $calls++; });
     $check(str_starts_with($err, 'SICUREZZA') && $calls === 0, 'the shipped default password never logs in');
     $err = upgradeAuthHandlePasswordPost($rootDef, $addr . '1', 'short1', 'short1', 5, 300, static function () use (&$calls): void { $calls++; });
@@ -230,13 +249,49 @@ try {
     $check(!file_exists($install . '/storage/cache'), 'and created neither storage/cache nor the state directory');
 
     echo "G. The mysqldump credentials file never lands in the shared temp dir\n";
-    $check(str_contains($source, '$defaultsFile = upgradeCreateDumpCredentialsFile($rootPath);'), 'the upgrade body uses the checked helper');
+    $check(str_contains($source, '$defaultsFile = upgradeWriteDumpCredentialsFile($rootPath,'), 'the upgrade body uses the checked helper');
+    $check(!str_contains($source, 'file_put_contents($defaultsFile'), 'and never reopens the path to write the password');
     $sharedBefore = glob(sys_get_temp_dir() . '/pinakes_dump_*') ?: [];
     $rootG = $mkRoot('siteDump');
-    $credFile = upgradeCreateDumpCredentialsFile($rootG);
+    $credFile = upgradeWriteDumpCredentialsFile($rootG, "[client]\npassword=s3cret\n");
     $check(dirname((string) realpath($credFile)) === realpath($rootG . '/storage/tmp'), 'a missing storage/tmp is created and the file is inside it');
     $check((fileperms($rootG . '/storage/tmp') & 0777) === 0700, 'the created storage/tmp is 0700');
+    $check(file_get_contents($credFile) === "[client]\npassword=s3cret\n" && (fileperms($credFile) & 0777) === 0600, 'the credentials are written whole, 0600');
     unlink($credFile); // nosemgrep: php.lang.security.unlink-use.unlink-use -- test temp file
+
+    $rootLoose = $mkRoot('siteDumpLoose');
+    mkdir($rootLoose . '/storage/tmp', 0777);
+    chmod($rootLoose . '/storage/tmp', 0777);
+    $credFile = upgradeWriteDumpCredentialsFile($rootLoose, 'x');
+    $check((fileperms($rootLoose . '/storage/tmp') & 0777) === 0700, 'an existing world-writable storage/tmp is tightened to 0700 first');
+    unlink($credFile); // nosemgrep: php.lang.security.unlink-use.unlink-use -- test temp file
+
+    $refusedWith = static function (callable $fn): string {
+        try { $fn(); } catch (RuntimeException $e) { return $e->getMessage(); }
+        return '';
+    };
+    $rootF = $mkRoot('siteDumpForeign');
+    mkdir($rootF . '/storage/tmp', 0700);
+    $msg = $refusedWith(static fn () => upgradeWriteDumpCredentialsFile($rootF, 'x', $foreignUid));
+    $check(str_contains($msg, 'Backup DB annullato') && str_contains($msg, 'chown') && glob($rootF . '/storage/tmp/*') === [],
+        'a storage/tmp owned by another user is refused before anything is written');
+    $rootS = $mkRoot('siteDumpLink');
+    mkdir($tmp . '/elsewhere-tmp', 0700);
+    symlink($tmp . '/elsewhere-tmp', $rootS . '/storage/tmp');
+    $msg = $refusedWith(static fn () => upgradeWriteDumpCredentialsFile($rootS, 'x'));
+    $check(str_contains($msg, 'Backup DB annullato') && glob($tmp . '/elsewhere-tmp/*') === [], 'a symlinked storage/tmp is refused');
+    $rootW = $tmp . '/open-parent';
+    mkdir($rootW, 0777);
+    chmod($rootW, 0777);
+    mkdir($rootW . '/site/storage', 0775, true);
+    $msg = $refusedWith(static fn () => upgradeWriteDumpCredentialsFile($rootW . '/site', 'x'));
+    $check(str_contains($msg, 'scrivibile da tutti'), 'a world-writable parent without the sticky bit is refused');
+    chmod($rootW, 01777);
+    $credFile = upgradeWriteDumpCredentialsFile($rootW . '/site', 'x');
+    $check(is_file($credFile), 'with the sticky bit (like /tmp) it is accepted');
+    unlink($credFile); // nosemgrep: php.lang.security.unlink-use.unlink-use -- test temp file
+    chmod($rootW, 0755);
+
     $rootRo = $mkRoot('siteDumpReadOnly');
     mkdir($rootRo . '/storage/tmp', 0500);
     // Premise: this is the case tempnam() alone gets wrong.
@@ -244,12 +299,7 @@ try {
     $check(is_string($fallback) && dirname((string) realpath($fallback)) !== realpath($rootRo . '/storage/tmp'),
         'premise: tempnam() on a read-only storage/tmp silently answers with a file elsewhere');
     if (is_string($fallback)) { @unlink($fallback); }
-    $refused = '';
-    try {
-        upgradeCreateDumpCredentialsFile($rootRo);
-    } catch (RuntimeException $e) {
-        $refused = $e->getMessage();
-    }
+    $refused = $refusedWith(static fn () => upgradeWriteDumpCredentialsFile($rootRo, 'x'));
     $check(str_contains($refused, 'storage/tmp') && str_contains($refused, 'Backup DB annullato'), 'a read-only storage/tmp refuses the dump with a clear error');
     $check((glob(sys_get_temp_dir() . '/pinakes_dump_*') ?: []) === $sharedBefore, 'and leaves no credentials file in the shared temp dir');
     chmod($rootRo . '/storage/tmp', 0700);
