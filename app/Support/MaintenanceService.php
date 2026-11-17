@@ -2099,6 +2099,9 @@ class MaintenanceService
                 DateHelper::synchronizeDatabaseSession($db);
             }
 
+            // Batch maintenance (overdue sweeps, expirations, writes) must
+            // not be cut short by the web request's statement time limit.
+            DbStatementTimeout::lift($db);
             $service = new self($db);
             $result = $service->runIfNeeded(60); // Run if not run in last 60 minutes
 

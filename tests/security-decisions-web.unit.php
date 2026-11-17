@@ -258,17 +258,30 @@ $guard(function () use ($check): void {
     $check(DbStatementTimeout::configuredSeconds($my, 'abc') === 30 && DbStatementTimeout::configuredSeconds($my, '-5') === 30,
         'an invalid DB_STATEMENT_TIMEOUT falls back to the default');
 
-    foreach (['/admin/updates/perform', '/sub/admin/updates/backup', '/admin/maintenance/perform',
+    foreach (['/admin/updates/perform', '/admin/maintenance/perform',
               '/installer/', '/admin/books/import/chunk', '/admin/users/import/upload', '/admin/books/export/csv',
               '/admin/archives/export.xml', '/api/autori/bulk-export', '/admin/updates/backup/restore',
               '/api/dewey-editor/restore/it_IT', '/admin/settings/advanced/regenerate-sitemap',
-              '/admin/books/import-sbn', '/admin/loans/export-csv'] as $path) {
+              '/admin/books/import-sbn', '/admin/loans/export-csv', '/sitemap.xml',
+              '/admin/inventory/7/report.csv', '/admin/books/12/export.unimarc.xml',
+              // harvesting protocols
+              '/oai', '/archives/oai', '/resync/resourcelist.xml', '/.well-known/resourcesync',
+              '/api/sru', '/api/archives/sru'] as $path) {
         $check(DbStatementTimeout::isExemptPath($path), "exempt long-running path: {$path}");
     }
+    $check(DbStatementTimeout::isExemptPath('/sub/admin/updates/backup', '/sub'),
+        'exempt route under a base path');
     foreach (['/', '/catalogo', '/api/search/autori', '/api/libri', '/admin/books', '/libro/12/titolo',
-              '/admin/updatesx', '/admin/settings'] as $path) {
+              '/admin/updatesx', '/admin/settings',
+              // free-form segments that merely CONTAIN a keyword stay bounded
+              '/libro/123/important-book', '/libro/5/the-exporter', '/autore/9/backup-singers',
+              '/catalogo/restored-works', '/evento/sitemaps-2026', '/admin/books/import-anything',
+              // an exempt route that is not anchored at the start of the path
+              '/uploads/x/admin/books/export/csv', '/libro/1/oai'] as $path) {
         $check(!DbStatementTimeout::isExemptPath($path), "interactive path is bounded: {$path}");
     }
+    $check(!DbStatementTimeout::isExemptPath('/admin/updates/backup', '/sub'),
+        'a path outside the base path is bounded');
 }, 'pure helpers');
 
 $guard(function () use ($check): void {
@@ -310,10 +323,33 @@ $guard(function () use ($check): void {
     $container = (string) file_get_contents(dirname(__DIR__) . '/config/container.php');
     $check(str_contains($container, 'DbStatementTimeout::applyForWebRequest($mysqli)'),
         'config/container.php applies the limit to the shared web connection');
-    foreach (['app/Support/Updater.php', 'app/Support/BackupManager.php'] as $file) {
+    foreach (['app/Support/Updater.php', 'app/Support/BackupManager.php', 'app/Support/SchemaRepair.php',
+              'app/Support/MaintenanceService.php'] as $file) {
         $src = (string) file_get_contents(dirname(__DIR__) . '/' . $file);
         $check(str_contains($src, 'DbStatementTimeout::lift($db)'), "{$file} lifts the limit on its connection");
     }
+    $pm = (string) file_get_contents(dirname(__DIR__) . '/app/Support/PluginManager.php');
+    $check(substr_count($pm, 'DbStatementTimeout::lift($this->db)') === 3,
+        'PluginManager lifts the limit before activation, ZIP install and bundled registration');
+
+    // Plugin activation executes the lift before any plugin code runs.
+    $applied = $makeStub(false);
+    DbStatementTimeout::applyForWebRequest($applied, '/admin/plugins/9/activate', false);
+    $applied->queries = [];
+    $manager = new class ($applied) extends \App\Support\PluginManager {
+        public function __construct(\mysqli $db)
+        {
+            parent::__construct($db, new \App\Support\HookManager($db));
+        }
+        public function getPlugin(int $pluginId): ?array
+        {
+            return ['id' => $pluginId, 'name' => 'ghost', 'is_active' => 0, 'path' => '__pk_missing_plugin__',
+                    'main_file' => 'ghost.php', 'metadata' => []];
+        }
+    };
+    $manager->activatePlugin(9);
+    $check(in_array('SET SESSION max_execution_time = 0', $applied->queries, true),
+        'activatePlugin() lifts the statement time limit');
 }, 'apply/lift with stub connections');
 
 // Live servers: MySQL from E2E_DB_* / the worktree .env, MariaDB on 3307 if present.
@@ -322,10 +358,10 @@ $envFile = Installer::readEnvFile(dirname(__DIR__) . '/.env') ?? [];
 $cfg = static fn (string $k, string $d = '') => (string) (getenv('E2E_' . $k) ?: ($envFile[$k] ?? $d));
 $liveTargets['MySQL (app DB)'] = [
     'host' => $cfg('DB_HOST', 'localhost'), 'user' => $cfg('DB_USER'), 'pass' => $cfg('DB_PASS'),
-    'port' => (int) $cfg('DB_PORT', '3306'), 'socket' => $cfg('DB_SOCKET'),
+    'port' => (int) $cfg('DB_PORT', '3306'), 'socket' => $cfg('DB_SOCKET'), 'dbname' => $cfg('DB_NAME'),
 ];
 if (is_file('/opt/homebrew/var/mariadb.sock') || @fsockopen('127.0.0.1', 3307, $en, $es, 0.3)) {
-    $liveTargets['MariaDB (:3307)'] = ['host' => '127.0.0.1', 'user' => 'root', 'pass' => '', 'port' => 3307, 'socket' => ''];
+    $liveTargets['MariaDB (:3307)'] = ['host' => '127.0.0.1', 'user' => 'root', 'pass' => '', 'port' => 3307, 'socket' => '', 'dbname' => ''];
 }
 mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 foreach ($liveTargets as $label => $t) {
@@ -352,6 +388,33 @@ foreach ($liveTargets as $label => $t) {
     $check($read() === $expected, "{$label}: web path sets @@{$var} = {$expected}");
     DbStatementTimeout::lift($db);
     $check($read() === 0.0, "{$label}: lift() resets @@{$var} to 0");
+
+    // SchemaRepair (first request after an upgrade) lifts it before its DDL.
+    // A root without schema.sql makes repair() throw right after the lift,
+    // so nothing is written to the database.
+    if ($t['dbname'] !== '') {
+        $db->select_db($t['dbname']);
+        $hasUsers = $db->query("SELECT 1 FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'utenti'")->num_rows > 0;
+        if (!$hasUsers) {
+            $skip++;
+            echo "  SKIP {$label}: SchemaRepair lift needs an installed database\n";
+        } else {
+            $root = sys_get_temp_dir() . '/pk_dbst_repair_' . bin2hex(random_bytes(4));
+            mkdir($root . '/storage', 0700, true);
+            file_put_contents($root . '/version.json', json_encode(['version' => '9.9.9-test']));
+            DbStatementTimeout::applyForWebRequest($db, '/catalogo', false);
+            $check($read() > 0.0, "{$label}: limit set again before SchemaRepair");
+            try {
+                \App\Support\SchemaRepair::runOncePerVersion($db, $root);
+            } catch (\RuntimeException) {
+                // expected: no schema.sql in the temp root
+            }
+            $check($read() === 0.0, "{$label}: SchemaRepair::runOncePerVersion() lifts @@{$var}");
+            @unlink($root . '/version.json');
+            @rmdir($root . '/storage');
+            @rmdir($root);
+        }
+    }
     $db->close();
 }
 

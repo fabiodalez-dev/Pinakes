@@ -672,6 +672,7 @@ class PluginManager
                     'path'      => $path,
                     'main_file' => $mainFile,
                 ];
+                DbStatementTimeout::lift($this->db); // onInstall()/onActivate() run schema DDL
                 try {
                     $instance = $this->instantiatePlugin($pluginForInstance);
                     if (method_exists($instance, 'onInstall')) {
@@ -1293,6 +1294,7 @@ class PluginManager
                 'path'      => $path,
                 'main_file' => $mainFile,
             ];
+            DbStatementTimeout::lift($this->db); // onInstall() runs schema DDL
             try {
                 $instance = $this->instantiatePlugin($pluginForInstance);
                 if (method_exists($instance, 'onInstall')) {
@@ -1347,6 +1349,11 @@ class PluginManager
         if ($plugin['is_active']) {
             return ['success' => false, 'message' => __('Plugin già attivo.')];
         }
+
+        // onActivate() runs schema DDL (FRBR adds a foreign key on libri),
+        // which a web request's statement time limit would cut short on
+        // MariaDB, where max_statement_time also bounds writes.
+        DbStatementTimeout::lift($this->db);
 
         // The DB column may contain metadata from an older bundled copy. Read
         // the on-disk manifest that will actually be loaded and enforce its

@@ -59,6 +59,9 @@ final class SchemaRepair
         if (($row[0] ?? '0') !== '1') {
             return; // another request is repairing
         }
+        // The repair runs DDL on the first request after an upgrade; on
+        // MariaDB the web statement time limit would also cut those short.
+        DbStatementTimeout::lift($db);
         try {
             self::repair($db, $root);
             @file_put_contents($marker, $version, LOCK_EX);

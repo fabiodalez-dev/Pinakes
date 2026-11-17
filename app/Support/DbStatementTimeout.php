@@ -16,9 +16,10 @@ namespace App\Support;
  * Because the MariaDB variable also interrupts writes, the limit is only ever
  * applied on the web request path, never in CLI (cron, scripts, tests), and
  * long-running web operations (updater, installer, backup/restore, imports,
- * exports, maintenance, sitemap regeneration) are exempt by path. Classes that
- * run those operations call lift() on the connection they receive as a second
- * line of defence.
+ * exports, maintenance, sitemap, harvesting protocols) are exempt by exact
+ * route. Classes that run long work regardless of the route (updater, backups,
+ * plugin activation, SchemaRepair, the admin-login maintenance run) call
+ * lift() on the connection they receive.
  *
  * Configuration: env DB_STATEMENT_TIMEOUT in seconds (0 disables). Without it
  * MySQL gets 30 s and MariaDB a more generous 60 s.
@@ -32,14 +33,54 @@ final class DbStatementTimeout
     public const DEFAULT_SECONDS_MARIADB = 60;
 
     /**
-     * Path segments of web operations that legitimately run long statements.
-     * Matched as a substring of any single path segment (e.g. "export-csv",
-     * "export.xml", "import-sbn", "bulk-export", "restore-upload").
+     * Exact routes (path after the base path, anchored at both ends) of web
+     * operations that legitimately run long statements. Listed one by one on
+     * purpose: a substring match on any segment also exempted free-form
+     * segments such as a book slug ("/libro/12/important-...").
+     *
+     * Plugin activation/installation, SchemaRepair and the admin-login
+     * maintenance run do not depend on the path: they call lift() right
+     * before their work.
      */
-    private const EXEMPT_SEGMENT_PATTERN = '#/[^/]*(import|export|backup|restore|sitemap)[^/]*(?=/|$)#i';
-
-    /** Path prefixes (after any base path) that are exempt as a whole. */
-    private const EXEMPT_AREA_PATTERN = '#(^|/)(installer|admin/updates|admin/maintenance)(/|$)#i';
+    private const EXEMPT_ROUTES = [
+        // Long-running areas as a whole.
+        'installer(?:/.*)?',
+        'admin/updates(?:/.*)?',
+        'admin/maintenance(?:/.*)?',
+        // Imports.
+        'admin/books/import(?:/.*)?',
+        'admin/users/import(?:/.*)?',
+        'admin/calendar/import-ics',
+        'admin/archives/import',
+        'admin/books/(?:bulk-)?import-sbn',
+        'admin/books/import-unimarc',
+        'admin/books/copy-cataloging/import',
+        'api/dewey-editor/(?:import|export|restore)/[^/]+',
+        // Exports.
+        'admin/books/export/(?:csv|marc|librarything)',
+        'admin/users/export/csv',
+        'admin/users/export-pdf',
+        'admin/loans/export-csv',
+        'admin/attendance/export\.csv',
+        'admin/inventory/\d+/report\.(?:csv|pdf)',
+        'admin/imports/download-errors',
+        'api/collocazione/export-csv',
+        'api/(?:autori|editori)/bulk-export',
+        'admin/archives/export\.(?:xml|ead3)',
+        'admin/archives/(?:authorities/)?\d+/export\.xml',
+        'admin/periodicals/export/(?:kbart|acnp)',
+        'admin/books/\d+/export\.unimarc\.xml',
+        // Sitemap.
+        'sitemap\.xml',
+        'admin/settings/advanced/regenerate-sitemap',
+        // Harvesting protocols: whole-catalogue pages by design.
+        'oai',
+        'archives/oai',
+        'resync/(?:capabilitylist|resourcelist|changelist)\.xml',
+        '\.well-known/resourcesync',
+        'api/sru',
+        'api/archives/sru',
+    ];
 
     /** @var array<int, string> spl_object_id => variable name set on that connection */
     private static array $applied = [];
@@ -56,11 +97,17 @@ final class DbStatementTimeout
         if ($isCli) {
             return;
         }
+        $basePath = '';
         if ($requestPath === null) {
             $parsed = parse_url((string) ($_SERVER['REQUEST_URI'] ?? '/'), PHP_URL_PATH);
             $requestPath = is_string($parsed) ? $parsed : '/';
+            try {
+                $basePath = HtmlHelper::getBasePath();
+            } catch (\Throwable) {
+                $basePath = '';
+            }
         }
-        if (self::isExemptPath($requestPath)) {
+        if (self::isExemptPath($requestPath, $basePath)) {
             return;
         }
 
@@ -140,10 +187,26 @@ final class DbStatementTimeout
         return 'SET SESSION max_execution_time = ' . ($seconds * 1000);
     }
 
-    public static function isExemptPath(string $path): bool
+    /**
+     * @param string $path     request path, base path included
+     * @param string $basePath the install's base path ("" at the domain root)
+     */
+    public static function isExemptPath(string $path, string $basePath = ''): bool
     {
         $path = '/' . ltrim($path, '/');
-        return preg_match(self::EXEMPT_AREA_PATTERN, $path) === 1
-            || preg_match(self::EXEMPT_SEGMENT_PATTERN, $path) === 1;
+        $basePath = rtrim($basePath, '/');
+        if ($basePath !== '') {
+            if ($path !== $basePath && !str_starts_with($path, $basePath . '/')) {
+                return false;
+            }
+            $path = '/' . ltrim(substr($path, strlen($basePath)), '/');
+        }
+        $route = rtrim(substr($path, 1), '/');
+        foreach (self::EXEMPT_ROUTES as $pattern) {
+            if (preg_match('#^' . $pattern . '$#iD', $route) === 1) {
+                return true;
+            }
+        }
+        return false;
     }
 }
