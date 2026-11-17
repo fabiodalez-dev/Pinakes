@@ -422,7 +422,9 @@ final class PatronLedger
     /**
      * A return was undone: reverse the late fine with a storno row, and the
      * waivers written for it with a second one, so the balance is back where
-     * it was before the return. A later return of the same loan writes a new
+     * it was before the return. The fine-and-waiver pair an extension of the
+     * overdue loan wrote (late-extend / waiver-extend keys) is not part of the
+     * return and stays: the extension itself is not undone. A later return of the same loan writes a new
      * late fine (the key carries the reversal count, so the history stays one
      * row per event).
      *
@@ -433,7 +435,7 @@ final class PatronLedger
         if (!self::schemaReady($this->db)) {
             return 0;
         }
-        $charged = $this->loanSum($loanId, "tipo = 'multa_ritardo' OR (tipo = 'storno' AND chiave_idempotenza LIKE 'storno:late:%')");
+        $charged = $this->loanSum($loanId, "(tipo = 'multa_ritardo' AND COALESCE(chiave_idempotenza, '') NOT LIKE 'late-extend:%') OR (tipo = 'storno' AND chiave_idempotenza LIKE 'storno:late:%')");
         if ($charged <= 0) {
             return 0;
         }
@@ -441,7 +443,7 @@ final class PatronLedger
         if ($loan === null) {
             return 0;
         }
-        $waived = -$this->loanSum($loanId, "tipo = 'condono' OR (tipo = 'storno' AND chiave_idempotenza LIKE 'storno:waiver:%')");
+        $waived = -$this->loanSum($loanId, "(tipo = 'condono' AND COALESCE(chiave_idempotenza, '') NOT LIKE 'waiver-extend:%') OR (tipo = 'storno' AND chiave_idempotenza LIKE 'storno:waiver:%')");
         $generation = $this->reversalCount($loanId) + 1;
         $id = null;
         $this->inTransaction(function () use ($loan, $loanId, $charged, $waived, $reason, $staffId, $generation, &$id): void {
