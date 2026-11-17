@@ -141,7 +141,6 @@ class DesiderataPlugin
             $this->fail('cannot index donation requests');
         }
     }
-    /** @return never */
     /**
      * Schema DDL interpolates identifiers (they cannot be bound). Every caller
      * passes a literal today; this keeps a future caller from turning the
@@ -154,6 +153,7 @@ class DesiderataPlugin
         }
     }
 
+    /** @return never */
     private function fail(string $what): void
     {
         $message = '[Desiderata] ' . $what . ': ' . $this->db->error;

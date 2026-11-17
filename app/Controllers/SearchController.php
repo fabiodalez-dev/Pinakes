@@ -222,6 +222,16 @@ class SearchController
     }
 
     /**
+     * Operators and custom-role cataloguers: the book form's author picker
+     * needs the full list for them, or they create duplicate authors.
+     */
+    private function isCatalogueSession(Request $request): bool
+    {
+        return $this->isOperatorSession($request)
+            || $request->getAttribute(\App\Middleware\SessionRoleRefreshMiddleware::CATALOG_ATTRIBUTE, false) === true;
+    }
+
+    /**
      * Is the current session an operator one (admin or staff)?
      *
      * /api/search/unified takes no AUTHORISING middleware — unlike its sibling
@@ -247,16 +257,6 @@ class SearchController
      * operator until the session expires (CWE-613). Absent attribute means
      * false, so a route that forgets the middleware discloses nothing.
      */
-    /**
-     * Operators and custom-role cataloguers: the book form's author picker
-     * needs the full list for them, or they create duplicate authors.
-     */
-    private function isCatalogueSession(Request $request): bool
-    {
-        return $this->isOperatorSession($request)
-            || $request->getAttribute(\App\Middleware\SessionRoleRefreshMiddleware::CATALOG_ATTRIBUTE, false) === true;
-    }
-
     private function isOperatorSession(Request $request): bool
     {
         return $request->getAttribute(

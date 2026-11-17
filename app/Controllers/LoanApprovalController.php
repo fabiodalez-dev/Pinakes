@@ -735,7 +735,6 @@ class LoanApprovalController
         }
     }
 
-    /** @return array{string,string}|null */
     /** JSON refusal of an operator action on the operator's own account. */
     private function selfDealingResponse(Response $response): Response
     {
@@ -747,6 +746,7 @@ class LoanApprovalController
         return $response->withHeader('Content-Type', 'application/json')->withStatus(403);
     }
 
+    /** @return array{string,string}|null */
     private function approvalWindow(mysqli $db, \App\Support\LibraryCalendar $calendar, \App\Services\CapacityService $capacity, int $bookId, int $loanId, int $copyId, string $start, string $due, string $today): ?array
     {
         if (!$calendar->hasRules()) {

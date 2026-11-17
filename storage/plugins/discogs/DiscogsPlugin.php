@@ -946,13 +946,6 @@ class DiscogsPlugin
     private static float $lastDeezerRequestTime = 0.0;
 
     /**
-     * Wait until at least $minInterval seconds have passed since the last
-     * request to $host from ANY PHP worker: the timestamp lives in a locked
-     * file in the temp dir, so a CSV import spread over several FPM workers
-     * still respects Discogs' 25-60/min and MusicBrainz' strict 1/s.
-     * Falls back to the per-process timestamp when the file cannot be used.
-     */
-    /**
      * Microseconds to wait so that $minInterval separates now from $last,
      * never more than $minInterval itself: a stored timestamp in the future
      * (clock skew, a tampered file) must not stall the worker indefinitely.
@@ -968,6 +961,13 @@ class DiscogsPlugin
         return (int) (max(0.0, $wait) * 1_000_000);
     }
 
+    /**
+     * Wait until at least $minInterval seconds have passed since the last
+     * request to $host from ANY PHP worker: the timestamp lives in a locked
+     * file in the install's storage/cache, so a CSV import spread over several FPM workers
+     * still respects Discogs' 25-60/min and MusicBrainz' strict 1/s.
+     * Falls back to the per-process timestamp when the file cannot be used.
+     */
     private function throttleHost(string $host, float $minInterval, float &$processLast): void
     {
         // The shared timestamp lives in the install's own storage/cache, not
