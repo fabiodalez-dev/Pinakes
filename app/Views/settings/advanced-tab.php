@@ -388,6 +388,9 @@ use App\Support\HtmlHelper;
             <div>
               <span class="text-sm font-semibold text-gray-900"><?= __("Abilita HSTS") ?></span>
               <p class="text-xs text-gray-600"><?= __("Attiva HTTP Strict Transport Security sulle connessioni HTTPS (max-age: 1 anno, sottodomini esclusi). Disattivato per impostazione predefinita.") ?></p>
+              <?php if (!isset($advancedSettings['enable_hsts']) || $advancedSettings['enable_hsts'] !== '1'): ?>
+              <p class="text-xs text-amber-700 mt-1" data-testid="hsts-upgrade-note"><?= __("Fino alla versione 0.9.5 HSTS veniva inviato automaticamente su ogni risposta HTTPS. Dopo l'aggiornamento non viene più inviato finché non attivi questa opzione.") ?></p>
+              <?php endif; ?>
             </div>
           </label>
         </div>

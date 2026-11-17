@@ -177,8 +177,7 @@ $guard(function () use ($check, $ROOT): void {
     // The advanced tab renders the notice only when the controller sets it.
     // The partial is rendered without a database, so it stops at the API-key
     // block (after the HSTS toggle): only the markup before that is checked.
-    $render = static function (bool $notice) use ($ROOT): string {
-        $advancedSettings = [];
+    $render = static function (bool $notice, array $advancedSettings = []) use ($ROOT): string {
         $isAdmin = true;
         $hstsProxyNotice = $notice;
         $csrfToken = 't';
@@ -199,6 +198,11 @@ $guard(function () use ($check, $ROOT): void {
         && str_contains($with, 'APP_CANONICAL_URL'), 'advanced tab shows the TRUSTED_PROXIES / APP_CANONICAL_URL notice');
     $check(str_contains($without, 'id="enable_hsts"') && !str_contains($without, 'hsts-proxy-notice'),
         'no notice when the request is not untrusted forwarded HTTPS');
+    // HSTS used to be sent on every HTTPS response; it is opt-in now, so an
+    // upgraded HTTPS site stops sending it. The page says so while it is off.
+    $check(str_contains($without, 'data-testid="hsts-upgrade-note"') && str_contains($without, '0.9.5'),
+        'with HSTS off the advanced tab explains that the upgrade stopped sending it');
+    $check(!str_contains($render(false, ['enable_hsts' => '1']), 'hsts-upgrade-note'), 'with HSTS on the upgrade note is gone');
     $ctl = (string) file_get_contents($ROOT . '/app/Controllers/SettingsController.php');
     $check(str_contains($ctl, 'Hsts::untrustedForwardedHttps(') && str_contains($ctl, "'hstsProxyNotice',"),
         'SettingsController computes the notice and passes it to the view');
