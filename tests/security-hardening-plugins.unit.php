@@ -491,6 +491,11 @@ if ($sandboxError !== null) {
         $check($scalar("SELECT COUNT(*) FROM bookclub_ai_outputs WHERE club_id = {$aiClub}") === $cap, 'AI: the failed call still counts toward the daily cap');
         $check(count($ai->listOutputs($aiClub, 100)) === $cap - 1, 'AI: the history hides the reserved-but-failed attempt');
         $check($ai->reserveAttempt($aiClub, 'questions', 1, null) === null, 'AI: a full cap books nothing more');
+        $check($ai->reserveRefusedByCap() === true, 'AI: that refusal is reported as the daily cap');
+        $session('admin');
+        $aiCtrl->generateQuestions(bcRequest('POST', ['club_book_id' => (string) $clubBook]), bcResponse(), 'hb-club');
+        $check(($_SESSION['bookclub_flash']['type'] ?? '') === 'warning'
+            && str_contains((string) ($_SESSION['bookclub_flash']['message'] ?? ''), (string) $cap), 'AI: the manager is told the daily cap is reached');
         // Under a per-club lock: while another connection holds it, nothing is
         // booked (the check-then-insert cannot interleave).
         $db->query("DELETE FROM bookclub_ai_outputs WHERE club_id = {$aiClub}");
@@ -498,6 +503,15 @@ if ($sandboxError !== null) {
         $other->query("SELECT GET_LOCK('pinakes_bookclub_ai_{$aiClub}', 0)");
         $check($ai->reserveAttempt($aiClub, 'questions', 1, null) === null
             && $scalar("SELECT COUNT(*) FROM bookclub_ai_outputs WHERE club_id = {$aiClub}") === 0, 'AI: no booking while another request holds the club lock');
+        $check($ai->reserveRefusedByCap() === false, 'AI: a lock timeout is not reported as the daily cap');
+        // Below the cap, a lock timeout must not tell the manager the cap is hit.
+        $session('admin');
+        unset($_SESSION['bookclub_flash']);
+        $fake->calls = [];
+        $aiCtrl->generateQuestions(bcRequest('POST', ['club_book_id' => (string) $clubBook]), bcResponse(), 'hb-club');
+        $flash = $_SESSION['bookclub_flash'] ?? [];
+        $check(($flash['type'] ?? '') === 'error' && !str_contains((string) ($flash['message'] ?? ''), (string) $cap) && $fake->calls === [],
+            'AI: a lock timeout below the cap is an error, not "daily limit reached", and calls no provider');
         $other->query("SELECT RELEASE_LOCK('pinakes_bookclub_ai_{$aiClub}')");
         $other->close();
         $check(is_int($ai->reserveAttempt($aiClub, 'questions', 1, null)), 'AI: once the lock is free an attempt is booked');

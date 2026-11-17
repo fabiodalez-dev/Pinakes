@@ -313,6 +313,7 @@ class AiService
      */
     public function reserveAttempt(int $clubId, string $kind, int $entityId, ?int $createdBy): ?int
     {
+        $this->refusedByCap = false;
         $lockName = 'pinakes_bookclub_ai_' . $clubId;
         $lock = $this->db->prepare('SELECT GET_LOCK(?, 5) AS l');
         if ($lock === false) {
@@ -333,6 +334,7 @@ class AiService
         }
         try {
             if (!$this->underDailyCap($clubId)) {
+                $this->refusedByCap = true;
                 return null;
             }
             return $this->saveOutput($clubId, $kind, $entityId, '', $this->model(), $createdBy);
@@ -344,6 +346,19 @@ class AiService
                 $release->close();
             }
         }
+    }
+
+    /** Whether reserveAttempt() was refusing this club the daily cap. */
+    private bool $refusedByCap = false;
+
+    /**
+     * True when the last reserveAttempt() returned null because the daily cap
+     * is reached; false when it failed for another reason (lock timeout, a
+     * database error), which the caller must not report as the cap.
+     */
+    public function reserveRefusedByCap(): bool
+    {
+        return $this->refusedByCap;
     }
 
     /** Fill a row booked by reserveAttempt() with the generated text. */

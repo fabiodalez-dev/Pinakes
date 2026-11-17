@@ -168,7 +168,7 @@ class AiController extends BaseController
         // The attempt is booked against the daily cap before the paid call.
         $attemptId = $this->ai->reserveAttempt($clubId, 'questions', (int) $clubBook['id'], $this->userId());
         if ($attemptId === null) {
-            $this->flash('warning', sprintf(__('Limite di sicurezza raggiunto: massimo %d generazioni IA per club nelle ultime 24 ore. Riprova più tardi.'), AiService::MAX_OUTPUTS_PER_DAY));
+            $this->flashReserveRefusal();
             return $this->redirect($response, $this->aiPath($slug));
         }
         $text = $this->ai->generate($system, $user);
@@ -225,7 +225,7 @@ class AiController extends BaseController
         // The attempt is booked against the daily cap before the paid call.
         $attemptId = $this->ai->reserveAttempt($clubId, 'minutes', (int) $meeting['id'], $this->userId());
         if ($attemptId === null) {
-            $this->flash('warning', sprintf(__('Limite di sicurezza raggiunto: massimo %d generazioni IA per club nelle ultime 24 ore. Riprova più tardi.'), AiService::MAX_OUTPUTS_PER_DAY));
+            $this->flashReserveRefusal();
             return $this->redirect($response, $this->aiPath($slug));
         }
         $text = $this->ai->generate($system, $user);
@@ -240,6 +240,19 @@ class AiController extends BaseController
             $this->flash('error', __('Impossibile salvare il risultato generato.'));
         }
         return $this->redirect($response, $this->aiPath($slug));
+    }
+
+    /**
+     * Why no slot was booked: the daily cap, or a lock timeout / database
+     * error, which must not tell a manager below the cap that it is reached.
+     */
+    private function flashReserveRefusal(): void
+    {
+        if ($this->ai->reserveRefusedByCap()) {
+            $this->flash('warning', sprintf(__('Limite di sicurezza raggiunto: massimo %d generazioni IA per club nelle ultime 24 ore. Riprova più tardi.'), AiService::MAX_OUTPUTS_PER_DAY));
+            return;
+        }
+        $this->flash('error', __('Impossibile completare l\'operazione. Riprova più tardi.'));
     }
 
     // ------------------------------------------------------------------
