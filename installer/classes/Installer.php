@@ -1243,10 +1243,24 @@ HTACCESS;
      * Every other client, anonymous or not, gets the installed-state gates
      * (admin authentication for ?force=1). An unreadable .env or an unreachable
      * database counts as installed: fail closed.
+     *
+     * Under the CLI SAPI the answer is the lock file alone, as before. The
+     * stricter predicate above guards the web wizard; command-line callers
+     * are trusted operators, and the already released Docker images call this
+     * from config/headless-install.php as their first guard, after the
+     * entrypoint has written .env and before their own logic that re-writes a
+     * lost .installed when the database already holds users. With the web
+     * predicate a container recreate or image upgrade (the lock lives in the
+     * ephemeral layer) would exit there and leave the site on the installer,
+     * and on a first install an unreachable database would make it skip the
+     * install silently. No web gate goes through this branch.
      */
     public function isInstalled() {
         if ($this->hasLockFile()) {
             return true;
+        }
+        if ($this->runsUnderCli()) {
+            return false;
         }
         if (!file_exists($this->baseDir . '/.env')) {
             return false;
@@ -1260,6 +1274,11 @@ HTACCESS;
             return true;
         }
         return !$this->configuredDatabaseIsEmpty();
+    }
+
+    /** True under the command-line SAPI (see isInstalled()). Overridable in tests. */
+    protected function runsUnderCli(): bool {
+        return PHP_SAPI === 'cli';
     }
 
     /** @var bool|null memo of configuredDatabaseIsEmpty() for this request */

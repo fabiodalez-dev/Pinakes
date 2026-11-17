@@ -57,8 +57,17 @@ $mkSite = static function () use ($tmpRoot): string {
     return $d;
 };
 
+/** The web wizard's view: these checks run in the CLI but exercise the web predicate. */
+class WebInstaller extends Installer
+{
+    protected function runsUnderCli(): bool
+    {
+        return false;
+    }
+}
+
 /** Installer whose database probe answers what the test says. */
-final class ProbeInstaller extends Installer
+final class ProbeInstaller extends WebInstaller
 {
     public bool $emptyDb = false;
     public int $probes = 0;
@@ -100,9 +109,9 @@ unlink($site . '/.installed');
 // The real probe fails closed on an unreachable database and on a .env without DB_NAME.
 $siteReal = $mkSite();
 file_put_contents($siteReal . '/.env', "DB_HOST=127.0.0.1\nDB_PORT=1\nDB_USER=x\nDB_PASS=x\nDB_NAME=nope\n");
-$check((new Installer($siteReal))->isInstalled() === true, 'real probe: unreachable database counts as installed');
+$check((new WebInstaller($siteReal))->isInstalled() === true, 'real probe: unreachable database counts as installed');
 file_put_contents($siteReal . '/.env', "# no database configured\nAPP_ENV=production\n");
-$check((new Installer($siteReal))->isInstalled() === true, 'real probe: .env without DB_NAME counts as installed');
+$check((new WebInstaller($siteReal))->isInstalled() === true, 'real probe: .env without DB_NAME counts as installed');
 
 // Ownership binding.
 $_SESSION = [];
