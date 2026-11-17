@@ -47,7 +47,19 @@ final class RecordingEmailService extends EmailService
         $this->sent[] = ['to' => $to, 'template' => $templateName, 'variables' => $variables];
         return true;
     }
+
+    /** Renders like the real one over the shipped Italian admin template, and records the body. */
+    public function sendTemplateWithBodyFilter(string $to, string $templateName, array $variables, ?string $locale, callable $bodyFilter): bool
+    {
+        $body = $this->replaceVariables($bodyFilter(ADMIN_REGISTRATION_TEMPLATE), $variables);
+        $this->sent[] = ['to' => $to, 'template' => $templateName, 'variables' => $variables, 'body' => $body];
+        return true;
+    }
 }
+
+// The admin_new_registration body as shipped (SettingsMailTemplates), button included.
+const ADMIN_REGISTRATION_TEMPLATE = '<p>Email: {{email}}</p>'
+    . '<p><a href="{{admin_users_url}}" style="background-color: #3b82f6; color: white;">Gestisci Utenti</a></p>';
 
 /** Statement double that keeps the values bound to it. */
 final class RecordingStmt extends mysqli_stmt
@@ -61,8 +73,15 @@ final class RecordingStmt extends mysqli_stmt
     public function close(): true { return true; }
 }
 
+/** Result double for the admin list query. */
+final class AdminRowsResult extends mysqli_result
+{
+    public function __construct(private array $rows) {}
+    public function fetch_assoc(): array|null|false { return array_shift($this->rows); }
+}
+
 /** Connection-less mysqli answering SELECTs from $rows and recording every statement. */
-final class RecordingDb extends mysqli
+class RecordingDb extends mysqli
 {
     /** @var list<RecordingStmt> */
     public array $stmts = [];
@@ -107,6 +126,26 @@ $register = static function () use ($token, &$lastDb): array {
     $service->sendUserRegistrationPending(77);
     return $mailer->sent;
 };
+/** The admin email of a new registration: admins come from the second query. */
+$notifyAdmins = static function () use ($token): array {
+    $service = (new ReflectionClass(NotificationService::class))->newInstanceWithoutConstructor();
+    $mailer = new RecordingEmailService();
+    $user = ['nome' => 'Audit', 'cognome' => 'Victim', 'email' => 'audit-a1-victim@example.test',
+        'codice_tessera' => 'AUDA1', 'created_at' => '2026-11-13 10:00:00', 'token_verifica_email' => $token];
+    $db = new class ([$user, ['locale' => 'it_IT']]) extends RecordingDb {
+        public function query(string $query, int $result_mode = MYSQLI_STORE_RESULT): mysqli_result|bool
+        {
+            return str_contains($query, "tipo_utente IN ('admin', 'staff')")
+                ? new AdminRowsResult([['email' => 'admin@example.test']])
+                : true;
+        }
+    };
+    (new ReflectionProperty(NotificationService::class, 'db'))->setValue($service, $db);
+    (new ReflectionProperty(NotificationService::class, 'emailService'))->setValue($service, $mailer);
+    $service->notifyNewUserRegistration(77);
+    return $mailer->sent;
+};
+
 /** @return list<RecordingStmt> the admin notifications the last run recorded */
 $adminNotices = static function () use (&$lastDb): array {
     return array_values(array_filter($lastDb->stmts ?? [], static fn(RecordingStmt $s): bool => str_contains($s->sql, 'INSERT INTO admin_notifications')));
@@ -133,6 +172,32 @@ try {
     $bound = $notices[0]->bound ?? [];
     $check(($bound[3] ?? null) === '/admin/users/details/77' && ($bound[4] ?? null) === 77,
         'the notice links to the account to activate');
+    $adminMail = $notifyAdmins();
+    $adminBody = (string) ($adminMail[0]['body'] ?? '');
+    $check(count($adminMail) === 1 && ($adminMail[0]['to'] ?? '') === 'admin@example.test',
+        'the admins still get the new-registration email');
+    $check($adminBody !== '' && !str_contains($adminBody, 'attacker.example') && !str_contains($adminBody, '<a ')
+        && !str_contains($adminBody, '{{admin_users_url}}'),
+        'the admin email carries no link at all, never one to the request Host');
+    $check(str_contains($adminBody, "Per gestire la richiesta apri l&apos;area di amministrazione e vai su Utenti.")
+        || str_contains($adminBody, "Per gestire la richiesta apri l&#039;area di amministrazione e vai su Utenti."),
+        'the button is replaced by a plain-text pointer to the user list');
+    $check(str_contains($adminBody, 'audit-a1-victim@example.test'), 'the rest of the email is unchanged');
+    foreach (['it_IT' => null, 'en_US' => 'en_US', 'de_DE' => 'de_DE', 'fr_FR' => 'fr_FR', 'da_DK' => 'da_DK'] as $loc => $file) {
+        $tpl = $file === null
+            ? (string) (function () use ($root): string {
+                $src = (string) file_get_contents($root . '/app/Support/SettingsMailTemplates.php');
+                $from = (int) strpos($src, "<<<'HTML'", (int) strpos($src, "'admin_new_registration' => ["));
+                return substr($src, $from, (int) strpos($src, "\nHTML,", $from) - $from);
+            })()
+            : (string) ((require $root . '/app/Support/mail_templates/' . $file . '.php')['admin_new_registration']['body'] ?? '');
+        $out = NotificationService::replaceAdminUsersLink($tpl, 'POINTER');
+        $check(str_contains($tpl, '{{admin_users_url}}') && !str_contains($out, 'admin_users_url') && !str_contains($out, '<a ')
+            && substr_count($out, 'POINTER') === 1,
+            "the shipped {$loc} admin template loses its button and gets the pointer once");
+    }
+    $check(NotificationService::replaceAdminUsersLink('<p>No button</p>', 'POINTER') === '<p>No button</p><p>POINTER</p>',
+        'a customised template without the button gets the pointer appended');
     $check(str_contains((string) ($bound[2] ?? ''), 'audit-a1-victim@example.test') && str_contains((string) ($bound[2] ?? ''), 'APP_CANONICAL_URL')
         && !str_contains(json_encode($bound) ?: '', 'attacker.example'),
         'the notice names the registrant and the setting to fix, and never the request Host');
@@ -146,6 +211,10 @@ try {
         'its verification link uses the canonical host and carries the token');
     $check(!str_contains($section, 'attacker.example'), 'and never the request Host');
     $check($adminNotices() === [], 'with a trusted host no "must act" notice is raised');
+    $adminMail = $notifyAdmins();
+    $check(count($adminMail) === 1 && !isset($adminMail[0]['body'])
+        && ($adminMail[0]['variables']['admin_users_url'] ?? '') === 'https://library.example/admin/users',
+        'with a trusted host the admin email keeps its button, built from that host');
 
     echo "The manual activation path exists for such an account\n";
     $reg = (string) file_get_contents($root . '/app/Controllers/RegistrationController.php');
