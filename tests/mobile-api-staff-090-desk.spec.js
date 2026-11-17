@@ -506,7 +506,9 @@ test.describe('Statistics', () => {
             expect(csv.status).toBe(404);
             expect(csv.json.error.code).toBe('feature_disabled');
         } finally {
-            await setFeatures({ visitor_log: '1', fines: '1', circulation_rules: '1', stocktake: ctx.features.stocktake });
+            await setFeatures({ visitor_log: '1', fines: '1', circulation_rules: '1' });
+            // stocktake goes back to the stored row exactly (text, NULL or absent).
+            await featureToggles.restoreFeatures({ stocktake: ctx.features.stocktake });
         }
         const back = (await F.api(request, 'GET', '/staff/statistics', { token: ctx.staff })).json.data;
         expect(back.visitors).toBeTruthy();
