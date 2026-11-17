@@ -121,7 +121,13 @@
             options.cancelButtonText = t('Annulla');
             return window.Swal.fire(options).then(function (r) { return !!r.isConfirmed; });
         }
-        return Promise.resolve(window.confirm(message));
+        // No SweetAlert yet (vendor.bundle.js is deferred, so an early click
+        // can beat it). Answer on a later task, never a microtask: a microtask
+        // still runs inside the original click/submit dispatch, where the
+        // browser ignores both requestSubmit() and a nested click().
+        return new Promise(function (resolve) {
+            setTimeout(function () { resolve(window.confirm(message)); }, 0);
+        });
     }
 
     function run(el, event) {
@@ -191,8 +197,16 @@
         var submitter = event.submitter || null;
         ask(message).then(function (ok) {
             if (!ok) return;
-            form.dataset.pkConfirmed = '1';
-            submitForm(form, submitter);
+            // Leave the current dispatch before submitting again (see ask()).
+            setTimeout(function () {
+                form.dataset.pkConfirmed = '1';
+                submitForm(form, submitter);
+                // requestSubmit() fires 'submit' synchronously and the handler
+                // above consumes the flag. When it fires nothing (constraint
+                // validation failed) the flag must not survive, or the next
+                // submit would skip the confirmation.
+                setTimeout(function () { delete form.dataset.pkConfirmed; }, 0);
+            }, 0);
         });
     }, true);
 
