@@ -1531,9 +1531,17 @@ HTACCESS;
 
     /**
      * Restart INSTALL_OWNER_TTL for the owning session (sliding expiry). Only
-     * the mtime changes, so the binding stays the same token. Best-effort.
+     * the mtime changes, so the binding stays the same token. Best-effort, and
+     * a no-op for any session that does not own the install in progress.
+     *
+     * isInstalled() renews through here, but not once .installed exists: it
+     * answers "installed" before it gets that far. The ?force=1 gate of
+     * installer/index.php therefore renews too, after ownerMayContinue().
      */
-    private function renewInstallOwnership(): void {
+    public function renewInstallOwnership(): void {
+        if (!$this->ownsInstallInProgress()) {
+            return;
+        }
         $marker = $this->installOwnerMarkerPath();
         if (is_file($marker) && !is_link($marker)) {
             @touch($marker);

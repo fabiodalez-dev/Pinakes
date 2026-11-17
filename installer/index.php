@@ -188,6 +188,9 @@ if ($forceRequested && $installer->isInstalled()) {
     // imported the schema into it (Installer::ownerMayContinue()). Otherwise it
     // needs an active admin of the configured database, like anyone else.
     if ($installer->ownerMayContinue()) {
+        // With .installed present isInstalled() never reaches its own renewal, so a
+        // working owner would lose the binding INSTALL_OWNER_TTL after the last one.
+        $installer->renewInstallOwnership();
         $forceAuthenticated = true;
     } else {
         try {
