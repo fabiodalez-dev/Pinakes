@@ -1020,7 +1020,9 @@ class UsersController
         $claimed = $stmt->affected_rows === 1;
         $stmt->close();
         if (!$saved || !$claimed) {
-            return $response->withHeader('Location', $detailsUrl . ($saved ? '?error=not_suspended' : '?error=db_error'))->withStatus(302);
+            // The row was read as suspended a moment ago; a claim that matches
+            // nothing means another request changed it in between.
+            return $response->withHeader('Location', $detailsUrl . ($saved ? '?error=state_changed' : '?error=db_error'))->withStatus(302);
         }
 
         // Invia email di attivazione con link di verifica
@@ -1054,7 +1056,10 @@ class UsersController
                 $stillOwned = false;
             }
             if (!$restored || !$stillOwned) {
-                return $response->withHeader('Location', $detailsUrl . ($restored ? '?error=not_suspended' : '?error=db_error'))->withStatus(302);
+                // Zero rows matched: another request changed the account while
+                // the email was being sent. It is neither "not suspended" nor an
+                // approval of ours, so card validity is left alone too.
+                return $response->withHeader('Location', $detailsUrl . ($restored ? '?error=state_changed' : '?error=db_error'))->withStatus(302);
             }
             if ($rollbackState === 'sospeso') {
                 return $response->withHeader('Location', $detailsUrl . '?error=approval_email_failed')->withStatus(302);
