@@ -253,7 +253,7 @@ if ($forceRequested && $installer->isInstalled()) {
         $sessionToken = (string) ($_SESSION['installer_csrf_token'] ?? '');
         if ($sessionToken === '' || !hash_equals($sessionToken, $submittedToken)) {
             $csrfFailed = true;
-        } elseif (!$installer->recordForceLoginAttempt((string) ($_SERVER['REMOTE_ADDR'] ?? ''))) {
+        } elseif (!$installer->recordForceLoginAttempt(Installer::forceLoginClientIp($_SERVER))) {
             // Same budget as the main POST /login (15 attempts / 5 minutes per IP).
             // Also refused when the attempt cannot be recorded: fail closed.
             $rateLimited = true;

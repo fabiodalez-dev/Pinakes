@@ -9371,5 +9371,6 @@
   "Email di attivazione non inviata": "Activation email not sent",
   "L'indirizzo del sito non è configurato (APP_CANONICAL_URL o APP_TRUSTED_HOSTS), quindi il link di verifica non può essere inviato. L'utente è ancora sospeso: attivalo con \"Attiva utente\", oppure imposta APP_CANONICAL_URL.": "The site address is not configured (APP_CANONICAL_URL or APP_TRUSTED_HOSTS), so the verification link cannot be sent. The user is still suspended: activate them with \"Activate user\", or set APP_CANONICAL_URL.",
   "Prenotazione non trovata o non modificabile con il tuo ruolo.": "Reservation not found, or your role cannot change it.",
-  "Prestito non trovato o non modificabile con il tuo ruolo.": "Loan not found, or your role cannot change it."
+  "Prestito non trovato o non modificabile con il tuo ruolo.": "Loan not found, or your role cannot change it.",
+  "Questa sessione non può importare lo schema: l'installazione è in corso in un altro browser oppure il database non è vuoto. Riprendi l'installazione dal browser che l'ha iniziata, oppure ricomincia dal passo 2 con un database vuoto.": "This session cannot import the schema: the installation is in progress in another browser, or the database is not empty. Resume the installation from the browser that started it, or start again from step 2 with an empty database."
 }

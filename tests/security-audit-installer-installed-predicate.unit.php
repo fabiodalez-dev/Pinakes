@@ -133,12 +133,26 @@ $check($inst->isInstalled() === true, 'a fresh session (no token) is refused');
 $_SESSION[Installer::INSTALL_OWNER_SESSION_KEY] = bin2hex(random_bytes(32));
 $check($inst->isInstalled() === true, 'a forged token is refused');
 $_SESSION = [Installer::INSTALL_OWNER_SESSION_KEY => $token, $popKey => $proof];
-touch($site . '/storage/.install_in_progress', time() - Installer::INSTALL_OWNER_TTL - 10);
+// Review of PR #536 (F117/F116): the TTL lets OTHER sessions take over a lost
+// binding; it does not expire the owner's own session. An owner that paused
+// for more than the TTL between the schema import (step 3) and the admin
+// account (step 4) was locked out for good, the database being no longer empty.
+touch($site . '/storage/.install_in_progress', time() - Installer::INSTALL_OWNER_TTL - 3600);
 clearstatcache();
-$check($inst->isInstalled() === true, 'an expired binding is refused');
+$check($inst->ownsInstallInProgress() && $inst->isInstalled() === false,
+    'the owner that imported the schema goes on after pausing longer than the TTL');
+clearstatcache();
+$check(time() - (int) filemtime($site . '/storage/.install_in_progress') < 5, '... and its binding is renewed');
+$_SESSION = [];
+touch($site . '/storage/.install_in_progress', time() - Installer::INSTALL_OWNER_TTL - 3600);
+clearstatcache();
+$check($inst->isInstalled() === true, 'every other session still finds the populated database installed');
+$_SESSION = [Installer::INSTALL_OWNER_SESSION_KEY => $token];
+$check($inst->isInstalled() === true, 'the owner token without its import proof is still refused over the populated database');
+$_SESSION = [Installer::INSTALL_OWNER_SESSION_KEY => $token, $popKey => $proof];
 touch($site . '/storage/.install_in_progress');
 clearstatcache();
-$check($inst->isInstalled() === false, 'a live binding is honoured again');
+$check($inst->isInstalled() === false, 'a live binding is honoured');
 
 // A lost owner session must not shut everyone out for half a day: the binding
 // lasts INSTALL_OWNER_TTL of inactivity (2 hours), renewed by the owner's use.
@@ -252,6 +266,9 @@ clearstatcache();
 $_SESSION = []; // session B again, after expiry
 $check($inst8->isInstalled() === false, 'an expired claim no longer blocks the empty-database exception');
 $check($inst8->claimInstallOwnership() === true, 'an expired claim can be taken');
+$_SESSION = [Installer::INSTALL_OWNER_SESSION_KEY => $tokenA]; // session A comes back
+$check(!$inst8->ownsInstallInProgress() && $inst8->isInstalled() === true,
+    'once another session took the expired claim over, the old owner no longer owns the install');
 
 $site9 = $mkSite();
 $inst9 = new ProbeInstaller($site9);
@@ -368,9 +385,56 @@ $check($ownerMayPos !== false && $renewPos !== false && $renewPos > $ownerMayPos
     'the ?force=1 gate renews the owner right after ownerMayContinue() confirms it');
 
 $step3 = (string) file_get_contents($ROOT . '/installer/steps/step3.php');
-$recPos = strpos($step3, '$installer->recordSchemaImportByOwner();');
+$recPos = strpos($step3, '$installer->recordSchemaImportByOwner()');
 $impPos = strpos($step3, '$installer->importSchema();');
 $check($recPos !== false && $impPos !== false && $recPos < $impPos, 'step 3 records the import before importSchema() (a failed import stays retryable)');
+
+// Review of PR #536 (F054): installer/.htaccess redirected every request
+// without "force" in it to / while <docroot>/.installed existed, which on a
+// project-root docroot broke a ?force=1 reinstall at its first form. The PHP
+// gate decides on its own; no Apache rule may answer on .installed.
+$installerHtaccess = (string) file_get_contents($ROOT . '/installer/.htaccess');
+$activeRules = implode("\n", array_filter(array_map('trim', explode("\n", $installerHtaccess)), static fn (string $l): bool => $l !== '' && $l[0] !== '#'));
+$check(!str_contains($activeRules, '.installed') && !preg_match('/R=30[12]/', $activeRules),
+    'installer/.htaccess has no redirect keyed on .installed (the PHP force gate decides)');
+
+// Review of PR #536 (F055): step 3 ignored a refused proof and imported anyway,
+// filling the database for nobody and wedging the wizard for every session.
+// Runs the real installer/steps/step3.php in a subprocess over an installer
+// double that records what it is asked to do.
+$runStep3 = static function (bool $proofRecorded) use ($ROOT, $tmpRoot): array {
+    $script = $tmpRoot . '/step3-' . bin2hex(random_bytes(3)) . '.php';
+    file_put_contents($script, '<?php
+        function __(string $k, mixed ...$a): string { return $a ? sprintf($k, ...$a) : $k; }
+        function completeStep($n): void { $GLOBALS["calls"][] = "completeStep" . $n; }
+        function renderHeader($s, $t): void {}
+        function renderFooter(): void {}
+        $calls = [];
+        $installer = new class ((bool) ' . ($proofRecorded ? 'true' : 'false') . ') {
+            public function __construct(private bool $proof) {}
+            public function __call(string $m, array $a): mixed {
+                $GLOBALS["calls"][] = $m;
+                return match ($m) { "recordSchemaImportByOwner" => $this->proof, "getTriggerWarnings" => [], "installOpenLibraryPlugin" => 1, default => true };
+            }
+        };
+        $_SESSION = [];
+        register_shutdown_function(static function () use (&$error): void {
+            echo "\n@@" . json_encode(["calls" => $GLOBALS["calls"], "error" => $GLOBALS["error"] ?? null]);
+        });
+        require ' . var_export($ROOT . '/installer/steps/step3.php', true) . ';
+    ');
+    $out = (string) shell_exec(escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg($script) . ' 2>&1');
+    @unlink($script);
+    $json = substr($out, (int) strrpos($out, '@@') + 2);
+    return (array) json_decode($json, true);
+};
+$refused = $runStep3(false);
+$check(in_array('recordSchemaImportByOwner', $refused['calls'] ?? [], true) && !in_array('importSchema', $refused['calls'] ?? [], true)
+    && !in_array('completeStep3', $refused['calls'] ?? [], true) && is_string($refused['error'] ?? null) && $refused['error'] !== '',
+    'step 3 imports nothing and shows an error when the import proof cannot be recorded');
+$allowed = $runStep3(true);
+$check(in_array('importSchema', $allowed['calls'] ?? [], true) && in_array('completeStep3', $allowed['calls'] ?? [], true),
+    'step 3 imports when the owner records its proof (control)');
 $index = (string) file_get_contents($ROOT . '/installer/index.php');
 $check(str_contains($index, 'if ($installer->ownerMayContinue()) {') && !str_contains($index, 'if ($installer->ownsInstallInProgress()) {'),
     'the ?force=1 gate lets the owner through only under ownerMayContinue()');

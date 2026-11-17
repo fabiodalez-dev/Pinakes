@@ -9371,5 +9371,6 @@
   "Email di attivazione non inviata": "Aktivierungs-E-Mail nicht gesendet",
   "L'indirizzo del sito non è configurato (APP_CANONICAL_URL o APP_TRUSTED_HOSTS), quindi il link di verifica non può essere inviato. L'utente è ancora sospeso: attivalo con \"Attiva utente\", oppure imposta APP_CANONICAL_URL.": "Die Adresse der Website ist nicht konfiguriert (APP_CANONICAL_URL oder APP_TRUSTED_HOSTS), daher kann der Bestätigungslink nicht gesendet werden. Der Benutzer ist weiterhin gesperrt: aktiviere ihn mit \"Benutzer aktivieren\" oder setze APP_CANONICAL_URL.",
   "Prenotazione non trovata o non modificabile con il tuo ruolo.": "Vormerkung nicht gefunden, oder deine Rolle darf sie nicht ändern.",
-  "Prestito non trovato o non modificabile con il tuo ruolo.": "Ausleihe nicht gefunden, oder deine Rolle darf sie nicht ändern."
+  "Prestito non trovato o non modificabile con il tuo ruolo.": "Ausleihe nicht gefunden, oder deine Rolle darf sie nicht ändern.",
+  "Questa sessione non può importare lo schema: l'installazione è in corso in un altro browser oppure il database non è vuoto. Riprendi l'installazione dal browser che l'ha iniziata, oppure ricomincia dal passo 2 con un database vuoto.": "Diese Sitzung kann das Schema nicht importieren: Die Installation läuft in einem anderen Browser, oder die Datenbank ist nicht leer. Setze die Installation in dem Browser fort, in dem sie begonnen wurde, oder beginne erneut bei Schritt 2 mit einer leeren Datenbank."
 }

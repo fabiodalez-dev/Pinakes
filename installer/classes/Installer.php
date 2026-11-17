@@ -1339,12 +1339,13 @@ HTACCESS;
     }
 
     /**
-     * Lifetime of an install-in-progress binding without activity, in seconds.
-     * Each request of the owning session that may go on renews it (sliding),
-     * so a slow install is not cut off; a binding whose session was lost (GC'd,
-     * cookie cleared, other browser) stops shutting everyone else out after
-     * this much inactivity. It was 12 hours, which left a lost session's
-     * install stuck for half a day.
+     * Lifetime of an install-in-progress binding without activity, in seconds,
+     * as seen by OTHER sessions. Each request of the owning session that may go
+     * on renews it (sliding); a binding whose session was lost (GC'd, cookie
+     * cleared, other browser) stops shutting everyone else out after this much
+     * inactivity, while the database is still empty. It was 12 hours, which
+     * left a lost session's install stuck for half a day. The owning session
+     * itself is not cut off by it (ownsInstallInProgress()).
      */
     public const INSTALL_OWNER_TTL = 7200;
 
@@ -1513,8 +1514,19 @@ HTACCESS;
 
     /**
      * True when this session is the one that wrote .env for the install in
-     * progress: its token matches the on-disk hash and the binding is younger
-     * than INSTALL_OWNER_TTL.
+     * progress: its token matches the on-disk hash.
+     *
+     * INSTALL_OWNER_TTL is not checked here. It exists so that OTHER sessions
+     * may take over a binding whose session was lost (installClaimedByAnotherSession(),
+     * withInstallOwnership()), and a takeover replaces the on-disk hash, which
+     * ends this session's ownership by itself. Expiring the owner's own
+     * session as well locked an owner who paused for more than the TTL
+     * between the schema import (step 3) and the admin account (step 4) out
+     * for good: the database was no longer empty, so nobody, the owner
+     * included, could go on, and only a manual cleanup of the database and
+     * .env recovered the install. No other session can take over such a
+     * binding in the meantime: once the database holds the schema,
+     * isInstalled() answers "installed" to every session but the owner.
      */
     public function ownsInstallInProgress(): bool {
         $token = $_SESSION[self::INSTALL_OWNER_SESSION_KEY] ?? '';
@@ -1522,8 +1534,7 @@ HTACCESS;
             return false;
         }
         $state = $this->readOwnerMarker();
-        if (!$state['exists'] || $state['mtime'] === null || $state['content'] === null
-            || (time() - $state['mtime']) > self::INSTALL_OWNER_TTL) {
+        if (!$state['exists'] || $state['content'] === null) {
             return false;
         }
         return hash_equals(trim($state['content']), hash('sha256', $token));
@@ -1856,10 +1867,65 @@ HTACCESS;
     public const FORCE_LOGIN_WINDOW = 300;
 
     /**
+     * The client address the reinstall-login throttle counts, resolved the way
+     * the main POST /login does (App\Support\ClientIpResolver): forwarding
+     * headers only from a peer listed in TRUSTED_PROXIES. Without it every
+     * client behind a reverse proxy (the Docker image ships TRUSTED_PROXIES)
+     * shared the proxy's bucket, and 15 anonymous POSTs every 5 minutes kept
+     * the real administrator out of ?force=1. The installer does not load the
+     * app autoloader, so the two self-contained classes are required directly;
+     * when they cannot be, REMOTE_ADDR is used, as before.
+     *
+     * @param array<string, mixed> $server $_SERVER
+     */
+    public static function forceLoginClientIp(array $server): string {
+        $remote = (string) ($server['REMOTE_ADDR'] ?? '');
+        try {
+            if (!class_exists(\App\Support\ClientIpResolver::class, false)) {
+                $support = dirname(__DIR__, 2) . '/app/Support';
+                if (!is_file($support . '/HtmlHelper.php') || !is_file($support . '/ClientIpResolver.php')) {
+                    return $remote;
+                }
+                if (!class_exists(\App\Support\HtmlHelper::class, false)) {
+                    require_once $support . '/HtmlHelper.php';
+                }
+                require_once $support . '/ClientIpResolver.php';
+            }
+            $headers = [];
+            foreach (['HTTP_X_FORWARDED_FOR' => 'X-Forwarded-For', 'HTTP_X_REAL_IP' => 'X-Real-IP',
+                'HTTP_CF_CONNECTING_IP' => 'CF-Connecting-IP', 'HTTP_TRUE_CLIENT_IP' => 'True-Client-IP',
+                'HTTP_X_CLIENT_IP' => 'X-Client-IP'] as $key => $name) {
+                if (isset($server[$key]) && is_string($server[$key])) {
+                    $headers[$name] = $server[$key];
+                }
+            }
+            return \App\Support\ClientIpResolver::resolve($remote, $headers);
+        } catch (\Throwable $e) {
+            return $remote;
+        }
+    }
+
+    /**
+     * Throttle bucket of an address: an IPv6 client counts by its /64, the
+     * block one subscriber is usually handed, so rotating addresses inside it
+     * neither escapes the limit nor mints a file per address. IPv4 and
+     * anything unparsable count as given.
+     */
+    public static function forceLoginBucket(string $ip): string {
+        $packed = @inet_pton($ip);
+        if (is_string($packed) && strlen($packed) === 16 && !str_starts_with($packed, str_repeat("\0", 10) . "\xff\xff")) {
+            return 'v6:' . bin2hex(substr($packed, 0, 8));
+        }
+        return $ip;
+    }
+
+    /**
      * Record a reinstall-login attempt for $ip and say whether it may proceed.
      *
      * File-backed (the installer has no APCu/app rate limiter). Fails closed:
-     * when the attempt cannot be recorded the answer is false.
+     * when the attempt cannot be recorded the answer is false. Buckets whose
+     * last attempt left the window are deleted on the way, so the directory
+     * holds only the addresses of the last FORCE_LOGIN_WINDOW seconds.
      */
     public function recordForceLoginAttempt(string $ip, ?int $now = null): bool {
         $now ??= time();
@@ -1867,7 +1933,8 @@ HTACCESS;
         if (!is_dir($dir) && !@mkdir($dir, 0775, true) && !is_dir($dir)) {
             return false;
         }
-        $file = $dir . '/' . hash('sha256', $ip) . '.json';
+        $this->pruneForceLoginBuckets($dir, $now);
+        $file = $dir . '/' . hash('sha256', self::forceLoginBucket($ip)) . '.json';
         $handle = @fopen($file, 'c+');
         if ($handle === false) {
             return false;
@@ -1892,10 +1959,35 @@ HTACCESS;
                 return false;
             }
             fflush($handle);
+            // The bucket's mtime is its last attempt, on the clock this method
+            // counts with: pruneForceLoginBuckets() reads it.
+            @touch($file, $now);
             return true;
         } finally {
             flock($handle, LOCK_UN);
             fclose($handle);
+        }
+    }
+
+    /**
+     * Delete the throttle buckets not written for longer than the window: every
+     * attempt they hold has expired, so dropping them changes no answer.
+     */
+    private function pruneForceLoginBuckets(string $dir, int $now): void {
+        $entries = @scandir($dir);
+        if ($entries === false) {
+            return;
+        }
+        foreach ($entries as $entry) {
+            if (preg_match('/^[0-9a-f]{64}\.json$/D', $entry) !== 1) {
+                continue;
+            }
+            $path = $dir . '/' . $entry;
+            $mtime = @filemtime($path);
+            if ($mtime !== false && $mtime < $now - self::FORCE_LOGIN_WINDOW) {
+                // nosemgrep: php.lang.security.unlink-use.unlink-use -- hash-named bucket under storage/cache, not user input
+                @unlink($path);
+            }
         }
     }
 

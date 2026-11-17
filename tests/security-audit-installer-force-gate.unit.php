@@ -83,6 +83,33 @@ $check($installer->recordForceLoginAttempt('198.51.100.7', $now + Installer::FOR
 $files = glob($tmp . '/storage/cache/installer-login/*.json') ?: [];
 $check($files !== [] && !str_contains(implode('', $files), '198.51.100'), 'the IP is stored hashed, not in clear');
 
+// Review of PR #536 (F057/F069): the buckets were never pruned, IPv6 counted
+// per address, and behind a reverse proxy every client shared the proxy's.
+$dir = $tmp . '/storage/cache/installer-login';
+$check(count(glob($dir . '/*.json') ?: []) === 2, 'one bucket per live address');
+$installer->recordForceLoginAttempt('198.51.100.50', $now + 3 * Installer::FORCE_LOGIN_WINDOW);
+$check(count(glob($dir . '/*.json') ?: []) === 1, 'buckets whose attempts all expired are deleted on the way');
+$v6 = 0;
+for ($i = 0; $i < Installer::FORCE_LOGIN_MAX_ATTEMPTS + 1; $i++) {
+    $v6 += $installer->recordForceLoginAttempt('2001:db8:1:2::' . dechex($i + 1), $now + 3 * Installer::FORCE_LOGIN_WINDOW) ? 1 : 0;
+}
+$check($v6 === Installer::FORCE_LOGIN_MAX_ATTEMPTS, 'rotating addresses inside one IPv6 /64 share one budget');
+$check($installer->recordForceLoginAttempt('2001:db8:1:3::1', $now + 3 * Installer::FORCE_LOGIN_WINDOW), 'another /64 has its own budget');
+$check(Installer::forceLoginBucket('198.51.100.7') === '198.51.100.7' && Installer::forceLoginBucket('::ffff:198.51.100.7') === '::ffff:198.51.100.7',
+    'IPv4 (and IPv4-mapped) addresses count as given');
+
+$savedProxies = getenv('TRUSTED_PROXIES');
+putenv('TRUSTED_PROXIES=10.0.0.5');
+$_ENV['TRUSTED_PROXIES'] = '10.0.0.5';
+$check(Installer::forceLoginClientIp(['REMOTE_ADDR' => '10.0.0.5', 'HTTP_X_FORWARDED_FOR' => '203.0.113.9']) === '203.0.113.9',
+    'behind a trusted proxy the throttle counts the forwarded client, not the proxy');
+$check(Installer::forceLoginClientIp(['REMOTE_ADDR' => '198.51.100.7', 'HTTP_X_FORWARDED_FOR' => '203.0.113.9']) === '198.51.100.7',
+    'a forwarding header from an untrusted peer is ignored');
+putenv('TRUSTED_PROXIES' . ($savedProxies === false ? '' : '=' . $savedProxies));
+unset($_ENV['TRUSTED_PROXIES']);
+$check(Installer::forceLoginClientIp(['REMOTE_ADDR' => '10.0.0.5', 'HTTP_X_FORWARDED_FOR' => '203.0.113.9']) === '10.0.0.5',
+    'without TRUSTED_PROXIES REMOTE_ADDR is used, as before');
+
 $broken = $tmp . '/broken';
 mkdir($broken, 0700);
 file_put_contents($broken . '/storage', 'not a directory');
@@ -118,6 +145,7 @@ $check(preg_match("/unset\\(\\s*\\\$_SESSION\\['installer_admin_user_id'\\],\\s*
 $check(preg_match("/tipo_utente = 'admin' AND stato = 'attivo' AND email_verificata = 1/", $gate) === 1,
     'the POST door requires stato attivo and a verified email');
 $check(str_contains($gate, 'recordForceLoginAttempt('), 'the POST door is rate limited');
+$check(str_contains($gate, 'recordForceLoginAttempt(Installer::forceLoginClientIp($_SERVER))'), 'the POST door counts the proxy-resolved client address');
 $check(str_contains($gate, 'catch (\\Throwable $e)') && !preg_match('/catch \(Exception \$e\)/', $gate),
     'failures are caught as \\Throwable and fail closed');
 $postPos = strpos($gate, 'recordForceLoginAttempt(');

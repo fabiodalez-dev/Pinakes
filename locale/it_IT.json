@@ -9371,5 +9371,6 @@
   "Email di attivazione non inviata": "Email di attivazione non inviata",
   "L'indirizzo del sito non è configurato (APP_CANONICAL_URL o APP_TRUSTED_HOSTS), quindi il link di verifica non può essere inviato. L'utente è ancora sospeso: attivalo con \"Attiva utente\", oppure imposta APP_CANONICAL_URL.": "L'indirizzo del sito non è configurato (APP_CANONICAL_URL o APP_TRUSTED_HOSTS), quindi il link di verifica non può essere inviato. L'utente è ancora sospeso: attivalo con \"Attiva utente\", oppure imposta APP_CANONICAL_URL.",
   "Prenotazione non trovata o non modificabile con il tuo ruolo.": "Prenotazione non trovata o non modificabile con il tuo ruolo.",
-  "Prestito non trovato o non modificabile con il tuo ruolo.": "Prestito non trovato o non modificabile con il tuo ruolo."
+  "Prestito non trovato o non modificabile con il tuo ruolo.": "Prestito non trovato o non modificabile con il tuo ruolo.",
+  "Questa sessione non può importare lo schema: l'installazione è in corso in un altro browser oppure il database non è vuoto. Riprendi l'installazione dal browser che l'ha iniziata, oppure ricomincia dal passo 2 con un database vuoto.": "Questa sessione non può importare lo schema: l'installazione è in corso in un altro browser oppure il database non è vuoto. Riprendi l'installazione dal browser che l'ha iniziata, oppure ricomincia dal passo 2 con un database vuoto."
 }
