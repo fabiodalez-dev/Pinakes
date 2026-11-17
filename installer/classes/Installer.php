@@ -1349,6 +1349,15 @@ HTACCESS;
      */
     public const INSTALL_OWNER_TTL = 7200;
 
+    /**
+     * Absolute lifetime of an install-in-progress binding, in seconds from the
+     * claim (step 2), whatever the activity. Inside it the owning session may
+     * always go on, idle or not (ownsInstallInProgress()); past it the binding
+     * and the import proof are deleted together, so a stolen or forgotten
+     * owner session does not keep installer authority indefinitely.
+     */
+    public const INSTALL_OWNER_ABSOLUTE_TTL = 86400;
+
     /** Session key holding the raw ownership token. */
     public const INSTALL_OWNER_SESSION_KEY = 'installer_owner_token';
 
@@ -1376,6 +1385,50 @@ HTACCESS;
             'content' => is_string($content) ? $content : null,
             'mtime' => $mtime === false ? null : $mtime,
         ];
+    }
+
+    /**
+     * The marker's token hash and claim time. The marker is "<sha256>\n<claimed at>";
+     * a marker written before the claim time existed has none (null).
+     *
+     * @param array{exists: bool, content: ?string, mtime: ?int} $state
+     * @return array{hash: string, claimed: ?int}
+     */
+    private static function parseOwnerMarker(array $state): array {
+        $lines = preg_split('/\R/', trim((string) $state['content'])) ?: [];
+        $claimed = isset($lines[1]) && ctype_digit(trim($lines[1])) ? (int) trim($lines[1]) : null;
+        return ['hash' => trim((string) ($lines[0] ?? '')), 'claimed' => $claimed];
+    }
+
+    /** True when the marker's claim is older than INSTALL_OWNER_ABSOLUTE_TTL. */
+    private static function ownerMarkerPastAbsoluteTtl(array $state): bool {
+        $claimed = self::parseOwnerMarker($state)['claimed'];
+        return $claimed !== null && (time() - $claimed) > self::INSTALL_OWNER_ABSOLUTE_TTL;
+    }
+
+    /**
+     * Delete the binding and the import proof together: the marker, the
+     * database nonce and this session's token and proof. Used when the
+     * absolute TTL is over and when a ?force=1 reinstall is refused.
+     */
+    public function discardInstallOwnership(): void {
+        $this->discardAbandonedBinding();
+        unset(
+            $_SESSION[self::INSTALL_OWNER_SESSION_KEY],
+            $_SESSION[self::INSTALL_POPULATED_SESSION_KEY],
+            $_SESSION[self::INSTALL_PROOF_NONCE_SESSION_KEY],
+            $_SESSION[self::FORCE_MODE_SESSION_KEY]
+        );
+    }
+
+    /** Remove the marker and the database nonce, leaving this session's own keys alone. */
+    private function discardAbandonedBinding(): void {
+        $marker = $this->installOwnerMarkerPath();
+        if (is_file($marker)) {
+            // nosemgrep: php.lang.security.unlink-use.unlink-use -- fixed internal path under storage/, not user input
+            @unlink($marker);
+        }
+        $this->dropProofNonce();
     }
 
     /** Replace the marker atomically (temp file + rename): readers never see it half-written. */
@@ -1423,6 +1476,12 @@ HTACCESS;
     public function installClaimedByAnotherSession(): bool {
         $state = $this->readOwnerMarker();
         if (!$state['exists']) {
+            return false;
+        }
+        if ($state['content'] !== null && self::ownerMarkerPastAbsoluteTtl($state)) {
+            // Abandoned past the absolute limit: binding and proof go together.
+            // A foreign session: its own session keys are not touched.
+            $this->discardAbandonedBinding();
             return false;
         }
         if ($state['mtime'] !== null && (time() - $state['mtime']) > self::INSTALL_OWNER_TTL) {
@@ -1481,7 +1540,7 @@ HTACCESS;
             $previousToken = $_SESSION[self::INSTALL_OWNER_SESSION_KEY] ?? null;
 
             $token = bin2hex(random_bytes(32));
-            if (!$this->writeOwnerMarker(hash('sha256', $token))) {
+            if (!$this->writeOwnerMarker(hash('sha256', $token) . "\n" . time())) {
                 return false;
             }
             $_SESSION[self::INSTALL_OWNER_SESSION_KEY] = $token;
@@ -1516,17 +1575,19 @@ HTACCESS;
      * True when this session is the one that wrote .env for the install in
      * progress: its token matches the on-disk hash.
      *
-     * INSTALL_OWNER_TTL is not checked here. It exists so that OTHER sessions
-     * may take over a binding whose session was lost (installClaimedByAnotherSession(),
-     * withInstallOwnership()), and a takeover replaces the on-disk hash, which
-     * ends this session's ownership by itself. Expiring the owner's own
-     * session as well locked an owner who paused for more than the TTL
-     * between the schema import (step 3) and the admin account (step 4) out
-     * for good: the database was no longer empty, so nobody, the owner
-     * included, could go on, and only a manual cleanup of the database and
-     * .env recovered the install. No other session can take over such a
-     * binding in the meantime: once the database holds the schema,
-     * isInstalled() answers "installed" to every session but the owner.
+     * The sliding INSTALL_OWNER_TTL is not checked here. It exists so that
+     * OTHER sessions may take over a binding whose session was lost
+     * (installClaimedByAnotherSession(), withInstallOwnership()), and a
+     * takeover replaces the on-disk hash, which ends this session's ownership
+     * by itself. Expiring the owner's own session on it locked an owner who
+     * paused for more than the TTL between the schema import (step 3) and the
+     * admin account (step 4) out for good: the database was no longer empty,
+     * so nobody, the owner included, could go on. No other session can take
+     * over such a binding in the meantime: once the database holds the
+     * schema, isInstalled() answers "installed" to every session but the owner.
+     *
+     * The owner is bounded by INSTALL_OWNER_ABSOLUTE_TTL instead, counted from
+     * the claim: past it the binding and the import proof are deleted together.
      */
     public function ownsInstallInProgress(): bool {
         $token = $_SESSION[self::INSTALL_OWNER_SESSION_KEY] ?? '';
@@ -1537,7 +1598,14 @@ HTACCESS;
         if (!$state['exists'] || $state['content'] === null) {
             return false;
         }
-        return hash_equals(trim($state['content']), hash('sha256', $token));
+        if (!hash_equals(self::parseOwnerMarker($state)['hash'], hash('sha256', $token))) {
+            return false;
+        }
+        if (self::ownerMarkerPastAbsoluteTtl($state)) {
+            $this->discardInstallOwnership();
+            return false;
+        }
+        return true;
     }
 
     /**
@@ -1555,6 +1623,13 @@ HTACCESS;
         }
         $marker = $this->installOwnerMarkerPath();
         if (is_file($marker) && !is_link($marker)) {
+            $state = $this->readOwnerMarker();
+            $parsed = self::parseOwnerMarker($state);
+            if ($parsed['claimed'] === null && $parsed['hash'] !== '') {
+                // A marker from before the claim time existed: the absolute
+                // limit starts now rather than never.
+                $this->writeOwnerMarker($parsed['hash'] . "\n" . time());
+            }
             @touch($marker);
             clearstatcache(true, $marker);
         }
@@ -1581,16 +1656,98 @@ HTACCESS;
 
     /** End the install-in-progress binding (called once .installed exists). */
     public function releaseInstallOwnership(): void {
-        $marker = $this->installOwnerMarkerPath();
-        if (is_file($marker)) {
-            // nosemgrep: php.lang.security.unlink-use.unlink-use -- fixed internal path under storage/, not user input
-            @unlink($marker);
+        $this->discardInstallOwnership();
+    }
+
+    /** Session key: the nonce that ties the import proof to the database it was earned on. */
+    public const INSTALL_PROOF_NONCE_SESSION_KEY = 'installer_populated_nonce';
+
+    /** Table holding that nonce in the configured database, dropped when the install ends. */
+    public const INSTALL_PROOF_TABLE = 'installer_owner_proof';
+
+    /**
+     * Store $nonce in the configured database. Not a system_settings row: the
+     * proof is recorded BEFORE the schema import (so a failed import stays
+     * retryable), when system_settings does not exist yet. Overridable in tests.
+     */
+    protected function storeProofNonce(string $nonce): bool {
+        try {
+            $env = self::readEnvFile($this->baseDir . '/.env');
+            if ($env === null || (string) ($env['DB_NAME'] ?? '') === '') {
+                return false;
+            }
+            $db = $this->openProbeConnection($env);
+            try {
+                $db->query('CREATE TABLE IF NOT EXISTS `' . self::INSTALL_PROOF_TABLE . '` (id TINYINT UNSIGNED NOT NULL PRIMARY KEY, nonce CHAR(64) NOT NULL) ENGINE=InnoDB');
+                $stmt = $db->prepare('REPLACE INTO `' . self::INSTALL_PROOF_TABLE . '` (id, nonce) VALUES (1, ?)');
+                if ($stmt === false) {
+                    return false;
+                }
+                $stmt->bind_param('s', $nonce);
+                $ok = $stmt->execute();
+                $stmt->close();
+                return $ok;
+            } finally {
+                $db->close();
+            }
+        } catch (\Throwable $e) {
+            return false;
         }
-        unset(
-            $_SESSION[self::INSTALL_OWNER_SESSION_KEY],
-            $_SESSION[self::INSTALL_POPULATED_SESSION_KEY],
-            $_SESSION[self::FORCE_MODE_SESSION_KEY]
-        );
+    }
+
+    /**
+     * The nonce stored in the configured database: the string, null when the
+     * database answers but holds none (absent table or row: a database this
+     * session did not fill), false when the database cannot be reached.
+     * Overridable in tests.
+     */
+    protected function readProofNonce(): string|false|null {
+        $env = self::readEnvFile($this->baseDir . '/.env');
+        if ($env === null || (string) ($env['DB_NAME'] ?? '') === '') {
+            return false;
+        }
+        try {
+            $db = $this->openProbeConnection($env);
+        } catch (\Throwable $e) {
+            return false;
+        }
+        try {
+            $result = $db->query('SELECT nonce FROM `' . self::INSTALL_PROOF_TABLE . '` WHERE id = 1');
+            $row = $result instanceof \mysqli_result ? $result->fetch_row() : null;
+            return is_array($row) && is_string($row[0]) && $row[0] !== '' ? $row[0] : null;
+        } catch (\Throwable $e) {
+            return null;
+        } finally {
+            $db->close();
+        }
+    }
+
+    /**
+     * True when the import proof cannot be checked right now because the
+     * configured database is unreachable. The ?force=1 gate then refuses the
+     * request without discarding the binding: a transient outage must not end
+     * an install for good.
+     */
+    public function ownerProofUnverifiable(): bool {
+        return $this->readProofNonce() === false;
+    }
+
+    /** Drop the nonce table, best-effort. Overridable in tests. */
+    protected function dropProofNonce(): void {
+        try {
+            $env = self::readEnvFile($this->baseDir . '/.env');
+            if ($env === null || (string) ($env['DB_NAME'] ?? '') === '') {
+                return;
+            }
+            $db = $this->openProbeConnection($env);
+            try {
+                $db->query('DROP TABLE IF EXISTS `' . self::INSTALL_PROOF_TABLE . '`');
+            } finally {
+                $db->close();
+            }
+        } catch (\Throwable $e) {
+            // Best-effort: a leftover table holds a random value and nothing else.
+        }
     }
 
     /** Session key: proof that this owner session started populating the configured database. */
@@ -1603,8 +1760,8 @@ HTACCESS;
      */
     public const FORCE_MODE_SESSION_KEY = 'installer_force_mode';
 
-    private function populatedProof(string $ownerToken): string {
-        return hash('sha256', 'populated:' . $ownerToken);
+    private function populatedProof(string $ownerToken, string $nonce): string {
+        return hash('sha256', 'populated:' . $ownerToken . ':' . $nonce);
     }
 
     /**
@@ -1630,16 +1787,34 @@ HTACCESS;
         if (!$this->configuredDatabaseIsEmpty()) {
             return false;
         }
-        $_SESSION[self::INSTALL_POPULATED_SESSION_KEY] = $this->populatedProof((string) $_SESSION[self::INSTALL_OWNER_SESSION_KEY]);
+        // The proof is tied to THIS database: a random nonce stored in it and
+        // compared on every request (ownerPopulatedConfiguredDatabase()), so a
+        // database restored or swapped under the same .env invalidates it.
+        $nonce = bin2hex(random_bytes(32));
+        if (!$this->storeProofNonce($nonce)) {
+            return false;
+        }
+        $_SESSION[self::INSTALL_PROOF_NONCE_SESSION_KEY] = $nonce;
+        $_SESSION[self::INSTALL_POPULATED_SESSION_KEY] = $this->populatedProof((string) $_SESSION[self::INSTALL_OWNER_SESSION_KEY], $nonce);
         return true;
     }
 
-    /** True when this owner session recorded the schema import of the current binding. */
+    /**
+     * True when this owner session recorded the schema import of the current
+     * binding INTO THE DATABASE NOW CONFIGURED: the session proof matches and
+     * the nonce stored in that database is the one this session wrote.
+     */
     private function ownerPopulatedConfiguredDatabase(): bool {
         $token = $_SESSION[self::INSTALL_OWNER_SESSION_KEY] ?? '';
         $proof = $_SESSION[self::INSTALL_POPULATED_SESSION_KEY] ?? '';
-        return is_string($token) && $token !== '' && is_string($proof) && $proof !== ''
-            && hash_equals($this->populatedProof($token), $proof);
+        $nonce = $_SESSION[self::INSTALL_PROOF_NONCE_SESSION_KEY] ?? '';
+        if (!is_string($token) || $token === '' || !is_string($proof) || $proof === ''
+            || !is_string($nonce) || $nonce === ''
+            || !hash_equals($this->populatedProof($token, $nonce), $proof)) {
+            return false;
+        }
+        $stored = $this->readProofNonce();
+        return is_string($stored) && hash_equals($stored, $nonce);
     }
 
     /**

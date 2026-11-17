@@ -99,7 +99,27 @@ $mkSite = static function () use ($tmpRoot, $ROOT, $stubs, &$seamsOk): string {
         $installer,
         $n3
     );
-    $seamsOk = $seamsOk && $n1 === 1 && $n2 === 1 && $n3 === 1;
+    // The import-proof nonce "stored in the configured database" lives in
+    // storage/.test_proof_nonce; a new database (step 2) starts without it.
+    $installer = str_replace(
+        'protected function storeProofNonce(string $nonce): bool {',
+        'protected function storeProofNonce(string $nonce): bool { return file_put_contents($this->baseDir . \'/storage/.test_proof_nonce\', $nonce) !== false;',
+        $installer,
+        $n4
+    );
+    $installer = str_replace(
+        'protected function readProofNonce(): string|false|null {',
+        'protected function readProofNonce(): string|false|null { if (is_file($this->baseDir . \'/storage/.test_db_down\')) { return false; } $f = $this->baseDir . \'/storage/.test_proof_nonce\'; return is_file($f) ? (string) file_get_contents($f) : null;',
+        $installer,
+        $n5
+    );
+    $installer = str_replace(
+        'protected function dropProofNonce(): void {',
+        'protected function dropProofNonce(): void { @unlink($this->baseDir . \'/storage/.test_proof_nonce\'); return;',
+        $installer,
+        $n6
+    );
+    $seamsOk = $seamsOk && $n1 === 1 && $n2 === 1 && $n3 === 1 && $n4 === 1 && $n5 === 1 && $n6 === 1;
     file_put_contents($site . '/installer/index.php', $index);
     file_put_contents($site . '/installer/classes/Installer.php', $installer);
     copy($ROOT . '/installer/classes/Validator.php', $site . '/installer/classes/Validator.php');
@@ -202,10 +222,27 @@ $flag($site, '.test_admin_ok', null);
 $refused = $request($site, 'step=3&force=1', $admin);
 $check(!str_contains($refused, '[STEP 3]') && str_contains($refused, 'Autenticazione Admin Richiesta'),
     'the owner is refused before importing the schema: admin login required');
+$check(!is_file($site . '/storage/.install_in_progress'),
+    'the refused reinstall loses its binding: the marker is deleted, not left for the absolute TTL');
 $check(!str_contains($request($site, 'step=3', $admin), '[STEP 3]'), '...also without ?force in the URL');
 $flag($site, '.test_admin_ok', '1');
 $check(str_contains($request($site, 'step=3&force=1', $admin), '[STEP 3]'),
     'with a valid admin of the configured database the reinstall goes on');
+
+// The same refusal while the configured database is unreachable says nothing
+// about the proof: the binding is kept, so an outage does not end the install.
+$site = $mkSite();
+file_put_contents($site . '/.env', "DB_HOST=127.0.0.1\nDB_PORT=1\nDB_USER=u\nDB_PASS=p\nDB_NAME=old\n");
+file_put_contents($site . '/.installed', "x\n");
+$flag($site, '.test_db_empty', '0');
+$flag($site, '.test_admin_ok', '1');
+$admin = $sid();
+$out = $walk($site, $admin, [0 => 'force=1', 1 => 'step=1&force=1', 2 => 'step=2&force=1']);
+$flag($site, '.test_admin_ok', null);
+$flag($site, '.test_db_down', '1');
+$refused = $request($site, 'step=3&force=1', $admin);
+$check(str_contains($out[2], '[STEP 2]') && !str_contains($refused, '[STEP 3]') && is_file($site . '/storage/.install_in_progress'),
+    'refused while the database is unreachable: the binding is kept');
 
 // ---------------------------------------------------------------------------
 echo "D. ?reset after step 2 keeps the owner's binding\n";
