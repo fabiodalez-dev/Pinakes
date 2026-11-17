@@ -140,6 +140,26 @@ touch($site . '/storage/.install_in_progress');
 clearstatcache();
 $check($inst->isInstalled() === false, 'a live binding is honoured again');
 
+// A lost owner session must not shut everyone out for half a day: the binding
+// lasts INSTALL_OWNER_TTL of inactivity (2 hours), renewed by the owner's use.
+$check(Installer::INSTALL_OWNER_TTL <= 7200, 'the install-in-progress binding lasts at most 2 hours without activity (was 12)');
+$markerPath = $site . '/storage/.install_in_progress';
+touch($markerPath, time() - Installer::INSTALL_OWNER_TTL + 60);
+clearstatcache();
+$check($inst->isInstalled() === false, 'an owner request one minute before expiry still goes on');
+clearstatcache();
+$check(time() - (int) filemtime($markerPath) < 5, '... and renews the binding (sliding expiry)');
+$saved = $_SESSION;
+$_SESSION = [];
+touch($markerPath, time() - Installer::INSTALL_OWNER_TTL + 60);
+clearstatcache();
+$inst->isInstalled();
+clearstatcache();
+$check(time() - (int) filemtime($markerPath) > 60, 'a foreign session never renews the binding');
+$_SESSION = $saved;
+touch($markerPath);
+clearstatcache();
+
 $inst->releaseInstallOwnership();
 clearstatcache();
 $check(!is_file($site . '/storage/.install_in_progress') && !isset($_SESSION[Installer::INSTALL_OWNER_SESSION_KEY]),
@@ -323,6 +343,19 @@ $check($recPos !== false && $impPos !== false && $recPos < $impPos, 'step 3 reco
 $index = (string) file_get_contents($ROOT . '/installer/index.php');
 $check(str_contains($index, 'if ($installer->ownerMayContinue()) {') && !str_contains($index, 'if ($installer->ownsInstallInProgress()) {'),
     'the ?force=1 gate lets the owner through only under ownerMayContinue()');
+$interruptedKey = "Installazione interrotta (manca il file .installed). Il browser che l'ha iniziata può continuarla.";
+$check(substr_count($index, "!\$installationStatus['lock_exists'] ? '<div class=\"alert alert-warning mt-3\">' . htmlspecialchars(sprintf(__(\"" . $interruptedKey) === 2
+    && str_contains($index, 'intdiv(Installer::INSTALL_OWNER_TTL, 60)'),
+    'both installed-state pages explain an interrupted install (no .installed): wait for the binding, or delete .env AND empty the database');
+foreach (['it_IT', 'en_US', 'de_DE', 'fr_FR', 'da_DK'] as $loc) {
+    $strings = json_decode((string) file_get_contents($ROOT . '/locale/' . $loc . '.json'), true);
+    $key = null;
+    foreach (array_keys(is_array($strings) ? $strings : []) as $k) {
+        if (str_starts_with((string) $k, $interruptedKey)) { $key = $k; }
+    }
+    $check($key !== null && str_contains((string) $strings[$key], '%d') && str_contains((string) $strings[$key], '.env'),
+        "the interrupted-install notice is translated ({$loc})");
+}
 
 // ---------------------------------------------------------------------------
 echo "C. Step 7 surfaces finalisation failures (real installer/steps/step7.php)\n";

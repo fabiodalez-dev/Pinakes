@@ -1268,7 +1268,11 @@ HTACCESS;
         if ($this->ownsInstallInProgress()) {
             // The owner goes on only while that is still verifiable without
             // an account: see ownerMayContinue().
-            return !$this->ownerMayContinue();
+            if ($this->ownerMayContinue()) {
+                $this->renewInstallOwnership();
+                return false;
+            }
+            return true;
         }
         if ($this->installClaimedByAnotherSession()) {
             return true;
@@ -1334,8 +1338,15 @@ HTACCESS;
         );
     }
 
-    /** Lifetime of an install-in-progress binding, in seconds. */
-    public const INSTALL_OWNER_TTL = 43200;
+    /**
+     * Lifetime of an install-in-progress binding without activity, in seconds.
+     * Each request of the owning session that may go on renews it (sliding),
+     * so a slow install is not cut off; a binding whose session was lost (GC'd,
+     * cookie cleared, other browser) stops shutting everyone else out after
+     * this much inactivity. It was 12 hours, which left a lost session's
+     * install stuck for half a day.
+     */
+    public const INSTALL_OWNER_TTL = 7200;
 
     /** Session key holding the raw ownership token. */
     public const INSTALL_OWNER_SESSION_KEY = 'installer_owner_token';
@@ -1518,7 +1529,18 @@ HTACCESS;
         return hash_equals(trim($state['content']), hash('sha256', $token));
     }
 
-    /** End the install-in-progress binding (called once .installed exists). */
+    /**
+     * Restart INSTALL_OWNER_TTL for the owning session (sliding expiry). Only
+     * the mtime changes, so the binding stays the same token. Best-effort.
+     */
+    private function renewInstallOwnership(): void {
+        $marker = $this->installOwnerMarkerPath();
+        if (is_file($marker) && !is_link($marker)) {
+            @touch($marker);
+            clearstatcache(true, $marker);
+        }
+    }
+
     /**
      * After step 2 wrote a new .env: drop every progress flag that described the
      * previous database (schema/data import, admin, finalisation, later steps).
@@ -1538,6 +1560,7 @@ HTACCESS;
         }
     }
 
+    /** End the install-in-progress binding (called once .installed exists). */
     public function releaseInstallOwnership(): void {
         $marker = $this->installOwnerMarkerPath();
         if (is_file($marker)) {

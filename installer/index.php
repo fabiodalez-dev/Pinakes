@@ -420,6 +420,7 @@ if (!$forceRequested && $installer->isInstalled()) {
 
                         ' . (!empty($installationStatus['db_error']) ? '<div class="alert alert-warning mt-3"><strong>' . __("Errore database:") . '</strong><br><code>' . htmlspecialchars($installationStatus['db_error']) . '</code></div>' : '') . '
 
+                        ' . (!$installationStatus['lock_exists'] ? '<div class="alert alert-warning mt-3">' . htmlspecialchars(sprintf(__("Installazione interrotta (manca il file .installed). Il browser che l'ha iniziata può continuarla. Se la sua sessione è andata persa, l'installer si sblocca da solo dopo %d minuti di inattività, ma solo se il database è ancora vuoto. Altrimenti, con accesso al server, elimina il file .env e svuota il database (elimina tutte le sue tabelle), poi riesegui l'installer: il passo 2 accetta solo un database vuoto."), intdiv(Installer::INSTALL_OWNER_TTL, 60)), ENT_QUOTES, 'UTF-8') . '</div>' : '') . '
                         <p class="mt-4">
                             <strong>' . __("Possibili soluzioni:") . '</strong>
                         </p>
@@ -459,6 +460,7 @@ if (!$forceRequested && $installer->isInstalled()) {
                     <div class="alert alert-success">
                         ' . __("L'installazione è stata completata correttamente e tutte le verifiche sono andate a buon fine.") . '
                     </div>
+                    ' . (!$installationStatus['lock_exists'] ? '<div class="alert alert-warning mt-3">' . htmlspecialchars(sprintf(__("Installazione interrotta (manca il file .installed). Il browser che l'ha iniziata può continuarla. Se la sua sessione è andata persa, l'installer si sblocca da solo dopo %d minuti di inattività, ma solo se il database è ancora vuoto. Altrimenti, con accesso al server, elimina il file .env e svuota il database (elimina tutte le sue tabelle), poi riesegui l'installer: il passo 2 accetta solo un database vuoto."), intdiv(Installer::INSTALL_OWNER_TTL, 60)), ENT_QUOTES, 'UTF-8') . '</div>' : '') . '
                     <p class="mt-4">' . __("Se desideri reinstallare puoi:") . '</p>
                     <ol>
                         <li>' . __("Accedere a /installer/?force=1 con le credenziali di un amministratore attivo") . '</li>
