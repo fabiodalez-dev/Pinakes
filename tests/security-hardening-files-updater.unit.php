@@ -221,7 +221,10 @@ try {
         $check(!$configured('   ') && !$configured('abc123'), 'blank and short passwords are not configured');
         $check(!$configured('pinakes2026'), 'the shipped default is not configured');
         $check($configured('a-long-operator-secret'), 'a real password is accepted');
-        $check(str_contains($mu, '!upgradePasswordConfigured(UPGRADE_PASSWORD)'), 'the login refuses while it is not configured');
+        // The login handler (upgradeAuthHandlePasswordPost) is run for real by
+        // tests/security-audit-manual-upgrade-throttle.unit.php, with the
+        // default and a short configured password; this pins the wiring.
+        $check(str_contains($mu, '!upgradePasswordConfigured($configured)'), 'the login refuses while it is not configured');
     }
 
     // -----------------------------------------------------------------------

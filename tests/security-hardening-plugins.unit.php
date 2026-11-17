@@ -453,6 +453,8 @@ if ($sandboxError !== null) {
             public array $calls = [];
             public int $club = 0;
             public function isConfigured(): bool { return true; }
+            // The controller checks the key before it books a slot.
+            public function apiKey(): string { return 'test-key'; }
             public function generate(string $system, string $user): ?string
             {
                 $this->calls[] = $this->countRecentOutputs($this->club, 24);
