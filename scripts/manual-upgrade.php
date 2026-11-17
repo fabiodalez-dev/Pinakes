@@ -613,18 +613,39 @@ function copyTree(string $src, string $dst, string $rootDst, array $skipRelative
 // before, and without, the application.
 // ============================================================
 // BEGIN upgrade-auth-throttle
-function upgradeAuthStateDir(string $rootPath): ?string
+/**
+ * The throttle state directory, or null when it cannot be trusted. $problem
+ * says why: 'foreign_owner' when the directory exists but belongs to another
+ * user (typically created by a run as root), 'unavailable' otherwise. $euid is
+ * the user the directory must belong to; it defaults to the PHP process user.
+ */
+function upgradeAuthStateDir(string $rootPath, ?string &$problem = null, ?int $euid = null): ?string
 {
-    $dir = rtrim(str_replace('\\', '/', $rootPath), '/') . '/storage/cache/upgrade-auth';
+    $problem = null;
+    $dir = upgradeAuthStateDirPath($rootPath);
+    if ($euid === null && function_exists('posix_geteuid')) {
+        $euid = posix_geteuid();
+    }
     if (!is_dir($dir) && !is_link($dir)) {
-        @mkdir($dir, 0700, true);
+        // A run as root must never create the directory (nor storage/cache on
+        // the way): it would be root-owned and 0700, and the web server user
+        // would then be locked out of the page for good.
+        if ($euid !== 0) {
+            @mkdir($dir, 0700, true);
+        }
     }
     if (is_link($dir) || !is_dir($dir)) {
+        $problem = 'unavailable';
         return null;
     }
-    if (function_exists('posix_geteuid')) {
+    if ($euid !== null) {
         $owner = @fileowner($dir);
-        if ($owner === false || $owner !== posix_geteuid()) {
+        if ($owner === false) {
+            $problem = 'unavailable';
+            return null;
+        }
+        if ($owner !== $euid) {
+            $problem = 'foreign_owner';
             return null;
         }
     }
@@ -635,10 +656,15 @@ function upgradeAuthStateDir(string $rootPath): ?string
     return $dir;
 }
 
-/** State file for a client address, or null when the state directory cannot be trusted. */
-function upgradeAuthStateFile(string $rootPath, string $clientAddr): ?string
+function upgradeAuthStateDirPath(string $rootPath): string
 {
-    $dir = upgradeAuthStateDir($rootPath);
+    return rtrim(str_replace('\\', '/', $rootPath), '/') . '/storage/cache/upgrade-auth';
+}
+
+/** State file for a client address, or null when the state directory cannot be trusted. */
+function upgradeAuthStateFile(string $rootPath, string $clientAddr, ?string &$problem = null, ?int $euid = null): ?string
+{
+    $dir = upgradeAuthStateDir($rootPath, $problem, $euid);
     if ($dir === null) {
         return null;
     }
@@ -648,10 +674,22 @@ function upgradeAuthStateFile(string $rootPath, string $clientAddr): ?string
         // Never follow a link out of the state directory.
         @unlink($file);
         if (is_link($file)) {
+            $problem = 'unavailable';
             return null;
         }
     }
     return $file;
+}
+
+/** What the operator is told when no trustworthy counter can be kept. */
+function upgradeAuthUnavailableMessage(?string $problem, string $rootPath): string
+{
+    if ($problem === 'foreign_owner') {
+        return 'Protezione dai tentativi non disponibile: la cartella ' . upgradeAuthStateDirPath($rootPath)
+            . ' appartiene a un altro utente (di solito perché lo script è stato eseguito come root).'
+            . ' Eliminala, oppure assegnala all\'utente del web server con chown, poi riprova.';
+    }
+    return 'Protezione dai tentativi non disponibile: rendi scrivibile storage/cache/ per l\'utente del web server, oppure esegui l\'aggiornamento da riga di comando.';
 }
 
 /**
@@ -726,6 +764,47 @@ function upgradeAuthReserveAttempt(string $file, int $maxAttempts, int $lockSeco
     });
     return $stored === null ? null : ['allowed' => $allowed];
 }
+/**
+ * The password POST of the login form. The attempt is counted (and refused
+ * when locked) before the password is looked at, in one critical section: see
+ * upgradeAuthReserveAttempt(). Returns the error to show, '' on success, after
+ * $onSuccess has run and the counter has been cleared.
+ *
+ * @param callable():void $onSuccess
+ */
+function upgradeAuthHandlePasswordPost(
+    string $rootPath,
+    string $clientAddr,
+    string $submitted,
+    string $configured,
+    int $maxAttempts,
+    int $lockSeconds,
+    callable $onSuccess,
+    ?int $euid = null
+): string {
+    $problem = null;
+    $attemptFile = upgradeAuthStateFile($rootPath, $clientAddr, $problem, $euid);
+    $reservation = $attemptFile !== null
+        ? upgradeAuthReserveAttempt($attemptFile, $maxAttempts, $lockSeconds)
+        : null;
+    if ($attemptFile === null || $reservation === null) {
+        // No trustworthy counter, no password check: a throttle that cannot be
+        // kept is the same as no throttle.
+        return upgradeAuthUnavailableMessage($problem ?? 'unavailable', $rootPath);
+    }
+    if (!$reservation['allowed']) {
+        return 'Troppi tentativi. Riprova tra qualche minuto.';
+    }
+    if (hash_equals('pinakes2026', $configured)) {
+        return 'SICUREZZA: cambia la password nel file prima di procedere.';
+    }
+    if (!hash_equals($configured, $submitted)) {
+        return 'Password errata.';
+    }
+    $onSuccess();
+    upgradeAuthUpdate($attemptFile, static fn (array $state): array => ['failed' => 0, 'lock_until' => 0]);
+    return '';
+}
 // END upgrade-auth-throttle
 
 // ============================================================
@@ -742,30 +821,23 @@ $requestMethod = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 $maxAttempts = 5;
 $lockSeconds = 300;
 
-// File-based throttling (not session-scoped, so rotating cookies cannot bypass it)
-$attemptFile = upgradeAuthStateFile($rootPath, (string) ($_SERVER['REMOTE_ADDR'] ?? 'unknown'));
-
-if ($requestMethod === 'POST' && isset($_POST['password'])) {
-    // The attempt is counted (and refused when locked) before the password is
-    // looked at, in one critical section: see upgradeAuthReserveAttempt().
-    $reservation = $attemptFile !== null
-        ? upgradeAuthReserveAttempt($attemptFile, $maxAttempts, $lockSeconds)
-        : null;
-    if ($reservation === null) {
-        // No trustworthy counter, no password check: a throttle that cannot be
-        // kept is the same as no throttle.
-        $error = 'Protezione dai tentativi non disponibile: rendi scrivibile storage/cache/ per l\'utente del web server, oppure esegui l\'aggiornamento da riga di comando.';
-    } elseif (!$reservation['allowed']) {
-        $error = 'Troppi tentativi. Riprova tra qualche minuto.';
-    } elseif (hash_equals('pinakes2026', UPGRADE_PASSWORD)) {
-        $error = 'SICUREZZA: cambia la password nel file prima di procedere.';
-    } elseif (hash_equals(UPGRADE_PASSWORD, (string) $_POST['password'])) {
-        session_regenerate_id(true);
-        $_SESSION['upgrade_auth'] = true;
-        upgradeAuthUpdate($attemptFile, static fn (array $state): array => ['failed' => 0, 'lock_until' => 0]);
-    } else {
-        $error = 'Password errata.';
-    }
+// File-based throttling (not session-scoped, so rotating cookies cannot bypass
+// it). Web only: the CLI run is authenticated synthetically above and must not
+// touch the throttle state — run as root, it would create the state directory
+// root-owned and lock the web user out of this page for good.
+if (PHP_SAPI !== 'cli' && $requestMethod === 'POST' && isset($_POST['password'])) {
+    $error = upgradeAuthHandlePasswordPost(
+        $rootPath,
+        (string) ($_SERVER['REMOTE_ADDR'] ?? 'unknown'),
+        (string) $_POST['password'],
+        UPGRADE_PASSWORD,
+        $maxAttempts,
+        $lockSeconds,
+        static function (): void {
+            session_regenerate_id(true);
+            $_SESSION['upgrade_auth'] = true;
+        }
+    );
 }
 
 $authenticated = !empty($_SESSION['upgrade_auth']);
