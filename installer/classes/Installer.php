@@ -1175,10 +1175,15 @@ HTACCESS;
     /**
      * Rewrite the legacy root-docroot exemptions to the anchored form.
      *
-     * Touches only what earlier releases wrote: the whole marked installer
-     * block, or — in the packaged / hand-kept root .htaccess — the two
-     * unanchored REQUEST_URI exemptions and the storage/calendar .ics exemption.
-     * Anything else in the file is left byte-for-byte as it was.
+     * Touches only what earlier releases wrote: the two unanchored
+     * REQUEST_URI exemptions and the storage/calendar .ics exemption, inside
+     * the marked installer block or in the packaged / hand-kept root
+     * .htaccess alike. Anything else in the file, operator lines inside the
+     * marked block included (a RewriteBase for a sub-directory install, cPanel
+     * handler lines), is left byte-for-byte as it was: this runs from every
+     * installer request, anonymous ones on a live site included. Those
+     * exemptions are the only difference between the legacy block and
+     * ROUTING_BLOCK, so the healed block routes exactly as the new one does.
      */
     public static function healLegacyRouting(string $content): string {
         $legacyInstaller = '#^([ \t]*)RewriteCond %\{REQUEST_URI\} \(\^\|/\)installer\(/\|\$\) \[NC,OR\][ \t]*\r?\n'
@@ -1186,18 +1191,6 @@ HTACCESS;
             . '[ \t]*RewriteRule \^ - \[L\][ \t]*(\r?\n)#m';
         $legacyCalendar = '#^[ \t]*(?:\#[^\r\n]*\.ics[^\r\n]*\r?\n[ \t]*)?RewriteCond %\{REQUEST_URI\} \^/storage/calendar/\.\*\\\\\.ics\$ \[NC\][ \t]*\r?\n'
             . '[ \t]*RewriteRule \^ - \[L\][ \t]*\r?\n(?:[ \t]*\r?\n)?#m';
-
-        $start = strpos($content, '# === Pinakes routing');
-        $endMarker = '# === end Pinakes routing ===';
-        $end = $start === false ? false : strpos($content, $endMarker, $start);
-        if ($start !== false && $end !== false) {
-            $block = substr($content, $start, $end + strlen($endMarker) - $start);
-            if ($block !== self::ROUTING_BLOCK
-                && (preg_match($legacyInstaller, $block) === 1 || preg_match($legacyCalendar, $block) === 1)) {
-                return substr($content, 0, $start) . self::ROUTING_BLOCK . substr($content, $end + strlen($endMarker));
-            }
-            return $content;
-        }
 
         $healed = preg_replace_callback($legacyInstaller, static function (array $m): string {
             $indent = $m[1];

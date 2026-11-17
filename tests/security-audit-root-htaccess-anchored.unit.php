@@ -152,13 +152,19 @@ $crlf = str_replace("\n", "\r\n", $legacyPackaged);
 $check($exemptingRule(Installer::healLegacyRouting($crlf), '/scripts/maintenance.php/installer') === null, 'CRLF legacy file is healed too');
 
 $legacyBlock = "# BEGIN cPanel\nphp_flag log_errors On\n# END cPanel\n\n"
-    . "# === Pinakes routing (auto-managed by the installer) ===\n<IfModule mod_rewrite.c>\n    RewriteEngine On\n"
+    . "# === Pinakes routing (auto-managed by the installer) ===\n<IfModule mod_rewrite.c>\n    RewriteEngine On\n    RewriteBase /operator-edit/\n"
     . "    RewriteCond %{REQUEST_URI} (^|/)installer(/|$) [NC,OR]\n    RewriteCond %{REQUEST_URI} (^|/)scripts/manual-upgrade\\.php$ [NC]\n    RewriteRule ^ - [L]\n\n"
     . "    # Allow direct access to calendar .ics subscription files\n    RewriteCond %{REQUEST_URI} ^/storage/calendar/.*\\.ics$ [NC]\n    RewriteRule ^ - [L]\n\n"
     . "    RewriteCond %{REQUEST_URI} !^/public/\n    RewriteRule ^(.*)$ public/$1 [L,QSA]\n</IfModule>\n# === end Pinakes routing ===\n";
 $healedBlock = Installer::healLegacyRouting($legacyBlock);
-$check(str_contains($healedBlock, Installer::ROUTING_BLOCK) && str_starts_with($healedBlock, "# BEGIN cPanel\nphp_flag log_errors On\n# END cPanel\n\n"),
-    'installer-written legacy block: replaced, surrounding cPanel directives kept');
+$check($exemptingRule($healedBlock, '/scripts/maintenance.php/installer') === null && $exemptingRule($healedBlock, '/storage/calendar/library-calendar.ics') === null
+    && $exemptingRule($healedBlock, '/installer/') !== null && str_starts_with($healedBlock, "# BEGIN cPanel\nphp_flag log_errors On\n# END cPanel\n\n"),
+    'installer-written legacy block: both bypasses closed, installer still served, surrounding cPanel directives kept');
+// Review of PR #536 (F058): the whole marked block used to be replaced,
+// discarding an operator's own lines inside it.
+$check(str_contains($healedBlock, "    RewriteBase /operator-edit/\n") && str_contains($healedBlock, 'RewriteRule ^(.*)$ public/$1 [L,QSA]'),
+    'installer-written legacy block: an operator line inside it is kept (healed in place, not replaced)');
+$check(Installer::healLegacyRouting($healedBlock) === $healedBlock, 'healing the block is idempotent');
 $check(substr_count($healedBlock, '=== Pinakes routing') === 1, 'installer-written legacy block: no duplication');
 
 $custom = "RewriteEngine On\nRewriteRule ^(.*)$ public/$1 [L,QSA]\n";
