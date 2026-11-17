@@ -313,12 +313,19 @@ class NotificationService {
                     if ($verifyUrl === null) {
                         // Fail closed, as PasswordController::forgot() does: send
                         // nothing rather than a link pointing at an unverified host.
-                        // The administrators are still notified and can approve or
-                        // activate the account from the user's page.
+                        // There is no host setting in system_settings to fall back
+                        // to (the app's absolute URLs come from APP_CANONICAL_URL,
+                        // APP_TRUSTED_HOSTS or the request), and the request Host is
+                        // exactly what must not be used. So the administrators are
+                        // told that they must act: the account is 'sospeso', and
+                        // "Attiva utente" (POST /admin/users/{id}/activate-directly)
+                        // activates it without the link.
                         SecureLogger::error('[NotificationService] Registration email suppressed: neither APP_CANONICAL_URL nor '
-                            . 'APP_TRUSTED_HOSTS is configured; refusing to build the verification link from the request Host header', [
+                            . 'APP_TRUSTED_HOSTS is configured; refusing to build the verification link from the request Host header. '
+                            . 'An administrator must activate the account ("Attiva utente") or set APP_CANONICAL_URL', [
                                 'user_id' => $userId,
                             ]);
+                        $this->notifyVerificationLinkUnavailable($userId, (string) $user['email']);
                         return false;
                     }
                     $buttonText = __('Conferma la tua email');
@@ -345,6 +352,31 @@ class NotificationService {
         } catch (\Throwable $e) {
             SecureLogger::error("Failed to send user registration pending email: " . $e->getMessage());
             return false;
+        }
+    }
+
+    /**
+     * In-app notice to the administrators that a registrant's verification
+     * link could not be sent (no trusted host configured), so the account
+     * waits for a manual "Attiva utente". Best-effort.
+     */
+    private function notifyVerificationLinkUnavailable(int $userId, string $email): void
+    {
+        try {
+            $this->createNotification(
+                'new_user',
+                __('Email di verifica non inviata'),
+                sprintf(
+                    __('Il link di conferma per %s non è stato inviato perché l\'indirizzo del sito non è configurato (APP_CANONICAL_URL o APP_TRUSTED_HOSTS). Attiva l\'account con "Attiva utente", oppure imposta APP_CANONICAL_URL.'),
+                    $email
+                ),
+                '/admin/users/details/' . $userId,
+                $userId
+            );
+        } catch (\Throwable $e) {
+            SecureLogger::error('[NotificationService] Could not record the missing-verification-link notice: ' . $e->getMessage(), [
+                'user_id' => $userId,
+            ]);
         }
     }
 
