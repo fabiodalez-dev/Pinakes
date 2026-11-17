@@ -274,7 +274,13 @@ try {
             // The race outcome: an entry with no TTL, a full count, and a window long gone.
             . 'apcu_store($k, (($now - $w - 5) << 20) | 99, 0);'
             . '$o($m->invoke(null, $k, $w) === 1, "an expired window whose entry still exists (no TTL) starts a fresh window: no permanent lock-out");'
-            . '$info = apcu_key_info($k); $o(is_array($info) && (int) $info["ttl"] === $w, "and the fresh window is written with its TTL again");'
+            . '$o($m->invoke(null, $k, $w) === 2, "and the fresh window then counts normally");'
+            // Contention exhausting the compare-and-swap retries fails closed.
+            . '$o($m->invoke(null, $k, $w, 0) > 1000, "retries exhausted under contention: counted as limited (fail closed)");'
+            // Two requests both see the expired window: only one may reset it.
+            . 'apcu_store($k, (($now - $w - 5) << 20) | 99, 0); $inner = null;'
+            . '$outer = $m->invoke(null, $k, $w, 16, function () use ($m, $k, $w, &$inner) { static $once = false; if (!$once) { $once = true; $inner = $m->invoke(null, $k, $w); } });'
+            . '$o($inner === 1 && $outer === 2, "concurrent reset of an expired window: one resets it, the other counts on top (got " . var_export($inner, true) . "/" . var_export($outer, true) . ")");'
             . 'apcu_store($k, (($now - 10) << 20) | 99, 0);'
             . '$o($m->invoke(null, $k, $w) === 100, "a live window keeps counting (still limited)");'
             . 'apcu_store($k, "garbage", 0);'
@@ -282,7 +288,7 @@ try {
             . 'apcu_delete($k);';
         $out = (string) shell_exec(escapeshellarg(PHP_BINARY) . ' -d apc.enable_cli=1 -r ' . escapeshellarg($code) . ' 2>&1');
         $lines = array_filter(explode("\n", trim($out)));
-        $check(count($lines) === 6, 'the APCu child ran all its checks' . (count($lines) === 6 ? '' : ': ' . trim($out)));
+        $check(count($lines) === 8, 'the APCu child ran all its checks' . (count($lines) === 8 ? '' : ': ' . trim($out)));
         foreach ($lines as $line) {
             [$status, $label] = array_pad(explode('|', $line, 2), 2, $line);
             $check($status === 'OK', 'APCu: ' . $label);
