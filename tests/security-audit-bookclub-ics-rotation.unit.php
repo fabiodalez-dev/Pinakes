@@ -148,8 +148,12 @@ try {
         return [$res->getStatusCode(), (string) $res->getBody()];
     };
 
-    // The person-bound URL each viewer is shown (MeetingController::feedToken()).
-    $urlOf = static fn (int $userId): string => MeetingController::feedToken($repo->clubById($clubId), $userId);
+    // The person-bound URL each viewer is shown (MeetingController::feedToken()),
+    // keyed with the server secret, never the disclosed club token.
+    $savedKey = getenv('PLUGIN_ENCRYPTION_KEY');
+    putenv('PLUGIN_ENCRYPTION_KEY=audit-server-secret-' . bin2hex(random_bytes(8)));
+    unset($_ENV['PLUGIN_ENCRYPTION_KEY']);
+    $urlOf = static fn (int $userId): string => (string) MeetingController::feedToken($repo->clubById($clubId), $userId);
     $keeper = $add(506, 'active');
     $staffUser = 507;     // a Pinakes Staff account, not a member: sees the club page as a manager
     $db->query("INSERT INTO utenti (id, tipo_utente, stato) VALUES (501, 'standard', 'attivo'), (502, 'standard', 'attivo'),
@@ -174,6 +178,23 @@ try {
     $check($code === 404, 'a pending requester (never shown the URL) gets nothing with a computed token');
     [$code] = $feed($urlOf($staffUser));
     $check($code === 200, 'a Pinakes Staff account (club manager) reads the feed');
+    // Security review of the per-person token: the club ics_token was shown in
+    // the old club-wide URLs, so it must not be enough to forge a member's token.
+    $clubRow = $repo->clubById($clubId);
+    $forged = 'u501.' . substr(hash_hmac('sha256', 'bookclub-ics:' . $clubId . ':501', (string) $clubRow['ics_token']), 0, 32);
+    $forgedWithNonce = 'u501.' . substr(hash_hmac('sha256', 'bookclub-ics:' . $clubId . ':501:' . $clubRow['ics_token'], (string) $clubRow['ics_token']), 0, 32);
+    [$code] = $feed($forged);
+    [$code2] = $feed($forgedWithNonce);
+    $check($code === 404 && $code2 === 404, 'a token forged from the disclosed ics_token alone is rejected');
+    $realKey = getenv('PLUGIN_ENCRYPTION_KEY');
+    putenv('PLUGIN_ENCRYPTION_KEY');
+    $savedAppKey = getenv('APP_KEY');
+    putenv('APP_KEY');
+    unset($_ENV['APP_KEY']);
+    [$code] = $feed($urlOf(501));
+    $check($code === 404 && MeetingController::feedToken($clubRow, 501) === null, 'without a server key no personal token is issued or accepted');
+    putenv('PLUGIN_ENCRYPTION_KEY=' . $realKey);
+    if ($savedAppKey !== false) { putenv('APP_KEY=' . $savedAppKey); }
 
     echo "B. Declining a pending request keeps the token (no needless re-subscribe)\n";
     $repo->setMemberStatus($requester, 'left');
@@ -226,6 +247,7 @@ try {
     [$code] = $feed($suspendeeUrl);
     $check($code === 200, 'reactivating the account restores the same URL (no rotation needed)');
     $check($tokenOf() === $before, 'none of this rotated the club token, so nobody else had to re-subscribe');
+    putenv($savedKey === false ? 'PLUGIN_ENCRYPTION_KEY' : 'PLUGIN_ENCRYPTION_KEY=' . $savedKey);
 } catch (\Throwable $e) {
     $fail++;
     echo "  FAIL unexpected " . get_class($e) . ': ' . $e->getMessage() . "\n";

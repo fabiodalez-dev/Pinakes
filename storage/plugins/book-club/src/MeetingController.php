@@ -197,14 +197,39 @@ class MeetingController extends BaseController
     // ------------------------------------------------------------------
 
     /**
-     * The calendar token shown to $userId: "u<id>.<mac>", the MAC keyed with
-     * the club's ics_token. Per person, so the feed can ask on every request
-     * whether that person may still see it (icsFeed()); keyed with the club
-     * token, so Repo::setMemberStatus()'s rotation still revokes every URL.
+     * The server-side key of the feed tokens: PLUGIN_ENCRYPTION_KEY, else
+     * APP_KEY (the order SettingsEncryption uses). Never the club's ics_token,
+     * which the old club-wide URLs disclosed to every member, past ones
+     * included: with it as the key, anyone who had seen one could forge every
+     * member's token. Null when neither is configured.
      */
-    public static function feedToken(array $club, int $userId): string
+    private static function feedSecret(): ?string
     {
-        return 'u' . $userId . '.' . substr(hash_hmac('sha256', 'bookclub-ics:' . (int) $club['id'] . ':' . $userId, (string) $club['ics_token']), 0, 32);
+        foreach (['PLUGIN_ENCRYPTION_KEY', 'APP_KEY'] as $name) {
+            $value = $_ENV[$name] ?? getenv($name);
+            if (is_string($value) && $value !== '') {
+                return $value;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * The calendar token shown to $userId: "u<id>.<mac>", the MAC keyed with
+     * the server-side secret over the club id, the user id and the club's
+     * ics_token. Per person, so the feed can ask on every request whether that
+     * person may still see it (icsFeed()); ics_token is part of the message,
+     * so Repo::setMemberStatus()'s rotation still revokes every URL. Null when
+     * no server key is configured (no members-only feed is offered then).
+     */
+    public static function feedToken(array $club, int $userId): ?string
+    {
+        $secret = self::feedSecret();
+        if ($secret === null || $userId <= 0) {
+            return null;
+        }
+        $message = 'bookclub-ics:' . (int) $club['id'] . ':' . $userId . ':' . (string) $club['ics_token'];
+        return 'u' . $userId . '.' . substr(hash_hmac('sha256', $message, $secret), 0, 32);
     }
 
     /** The user a feedToken() names, or null when it is not one of this club's. */
@@ -214,7 +239,8 @@ class MeetingController extends BaseController
             return null;
         }
         $userId = (int) $m[1];
-        return hash_equals(self::feedToken($club, $userId), $token) ? $userId : null;
+        $expected = self::feedToken($club, $userId);
+        return $expected !== null && hash_equals($expected, $token) ? $userId : null;
     }
 
     /**
