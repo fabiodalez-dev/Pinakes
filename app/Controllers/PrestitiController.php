@@ -2114,7 +2114,7 @@ class PrestitiController
         $expectedBookByLoan = [];
         $bookIds = [];
         try {
-            $bookScan = $db->prepare("SELECT id, libro_id, utente_id FROM prestiti WHERE id IN ($placeholders)");
+            $bookScan = $db->prepare("SELECT id, libro_id, utente_id, attivo, stato FROM prestiti WHERE id IN ($placeholders)");
             if ($bookScan === false) {
                 throw new \RuntimeException($db->error);
             }
@@ -2127,7 +2127,11 @@ class PrestitiController
                 $bookId = (int) $row['libro_id'];
                 $expectedBookByLoan[$loanId] = $bookId;
                 $bookIds[$bookId] = $bookId;
-                if ($selfLoanId === 0 && \App\Support\SelfDealingGuard::blocks((int) $row['utente_id'])) {
+                // Only loans the locked loop below would extend count: one of
+                // the operator's own CLOSED loans in the selection is ignored
+                // there, so it must not refuse the whole batch here.
+                $extendable = (int) $row['attivo'] === 1 && in_array((string) $row['stato'], ['in_corso', 'in_ritardo'], true);
+                if ($selfLoanId === 0 && $extendable && \App\Support\SelfDealingGuard::blocks((int) $row['utente_id'])) {
                     $selfLoanId = $loanId;
                 }
             }

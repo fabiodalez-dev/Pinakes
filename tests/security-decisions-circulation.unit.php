@@ -232,6 +232,14 @@ try {
     $check(str_contains($r->getHeaderLine('Location'), 'error=self_dealing') && $loanRow($ownLoan)['data_scadenza'] === $day(5), 'extending its own loan from the edit form is refused');
     $r = $prestiti->bulkExtend($post('/admin/loans/bulk-extend', ['ids' => [(string) $ownLoan], 'days' => '7']), new SlimResponse(), $db);
     $check(str_contains($r->getHeaderLine('Location'), 'error=self_dealing') && $loanRow($ownLoan)['data_scadenza'] === $day(5), 'a bulk extension holding its own loan is refused');
+    // One of its own CLOSED loans in the selection is ignored, as the locked
+    // loop ignores it, instead of refusing the batch.
+    $ownClosed = $newLoan($staffId, $day(-40), $day(-20), 'restituito');
+    $db->query("UPDATE prestiti SET attivo = 0, data_restituzione = '" . $day(-21) . "' WHERE id = {$ownClosed}");
+    $otherLoan = $newLoan($readerId, $day(-2), $day(6));
+    $r = $prestiti->bulkExtend($post('/admin/loans/bulk-extend', ['ids' => [(string) $otherLoan, (string) $ownClosed], 'days' => '7']), new SlimResponse(), $db);
+    $check(!str_contains($r->getHeaderLine('Location'), 'self_dealing') && $loanRow($otherLoan)['data_scadenza'] === $day(13),
+        "a bulk extension that also selects one of its own closed loans extends the reader's loan (" . $r->getHeaderLine('Location') . ')');
     $readerLoan = $newLoan($readerId, $day(-5), $day(5));
     $r = $prestiti->update($post("/admin/loans/update/{$readerLoan}", ['utente_id' => (string) $staffId, 'data_prestito' => $day(-5), 'data_scadenza' => $day(5)]), new SlimResponse(), $db, $readerLoan);
     $check(str_contains($r->getHeaderLine('Location'), 'error=self_dealing') && (int) $loanRow($readerLoan)['utente_id'] === $readerId, "reassigning a reader's loan to itself is refused");
