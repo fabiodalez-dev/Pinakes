@@ -16,10 +16,12 @@
  *      get_oauth_token.php in every builder + the archive audit (#62).
  *   G. Baseline attestation is pinned to release.yml and the tag (#102).
  *   H. Book club: invitation, affinity, sprint, stats, quotes, AI cap
- *      (#93, #94, #95, #96, #74, #68) — structural checks on the queries and
- *      guards, which need a full plugin DB to run end to end.
+ *      (#93, #94, #95, #96, #74, #68) — the real controllers, repos and
+ *      modules against the plugin's own schema in a disposable database
+ *      (tests/helpers/hardening-sandbox-db.php; SKIP without E2E_DB_* or .env).
  *   I. RDA Work/Expression gated on frbr-lrm being active (#54); LIMIT/OFFSET
- *      bound in the listed plugin queries (#104); SRU selects an explicit
+ *      bound in the listed plugin queries (#104, token-stream scan: see the
+ *      comment there for why it cannot be behavioural); SRU selects an explicit
  *      public column list (#87); the contribution PDF is checked before the
  *      move (#83).
  *   J. (needs a DB, skipped otherwise) The SRU data query with the explicit
@@ -243,52 +245,304 @@ $check(str_contains($cru, '--signer-workflow "${GH_REPO}/.github/workflows/relea
     'gh attestation verify uses --signer-workflow and --source-ref');
 
 // ── H. Book club ───────────────────────────────────────────────────────────
+// The guards run for real: the controllers / repos / modules of the plugin
+// against the plugin's own schema (BookClubPlugin::ensureSchema(), modules
+// included) in a disposable database rebuilt from schema.sql. Only the
+// invitation flow uses the in-memory Repo of the existing book-club audit
+// suites (tests/helpers/bookclub-controller-stubs.php): it needs no query.
 echo "\nH. Book club membership/visibility guards (#93-#96, #74, #68)\n";
-$pc = $src('storage/plugins/book-club/src/PublicController.php');
-$accept = substr($pc, (int) strpos($pc, 'function acceptInvite'), 4000);
-$check(str_contains($accept, "\$existing['status'] === 'active'") && strpos($accept, "\$existing['status'] === 'active'") < strpos($accept, 'upsertMember('),
-    'acceptInvite(): an active member is sent to the club before any upsert (role kept, invitation unused)');
-$check(str_contains($accept, "in_array(\$existing['status'], ['banned', 'suspended'], true)"), 'acceptInvite(): suspended/banned still refused (#75)');
-$mob = $src('storage/plugins/book-club/src/MobileApiController.php');
-$check(str_contains(substr($mob, (int) strpos($mob, 'function join'), 2000), "['banned', 'suspended']"), 'mobile join(): suspended refused (#92)');
-$aff = $src('storage/plugins/book-club/src/AffinityRepo.php');
-$affFor = substr($aff, (int) strpos($aff, 'function affinitiesFor'), 1200);
-$check(str_contains($affFor, "m.user_id = u.id AND m.status = 'active'") && str_contains($affFor, 'JOIN bookclub_affinity_optin o'),
-    'affinitiesFor(): counterpart re-checked as active + opted in at read time');
-$sp = $src('storage/plugins/book-club/src/SprintController.php');
-$cancel = substr($sp, (int) strpos($sp, 'function cancel'), 900);
-$check(str_contains($cancel, '=== $userId') && str_contains($cancel, '&& $this->isActiveMember($club)'), 'sprint cancel(): creator right requires active membership');
-$sm = $src('storage/plugins/book-club/src/Modules/StatsModule.php');
-$check(str_contains($sm, "Permissions::can(\$this->db, \$club, \$userId, 'stats.view')"), 'stats panel requires stats.view like the stats page');
-$sc = $src('storage/plugins/book-club/src/StatsController.php');
-$check(str_contains($sc, "!\$canManage && \$book['state'] === BookClubPlugin::STATE_PENDING")
-    && str_contains($sc, "!\$canManage && (\$entry['current_state'] ?? null) === BookClubPlugin::STATE_PENDING")
-    && str_contains($sc, "!\$canManage && \$member['status'] !== 'active'"),
-    'export: pending proposals + non-active members only for managers');
-$qr = $src('storage/plugins/book-club/src/QuoteRepo.php');
-$check(str_contains($qr, "AND c.is_active = 1 AND c.privacy <> 'hidden'") && str_contains($qr, 'Modules\\Registry::clubEnabled('),
-    'public quotes: active, non-hidden clubs with the quotes module enabled');
-$check(str_contains($src('storage/plugins/book-club/src/Modules/QuotesModule.php'), 'publicQuotesForBook($libroId, 5, $this)'), 'book page passes the quotes module for the enablement check');
-$ai = $src('storage/plugins/book-club/src/AiService.php');
-$aic = $src('storage/plugins/book-club/src/AiController.php');
-$check(str_contains($ai, "SELECT GET_LOCK(?, 5)") && str_contains($ai, "saveOutput(\$clubId, \$kind, \$entityId, '', "), 'AI cap: attempt booked under a per-club lock before the call');
-$check(substr_count($aic, 'reserveAttempt(') === 2 && strpos($aic, 'reserveAttempt(') < strpos($aic, '$this->ai->generate('), 'both generators reserve before generate()');
-$check(str_contains($ai, "'max_bytes'       => 1048576"), 'AI response body capped (max_bytes)');
-$check(str_contains($ai, "WHERE o.club_id = ? AND o.content <> ''"), 'history hides reserved-but-failed attempts (they still count)');
+require_once $root . '/tests/helpers/bookclub-controller-stubs.php';
+require_once $root . '/tests/helpers/hardening-sandbox-db.php';
+spl_autoload_register(static function (string $class) use ($root): void {
+    $prefix = 'App\\Plugins\\BookClub\\';
+    if (str_starts_with($class, $prefix)) {
+        $file = $root . '/storage/plugins/book-club/src/' . str_replace('\\', '/', substr($class, strlen($prefix))) . '.php';
+        if (is_file($file)) {
+            require_once $file;
+        }
+    }
+});
+
+// acceptInvite(): an ACTIVE member (here the owner) accepting a stray
+// invitation is sent to the club; nothing is written, so the owner role is
+// kept and the invitation stays unused.
+$invRepo = bcFakeRepo();
+$invRepo->clubs['hb-inv'] = bcClub(410, 'hb-inv', 'invite');
+$invRepo->members['410:21'] = ['id' => 9, 'club_id' => 410, 'user_id' => 21, 'status' => 'active', 'role_slug' => 'owner'];
+$invRepo->invitation = ['id' => 88, 'club_id' => 410, 'email' => 'reader@audit.invalid', 'role_id' => null, 'invited_by' => 1];
+bcLogin(21);
+$res = bcController(BcTestPublicController::class, $invRepo)->acceptInvite(bcRequest('POST'), bcResponse(), str_repeat('c', 64));
+$check($invRepo->writes === [] && $invRepo->members['410:21']['role_slug'] === 'owner' && $invRepo->members['410:21']['status'] === 'active',
+    'acceptInvite(): an active owner is not re-upserted (role kept) and the invitation is not consumed');
+$check($res->getStatusCode() === 302 && str_ends_with($res->getHeaderLine('Location'), '/hb-inv'), 'acceptInvite(): the active member is sent to the club page');
+$invRepo->members['410:21']['status'] = 'left';
+bcController(BcTestPublicController::class, $invRepo)->acceptInvite(bcRequest('POST'), bcResponse(), str_repeat('c', 64));
+$check(in_array(['markInvitationAccepted', 88], $invRepo->writes, true) && $invRepo->members['410:21']['status'] === 'active',
+    'control: a former member accepting the invitation is (re)admitted and the invitation consumed');
+$_SESSION = [];
+
+try {
+    $sandbox = hardeningSandboxDb('plug');
+    $sandboxError = null;
+} catch (\Throwable $e) {
+    $sandbox = null;
+    $sandboxError = $e->getMessage();
+}
+if ($sandboxError !== null) {
+    $check(false, 'the disposable database could be built: ' . $sandboxError);
+} elseif ($sandbox === null) {
+    echo "SKIP: no database configured (E2E_DB_* or .env)\n";
+} else {
+    $db = $sandbox['db'];
+    try {
+        $schema = (new \App\Plugins\BookClub\BookClubPlugin($db, new \App\Support\HookManager($db)))->ensureSchema();
+        if ($schema['failed'] !== []) {
+            throw new RuntimeException('book-club ensureSchema failed for ' . implode(', ', $schema['failed']));
+        }
+        $modules = [];
+        foreach (\App\Plugins\BookClub\Modules\Registry::all($db) as $m) {
+            $modules[$m->slug()] = $m;
+        }
+        $repo = new \App\Plugins\BookClub\Repo($db);
+        $q = static function (string $sql, string $types = '', array $params = []) use ($db): int {
+            $stmt = $db->prepare($sql);
+            if ($types !== '') {
+                $stmt->bind_param($types, ...$params);
+            }
+            $stmt->execute();
+            $id = (int) $db->insert_id;
+            $stmt->close();
+            return $id;
+        };
+        $scalar = static function (string $sql) use ($db): int {
+            $row = $db->query($sql)->fetch_row();
+            return (int) ($row[0] ?? 0);
+        };
+        $role = static fn (string $slug): int => $scalar("SELECT id FROM bookclub_roles WHERE club_id IS NULL AND slug = '{$slug}'");
+        $users = [];
+        foreach (['owner', 'member', 'guest', 'custom', 'pending', 'left', 'creator', 'admin'] as $who) {
+            $users[$who] = hardeningSeedUser($db, "hb-bc-{$who}@example.org", 'x', $who === 'admin' ? 'admin' : 'standard');
+        }
+        $settings = (string) json_encode(['modules' => ['stats', 'quotes', 'ai', 'sprints', 'affinity']]);
+        $clubId = $q("INSERT INTO bookclub_clubs (slug, name, privacy, settings, ics_token, is_active) VALUES ('hb-club', 'HB club', 'public', ?, REPEAT('a', 32), 1)", 's', [$settings]);
+        $customRole = $q("INSERT INTO bookclub_roles (club_id, slug, name, permissions, is_system) VALUES (?, 'exporter', 'Exporter', '{\"exports.run\":true}', 0)", 'i', [$clubId]);
+        $memberIds = [];
+        foreach ([
+            'owner' => [$role('owner'), 'active'], 'member' => [$role('member'), 'active'], 'guest' => [$role('guest'), 'active'],
+            'custom' => [$customRole, 'active'], 'pending' => [$role('member'), 'pending'], 'left' => [$role('member'), 'left'],
+            'creator' => [$role('member'), 'active'],
+        ] as $who => [$roleId, $status]) {
+            $memberIds[$who] = $q('INSERT INTO bookclub_members (club_id, user_id, role_id, status) VALUES (?, ?, ?, ?)', 'iiis', [$clubId, $users[$who], $roleId, $status]);
+        }
+        $club = $repo->clubBySlug('hb-club');
+        $session = static function (string $who) use ($users): void {
+            $_SESSION = ['user' => ['id' => $users[$who], 'tipo_utente' => $who === 'admin' ? 'admin' : 'standard', 'email' => "hb-bc-{$who}@example.org", 'nome' => $who]];
+            \App\Plugins\BookClub\Permissions::flushCache();
+        };
+
+        // ── #94 affinity: leave / suspend / ban purge at once ────────────
+        $pair = static fn (string $a, string $b) => $q('INSERT INTO bookclub_affinity (club_id, user_a, user_b, score) VALUES (?, ?, ?, 50)', 'iii', [$clubId, min($users[$a], $users[$b]), max($users[$a], $users[$b])]);
+        $optIn = static fn (string $who) => $q('INSERT IGNORE INTO bookclub_affinity_optin (club_id, user_id) VALUES (?, ?)', 'ii', [$clubId, $users[$who]]);
+        foreach (['owner', 'member', 'guest', 'custom'] as $who) {
+            $optIn($who);
+        }
+        $pair('owner', 'member');
+        $pair('owner', 'guest');
+        $pair('owner', 'custom');
+        $pair('member', 'custom');
+        $affinityOf = static fn (string $who): int => $scalar("SELECT COUNT(*) FROM bookclub_affinity WHERE club_id = {$clubId} AND {$users[$who]} IN (user_a, user_b)")
+            + $scalar("SELECT COUNT(*) FROM bookclub_affinity_optin WHERE club_id = {$clubId} AND user_id = {$users[$who]}");
+        $check($affinityOf('member') === 3, 'setup: the member has two pairs and an opt-in');
+        foreach (['member' => 'left', 'guest' => 'suspended', 'custom' => 'banned'] as $who => $status) {
+            $check($repo->setMemberStatus($memberIds[$who], $status) === true, "setMemberStatus('{$status}') succeeds");
+            $check($affinityOf($who) === 0, "{$status}: every affinity pair and the opt-in of the member are gone at once");
+        }
+        $check($affinityOf('owner') === 1, "the owner keeps only the opt-in (no pair involves a remaining member)");
+        // Read time: a stored pair whose counterpart is not an active opted-in
+        // member is never listed (#94, between status change and recompute).
+        $db->query("DELETE FROM bookclub_affinity WHERE club_id = {$clubId}");
+        $db->query("UPDATE bookclub_members SET status = 'active' WHERE id IN ({$memberIds['member']}, {$memberIds['guest']})");
+        $optIn('member');
+        $pair('owner', 'member');     // active + opted in: listed
+        $pair('owner', 'guest');      // active, NOT opted in: hidden
+        $pair('owner', 'pending');    // opted in but pending: hidden
+        $optIn('pending');
+        $aff = new \App\Plugins\BookClub\AffinityRepo($db);
+        $names = array_column($aff->affinitiesFor($clubId, $users['owner']), 'name');
+        $memberName = (string) $db->query("SELECT CONCAT(nome, ' ', cognome) FROM utenti WHERE id = {$users['member']}")->fetch_row()[0];
+        $check($names === [$memberName], 'affinitiesFor(): only the active, opted-in counterpart is listed (' . implode(', ', $names) . ')');
+        $db->query("UPDATE bookclub_members SET status = 'active' WHERE id = {$memberIds['custom']}");
+
+        // ── #95 sprint cancel: the creator's right needs active membership ─
+        $sprints = new \App\Plugins\BookClub\SprintController($db, $repo, $modules['sprints']);
+        $future = date('Y-m-d H:i:s', time() + 86400);
+        $sprintId = $q("INSERT INTO bookclub_sprints (club_id, title, starts_at, duration_min, created_by, status) VALUES (?, 'HB sprint', ?, 30, ?, 'scheduled')", 'isi', [$clubId, $future, $users['creator']]);
+        $sprintStatus = static fn (): string => (string) $db->query("SELECT status FROM bookclub_sprints WHERE id = {$sprintId}")->fetch_row()[0];
+        $db->query("UPDATE bookclub_members SET status = 'left' WHERE id = {$memberIds['creator']}");
+        $session('creator');
+        $res = $sprints->cancel(bcRequest(), bcResponse(), 'hb-club', $sprintId);
+        $check($res->getStatusCode() === 404 && $sprintStatus() === 'scheduled', 'sprint cancel(): a creator who left cannot cancel (404, sprint untouched)');
+        $db->query("UPDATE bookclub_members SET status = 'active' WHERE id = {$memberIds['creator']}");
+        $session('creator');
+        $sprints->cancel(bcRequest(), bcResponse(), 'hb-club', $sprintId);
+        $check($sprintStatus() === 'cancelled', 'control: an active creator can cancel');
+
+        // ── #96 stats panel follows stats.view ────────────────────────────
+        $panel = static function (string $who) use ($modules, $club, $users): string {
+            \App\Plugins\BookClub\Permissions::flushCache();
+            return $modules['stats']->renderClubPanel(['club' => $club, 'isMember' => true, 'canManage' => false, 'userId' => $users[$who], 'states' => []]);
+        };
+        $check($panel('guest') === '', 'stats panel: an active guest (no stats.view) sees nothing');
+        $check($panel('custom') === '', 'stats panel: a custom role without stats.view sees nothing');
+        $check($panel('member') !== '', 'stats panel: a member (stats.view) sees it');
+
+        // ── #93 export: pending proposals + non-active members for managers only
+        $libro = $q("INSERT INTO libri (titolo) VALUES ('HB approved book')");
+        $pendingLibro = $q("INSERT INTO libri (titolo) VALUES ('HB pending proposal')");
+        $q("INSERT INTO bookclub_books (club_id, libro_id, state, proposed_by) VALUES (?, ?, 'approved', ?)", 'iii', [$clubId, $libro, $users['member']]);
+        $q('INSERT INTO bookclub_books (club_id, libro_id, state, proposed_by) VALUES (?, ?, ?, ?)', 'iisi', [$clubId, $pendingLibro, \App\Plugins\BookClub\BookClubPlugin::STATE_PENDING, $users['member']]);
+        $stats = new \App\Plugins\BookClub\StatsController($db, $repo, $modules['stats']);
+        $export = static function (string $who) use ($stats, $session): array {
+            $session($who);
+            $res = $stats->exportJson(bcRequest('GET'), bcResponse(), 'hb-club');
+            $data = json_decode((string) $res->getBody(), true);
+            return [$res->getStatusCode(), is_array($data) ? $data : []];
+        };
+        [$status, $data] = $export('custom');
+        $titles = array_column($data['books'] ?? [], 'titolo');
+        $statuses = array_column($data['members'] ?? [], 'status');
+        $check($status === 200 && in_array('HB approved book', $titles, true), 'export: a custom role with exports.run gets the export');
+        $check(!in_array('HB pending proposal', $titles, true), 'export (non-manager): pending proposals are left out');
+        $check($statuses !== [] && array_unique($statuses) === ['active'], 'export (non-manager): only active members are listed');
+        [, $data] = $export('owner');
+        $check(in_array('HB pending proposal', array_column($data['books'] ?? [], 'titolo'), true)
+            && in_array('pending', array_column($data['members'] ?? [], 'status'), true), 'export (owner): pending proposals and members included');
+        $_SESSION = [];
+
+        // ── #74 public quotes: active, non-hidden clubs with quotes enabled ─
+        $quoteLibro = $q("INSERT INTO libri (titolo) VALUES ('HB quoted book')");
+        $quoteClub = static function (string $slug, string $privacy, int $active, array $modulesOn, bool $deleted = false) use ($q): int {
+            return $q("INSERT INTO bookclub_clubs (slug, name, privacy, settings, ics_token, is_active, deleted_at) VALUES (?, ?, ?, ?, REPEAT('b', 32), ?, " . ($deleted ? 'NOW()' : 'NULL') . ')',
+                'ssssi', [$slug, $slug, $privacy, (string) json_encode(['modules' => $modulesOn]), $active]);
+        };
+        $quotes = [
+            'HBQ-visible' => $quoteClub('hb-q-ok', 'public', 1, ['quotes']),
+            'HBQ-hidden-club' => $quoteClub('hb-q-hidden', 'hidden', 1, ['quotes']),
+            'HBQ-inactive-club' => $quoteClub('hb-q-off', 'public', 0, ['quotes']),
+            'HBQ-module-off' => $quoteClub('hb-q-nomod', 'public', 1, ['stats']),
+            'HBQ-deleted-club' => $quoteClub('hb-q-del', 'public', 1, ['quotes'], true),
+        ];
+        foreach ($quotes as $text => $qClub) {
+            $q("INSERT INTO bookclub_quotes (user_id, libro_id, club_id, quote, visibility) VALUES (?, ?, ?, ?, 'public')", 'iiis', [$users['member'], $quoteLibro, $qClub, $text]);
+        }
+        $html = $modules['quotes']->renderBookDetailQuotes($quoteLibro);
+        $check(str_contains($html, 'HBQ-visible'), 'book page: a public quote of an active public club with the module on is shown');
+        foreach (['HBQ-hidden-club' => 'a hidden club', 'HBQ-inactive-club' => 'an inactive club', 'HBQ-module-off' => 'a club with the quotes module off', 'HBQ-deleted-club' => 'a deleted club'] as $text => $why) {
+            $check(!str_contains($html, $text), "book page: a quote of {$why} is not shown");
+        }
+
+        // ── #68 AI cap: the attempt is booked before the paid call ────────
+        $ai = new \App\Plugins\BookClub\AiService($db);
+        $cap = \App\Plugins\BookClub\AiService::MAX_OUTPUTS_PER_DAY;
+        $aiClub = $clubId;
+        for ($i = 0; $i < $cap - 1; $i++) {
+            $q("INSERT INTO bookclub_ai_outputs (club_id, kind, entity_id, content, model) VALUES (?, 'questions', 1, 'done', 'm')", 'i', [$aiClub]);
+        }
+        $fake = new class ($db) extends \App\Plugins\BookClub\AiService {
+            /** @var list<int> rows already booked for the club when generate() ran */
+            public array $calls = [];
+            public int $club = 0;
+            public function isConfigured(): bool { return true; }
+            public function generate(string $system, string $user): ?string
+            {
+                $this->calls[] = $this->countRecentOutputs($this->club, 24);
+                return null; // the provider failed (billed or not)
+            }
+        };
+        $fake->club = $aiClub;
+        $aiCtrl = new \App\Plugins\BookClub\AiController($db, $repo, $modules['ai']);
+        (new ReflectionProperty(\App\Plugins\BookClub\AiController::class, 'ai'))->setValue($aiCtrl, $fake);
+        $clubBook = $scalar("SELECT id FROM bookclub_books WHERE club_id = {$clubId} AND libro_id = {$libro}");
+        $session('admin');
+        for ($i = 0; $i < 3; $i++) {
+            $aiCtrl->generateQuestions(bcRequest('POST', ['club_book_id' => (string) $clubBook]), bcResponse(), 'hb-club');
+        }
+        $check($fake->calls === [$cap], "AI: with one slot left the provider is called once, with the attempt already booked ({$cap} rows)");
+        $check($scalar("SELECT COUNT(*) FROM bookclub_ai_outputs WHERE club_id = {$aiClub}") === $cap, 'AI: the failed call still counts toward the daily cap');
+        $check(count($ai->listOutputs($aiClub, 100)) === $cap - 1, 'AI: the history hides the reserved-but-failed attempt');
+        $check($ai->reserveAttempt($aiClub, 'questions', 1, null) === null, 'AI: a full cap books nothing more');
+        // Under a per-club lock: while another connection holds it, nothing is
+        // booked (the check-then-insert cannot interleave).
+        $db->query("DELETE FROM bookclub_ai_outputs WHERE club_id = {$aiClub}");
+        $other = hardeningSandboxConnect($sandbox['name']);
+        $other->query("SELECT GET_LOCK('pinakes_bookclub_ai_{$aiClub}', 0)");
+        $check($ai->reserveAttempt($aiClub, 'questions', 1, null) === null
+            && $scalar("SELECT COUNT(*) FROM bookclub_ai_outputs WHERE club_id = {$aiClub}") === 0, 'AI: no booking while another request holds the club lock');
+        $other->query("SELECT RELEASE_LOCK('pinakes_bookclub_ai_{$aiClub}')");
+        $other->close();
+        $check(is_int($ai->reserveAttempt($aiClub, 'questions', 1, null)), 'AI: once the lock is free an attempt is booked');
+        $_SESSION = [];
+    } catch (\Throwable $e) {
+        $check(false, 'book-club DB section raised ' . get_class($e) . ': ' . $e->getMessage() . ' @ ' . basename($e->getFile()) . ':' . $e->getLine());
+    } finally {
+        $_SESSION = [];
+        ($sandbox['drop'])();
+    }
+}
 
 // ── I. RDA gate, bound LIMIT/OFFSET, SRU columns, PDF check ────────────────
 echo "\nI. RDA gate (#54), bound LIMIT/OFFSET (#104), SRU columns (#87), PDF (#83)\n";
 $rda = $src('storage/plugins/bibframe-linked-data/RdaRegistryBuilder.php');
 $check(str_contains($rda, "name = 'frbr-lrm'") && substr_count($rda, "frbrTableExists('") === 4 && !str_contains($rda, "->tableExists('opere')") && !str_contains($rda, "->tableExists('espressioni')"),
     'every Work/Expression lookup is gated on frbr-lrm active');
-$arch = $src('storage/plugins/archives/ArchivesPlugin.php');
-$check(!str_contains($arch, "' LIMIT ' . \$maximumRecords") && !str_contains($arch, "'LIMIT ' . \$pageSize"), 'archives SRU/OAI: LIMIT/OFFSET bound');
-$cs = $src('storage/plugins/emeroteca/src/Services/ContributionService.php');
-$check(!preg_match('/LIMIT \$\w+|OFFSET \$\w+/', $cs), 'emeroteca ContributionService: no interpolated LIMIT/OFFSET');
-$check(!str_contains($src('storage/plugins/emeroteca/src/Modules/MobileModule.php'), "LIMIT '.(\$limit+1)"), 'emeroteca MobileModule: LIMIT bound');
-$check(!str_contains($src('storage/plugins/emeroteca/src/Controllers/PublicController.php'), 'OFFSET {$offset}'), 'emeroteca public listing: OFFSET bound');
-$check(!str_contains($src('storage/plugins/desiderata/DesiderataPlugin.php'), "OFFSET ' . \$offersOffset"), 'desiderata admin: OFFSET bound');
-$check(!str_contains($src('storage/plugins/book-club/src/ExtensionsRepo.php'), "LIMIT ' . \$limit"), 'book-club sprints: LIMIT bound');
+// #104 is checked on the token stream, not by running the queries: every
+// spliced value was already an int cast in PHP, so a bound and a spliced
+// LIMIT return the same rows for every input — no behavioural test can tell
+// them apart, and one would keep passing if the binding were reverted. The
+// scan therefore asks the structural question directly and independently of
+// variable names or spacing: does any SQL string literal END in LIMIT/OFFSET
+// (or "LIMIT ?,") and then get concatenated with '.', or interpolate a
+// variable right after the keyword ("… OFFSET {$x}")? Against the pre-fix
+// sources it reports every spliced site; on the fixed ones, none.
+/** @return list<string> */
+$pagingSplices = static function (string $code): array {
+    $tokens = token_get_all($code);
+    $count = count($tokens);
+    $text = static fn ($t): string => is_array($t) ? $t[1] : $t;
+    $kind = static fn ($t): int => is_array($t) ? $t[0] : 0;
+    $endsWithKeyword = static fn (string $s): bool => preg_match('/\b(?:LIMIT|OFFSET)\s*$/i', $s) === 1
+        || preg_match('/\bLIMIT\s+(?:\?|\d+)\s*,\s*$/i', $s) === 1;
+    $hits = [];
+    for ($i = 0; $i < $count; $i++) {
+        $t = $tokens[$i];
+        if ($kind($t) === T_CONSTANT_ENCAPSED_STRING && $endsWithKeyword(substr($text($t), 1, -1))) {
+            $j = $i + 1;
+            while ($j < $count && in_array($kind($tokens[$j]), [T_WHITESPACE, T_COMMENT], true)) {
+                $j++;
+            }
+            if ($j < $count && $text($tokens[$j]) === '.') {
+                $hits[] = 'line ' . $t[2];
+            }
+        } elseif ($kind($t) === T_ENCAPSED_AND_WHITESPACE && $endsWithKeyword($text($t))
+            && in_array($kind($tokens[$i + 1] ?? ''), [T_VARIABLE, T_CURLY_OPEN, T_DOLLAR_OPEN_CURLY_BRACES], true)) {
+            $hits[] = 'line ' . $t[2];
+        }
+    }
+    return $hits;
+};
+foreach ([
+    'archives SRU/OAI' => 'storage/plugins/archives/ArchivesPlugin.php',
+    'emeroteca ContributionService' => 'storage/plugins/emeroteca/src/Services/ContributionService.php',
+    'emeroteca MobileModule' => 'storage/plugins/emeroteca/src/Modules/MobileModule.php',
+    'emeroteca public listing' => 'storage/plugins/emeroteca/src/Controllers/PublicController.php',
+    'desiderata admin' => 'storage/plugins/desiderata/DesiderataPlugin.php',
+    'book-club sprints' => 'storage/plugins/book-club/src/ExtensionsRepo.php',
+] as $label => $file) {
+    $hits = $pagingSplices($src($file));
+    $check($hits === [], "{$label}: LIMIT/OFFSET bound, never spliced" . ($hits !== [] ? ' — ' . implode(', ', $hits) : ''));
+}
+$check($pagingSplices("<?php \$a = 'SELECT 1 LIMIT ' . (int) \$n; \$b = \"SELECT 1 LIMIT 5 OFFSET {\$o}\"; \$c = 'LIMIT ?, ' . \$x;") === ['line 1', 'line 1', 'line 1'],
+    'the scan itself flags a concatenated, an interpolated and a half-bound LIMIT');
 $sru = $src('storage/plugins/z39-server/classes/SRUServer.php');
 $check(!preg_match('/SELECT\s+l\.\*,/', $sru) && str_contains($sru, '$this->publicBookColumns()'), 'SRU data query no longer selects l.*');
 $ref = new ReflectionClassConstant(\Z39Server\SRUServer::class, 'PUBLIC_BOOK_COLUMNS');

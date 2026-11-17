@@ -228,11 +228,113 @@ try {
     echo "G. Installer\n";
     // -----------------------------------------------------------------------
     $inst = $src('installer/classes/Installer.php');
-    $key = $method($inst, 'generateEncryptionKey');
-    $check(!str_contains($key, "uniqid((string)") && !str_contains($key, "hash('sha256'") && str_contains($key, 'throw new'), 'generateEncryptionKey throws instead of a predictable fallback');
+    require_once $ROOT . '/installer/classes/Installer.php';
+    $instRef = new ReflectionClass(\Installer::class);
+
+    // generateEncryptionKey(): the key it returns is 32 CSPRNG bytes, fresh
+    // on every call.
+    $installer = $instRef->newInstanceWithoutConstructor();
+    $genKey = $instRef->getMethod('generateEncryptionKey');
+    $k1 = (string) $genKey->invoke($installer);
+    $k2 = (string) $genKey->invoke($installer);
+    $raw = str_starts_with($k1, 'base64:') ? base64_decode(substr($k1, 7), true) : false;
+    $check(is_string($raw) && strlen($raw) === 32 && $k1 !== $k2, 'generateEncryptionKey returns 32 fresh random bytes (base64:)');
+    // Its failure branch (random_bytes() unavailable) cannot be triggered
+    // from a test: random_bytes is a core function and Installer lives in
+    // the global namespace, so it cannot be shadowed. That branch is checked
+    // on the method's token stream instead — robust to formatting and
+    // variable names: the only entropy source called is random_bytes(), no
+    // predictable source (uniqid/mt_rand/rand/microtime/time/hash/md5/sha1)
+    // is called anywhere in the method, and every catch block throws and
+    // never returns.
+    $methodTokens = static function (string $code, string $name): array {
+        $tokens = token_get_all($code);
+        foreach ($tokens as $i => $t) {
+            if (!is_array($t) || $t[0] !== T_FUNCTION) { continue; }
+            $j = $i + 1;
+            while (is_array($tokens[$j]) && $tokens[$j][0] === T_WHITESPACE) { $j++; }
+            if (!is_array($tokens[$j]) || $tokens[$j][1] !== $name) { continue; }
+            while ($tokens[$j] !== '{') { $j++; }
+            $depth = 0;
+            $body = [];
+            for (; $j < count($tokens); $j++) {
+                $tk = $tokens[$j];
+                $s = is_array($tk) ? $tk[1] : $tk;
+                if ($s === '{' || (is_array($tk) && in_array($tk[0], [T_CURLY_OPEN, T_DOLLAR_OPEN_CURLY_BRACES], true))) { $depth++; }
+                if ($s === '}') { $depth--; }
+                $body[] = $tk;
+                if ($depth === 0) { return $body; }
+            }
+        }
+        return [];
+    };
+    $significant = static fn (array $tokens): array => array_values(array_filter($tokens, static fn ($t): bool => !is_array($t) || !in_array($t[0], [T_WHITESPACE, T_COMMENT, T_DOC_COMMENT], true)));
+    $keyBody = $significant($methodTokens($inst, 'generateEncryptionKey'));
+    $calls = [];
+    $catchBlocks = [];
+    foreach ($keyBody as $i => $t) {
+        if (is_array($t) && in_array($t[0], [T_STRING, T_NAME_FULLY_QUALIFIED], true) && ($keyBody[$i + 1] ?? null) === '(') {
+            $calls[] = strtolower(ltrim($t[1], '\\'));
+        }
+        if (is_array($t) && $t[0] === T_CATCH) {
+            $k = $i;
+            while (($keyBody[$k] ?? '{') !== '{') { $k++; }
+            $depth = 0;
+            $block = [];
+            for (; $k < count($keyBody); $k++) {
+                $s = is_array($keyBody[$k]) ? $keyBody[$k][1] : $keyBody[$k];
+                $depth += $s === '{' ? 1 : ($s === '}' ? -1 : 0);
+                $block[] = $keyBody[$k];
+                if ($depth === 0) { break; }
+            }
+            $catchBlocks[] = array_map(static fn ($tk): int => is_array($tk) ? $tk[0] : 0, $block);
+        }
+    }
+    $check($keyBody !== [] && in_array('random_bytes', $calls, true)
+        && array_intersect($calls, ['uniqid', 'mt_rand', 'rand', 'microtime', 'time', 'hash', 'md5', 'sha1', 'lcg_value', 'getmypid']) === [],
+        'generateEncryptionKey: random_bytes is its only entropy source (calls: ' . implode(', ', array_unique($calls)) . ')');
+    $check($catchBlocks !== [] && array_filter($catchBlocks, static fn (array $kinds): bool => !in_array(T_THROW, $kinds, true) || in_array(T_RETURN, $kinds, true)) === [],
+        'generateEncryptionKey: a CSPRNG failure throws instead of returning a fallback key');
     $check(!preg_match("/' -p' \\. escapeshellarg/", $inst), 'no -p<password> on the mysql command line');
-    $run = $method($inst, 'runMysqlClientImport');
-    $check(str_contains($run, '--defaults-extra-file=') && str_contains($run, '0600') && str_contains($run, 'unlink($cnf)'), 'credentials go through a 0600 defaults-extra-file that is removed');
+
+    // runMysqlClientImport(): run it for real against a stand-in `mysql`
+    // first on PATH, which records its argv, the credentials file it was
+    // pointed at (content + mode, read while the client runs) and stdin.
+    $fakeBin = $tmp . '/fakebin';
+    mkdir($fakeBin, 0700, true);
+    $trace = $tmp . '/mysql-trace.json';
+    file_put_contents($fakeBin . '/mysql', '#!' . PHP_BINARY . "\n<?php\n"
+        . '$cnf = null; foreach ($argv as $a) { if (str_starts_with($a, "--defaults-extra-file=")) { $cnf = substr($a, 22); } }' . "\n"
+        . 'file_put_contents(' . var_export($trace, true) . ', json_encode(["argv" => array_slice($argv, 1), "cnf" => $cnf,'
+        . ' "cnf_body" => $cnf !== null ? @file_get_contents($cnf) : null, "cnf_mode" => $cnf !== null ? (fileperms($cnf) & 0777) : null,'
+        . ' "stdin" => stream_get_contents(STDIN)]));' . "\n"
+        . 'fwrite(STDOUT, "fake-client-ran\n"); exit(3);' . "\n");
+    chmod($fakeBin . '/mysql', 0700);
+    $sqlFile = $tmp . '/import.sql';
+    file_put_contents($sqlFile, "SELECT 'hb-import';\n");
+    $secret = 'Pw-' . bin2hex(random_bytes(6)) . '"q\\';
+    $runInst = $instRef->newInstanceWithoutConstructor();
+    $instRef->getProperty('config')->setValue($runInst, ['DB_HOST' => 'db.invalid', 'DB_PORT' => '3307', 'DB_NAME' => 'pk_inst_db', 'DB_USER' => 'pk_user', 'DB_PASS' => $secret]);
+    $oldPath = (string) getenv('PATH');
+    putenv('PATH=' . $fakeBin . PATH_SEPARATOR . $oldPath);
+    try {
+        [$exitCode, $output] = $instRef->hasMethod('runMysqlClientImport')
+            ? $instRef->getMethod('runMysqlClientImport')->invoke($runInst, $sqlFile)
+            : [-1, ['runMysqlClientImport() is missing']];
+    } finally {
+        putenv('PATH=' . $oldPath);
+    }
+    $seen = json_decode((string) @file_get_contents($trace), true) ?: [];
+    $argvSeen = implode(' ', (array) ($seen['argv'] ?? []));
+    $check($exitCode === 3 && in_array('fake-client-ran', (array) $output, true), 'runMysqlClientImport ran the client and returned its exit code and output');
+    $check($argvSeen !== '' && !str_contains($argvSeen, substr($secret, 0, 15)) && !preg_match('/(?:^|\s)-p\S/', $argvSeen),
+        'the password never appears on the client command line');
+    $check(str_starts_with((string) ($seen['argv'][0] ?? ''), '--defaults-extra-file='), '--defaults-extra-file is the first option');
+    $check(($seen['cnf_mode'] ?? null) === 0600, 'the credentials file is 0600 while the client runs');
+    $check(str_contains((string) ($seen['cnf_body'] ?? ''), 'password="' . str_replace(['\\', '"'], ['\\\\', '\\"'], $secret) . '"')
+        && str_contains((string) ($seen['cnf_body'] ?? ''), 'user="pk_user"'), 'the credentials file carries the (escaped) user and password');
+    $check(($seen['cnf'] ?? null) !== null && !file_exists((string) $seen['cnf']), 'the credentials file is removed once the client exits');
+    $check(($seen['stdin'] ?? null) === "SELECT 'hb-import';\n" && str_contains($argvSeen, 'pk_inst_db'), 'the SQL file is fed on stdin to the named database');
 
     // A real installer request against an installed site whose DB is unreachable.
     $isite = $tmp . '/isite';

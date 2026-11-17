@@ -2,8 +2,12 @@
 declare(strict_types=1);
 
 /**
- * Security hardening 2026-11 (group C: protocols, mobile API, throttles) —
- * DB-free regressions.
+ * Security hardening 2026-11 (group C: protocols, mobile API, throttles).
+ *
+ * Sections 29-108 run DB-free. Section DB drives the real Basic-auth gates
+ * (OAI-PMH, ResourceSync, VIAF, NCIP), the NCIP / mobile logins and the staff
+ * errors.csv endpoint against a disposable database rebuilt from schema.sql
+ * (tests/helpers/hardening-sandbox-db.php; E2E_DB_* or .env, SKIP otherwise).
  *
  *  29  NCIP / OAI-PMH / VIAF admin checks decide on the role read from the DB:
  *      an unreadable role fails CLOSED instead of trusting the session snapshot.
@@ -18,9 +22,12 @@ declare(strict_types=1);
  *  86  An in-app password change keeps the app's own token.
  *  89  TokenQuotaMiddleware also budgets per account.
  *  91  Mobile author / publisher / language filters are length-capped.
- *  108 OAI / ResourceSync / VIAF Basic throttles key on IP + account.
+ *  108 OAI / ResourceSync / VIAF / NCIP Basic throttles key on IP + canonical
+ *      account, keep a failures-only bucket per IP that a success never
+ *      clears, and never throttle a client that authenticates every time.
  *
  * Run:  php tests/security-hardening-protocols.unit.php   (exit 0 iff all pass)
+ *       (with E2E_DB_* from run-e2e-wtN.sh for section DB)
  */
 
 $root = dirname(__DIR__);
@@ -108,8 +115,7 @@ $viaf = $bare(\App\Plugins\ViafAuthority\ViafAuthorityPlugin::class, ['db' => ne
 $out = null;
 $ok = (new ReflectionMethod($viaf, 'requireAdminOrStaff'))->invokeArgs($viaf, [(new ResponseFactory())->createResponse(), &$out, null]);
 $check($ok === false, 'VIAF: refused');
-$check(str_contains($src('storage/plugins/resource-sync/ResourceSyncPlugin.php'), "SessionRoleRevalidator::holdsActiveRole(['admin', 'staff'], \$this->db)"),
-    'ResourceSync: session gate revalidates the role');
+// ResourceSync's session gate runs against a real users table in section DB.
 $_SESSION = [];
 SessionRoleRevalidator::reset();
 
@@ -123,29 +129,12 @@ foreach (['/admin/dashboard', '/admin/authors', '/admin/authors/{id:\d+}', '/adm
     $check(str_starts_with($tail, '})->add(new AdminAuthMiddleware())'), "{$path} is behind AdminAuthMiddleware");
 }
 
-// ── 47 / 52 ──────────────────────────────────────────────────────────────────
-echo "47/52. login.validate and email verification on non-web logins\n";
-$mobileAuth = $src('storage/plugins/mobile-api/src/Controllers/AuthController.php');
-$check(str_contains($mobileAuth, "Hooks::apply('login.validate', true, [\$email, \$request])")
-    && str_contains($mobileAuth, '!$customValidation'), 'mobile login runs and honours login.validate');
-$ncipSrc = $src('storage/plugins/ncip-server/NcipServerPlugin.php');
-$check(str_contains($ncipSrc, "Hooks::apply('login.validate', true, [\$email, \$request])"), 'NCIP Basic auth runs login.validate');
-$check(str_contains($ncipSrc, "(int) (\$user['email_verificata'] ?? 0) !== 1"), 'NCIP Basic auth requires a verified email');
-
 // ── 48 ───────────────────────────────────────────────────────────────────────
 echo "48. mobile_app_tokens.revoked_at in UTC\n";
 foreach (['app/Support/CredentialRevoker.php', 'storage/plugins/mobile-api/MobileApiPlugin.php',
           'storage/plugins/mobile-api/src/Controllers/ActionsController.php', 'storage/plugins/mobile-api/src/Support/TokenService.php'] as $file) {
     $check(preg_match('/mobile_app_tokens\s+SET\s+revoked_at\s*=\s*NOW\(\)/i', $src($file)) === 0, "{$file}: no NOW() for revoked_at");
 }
-
-// ── 49 ───────────────────────────────────────────────────────────────────────
-echo "49. Staff errors.csv is catalogue-only\n";
-$imports = $src('storage/plugins/mobile-api/src/Controllers/StaffImportsController.php');
-$check(str_contains($imports, "CATALOG_IMPORT_TYPES = ['csv', 'librarything', 'marc']"), 'catalogue import types are listed');
-$errStart = (int) strpos($imports, 'public function errorsCsv');
-$check(strpos($imports, 'isCatalogImport($importId)', $errStart) < strpos($imports, 'downloadErrors(', $errStart),
-    'the type is checked before delegating to downloadErrors');
 
 // ── 50 ───────────────────────────────────────────────────────────────────────
 echo "50. OAI-PMH archival arm gated on Archives exposure\n";
@@ -270,16 +259,264 @@ try {
 } finally {
     $rl::reset($probe);
 }
-foreach ([
-    'OAI-PMH' => ['storage/plugins/oai-pmh-server/OaiPmhServerPlugin.php', "'oai_unimarc_basic_fail:'"],
-    'ResourceSync' => ['storage/plugins/resource-sync/ResourceSyncPlugin.php', "'resourcesync_basic_fail:'"],
-    'VIAF' => ['storage/plugins/viaf-authority/ViafAuthorityPlugin.php', "'viaf_basic_fail:'"],
-    'NCIP' => ['storage/plugins/ncip-server/NcipServerPlugin.php', "'ncip_basic_fail:'"],
-] as $label => [$file, $failPrefix]) {
-    $code = $src($file);
-    $check(str_contains($code, 'RateLimiter::accountKey(') && !preg_match('/_basic:\'\s*\.[^;]*strtolower\(/', $code), "{$label}: account part of the key is canonical");
-    $check(str_contains($code, $failPrefix) && str_contains($code, ', false)'), "{$label}: IP failure bucket checked read-only before the password");
-    $check(!preg_match('/reset\(\$(rlIpId|ipFailKey)\)/', $code), "{$label}: a success never clears the IP failure bucket");
+// The four gates themselves run on a real database: section DB below.
+
+// ── DB. 47 / 49 / 52 / 108 on a real database ──────────────────────────────
+// The gates run end to end: the real plugin / controller methods, real
+// PSR-7 requests, a real `utenti` table in a disposable database, and the
+// real RateLimiter state files (every bucket is keyed on a random IPv6 /64
+// of the documentation prefix, so no two runs share one, and every bucket
+// this section can create is reset in the finally block).
+echo "DB. Basic-auth gates, login.validate, verified email, errors.csv (real database)\n";
+require_once $root . '/tests/helpers/hardening-sandbox-db.php';
+// The mobile-api plugin has no Composer autoload entry (it require_once's
+// its own files); map its namespace for the controllers driven below.
+spl_autoload_register(static function (string $class) use ($root): void {
+    $prefix = 'App\\Plugins\\MobileApi\\';
+    if (str_starts_with($class, $prefix)) {
+        $file = $root . '/storage/plugins/mobile-api/src/' . str_replace('\\', '/', substr($class, strlen($prefix))) . '.php';
+        if (is_file($file)) {
+            require_once $file;
+        }
+    }
+});
+require_once $root . '/storage/plugins/resource-sync/ResourceSyncPlugin.php';
+try {
+    $sandbox = hardeningSandboxDb('proto');
+    $sandboxError = null;
+} catch (\Throwable $e) {
+    $sandbox = null;
+    $sandboxError = $e->getMessage();
+}
+if ($sandboxError !== null) {
+    $check(false, 'the disposable database could be built: ' . $sandboxError);
+} elseif ($sandbox === null) {
+    echo "SKIP: no database configured (E2E_DB_* or .env)\n";
+} else {
+    $db = $sandbox['db'];
+    $bucketIps = [];
+    $bucketAccounts = [];
+    $previousHooks = \App\Support\Hooks::getInstance();
+    try {
+        $RIGHT = 'right-pass-' . bin2hex(random_bytes(4));
+        $ADMIN = 'hb-admin@example.org';
+        hardeningSeedUser($db, $ADMIN, $RIGHT, 'admin');
+        $spray = [];
+        for ($i = 1; $i <= 5; $i++) {
+            $spray[] = "hb-s{$i}@example.org";
+            hardeningSeedUser($db, "hb-s{$i}@example.org", $RIGHT, 'staff');
+        }
+        $UNVERIFIED = 'hb-unverified@example.org';
+        hardeningSeedUser($db, $UNVERIFIED, $RIGHT, 'staff', ['email_verificata' => 0]);
+        $bucketAccounts = array_merge([$ADMIN, $UNVERIFIED], $spray);
+
+        // ResourceSync's gate is opt-in: switch it on the way an admin does.
+        $db->query("INSERT INTO plugins (name, display_name, version, is_active, path, main_file) VALUES ('resource-sync', 'ResourceSync', '1.0.0', 1, 'resource-sync', 'wrapper.php')");
+        $rsPluginId = (int) $db->insert_id;
+        $db->query("INSERT INTO plugin_settings (plugin_id, setting_key, setting_value) VALUES ({$rsPluginId}, 'require_basic_auth', '1')");
+
+        \App\Support\Hooks::init(new \App\Support\HookManager($db));
+        $_SESSION = [];
+        SessionRoleRevalidator::reset();
+
+        $freshIp = static function () use (&$bucketIps): string {
+            $ip = sprintf('2001:db8:%x:%x::%x', random_int(1, 0xffff), random_int(1, 0xffff), random_int(1, 0xffff));
+            $bucketIps[] = $ip;
+            return $ip;
+        };
+        $basicRequest = static fn (string $ip, string $user, string $password): ServerRequestInterface => (new ServerRequestFactory())
+            ->createServerRequest('GET', '/probe', ['REMOTE_ADDR' => $ip])
+            ->withHeader('Authorization', 'Basic ' . base64_encode($user . ':' . $password));
+
+        $hm = new \App\Support\HookManager($db);
+        $ncipPlugin = new \App\Plugins\NcipServer\NcipServerPlugin($db, $hm);
+        $oaiPlugin = new \App\Plugins\OaiPmhServer\OaiPmhServerPlugin($db, $hm);
+        $viafPlugin = new \App\Plugins\ViafAuthority\ViafAuthorityPlugin($db, $hm);
+        $rsPlugin = new \App\Plugins\ResourceSync\ResourceSyncPlugin($db, $hm);
+        $template = (new ResponseFactory())->createResponse();
+
+        // Each gate answers an HTTP-like status for one Basic attempt: 200 =
+        // let through, 401 = challenge, 429 = throttled. NCIP's authenticate()
+        // only says "caller or no caller", so it answers 200 or 401 and its
+        // throttling shows as a correct password being refused.
+        /** @var array<string, callable(ServerRequestInterface): int> $gates */
+        $gates = [
+            'OAI-PMH' => static function (ServerRequestInterface $rq) use ($oaiPlugin, $template): int {
+                $out = null;
+                $ok = (new ReflectionMethod($oaiPlugin, 'requireAdminForDownload'))->invokeArgs($oaiPlugin, [$template, &$out, $rq]);
+                return $ok ? 200 : ($out instanceof ResponseInterface ? $out->getStatusCode() : 0);
+            },
+            'ResourceSync' => static function (ServerRequestInterface $rq) use ($rsPlugin, $template): int {
+                $out = null;
+                $ok = $rsPlugin->gateRequest($rq, $template, $out);
+                return $ok ? 200 : ($out instanceof ResponseInterface ? $out->getStatusCode() : 0);
+            },
+            'VIAF' => static function (ServerRequestInterface $rq) use ($viafPlugin, $template): int {
+                $out = null;
+                $ok = (new ReflectionMethod($viafPlugin, 'requireAdminOrStaff'))->invokeArgs($viafPlugin, [$template, &$out, $rq]);
+                return $ok ? 200 : ($out instanceof ResponseInterface ? $out->getStatusCode() : 0);
+            },
+            'NCIP' => static function (ServerRequestInterface $rq) use ($ncipPlugin): int {
+                $user = (new ReflectionMethod($ncipPlugin, 'authenticate'))->invoke($ncipPlugin, $rq);
+                return is_array($user) ? 200 : 401;
+            },
+        ];
+        $throttled = static fn (string $gate, int $status): bool => $gate === 'NCIP' ? $status === 401 : $status === 429;
+
+        // Spellings the users-table collation resolves to the admin account.
+        $spellings = ['HB-Admin@Example.org', ' hb-admin@example.org', 'hb-admin@example.org ', 'HB-ADMIN@EXAMPLE.ORG'];
+        if (class_exists(\Normalizer::class)) {
+            $spellings[] = 'hb-ädmin@example.org';
+        }
+
+        foreach ($gates as $label => $gate) {
+            // (a) The right password is let through; a wrong one is challenged.
+            $ip = $freshIp();
+            $check($gate($basicRequest($ip, $ADMIN, $RIGHT)) === 200, "{$label}: the right password is accepted");
+            $check($gate($basicRequest($ip, $ADMIN, 'wrong')) === 401, "{$label}: a wrong password is answered 401");
+
+            // (b) Ten wrong passwords under ten spellings of ONE account spend
+            //     one per-account budget: the eleventh try is throttled even
+            //     with the right password (RateLimiter::accountKey).
+            $ip = $freshIp();
+            $statuses = [];
+            for ($i = 0; $i < 10; $i++) {
+                $statuses[] = $gate($basicRequest($ip, $spellings[$i % count($spellings)], 'wrong-' . $i));
+            }
+            $check($statuses === array_fill(0, 10, 401), "{$label}: ten wrong passwords are each answered 401");
+            $last = $gate($basicRequest($ip, $ADMIN, $RIGHT));
+            $check($throttled($label, $last), "{$label}: spellings of one account share its counter (right password now throttled, got {$last})");
+            $check($gate($basicRequest($freshIp(), $ADMIN, $RIGHT)) === 200, "{$label}: the same account from another client is unaffected");
+
+            // (c) The failures-only bucket per IP: 29 failures spread over five
+            //     accounts (never 10 on one), a success, one more failure — the
+            //     success must not have cleared the 29, so the client is now
+            //     over 30 and even the right password is throttled.
+            $ip = $freshIp();
+            $statuses = [];
+            for ($i = 0; $i < 29; $i++) {
+                $statuses[] = $gate($basicRequest($ip, $spray[$i % 5], 'wrong-' . $i));
+            }
+            $check(!in_array(200, $statuses, true) && array_unique($statuses) === [401], "{$label}: a spray over five accounts is answered 401 while under the IP cap");
+            $check($gate($basicRequest($ip, $ADMIN, $RIGHT)) === 200, "{$label}: a success under the cap still passes");
+            $gate($basicRequest($ip, $spray[0], 'wrong-30'));
+            $after = $gate($basicRequest($ip, $ADMIN, $RIGHT));
+            $check($throttled($label, $after), "{$label}: the success did not reset the IP failure bucket (30 failures: throttled, got {$after})");
+
+            // (d) A harvester that authenticates on every request is never
+            //     throttled, far past both the per-account and the IP budget.
+            $ip = $freshIp();
+            $ok = 0;
+            for ($i = 0; $i < 40; $i++) {
+                $ok += $gate($basicRequest($ip, $ADMIN, $RIGHT)) === 200 ? 1 : 0;
+            }
+            $check($ok === 40, "{$label}: 40 authenticated requests in a row all pass ({$ok}/40)");
+        }
+
+        $rsOff = new \App\Plugins\ResourceSync\ResourceSyncPlugin($db, $hm);
+        $db->query("UPDATE plugin_settings SET setting_value = '0' WHERE plugin_id = {$rsPluginId}");
+        $out = null;
+        $check($rsOff->gateRequest((new ServerRequestFactory())->createServerRequest('GET', '/'), $template, $out) === true,
+            'ResourceSync: with the opt-in gate off, an anonymous harvester passes (spec default)');
+        $db->query("UPDATE plugin_settings SET setting_value = '1' WHERE plugin_id = {$rsPluginId}");
+        // 29 (ResourceSync): the session gate decides on the role read from
+        // the database now, not on the login-time snapshot.
+        $demoted = hardeningSeedUser($db, 'hb-demoted@example.org', $RIGHT, 'standard');
+        $staffNow = hardeningSeedUser($db, 'hb-staffnow@example.org', $RIGHT, 'staff');
+        $anon = (new ServerRequestFactory())->createServerRequest('GET', '/');
+        $_SESSION = ['user' => ['id' => $demoted, 'tipo_utente' => 'admin', 'stato' => 'attivo']];
+        SessionRoleRevalidator::reset();
+        $out = null;
+        $check($rsPlugin->gateRequest($anon, $template, $out) === false && $out instanceof ResponseInterface && $out->getStatusCode() === 401,
+            'ResourceSync: an admin session snapshot whose DB row is now a reader is challenged');
+        $_SESSION = ['user' => ['id' => $staffNow, 'tipo_utente' => 'staff', 'stato' => 'attivo']];
+        SessionRoleRevalidator::reset();
+        $check($rsPlugin->gateRequest($anon, $template, $out) === true, 'ResourceSync: a session whose DB row is staff passes');
+        $_SESSION = [];
+        SessionRoleRevalidator::reset();
+
+        // ── 52: NCIP Basic auth = verified email + login.validate ─────────
+        $ncipAuth = static fn (string $user, string $password): mixed => (new ReflectionMethod($ncipPlugin, 'authenticate'))
+            ->invoke($ncipPlugin, $basicRequest($freshIp(), $user, $password));
+        $check(is_array($ncipAuth($ADMIN, $RIGHT)), 'NCIP: verified account with the right password is authenticated');
+        $check($ncipAuth($UNVERIFIED, $RIGHT) === null, 'NCIP: an unverified email is refused even with the right password');
+        $seen = [];
+        $refuse = new \App\Support\HookManager($db);
+        $refuse->addHook('login.validate', static function ($ok, $email) use (&$seen) {
+            $seen[] = $email;
+            return false;
+        });
+        \App\Support\Hooks::init($refuse);
+        $check($ncipAuth($ADMIN, $RIGHT) === null, "NCIP: a plugin's login.validate refusal is honoured");
+        $check($seen === [$ADMIN], 'NCIP: login.validate is asked about the authenticating email');
+        $allow = new \App\Support\HookManager($db);
+        $allow->addHook('login.validate', static fn ($ok) => $ok);
+        \App\Support\Hooks::init($allow);
+        $check(is_array($ncipAuth($ADMIN, $RIGHT)), 'NCIP: a permissive login.validate leaves the login working');
+
+        // ── 47: mobile login runs and honours login.validate ──────────────
+        $db->query("INSERT INTO system_settings (category, setting_key, setting_value) VALUES ('mobile_api', 'enabled', '1')");
+        $mobileLogin = static function (string $email, string $password) use ($db): array {
+            $rq = (new ServerRequestFactory())->createServerRequest('POST', '/api/v1/auth/login')
+                ->withHeader('Content-Type', 'application/json');
+            $rq->getBody()->write((string) json_encode(['email' => $email, 'password' => $password]));
+            $rq->getBody()->rewind();
+            $res = (new \App\Plugins\MobileApi\Controllers\AuthController($db))->login($rq, (new ResponseFactory())->createResponse());
+            $body = json_decode((string) $res->getBody(), true);
+            return [$res->getStatusCode(), is_array($body) ? (string) ($body['error']['code'] ?? '') : ''];
+        };
+        // The unverified account stops right AFTER the password and the hook
+        // (403 email_not_verified), so it shows which of the two refused.
+        \App\Support\Hooks::init($allow);
+        $check($mobileLogin($UNVERIFIED, $RIGHT) === [403, 'email_not_verified'], 'mobile: right password + permissive hook reaches the verification step');
+        $seen = [];
+        \App\Support\Hooks::init($refuse);
+        $check($mobileLogin($UNVERIFIED, $RIGHT) === [401, 'invalid_credentials'], 'mobile: a login.validate refusal turns the right password into 401');
+        $check($seen === [$UNVERIFIED], 'mobile: login.validate is asked about the login email');
+        \App\Support\Hooks::init(new \App\Support\HookManager($db));
+
+        // ── 49: staff errors.csv answers catalogue imports only ───────────
+        $importer = hardeningSeedUser($db, 'hb-importer@example.org', $RIGHT, 'staff');
+        $errors = (string) json_encode([['line' => 2, 'title' => 'Mario Rossi', 'type' => 'invalid', 'message' => 'patron row']]);
+        $imports = [];
+        foreach (['csv', 'librarything', 'marc', 'users'] as $type) {
+            $id = $type . '-' . bin2hex(random_bytes(6));
+            $stmt = $db->prepare("INSERT INTO import_logs (import_id, import_type, file_name, user_id, errors_json, status) VALUES (?, ?, 'f.csv', ?, ?, 'completed')");
+            $stmt->bind_param('ssis', $id, $type, $importer, $errors);
+            $stmt->execute();
+            $stmt->close();
+            $imports[$type] = $id;
+        }
+        $_SESSION = ['user' => ['id' => $importer, 'tipo_utente' => 'staff', 'email' => 'hb-importer@example.org']];
+        $errorsCsv = static function (string $importId) use ($db): array {
+            $res = (new \App\Plugins\MobileApi\Controllers\StaffImportsController($db))
+                ->errorsCsv((new ServerRequestFactory())->createServerRequest('GET', '/'), (new ResponseFactory())->createResponse(), $importId);
+            return [$res->getStatusCode(), (string) $res->getBody()];
+        };
+        foreach (['csv', 'librarything', 'marc'] as $type) {
+            [$status, $body] = $errorsCsv($imports[$type]);
+            $check($status === 200 && str_contains($body, 'patron row'), "errors.csv: the {$type} catalogue import report is served (HTTP {$status})");
+        }
+        [$status, $body] = $errorsCsv($imports['users']);
+        $check($status === 404 && !str_contains($body, 'Mario Rossi'), "errors.csv: a patron (users) import report is not served here (HTTP {$status})");
+        $_SESSION = [];
+    } catch (\Throwable $e) {
+        $check(false, 'DB section raised ' . get_class($e) . ': ' . $e->getMessage() . ' @ ' . basename($e->getFile()) . ':' . $e->getLine());
+    } finally {
+        $_SESSION = [];
+        $previousHooks !== null ? \App\Support\Hooks::init($previousHooks) : \App\Support\Hooks::init(new \App\Support\HookManager($db));
+        foreach ($bucketIps as $ip) {
+            $ipKey = RateLimiter::clientKey($ip);
+            foreach (['oai_unimarc_basic', 'resourcesync_basic', 'viaf_basic', 'ncip_basic'] as $prefix) {
+                RateLimiter::reset("{$prefix}_fail:{$ipKey}");
+                RateLimiter::reset("{$prefix}:{$ipKey}:" . RateLimiter::accountKey(''));
+                foreach ($bucketAccounts as $account) {
+                    RateLimiter::reset("{$prefix}:{$ipKey}:" . RateLimiter::accountKey($account));
+                }
+            }
+        }
+        ($sandbox['drop'])();
+    }
 }
 
 echo "\n{$pass} passed, {$fail} failed\n";
