@@ -51,7 +51,7 @@ $start = strpos($source, 'public function bulkExtend(');
 $check($start !== false, 'bulkExtend() is there to inspect');
 $body = $start === false ? '' : substr($source, $start, 6000);
 
-$scanAt = strpos($body, 'SELECT id, libro_id, utente_id FROM prestiti');
+$scanAt = strpos($body, 'SELECT id, libro_id, utente_id, attivo, stato FROM prestiti');
 $txAt = strpos($body, '$db->begin_transaction()');
 $lockAt = strpos($body, 'FOR UPDATE');
 
