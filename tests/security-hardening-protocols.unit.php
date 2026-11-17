@@ -498,10 +498,11 @@ if ($sandboxError !== null) {
         $before = \App\Support\PasswordTiming::equalizedCount();
         $check($gates['NCIP']($basicRequest($freshIp(), $inactive, $RIGHT)) === 401, 'NCIP: an inactive account is refused');
         $check(\App\Support\PasswordTiming::equalizedCount() === $before + 1, 'NCIP: an inactive account spends one dummy password verify');
-        $dummy = (new ReflectionProperty(\App\Support\PasswordTiming::class, 'dummyHash'))->getValue();
-        $check(is_string($dummy) && password_get_info($dummy)['algo'] === password_get_info(password_hash('x', PASSWORD_DEFAULT))['algo']
-            && password_get_info($dummy)['options'] == password_get_info(password_hash('x', PASSWORD_DEFAULT))['options'],
-            'the dummy hash uses the algorithm and cost of PASSWORD_DEFAULT');
+        // Precomputed, never hashed on the request path, and still the
+        // algorithm + cost of PASSWORD_DEFAULT: a change of the default fails here.
+        $dummy = \App\Support\PasswordTiming::dummyHash();
+        $check(password_needs_rehash($dummy, PASSWORD_DEFAULT) === false, 'the dummy hash uses the algorithm and cost of PASSWORD_DEFAULT');
+        $check(password_verify('', $dummy) === false && $dummy === \App\Support\PasswordTiming::dummyHash(), 'the dummy hash is a fixed constant that matches no password');
         \App\Support\Hooks::init($allow);
 
         // ── VIAF CSRF exemption: only the header the throttled gate verified
