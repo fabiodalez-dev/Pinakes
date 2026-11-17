@@ -201,12 +201,19 @@ Not exposed to API-key holders: the internal notes (`note_varie`, shown only on
 the admin book page) and any user account id (neither the reviewer's nor the
 borrower's).
 
+**Compatibility note (after 0.9.5):** review objects no longer carry `utente.id`.
+Up to 0.9.5 each entry of `recensioni` looked like
+`"utente": { "id": 42, "nome": "...", "cognome": "..." }`; it is now
+`"utente": { "nome": "...", "cognome": "..." }`. Integrations that keyed reviews
+by reviewer must use the review's own `id` instead.
+
 **Status Codes**:
 - `200 OK`: success
 - `400 Bad Request`: no search parameter supplied
 - `401 Unauthorized`: missing or invalid API key
 - `403 Forbidden`: API disabled (`api.enabled != '1'`)
 - `500 Internal Server Error`: unhandled error (logged via `SecureLogger`)
+- `503 Service Unavailable`: the API key could not be checked (database error during the lookup; logged)
 
 **Error shape** (public API): `{ "error": "<message>", "status": <code> }`.
 
