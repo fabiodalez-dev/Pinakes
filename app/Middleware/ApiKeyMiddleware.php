@@ -40,7 +40,13 @@ class ApiKeyMiddleware implements MiddlewareInterface
 
         // Validate API key (looked up by its SHA-256; the key itself is not stored)
         $apiKeyRepo = new ApiKeyRepository($this->db);
-        $keyData = $apiKeyRepo->getByKey($apiKey);
+        try {
+            $keyData = $apiKeyRepo->getByKey($apiKey);
+        } catch (\Throwable $e) {
+            // Never a 500 from authentication: the key could not be checked.
+            SecureLogger::error('[ApiKeyMiddleware] API key lookup failed', ['exception' => $e->getMessage()]);
+            return $this->jsonError('API temporarily unavailable', 503);
+        }
 
         if ($keyData === null) {
             return $this->jsonError('Invalid or inactive API key', 401);

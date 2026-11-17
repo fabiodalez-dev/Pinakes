@@ -153,7 +153,21 @@ class ApiKeyRepository
     }
 
     /**
+     * Connections (by spl_object_id) whose api_keys table was already checked
+     * for the uniq_key_hash index in this request: the check runs once.
+     *
+     * @var array<int, true>
+     */
+    private static array $indexChecked = [];
+
+    /**
      * Get the active API key matching a presented key, looked up by its hash.
+     *
+     * A table still holding plaintext keys, or missing a column or the hash
+     * index, is converted first. When that conversion fails (typically a
+     * database user without ALTER rights) the failure is logged and the key
+     * is still checked with whatever the table offers, so the public API keeps
+     * answering instead of failing every request.
      */
     public function getByKey(string $apiKey): ?array
     {
@@ -161,22 +175,130 @@ class ApiKeyRepository
             return null;
         }
         $hash = self::hashKey($apiKey);
+        $needsUpgrade = false;
         try {
             $row = $this->lookup($hash);
+            $needsUpgrade = !empty($row['has_plaintext']) || !$this->hashIndexChecked();
         } catch (RuntimeException $e) {
             // A database restored from an older backup may still lack the table
             // or either added column. Other SQL failures must surface normally.
             if (!in_array($e->getCode(), [1054, 1146], true)) {
                 throw $e;
             }
-            $row = ['has_plaintext' => 1];
+            $row = [];
+            $needsUpgrade = true;
         }
-        if (!empty($row['has_plaintext'])) {
-            $this->ensureTable();
-            $row = $this->lookup($hash);
+        if ($needsUpgrade) {
+            try {
+                $this->ensureTable();
+                self::$indexChecked[spl_object_id($this->db)] = true;
+                $row = $this->lookup($hash);
+            } catch (\Throwable $e) {
+                self::$indexChecked[spl_object_id($this->db)] = true;
+                \App\Support\SecureLogger::error('[ApiKeyRepository] could not convert the api_keys table; using the legacy lookup', [
+                    'error' => $e->getMessage(),
+                ]);
+                return $this->fallbackLookup($apiKey, $hash);
+            }
         }
         unset($row['has_plaintext']);
         return isset($row['id']) ? $row : null;
+    }
+
+    /**
+     * True once this request has seen the uniq_key_hash index on api_keys.
+     * The first call per connection reads INFORMATION_SCHEMA; a missing
+     * index returns false so the caller runs ensureTable().
+     */
+    private function hashIndexChecked(): bool
+    {
+        $id = spl_object_id($this->db);
+        if (isset(self::$indexChecked[$id])) {
+            return true;
+        }
+        $stmt = $this->db->prepare(
+            "SELECT 1 FROM INFORMATION_SCHEMA.STATISTICS
+              WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'api_keys'
+                AND INDEX_NAME = 'uniq_key_hash' LIMIT 1"
+        );
+        if ($stmt === false) {
+            return true; // cannot tell: do not attempt DDL on every request
+        }
+        try {
+            $stmt->execute();
+            $result = $stmt->get_result();
+            $present = $result instanceof \mysqli_result && $result->num_rows > 0;
+        } finally {
+            $stmt->close();
+        }
+        if ($present) {
+            self::$indexChecked[$id] = true;
+        }
+        return $present;
+    }
+
+    /**
+     * Lookup on a table the conversion could not bring up to date: by hash
+     * when key_hash exists, by the legacy plaintext column when api_key does.
+     */
+    private function fallbackLookup(string $apiKey, string $hash): ?array
+    {
+        try {
+            $columns = [];
+            $stmt = $this->db->prepare(
+                "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+                  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'api_keys'
+                    AND COLUMN_NAME IN ('api_key', 'key_hash', 'key_prefix')"
+            );
+            if ($stmt === false) {
+                return null;
+            }
+            $stmt->execute();
+            $res = $stmt->get_result();
+            while ($res instanceof \mysqli_result && ($c = $res->fetch_row())) {
+                $columns[(string) $c[0]] = true;
+            }
+            $stmt->close();
+
+            $where = [];
+            $types = '';
+            $params = [];
+            if (isset($columns['key_hash'])) {
+                $where[] = 'key_hash = ?';
+                $types .= 's';
+                $params[] = $hash;
+            }
+            if (isset($columns['api_key'])) {
+                $where[] = 'api_key = ?';
+                $types .= 's';
+                $params[] = $apiKey;
+            }
+            if ($where === []) {
+                return null;
+            }
+            $prefix = isset($columns['key_prefix'])
+                ? (isset($columns['api_key']) ? 'COALESCE(key_prefix, LEFT(api_key, ' . self::PREFIX_LENGTH . '))' : 'key_prefix')
+                : 'LEFT(api_key, ' . self::PREFIX_LENGTH . ')';
+            $stmt = $this->db->prepare(
+                'SELECT id, ' . $prefix . ' AS key_prefix, name, description, is_active, last_used_at
+                   FROM api_keys WHERE is_active = 1 AND (' . implode(' OR ', $where) . ') LIMIT 1'
+            );
+            if ($stmt === false) {
+                return null;
+            }
+            try {
+                $stmt->bind_param($types, ...$params);
+                $stmt->execute();
+                $res = $stmt->get_result();
+                $row = $res instanceof \mysqli_result ? $res->fetch_assoc() : null;
+            } finally {
+                $stmt->close();
+            }
+            return is_array($row) && isset($row['id']) ? $row : null;
+        } catch (\Throwable $e) {
+            \App\Support\SecureLogger::error('[ApiKeyRepository] legacy API key lookup failed', ['error' => $e->getMessage()]);
+            return null;
+        }
     }
 
     /** One indexed lookup and a legacy-row probe in the same statement. */

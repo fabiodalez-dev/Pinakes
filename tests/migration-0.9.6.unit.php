@@ -28,11 +28,24 @@ require $ROOT . '/vendor/autoload.php';
 final class ApiKeyMigrationTestConnection extends mysqli
 {
     public array $directQueries = [];
+    public array $prepared = [];
+    /** Simulates a database user without ALTER rights. */
+    public bool $denyAlter = false;
 
     public function query(string $query, int $result_mode = MYSQLI_STORE_RESULT): mysqli_result|bool
     {
         $this->directQueries[] = $query;
+        if ($this->denyAlter && preg_match('/^\s*ALTER\b/i', $query) === 1) {
+            throw new mysqli_sql_exception('ALTER command denied to user', 1142);
+        }
         return parent::query($query, $result_mode);
+    }
+
+    #[\ReturnTypeWillChange]
+    public function prepare(string $query): mysqli_stmt|false
+    {
+        $this->prepared[] = $query;
+        return parent::prepare($query);
     }
 }
 
@@ -246,6 +259,65 @@ try {
     $probe = $repo->create('Integration half-heal', null);
     $check(is_array($repo->getByKey((string) $probe['api_key'])), 'a key created afterwards is stored and authenticates');
     $db->query('DELETE FROM api_keys WHERE id = ' . (int) $probe['id']);
+
+    echo "A database user without ALTER rights\n";
+    $resetIndexMemo = static function (): void {
+        if (property_exists(\App\Models\ApiKeyRepository::class, 'indexChecked')) {
+            (new ReflectionProperty(\App\Models\ApiKeyRepository::class, 'indexChecked'))->setValue(null, []);
+        }
+    };
+    $seed(); // pre-0.9.6 plaintext table, no key_hash
+    $db->denyAlter = true;
+    $resetIndexMemo();
+    $threw = null;
+    try {
+        $hit = $repo->getByKey($keyA);
+    } catch (\Throwable $e) {
+        $threw = $e;
+        $hit = null;
+    }
+    $check($threw === null, 'a failing conversion does not throw out of getByKey()' . ($threw ? ' (' . $threw->getMessage() . ')' : ''));
+    $check(is_array($hit) && (int) $hit['id'] === 1 && $hit['key_prefix'] === substr($keyA, 0, 8),
+        'the key still authenticates through the legacy plaintext lookup');
+    $check($repo->getByKey(strtoupper($keyA)) !== null, 'the legacy lookup ignores letter case, as before');
+    $check($repo->getByKey($keyB) === null && $repo->getByKey(str_repeat('0', 64)) === null,
+        'an inactive or unknown key is still refused on the legacy path');
+    $check(!array_key_exists('key_hash', $columns()), 'nothing was altered');
+
+    // The middleware answers cleanly on that path: 200 / 401, never 500.
+    $db->query('DROP TABLE IF EXISTS system_settings');
+    $db->query("CREATE TABLE system_settings LIKE `{$baseDb}`.`system_settings`");
+    $db->query("INSERT INTO system_settings (category, setting_key, setting_value) VALUES ('api', 'enabled', '1')");
+    $handler = new class implements \Psr\Http\Server\RequestHandlerInterface {
+        public function handle(\Psr\Http\Message\ServerRequestInterface $request): \Psr\Http\Message\ResponseInterface
+        {
+            return new \Slim\Psr7\Response(200);
+        }
+    };
+    $mw = new \App\Middleware\ApiKeyMiddleware($db);
+    $req = (new \Slim\Psr7\Factory\ServerRequestFactory())->createServerRequest('GET', '/api/public/books/search');
+    $check($mw->process($req->withHeader('X-API-Key', $keyA), $handler)->getStatusCode() === 200,
+        'middleware: a valid legacy key gets through without ALTER rights');
+    $check($mw->process($req->withHeader('X-API-Key', $keyB), $handler)->getStatusCode() === 401,
+        'middleware: an invalid key gets 401, not 500');
+    $db->query('DROP TABLE api_keys');
+    $code = $mw->process($req->withHeader('X-API-Key', $keyA), $handler)->getStatusCode();
+    $check($code === 401 || $code === 503, "middleware: a table it cannot create answers {$code}, not 500");
+    $db->denyAlter = false;
+
+    echo "A converted table that lost its hash index\n";
+    $seed();
+    $repo->ensureTable();
+    $db->query('ALTER TABLE api_keys DROP INDEX uniq_key_hash');
+    $resetIndexMemo();
+    $check(is_array($repo->getByKey($keyA)), 'the key authenticates');
+    $check(($indexes()['uniq_key_hash'] ?? '') === '0:key_hash', 'the lookup restores the missing unique index');
+    $db->prepared = [];
+    $db->directQueries = [];
+    $repo->getByKey($keyA);
+    $repo->getByKey($keyA);
+    $statsReads = array_filter($db->prepared, static fn (string $q): bool => str_contains($q, 'STATISTICS'));
+    $check($statsReads === [] && $db->directQueries === [], 'the index check is memoized: later lookups in the request skip it');
 
     echo "New keys after the upgrade\n";
     $new = $repo->create('Integration C', null);
