@@ -153,7 +153,11 @@ final class LoanCalendarLinks
         $eventTitle = '📖 ' . __('Prestito') . ': ' . $bookTitle;
         $details = __('Libro') . ': ' . $bookTitle . "\n" . $appName;
         $googleUrl = self::googleCalendarUrl($eventTitle, $startDate, $endDate, $details);
-        $icsUrl = $this->icsUrl($loanId);
+        // The .ics link carries the loan's token and goes out by email: its
+        // host must be one the operator configured (TrustedLink), never the
+        // request's (and from cron there is no request). With none, only the
+        // Google Calendar button is offered.
+        $icsUrl = TrustedLink::build('/calendar/loan/' . $loanId . '.ics?token=' . urlencode($this->token($loanId)));
 
         $esc = static fn (string $v): string => htmlspecialchars($v, ENT_QUOTES | ENT_HTML5, 'UTF-8');
 
@@ -162,7 +166,9 @@ final class LoanCalendarLinks
             . '<p>' . $esc(__('Salva le date del prestito nel tuo calendario per non dimenticare la restituzione.')) . '</p>'
             . '<p style="text-align: center;">'
             . '<a href="' . $esc($googleUrl) . '" style="background-color: #3b82f6; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; display: inline-block; margin: 10px;">Google Calendar</a>'
-            . '<a href="' . $esc($icsUrl) . '" style="background-color: #6b7280; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; display: inline-block; margin: 10px;">' . $esc(__('Altri calendari (.ics)')) . '</a>'
+            . ($icsUrl !== null
+                ? '<a href="' . $esc($icsUrl) . '" style="background-color: #6b7280; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; display: inline-block; margin: 10px;">' . $esc(__('Altri calendari (.ics)')) . '</a>'
+                : '')
             . '</p></div>';
     }
 

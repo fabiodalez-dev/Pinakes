@@ -34,6 +34,12 @@ $check = static function (bool $ok, string $label) use (&$pass, &$fail): void {
     else     { $fail++; echo "  FAIL {$label}\n"; }
 };
 
+// approveAndSendActivation() refuses up front when no trusted host is
+// configured (its email carries a token link); the role checks below run with
+// one, and the refusal itself is checked at the end.
+putenv('APP_CANONICAL_URL=https://library.example');
+$_ENV['APP_CANONICAL_URL'] = 'https://library.example';
+
 $callers = [
     'admin' => ['id' => 1, 'tipo_utente' => 'admin', 'stato' => 'attivo'],
     'staff' => ['id' => 2, 'tipo_utente' => 'staff', 'stato' => 'attivo'],
@@ -78,6 +84,20 @@ foreach (['activateDirectly', 'approveAndSendActivation'] as $handler) {
         $check($r['status'] === 403 && !$r['past'], "users.manage role on a suspended {$role} account: 403, no write");
     }
 
+    // Review of PR #536 (F023): a reader account an administrator gave a
+    // custom role or digital access is an operator; Staff may not lift its
+    // suspension either.
+    $op = $target(30, 'standard');
+    $op['ruolo_id'] = 4;
+    $r = $run($handler, $callers['staff'], $op);
+    $check($r['status'] === 403 && !$r['past'], 'staff on a suspended custom-role operator: 403, no write');
+    $op = $target(31, 'premium');
+    $op['accesso_digitale'] = 1;
+    $r = $run($handler, $callers['staff'], $op);
+    $check($r['status'] === 403 && !$r['past'], 'staff on a suspended digital-access operator: 403, no write');
+    $op['ruolo_id'] = 4;
+    $check($run($handler, $callers['admin'], $op)['past'], 'administrator may reactivate a custom-role operator');
+
     // Legitimate use is unchanged.
     $check($run($handler, $callers['staff'], $target(20, 'standard'))['past'], 'staff approves a pending standard reader');
     $check($run($handler, $callers['staff'], $target(21, 'premium'))['past'], 'staff approves a pending premium reader');
@@ -101,6 +121,26 @@ $r = $run('renewCard', ['id' => 3, 'tipo_utente' => 'standard', 'stato' => 'atti
 $check($r['status'] === 403 && !$r['past'], 'a caller without users.manage renewing a reader: 403, no write');
 $check($run('renewCard', $callers['staff'], $target(20, 'standard'))['past'], "staff renews a reader's card");
 $check($run('renewCard', $callers['admin'], $target(20, 'standard'))['past'], "administrator renews a reader's card");
+
+echo "approveAndSendActivation without a trusted host (review of PR #536)\n";
+putenv('APP_CANONICAL_URL');
+putenv('APP_TRUSTED_HOSTS');
+unset($_ENV['APP_CANONICAL_URL'], $_ENV['APP_TRUSTED_HOSTS'], $_SERVER['APP_CANONICAL_URL'], $_SERVER['APP_TRUSTED_HOSTS']);
+$_SESSION = ['user' => $callers['admin']];
+$db = new SecurityAuditFakeDb([$target(40, 'standard')], 1);
+$out = null;
+try {
+    $out = (new UsersController())->approveAndSendActivation(
+        (new ServerRequestFactory())->createServerRequest('POST', '/admin/users/40/approve-and-send-activation'),
+        (new ResponseFactory())->createResponse(), $db, ['id' => '40']);
+} catch (SecurityAuditPastGuard) {
+}
+$_SESSION = [];
+$check($out !== null && $out->getStatusCode() === 302 && str_contains($out->getHeaderLine('Location'), 'error=no_trusted_host') && count($db->calls) === 1,
+    'refused before any write: the account stays sospeso and the verification link is never built from the Host');
+$check($run('activateDirectly', $callers['admin'], $target(41, 'standard'))['past'], '"Attiva utente" still works without a trusted host');
+$users = (string) file_get_contents($root . '/app/Controllers/UsersController.php');
+$check(preg_match('#^\s*"/admin/users/details/\{\$userId\}\?success=#m', $users) === 0, 'success redirects go through url() (base path, F088)');
 
 echo "\n{$pass} passed, {$fail} failed\n";
 exit($fail === 0 ? 0 : 1);

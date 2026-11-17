@@ -311,15 +311,17 @@ class MeetingController extends BaseController
             if (!empty($meeting['video_url'])) {
                 $where .= ($where !== '' ? ' / ' : '') . (string) $meeting['video_url'];
             }
-            $link = absoluteUrl(\App\Support\RouteTranslator::route('book_club') . '/' . $club['slug']);
+            // Emailed from cron: TrustedLink (the configured host), never
+            // absoluteUrl(); with none the reminder goes without the link.
+            $link = \App\Support\TrustedLink::build(\App\Support\RouteTranslator::route('book_club') . '/' . $club['slug']);
             $bodyHtml = '<p>' . htmlspecialchars(sprintf(
                 __('Il club "%s" si incontra il %s.'),
                 (string) $club['name'],
                 $when
             ), ENT_QUOTES, 'UTF-8') . '</p>'
                 . ($where !== '' ? '<p>' . htmlspecialchars(__('Dove:') . ' ' . $where, ENT_QUOTES, 'UTF-8') . '</p>' : '')
-                . '<p><a href="' . htmlspecialchars($link, ENT_QUOTES, 'UTF-8') . '">'
-                . htmlspecialchars(__('Vai alla pagina del club'), ENT_QUOTES, 'UTF-8') . '</a></p>';
+                . ($link !== null ? '<p><a href="' . htmlspecialchars($link, ENT_QUOTES, 'UTF-8') . '">'
+                . htmlspecialchars(__('Vai alla pagina del club'), ENT_QUOTES, 'UTF-8') . '</a></p>' : '');
 
             foreach ($this->repo->activeMemberEmails((int) $club['id']) as $member) {
                 $rsvp = $this->repo->userRsvp((int) $meeting['id'], (int) $member['id']);

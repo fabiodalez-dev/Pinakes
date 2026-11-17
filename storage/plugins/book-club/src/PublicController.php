@@ -243,21 +243,29 @@ class PublicController extends BaseController
             return $this->redirect($response, \App\Support\RouteTranslator::route('book_club') . '/' . $slug);
         }
 
-        $link = absoluteUrl(\App\Support\RouteTranslator::route('book_club') . '/invite/' . $token);
+        $invitePath = \App\Support\RouteTranslator::route('book_club') . '/invite/' . $token;
+        // The emailed link carries the invitation token: its host must be one
+        // the operator configured (TrustedLink), never the request's Host
+        // header. With none, no email goes out and the manager is handed the
+        // link below, built for the page they are looking at.
+        $mailLink = \App\Support\TrustedLink::build($invitePath);
+        $link = $mailLink ?? absoluteUrl($invitePath);
         $sent = false;
-        try {
-            $emailService = new EmailService($this->db);
-            $subject = sprintf(__('Invito al club di lettura "%s"'), (string) $club['name']);
-            $bodyHtml = '<p>' . htmlspecialchars(sprintf(
-                __('Sei stato invitato a unirti al club di lettura "%s".'),
-                (string) $club['name']
-            ), ENT_QUOTES, 'UTF-8') . '</p>'
-                . '<p><a href="' . htmlspecialchars($link, ENT_QUOTES, 'UTF-8') . '">'
-                . htmlspecialchars(__('Accetta l\'invito'), ENT_QUOTES, 'UTF-8') . '</a></p>'
-                . '<p>' . htmlspecialchars(__('Se non hai ancora un account, registrati prima con questo indirizzo email.'), ENT_QUOTES, 'UTF-8') . '</p>';
-            $sent = $emailService->sendEmail($email, $subject, $bodyHtml);
-        } catch (\Throwable $e) {
-            SecureLogger::error('[BookClub] invite email failed: ' . $e->getMessage());
+        if ($mailLink !== null) {
+            try {
+                $emailService = new EmailService($this->db);
+                $subject = sprintf(__('Invito al club di lettura "%s"'), (string) $club['name']);
+                $bodyHtml = '<p>' . htmlspecialchars(sprintf(
+                    __('Sei stato invitato a unirti al club di lettura "%s".'),
+                    (string) $club['name']
+                ), ENT_QUOTES, 'UTF-8') . '</p>'
+                    . '<p><a href="' . htmlspecialchars($mailLink, ENT_QUOTES, 'UTF-8') . '">'
+                    . htmlspecialchars(__('Accetta l\'invito'), ENT_QUOTES, 'UTF-8') . '</a></p>'
+                    . '<p>' . htmlspecialchars(__('Se non hai ancora un account, registrati prima con questo indirizzo email.'), ENT_QUOTES, 'UTF-8') . '</p>';
+                $sent = $emailService->sendEmail($email, $subject, $bodyHtml);
+            } catch (\Throwable $e) {
+                SecureLogger::error('[BookClub] invite email failed: ' . $e->getMessage());
+            }
         }
 
         if ($sent) {

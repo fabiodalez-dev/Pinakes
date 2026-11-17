@@ -994,6 +994,16 @@ class UsersController
             return $response->withHeader('Location', url("/admin/users/details/{$userId}?error=not_suspended"))->withStatus(302);
         }
 
+        // The activation email carries a token link, which may only be built on
+        // a host the operator configured (TrustedLink). Without one the email
+        // would be suppressed after the account had already left 'sospeso',
+        // leaving a reader who can neither verify nor be activated directly.
+        // So refuse before touching the account: it stays 'sospeso' and
+        // "Attiva utente" remains available.
+        if (\App\Support\TrustedLink::build('/') === null) {
+            return $response->withHeader('Location', url("/admin/users/details/{$userId}?error=no_trusted_host"))->withStatus(302);
+        }
+
         // Genera nuovo token di verifica (valido 7 giorni)
         $token = bin2hex(random_bytes(24)); // 48 caratteri hex
         $db->query("SET SESSION time_zone = '+00:00'");
@@ -1026,7 +1036,7 @@ class UsersController
         // Redirect con messaggio di successo
         return $response->withHeader(
             'Location',
-            "/admin/users/details/{$userId}?success=approved_email_sent"
+            url("/admin/users/details/{$userId}?success=approved_email_sent")
         )->withStatus(302);
     }
 
@@ -1086,7 +1096,7 @@ class UsersController
         // Redirect con messaggio di successo
         return $response->withHeader(
             'Location',
-            "/admin/users/details/{$userId}?success=activated_directly"
+            url("/admin/users/details/{$userId}?success=activated_directly")
         )->withStatus(302);
     }
 
@@ -1322,6 +1332,11 @@ class UsersController
      * administrator's lockout, and lifting it would hand the account back to
      * whoever holds its password; update() and delete() already reserve every
      * other change to an operator account to administrators.
+     *
+     * "Operator" is UserRoleAssignment::canEdit()'s definition: a standard or
+     * premium account an administrator gave a custom role (ruolo_id) or
+     * digital access is an operator too, so Staff may not lift its suspension
+     * either.
      */
     private static function canChangeAccountState(array $target): bool
     {
@@ -1333,7 +1348,7 @@ class UsersController
             return false;
         }
         if ($callerRole === 'staff') {
-            return true;
+            return empty($target['ruolo_id']) && empty($target['accesso_digitale']);
         }
         return \App\Support\UserRoleAssignment::canEdit($target);
     }
