@@ -808,6 +808,41 @@ function upgradeAuthHandlePasswordPost(
 // END upgrade-auth-throttle
 
 // ============================================================
+// MYSQLDUMP CREDENTIALS FILE
+// ============================================================
+// BEGIN upgrade-dump-credentials
+/**
+ * Create the empty mysqldump credentials file inside <install>/storage/tmp and
+ * return its path. Never anywhere else: tempnam() silently falls back to the
+ * system temp dir (shared by every account on the host) when the directory is
+ * missing or not writable, and the file is about to receive the database
+ * password. So storage/tmp is created (0700) when absent, and the file must
+ * resolve inside it; otherwise it is removed and the dump is refused.
+ */
+function upgradeCreateDumpCredentialsFile(string $rootPath): string
+{
+    $dir = rtrim(str_replace('\\', '/', $rootPath), '/') . '/storage/tmp';
+    if (!is_dir($dir) && !@mkdir($dir, 0700, true) && !is_dir($dir)) {
+        throw new RuntimeException('Backup DB annullato: impossibile creare la cartella storage/tmp per il file credenziali di mysqldump.'
+            . ' Rendi scrivibile storage/ per l\'utente del web server, poi riprova.');
+    }
+    $file = @tempnam($dir, 'pinakes_dump_');
+    if ($file === false) {
+        throw new RuntimeException('Impossibile creare file temporaneo per credenziali mysqldump');
+    }
+    $realDir = realpath($dir);
+    $realFile = realpath($file);
+    if ($realDir === false || $realFile === false || dirname($realFile) !== $realDir) {
+        @unlink($file);
+        throw new RuntimeException('Backup DB annullato: il file credenziali di mysqldump non può essere creato in storage/tmp'
+            . ' (cartella non scrivibile?) e non viene scritto nella cartella temporanea condivisa del server.'
+            . ' Rendi scrivibile storage/tmp per l\'utente del web server, poi riprova.');
+    }
+    return $file;
+}
+// END upgrade-dump-credentials
+
+// ============================================================
 // AUTH CHECK
 // ============================================================
 
@@ -964,13 +999,9 @@ if ($authenticated && $requestMethod === 'POST' && isset($_FILES['zipfile'])) {
         }
 
         if ($mysqldumpBin) {
-            // Use defaults-extra-file to avoid exposing password in process list
-            // Inside the install (storage/tmp is already required writable above), not the
-            // host-shared temp dir.
-            $defaultsFile = tempnam($rootPath . '/storage/tmp', 'pinakes_dump_');
-            if ($defaultsFile === false) {
-                throw new RuntimeException('Impossibile creare file temporaneo per credenziali mysqldump');
-            }
+            // Use defaults-extra-file to avoid exposing password in process list.
+            // Inside the install, never the host-shared temp dir (checked there).
+            $defaultsFile = upgradeCreateDumpCredentialsFile($rootPath);
             $written = file_put_contents($defaultsFile,
                 "[client]\n"
                 . "host=" . ($env['DB_HOST'] ?? 'localhost') . "\n"
