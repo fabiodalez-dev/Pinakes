@@ -56,6 +56,9 @@ final class CirculationOutcome
         'loan_update_failed' => [500, 'internal_error', null, false],
         // An overdue loan moved forward waives the fine accrued so far: reason required.
         'extension_reason_required' => [422, 'validation_error', 'waive_reason', false],
+        // A loan whose borrower is outside the operator's loan-desk scope
+        // (Permissions::mayActOnBorrower) answers as absent.
+        'loan_not_found'     => [404, 'not_found', null, false],
     ];
 
     /** ④ return / return-by-code (PrestitiController::processReturn). */

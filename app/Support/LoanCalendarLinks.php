@@ -53,10 +53,15 @@ final class LoanCalendarLinks
         return 'https://calendar.google.com/calendar/render?' . http_build_query($params, '', '&', PHP_QUERY_RFC3986);
     }
 
-    /** Absolute tokenized URL of the per-loan .ics download. */
-    public function icsUrl(int $loanId): string
+    /**
+     * Absolute tokenized URL of the per-loan .ics download, or null when no
+     * operator-configured host exists. The link carries a token and is mailed,
+     * so its host comes from TrustedLink (APP_CANONICAL_URL / APP_TRUSTED_HOSTS),
+     * never from the Host header of the request that triggered the send.
+     */
+    public function icsUrl(int $loanId): ?string
     {
-        return absoluteUrl('/calendar/loan/' . $loanId . '.ics?token=' . urlencode($this->token($loanId)));
+        return TrustedLink::build('/calendar/loan/' . $loanId . '.ics?token=' . urlencode($this->token($loanId)));
     }
 
     public function token(int $loanId): string
@@ -199,6 +204,13 @@ final class LoanCalendarLinks
         $details = __('Libro') . ': ' . $bookTitle . "\n" . $appName;
         $googleUrl = self::googleCalendarUrl($eventTitle, $startDate, $endDate, $details);
         $icsUrl = $this->icsUrl($loanId);
+        if ($icsUrl === null) {
+            // No trusted host: send the Google Calendar button only rather than
+            // a tokenized link pointing at whatever host the request named.
+            SecureLogger::warning('[LoanCalendarLinks] .ics link left out of the loan email: neither APP_CANONICAL_URL nor APP_TRUSTED_HOSTS is configured', [
+                'loan_id' => $loanId,
+            ]);
+        }
 
         $esc = static fn (string $v): string => htmlspecialchars($v, ENT_QUOTES | ENT_HTML5, 'UTF-8');
 
@@ -207,7 +219,9 @@ final class LoanCalendarLinks
             . '<p>' . $esc(__('Salva le date del prestito nel tuo calendario per non dimenticare la restituzione.')) . '</p>'
             . '<p style="text-align: center;">'
             . '<a href="' . $esc($googleUrl) . '" style="background-color: #3b82f6; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; display: inline-block; margin: 10px;">Google Calendar</a>'
-            . '<a href="' . $esc($icsUrl) . '" style="background-color: #6b7280; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; display: inline-block; margin: 10px;">' . $esc(__('Altri calendari (.ics)')) . '</a>'
+            . ($icsUrl !== null
+                ? '<a href="' . $esc($icsUrl) . '" style="background-color: #6b7280; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; display: inline-block; margin: 10px;">' . $esc(__('Altri calendari (.ics)')) . '</a>'
+                : '')
             . '</p></div>';
     }
 

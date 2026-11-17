@@ -1236,10 +1236,15 @@ HTACCESS;
     /**
      * Rewrite the legacy root-docroot exemptions to the anchored form.
      *
-     * Touches only what earlier releases wrote: the whole marked installer
-     * block, or — in the packaged / hand-kept root .htaccess — the two
-     * unanchored REQUEST_URI exemptions and the storage/calendar .ics exemption.
-     * Anything else in the file is left byte-for-byte as it was.
+     * Touches only what earlier releases wrote: the two unanchored
+     * REQUEST_URI exemptions and the storage/calendar .ics exemption, inside
+     * the marked installer block or in the packaged / hand-kept root
+     * .htaccess alike. Anything else in the file, operator lines inside the
+     * marked block included (a RewriteBase for a sub-directory install, cPanel
+     * handler lines), is left byte-for-byte as it was: this runs from every
+     * installer request, anonymous ones on a live site included. Those
+     * exemptions are the only difference between the legacy block and
+     * ROUTING_BLOCK, so the healed block routes exactly as the new one does.
      */
     public static function healLegacyRouting(string $content): string {
         $legacyInstaller = '#^([ \t]*)RewriteCond %\{REQUEST_URI\} \(\^\|/\)installer\(/\|\$\) \[NC,OR\][ \t]*\r?\n'
@@ -1247,18 +1252,6 @@ HTACCESS;
             . '[ \t]*RewriteRule \^ - \[L\][ \t]*(\r?\n)#m';
         $legacyCalendar = '#^[ \t]*(?:\#[^\r\n]*\.ics[^\r\n]*\r?\n[ \t]*)?RewriteCond %\{REQUEST_URI\} \^/storage/calendar/\.\*\\\\\.ics\$ \[NC\][ \t]*\r?\n'
             . '[ \t]*RewriteRule \^ - \[L\][ \t]*\r?\n(?:[ \t]*\r?\n)?#m';
-
-        $start = strpos($content, '# === Pinakes routing');
-        $endMarker = '# === end Pinakes routing ===';
-        $end = $start === false ? false : strpos($content, $endMarker, $start);
-        if ($start !== false && $end !== false) {
-            $block = substr($content, $start, $end + strlen($endMarker) - $start);
-            if ($block !== self::ROUTING_BLOCK
-                && (preg_match($legacyInstaller, $block) === 1 || preg_match($legacyCalendar, $block) === 1)) {
-                return substr($content, 0, $start) . self::ROUTING_BLOCK . substr($content, $end + strlen($endMarker));
-            }
-            return $content;
-        }
 
         $healed = preg_replace_callback($legacyInstaller, static function (array $m): string {
             $indent = $m[1];
@@ -1400,14 +1393,24 @@ HTACCESS;
     }
 
     /**
-     * Lifetime of an install-in-progress binding without activity, in seconds.
-     * Each request of the owning session that may go on renews it (sliding),
-     * so a slow install is not cut off; a binding whose session was lost (GC'd,
-     * cookie cleared, other browser) stops shutting everyone else out after
-     * this much inactivity. It was 12 hours, which left a lost session's
-     * install stuck for half a day.
+     * Lifetime of an install-in-progress binding without activity, in seconds,
+     * as seen by OTHER sessions. Each request of the owning session that may go
+     * on renews it (sliding); a binding whose session was lost (GC'd, cookie
+     * cleared, other browser) stops shutting everyone else out after this much
+     * inactivity, while the database is still empty. It was 12 hours, which
+     * left a lost session's install stuck for half a day. The owning session
+     * itself is not cut off by it (ownsInstallInProgress()).
      */
     public const INSTALL_OWNER_TTL = 7200;
+
+    /**
+     * Absolute lifetime of an install-in-progress binding, in seconds from the
+     * claim (step 2), whatever the activity. Inside it the owning session may
+     * always go on, idle or not (ownsInstallInProgress()); past it the binding
+     * and the import proof are deleted together, so a stolen or forgotten
+     * owner session does not keep installer authority indefinitely.
+     */
+    public const INSTALL_OWNER_ABSOLUTE_TTL = 86400;
 
     /** Session key holding the raw ownership token. */
     public const INSTALL_OWNER_SESSION_KEY = 'installer_owner_token';
@@ -1436,6 +1439,50 @@ HTACCESS;
             'content' => is_string($content) ? $content : null,
             'mtime' => $mtime === false ? null : $mtime,
         ];
+    }
+
+    /**
+     * The marker's token hash and claim time. The marker is "<sha256>\n<claimed at>";
+     * a marker written before the claim time existed has none (null).
+     *
+     * @param array{exists: bool, content: ?string, mtime: ?int} $state
+     * @return array{hash: string, claimed: ?int}
+     */
+    private static function parseOwnerMarker(array $state): array {
+        $lines = preg_split('/\R/', trim((string) $state['content'])) ?: [];
+        $claimed = isset($lines[1]) && ctype_digit(trim($lines[1])) ? (int) trim($lines[1]) : null;
+        return ['hash' => trim((string) ($lines[0] ?? '')), 'claimed' => $claimed];
+    }
+
+    /** True when the marker's claim is older than INSTALL_OWNER_ABSOLUTE_TTL. */
+    private static function ownerMarkerPastAbsoluteTtl(array $state): bool {
+        $claimed = self::parseOwnerMarker($state)['claimed'];
+        return $claimed !== null && (time() - $claimed) > self::INSTALL_OWNER_ABSOLUTE_TTL;
+    }
+
+    /**
+     * Delete the binding and the import proof together: the marker, the
+     * database nonce and this session's token and proof. Used when the
+     * absolute TTL is over and when a ?force=1 reinstall is refused.
+     */
+    public function discardInstallOwnership(): void {
+        $this->discardAbandonedBinding();
+        unset(
+            $_SESSION[self::INSTALL_OWNER_SESSION_KEY],
+            $_SESSION[self::INSTALL_POPULATED_SESSION_KEY],
+            $_SESSION[self::INSTALL_PROOF_NONCE_SESSION_KEY],
+            $_SESSION[self::FORCE_MODE_SESSION_KEY]
+        );
+    }
+
+    /** Remove the marker and the database nonce, leaving this session's own keys alone. */
+    private function discardAbandonedBinding(): void {
+        $marker = $this->installOwnerMarkerPath();
+        if (is_file($marker)) {
+            // nosemgrep: php.lang.security.unlink-use.unlink-use -- fixed internal path under storage/, not user input
+            @unlink($marker);
+        }
+        $this->dropProofNonce();
     }
 
     /** Replace the marker atomically (temp file + rename): readers never see it half-written. */
@@ -1483,6 +1530,12 @@ HTACCESS;
     public function installClaimedByAnotherSession(): bool {
         $state = $this->readOwnerMarker();
         if (!$state['exists']) {
+            return false;
+        }
+        if ($state['content'] !== null && self::ownerMarkerPastAbsoluteTtl($state)) {
+            // Abandoned past the absolute limit: binding and proof go together.
+            // A foreign session: its own session keys are not touched.
+            $this->discardAbandonedBinding();
             return false;
         }
         if ($state['mtime'] !== null && (time() - $state['mtime']) > self::INSTALL_OWNER_TTL) {
@@ -1541,7 +1594,7 @@ HTACCESS;
             $previousToken = $_SESSION[self::INSTALL_OWNER_SESSION_KEY] ?? null;
 
             $token = bin2hex(random_bytes(32));
-            if (!$this->writeOwnerMarker(hash('sha256', $token))) {
+            if (!$this->writeOwnerMarker(hash('sha256', $token) . "\n" . time())) {
                 return false;
             }
             $_SESSION[self::INSTALL_OWNER_SESSION_KEY] = $token;
@@ -1574,8 +1627,21 @@ HTACCESS;
 
     /**
      * True when this session is the one that wrote .env for the install in
-     * progress: its token matches the on-disk hash and the binding is younger
-     * than INSTALL_OWNER_TTL.
+     * progress: its token matches the on-disk hash.
+     *
+     * The sliding INSTALL_OWNER_TTL is not checked here. It exists so that
+     * OTHER sessions may take over a binding whose session was lost
+     * (installClaimedByAnotherSession(), withInstallOwnership()), and a
+     * takeover replaces the on-disk hash, which ends this session's ownership
+     * by itself. Expiring the owner's own session on it locked an owner who
+     * paused for more than the TTL between the schema import (step 3) and the
+     * admin account (step 4) out for good: the database was no longer empty,
+     * so nobody, the owner included, could go on. No other session can take
+     * over such a binding in the meantime: once the database holds the
+     * schema, isInstalled() answers "installed" to every session but the owner.
+     *
+     * The owner is bounded by INSTALL_OWNER_ABSOLUTE_TTL instead, counted from
+     * the claim: past it the binding and the import proof are deleted together.
      */
     public function ownsInstallInProgress(): bool {
         $token = $_SESSION[self::INSTALL_OWNER_SESSION_KEY] ?? '';
@@ -1583,20 +1649,41 @@ HTACCESS;
             return false;
         }
         $state = $this->readOwnerMarker();
-        if (!$state['exists'] || $state['mtime'] === null || $state['content'] === null
-            || (time() - $state['mtime']) > self::INSTALL_OWNER_TTL) {
+        if (!$state['exists'] || $state['content'] === null) {
             return false;
         }
-        return hash_equals(trim($state['content']), hash('sha256', $token));
+        if (!hash_equals(self::parseOwnerMarker($state)['hash'], hash('sha256', $token))) {
+            return false;
+        }
+        if (self::ownerMarkerPastAbsoluteTtl($state)) {
+            $this->discardInstallOwnership();
+            return false;
+        }
+        return true;
     }
 
     /**
      * Restart INSTALL_OWNER_TTL for the owning session (sliding expiry). Only
-     * the mtime changes, so the binding stays the same token. Best-effort.
+     * the mtime changes, so the binding stays the same token. Best-effort, and
+     * a no-op for any session that does not own the install in progress.
+     *
+     * isInstalled() renews through here, but not once .installed exists: it
+     * answers "installed" before it gets that far. The ?force=1 gate of
+     * installer/index.php therefore renews too, after ownerMayContinue().
      */
-    private function renewInstallOwnership(): void {
+    public function renewInstallOwnership(): void {
+        if (!$this->ownsInstallInProgress()) {
+            return;
+        }
         $marker = $this->installOwnerMarkerPath();
         if (is_file($marker) && !is_link($marker)) {
+            $state = $this->readOwnerMarker();
+            $parsed = self::parseOwnerMarker($state);
+            if ($parsed['claimed'] === null && $parsed['hash'] !== '') {
+                // A marker from before the claim time existed: the absolute
+                // limit starts now rather than never.
+                $this->writeOwnerMarker($parsed['hash'] . "\n" . time());
+            }
             @touch($marker);
             clearstatcache(true, $marker);
         }
@@ -1623,16 +1710,98 @@ HTACCESS;
 
     /** End the install-in-progress binding (called once .installed exists). */
     public function releaseInstallOwnership(): void {
-        $marker = $this->installOwnerMarkerPath();
-        if (is_file($marker)) {
-            // nosemgrep: php.lang.security.unlink-use.unlink-use -- fixed internal path under storage/, not user input
-            @unlink($marker);
+        $this->discardInstallOwnership();
+    }
+
+    /** Session key: the nonce that ties the import proof to the database it was earned on. */
+    public const INSTALL_PROOF_NONCE_SESSION_KEY = 'installer_populated_nonce';
+
+    /** Table holding that nonce in the configured database, dropped when the install ends. */
+    public const INSTALL_PROOF_TABLE = 'installer_owner_proof';
+
+    /**
+     * Store $nonce in the configured database. Not a system_settings row: the
+     * proof is recorded BEFORE the schema import (so a failed import stays
+     * retryable), when system_settings does not exist yet. Overridable in tests.
+     */
+    protected function storeProofNonce(string $nonce): bool {
+        try {
+            $env = self::readEnvFile($this->baseDir . '/.env');
+            if ($env === null || (string) ($env['DB_NAME'] ?? '') === '') {
+                return false;
+            }
+            $db = $this->openProbeConnection($env);
+            try {
+                $db->query('CREATE TABLE IF NOT EXISTS `' . self::INSTALL_PROOF_TABLE . '` (id TINYINT UNSIGNED NOT NULL PRIMARY KEY, nonce CHAR(64) NOT NULL) ENGINE=InnoDB');
+                $stmt = $db->prepare('REPLACE INTO `' . self::INSTALL_PROOF_TABLE . '` (id, nonce) VALUES (1, ?)');
+                if ($stmt === false) {
+                    return false;
+                }
+                $stmt->bind_param('s', $nonce);
+                $ok = $stmt->execute();
+                $stmt->close();
+                return $ok;
+            } finally {
+                $db->close();
+            }
+        } catch (\Throwable $e) {
+            return false;
         }
-        unset(
-            $_SESSION[self::INSTALL_OWNER_SESSION_KEY],
-            $_SESSION[self::INSTALL_POPULATED_SESSION_KEY],
-            $_SESSION[self::FORCE_MODE_SESSION_KEY]
-        );
+    }
+
+    /**
+     * The nonce stored in the configured database: the string, null when the
+     * database answers but holds none (absent table or row: a database this
+     * session did not fill), false when the database cannot be reached.
+     * Overridable in tests.
+     */
+    protected function readProofNonce(): string|false|null {
+        $env = self::readEnvFile($this->baseDir . '/.env');
+        if ($env === null || (string) ($env['DB_NAME'] ?? '') === '') {
+            return false;
+        }
+        try {
+            $db = $this->openProbeConnection($env);
+        } catch (\Throwable $e) {
+            return false;
+        }
+        try {
+            $result = $db->query('SELECT nonce FROM `' . self::INSTALL_PROOF_TABLE . '` WHERE id = 1');
+            $row = $result instanceof \mysqli_result ? $result->fetch_row() : null;
+            return is_array($row) && is_string($row[0]) && $row[0] !== '' ? $row[0] : null;
+        } catch (\Throwable $e) {
+            return null;
+        } finally {
+            $db->close();
+        }
+    }
+
+    /**
+     * True when the import proof cannot be checked right now because the
+     * configured database is unreachable. The ?force=1 gate then refuses the
+     * request without discarding the binding: a transient outage must not end
+     * an install for good.
+     */
+    public function ownerProofUnverifiable(): bool {
+        return $this->readProofNonce() === false;
+    }
+
+    /** Drop the nonce table, best-effort. Overridable in tests. */
+    protected function dropProofNonce(): void {
+        try {
+            $env = self::readEnvFile($this->baseDir . '/.env');
+            if ($env === null || (string) ($env['DB_NAME'] ?? '') === '') {
+                return;
+            }
+            $db = $this->openProbeConnection($env);
+            try {
+                $db->query('DROP TABLE IF EXISTS `' . self::INSTALL_PROOF_TABLE . '`');
+            } finally {
+                $db->close();
+            }
+        } catch (\Throwable $e) {
+            // Best-effort: a leftover table holds a random value and nothing else.
+        }
     }
 
     /** Session key: proof that this owner session started populating the configured database. */
@@ -1645,8 +1814,8 @@ HTACCESS;
      */
     public const FORCE_MODE_SESSION_KEY = 'installer_force_mode';
 
-    private function populatedProof(string $ownerToken): string {
-        return hash('sha256', 'populated:' . $ownerToken);
+    private function populatedProof(string $ownerToken, string $nonce): string {
+        return hash('sha256', 'populated:' . $ownerToken . ':' . $nonce);
     }
 
     /**
@@ -1672,16 +1841,34 @@ HTACCESS;
         if (!$this->configuredDatabaseIsEmpty()) {
             return false;
         }
-        $_SESSION[self::INSTALL_POPULATED_SESSION_KEY] = $this->populatedProof((string) $_SESSION[self::INSTALL_OWNER_SESSION_KEY]);
+        // The proof is tied to THIS database: a random nonce stored in it and
+        // compared on every request (ownerPopulatedConfiguredDatabase()), so a
+        // database restored or swapped under the same .env invalidates it.
+        $nonce = bin2hex(random_bytes(32));
+        if (!$this->storeProofNonce($nonce)) {
+            return false;
+        }
+        $_SESSION[self::INSTALL_PROOF_NONCE_SESSION_KEY] = $nonce;
+        $_SESSION[self::INSTALL_POPULATED_SESSION_KEY] = $this->populatedProof((string) $_SESSION[self::INSTALL_OWNER_SESSION_KEY], $nonce);
         return true;
     }
 
-    /** True when this owner session recorded the schema import of the current binding. */
+    /**
+     * True when this owner session recorded the schema import of the current
+     * binding INTO THE DATABASE NOW CONFIGURED: the session proof matches and
+     * the nonce stored in that database is the one this session wrote.
+     */
     private function ownerPopulatedConfiguredDatabase(): bool {
         $token = $_SESSION[self::INSTALL_OWNER_SESSION_KEY] ?? '';
         $proof = $_SESSION[self::INSTALL_POPULATED_SESSION_KEY] ?? '';
-        return is_string($token) && $token !== '' && is_string($proof) && $proof !== ''
-            && hash_equals($this->populatedProof($token), $proof);
+        $nonce = $_SESSION[self::INSTALL_PROOF_NONCE_SESSION_KEY] ?? '';
+        if (!is_string($token) || $token === '' || !is_string($proof) || $proof === ''
+            || !is_string($nonce) || $nonce === ''
+            || !hash_equals($this->populatedProof($token, $nonce), $proof)) {
+            return false;
+        }
+        $stored = $this->readProofNonce();
+        return is_string($stored) && hash_equals($stored, $nonce);
     }
 
     /**
@@ -1909,10 +2096,65 @@ HTACCESS;
     public const FORCE_LOGIN_WINDOW = 300;
 
     /**
+     * The client address the reinstall-login throttle counts, resolved the way
+     * the main POST /login does (App\Support\ClientIpResolver): forwarding
+     * headers only from a peer listed in TRUSTED_PROXIES. Without it every
+     * client behind a reverse proxy (the Docker image ships TRUSTED_PROXIES)
+     * shared the proxy's bucket, and 15 anonymous POSTs every 5 minutes kept
+     * the real administrator out of ?force=1. The installer does not load the
+     * app autoloader, so the two self-contained classes are required directly;
+     * when they cannot be, REMOTE_ADDR is used, as before.
+     *
+     * @param array<string, mixed> $server $_SERVER
+     */
+    public static function forceLoginClientIp(array $server): string {
+        $remote = (string) ($server['REMOTE_ADDR'] ?? '');
+        try {
+            if (!class_exists(\App\Support\ClientIpResolver::class, false)) {
+                $support = dirname(__DIR__, 2) . '/app/Support';
+                if (!is_file($support . '/HtmlHelper.php') || !is_file($support . '/ClientIpResolver.php')) {
+                    return $remote;
+                }
+                if (!class_exists(\App\Support\HtmlHelper::class, false)) {
+                    require_once $support . '/HtmlHelper.php';
+                }
+                require_once $support . '/ClientIpResolver.php';
+            }
+            $headers = [];
+            foreach (['HTTP_X_FORWARDED_FOR' => 'X-Forwarded-For', 'HTTP_X_REAL_IP' => 'X-Real-IP',
+                'HTTP_CF_CONNECTING_IP' => 'CF-Connecting-IP', 'HTTP_TRUE_CLIENT_IP' => 'True-Client-IP',
+                'HTTP_X_CLIENT_IP' => 'X-Client-IP'] as $key => $name) {
+                if (isset($server[$key]) && is_string($server[$key])) {
+                    $headers[$name] = $server[$key];
+                }
+            }
+            return \App\Support\ClientIpResolver::resolve($remote, $headers);
+        } catch (\Throwable $e) {
+            return $remote;
+        }
+    }
+
+    /**
+     * Throttle bucket of an address: an IPv6 client counts by its /64, the
+     * block one subscriber is usually handed, so rotating addresses inside it
+     * neither escapes the limit nor mints a file per address. IPv4 and
+     * anything unparsable count as given.
+     */
+    public static function forceLoginBucket(string $ip): string {
+        $packed = @inet_pton($ip);
+        if (is_string($packed) && strlen($packed) === 16 && !str_starts_with($packed, str_repeat("\0", 10) . "\xff\xff")) {
+            return 'v6:' . bin2hex(substr($packed, 0, 8));
+        }
+        return $ip;
+    }
+
+    /**
      * Record a reinstall-login attempt for $ip and say whether it may proceed.
      *
      * File-backed (the installer has no APCu/app rate limiter). Fails closed:
-     * when the attempt cannot be recorded the answer is false.
+     * when the attempt cannot be recorded the answer is false. Buckets whose
+     * last attempt left the window are deleted on the way, so the directory
+     * holds only the addresses of the last FORCE_LOGIN_WINDOW seconds.
      */
     public function recordForceLoginAttempt(string $ip, ?int $now = null): bool {
         $now ??= time();
@@ -1920,7 +2162,8 @@ HTACCESS;
         if (!is_dir($dir) && !@mkdir($dir, 0775, true) && !is_dir($dir)) {
             return false;
         }
-        $file = $dir . '/' . hash('sha256', $ip) . '.json';
+        $this->pruneForceLoginBuckets($dir, $now);
+        $file = $dir . '/' . hash('sha256', self::forceLoginBucket($ip)) . '.json';
         $handle = @fopen($file, 'c+');
         if ($handle === false) {
             return false;
@@ -1945,10 +2188,35 @@ HTACCESS;
                 return false;
             }
             fflush($handle);
+            // The bucket's mtime is its last attempt, on the clock this method
+            // counts with: pruneForceLoginBuckets() reads it.
+            @touch($file, $now);
             return true;
         } finally {
             flock($handle, LOCK_UN);
             fclose($handle);
+        }
+    }
+
+    /**
+     * Delete the throttle buckets not written for longer than the window: every
+     * attempt they hold has expired, so dropping them changes no answer.
+     */
+    private function pruneForceLoginBuckets(string $dir, int $now): void {
+        $entries = @scandir($dir);
+        if ($entries === false) {
+            return;
+        }
+        foreach ($entries as $entry) {
+            if (preg_match('/^[0-9a-f]{64}\.json$/D', $entry) !== 1) {
+                continue;
+            }
+            $path = $dir . '/' . $entry;
+            $mtime = @filemtime($path);
+            if ($mtime !== false && $mtime < $now - self::FORCE_LOGIN_WINDOW) {
+                // nosemgrep: php.lang.security.unlink-use.unlink-use -- hash-named bucket under storage/cache, not user input
+                @unlink($path);
+            }
         }
     }
 

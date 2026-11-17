@@ -334,6 +334,50 @@ try {
     } else {
         echo "  note: APCu extension not loaded, APCu counter checks not run\n";
     }
+    // Review of PR #536 (F043): counters moved out of the reaped temp dir into
+    // storage/cache/ratelimit, where nothing pruned them.
+    echo "Pruning of expired counter files\n";
+    $pruneDir = $scratch . '/prune';
+    @mkdir($pruneDir, 0700, true);
+    $now = time();
+    $old = $pruneDir . '/' . str_repeat('a', 64) . '.json';
+    $fresh = $pruneDir . '/' . str_repeat('b', 64) . '.json';
+    $other = $pruneDir . '/keep-me.txt';
+    file_put_contents($old, '{}');
+    file_put_contents($fresh, '{}');
+    file_put_contents($other, 'x');
+    touch($old, $now - RateLimiter::PRUNE_AFTER_SECONDS - 60);
+    touch($other, $now - RateLimiter::PRUNE_AFTER_SECONDS - 60);
+    $removed = RateLimiter::pruneStateDirectory($pruneDir, $now);
+    clearstatcache();
+    $check($removed === 1 && !is_file($old) && is_file($fresh) && is_file($other),
+        'a counter untouched past the limit is deleted; a live one and a foreign file stay');
+    file_put_contents($old, '{}');
+    touch($old, $now - RateLimiter::PRUNE_AFTER_SECONDS - 60);
+    $check(RateLimiter::pruneStateDirectory($pruneDir, $now + 60) === 0 && is_file($old), 'at most one pass per interval');
+    $check(RateLimiter::pruneStateDirectory($pruneDir, $now + RateLimiter::PRUNE_INTERVAL_SECONDS + 1) === 1, 'the next pass after the interval prunes again');
+    $check(RateLimiter::PRUNE_AFTER_SECONDS >= 86400, 'only files older than any window in use (the longest is an hour) are pruned');
+    $limiterSrc = (string) file_get_contents($root . '/app/Support/RateLimiter.php');
+    $check(str_contains($limiterSrc, 'self::pruneStateDirectory($dir);'), 'the limiter prunes its own directory on the way');
+    foreach (glob($pruneDir . '/{,.}*', GLOB_BRACE) ?: [] as $f) {
+        if (!in_array(basename($f), ['.', '..'], true)) {
+            @unlink($f);
+        }
+    }
+    @rmdir($pruneDir);
+
+    // Review of PR #536 (F044): without ext-posix the uid fell back to
+    // getmyuid(), the script owner, not the process.
+    echo "Effective uid without ext-posix\n";
+    $code = 'require ' . var_export($root . '/vendor/autoload.php', true) . ';'
+        . '$t = tempnam(sys_get_temp_dir(), "pk_t_"); $o = fileowner($t); unlink($t);'
+        . 'echo json_encode([function_exists("posix_geteuid"), App\\Support\\RateLimiter::effectiveUid(), $o]);';
+    $res = json_decode((string) shell_exec(escapeshellarg(PHP_BINARY) . ' -d disable_functions=posix_geteuid -r ' . escapeshellarg($code) . ' 2>&1'), true);
+    $check(is_array($res) && $res[0] === false && $res[1] === $res[2], 'the uid comes from a file the process creates, not from getmyuid()');
+    $check(preg_match('/getmyuid\(\)[^;]*;\s*$/m', (string) substr($limiterSrc, (int) strpos($limiterSrc, 'public static function effectiveUid'), 1200)) === 1
+        && strpos($limiterSrc, 'tempnam(', (int) strpos($limiterSrc, 'public static function effectiveUid')) < strpos($limiterSrc, 'getmyuid()', (int) strpos($limiterSrc, 'public static function effectiveUid')),
+        'getmyuid() is only the last resort');
+    $check(substr_count($limiterSrc, "function_exists('posix_geteuid') ? posix_geteuid() : getmyuid()") === 0, 'no call site falls back to getmyuid() directly');
 } finally {
     foreach ($ids as $cleanupId) {
         RateLimiter::reset($cleanupId);

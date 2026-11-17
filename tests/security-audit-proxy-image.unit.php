@@ -78,5 +78,40 @@ $res = (new App\Middleware\AdminAuthMiddleware())->process($request, $handler);
 $check($res->getStatusCode() === 401, 'anonymous request gets 401 (got ' . $res->getStatusCode() . ')');
 $check($reached === false, 'the proxy handler is never reached');
 
+// Review of PR #536 (F077, F079, F029).
+echo "E. The anonymous /proxy/cover gets the same guards\n";
+$cStart = (int) strpos($routes, '$app->get(\'/proxy/cover\'');
+$cover = substr($routes, $cStart, (int) strpos($routes, "\n    });", $cStart) - $cStart);
+$check($cStart > 0 && substr_count($cover, 'SsrfGuard::isPublicIp(') >= 2 && !str_contains($cover, 'FILTER_FLAG_NO_PRIV_RANGE'),
+    'A and AAAA answers go through SsrfGuard::isPublicIp(), no bare filter_var left');
+$check(str_contains($cover, 'if ($coverPort !== 443)'), 'only the default HTTPS port is accepted');
+$check(str_contains($cover, 'CURLOPT_MAXFILESIZE') && str_contains($cover, 'CURLOPT_PROGRESSFUNCTION')
+    && str_contains($cover, 'strlen($img) > \\App\\Support\\SsrfGuard::PROXY_MAX_BYTES'),
+    'a byte cap, announced, streamed and re-checked');
+$check(str_contains($block, 'if ($port !== 443)'), 'proxy-image accepts only the default HTTPS port too');
+
+echo "F. Neither proxy relays SVG, and relayed images cannot run script\n";
+$svg = '<?xml version="1.0"?><svg xmlns="http://www.w3.org/2000/svg"><script>alert(document.domain)</script></svg>';
+$check(\App\Support\SsrfGuard::proxiedImageMime($svg) === null, 'an SVG body is refused');
+$png = base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==');
+$check(\App\Support\SsrfGuard::proxiedImageMime($png) === 'image/png', 'a PNG is relayed (control)');
+$h = \App\Support\SsrfGuard::proxiedImageHeaders(new Slim\Psr7\Response(200), 'image/png');
+$check($h->getHeaderLine('X-Content-Type-Options') === 'nosniff' && str_contains($h->getHeaderLine('Content-Security-Policy'), 'sandbox'),
+    'relayed images carry nosniff and a sandboxing CSP');
+$check(substr_count($routes, 'SsrfGuard::proxiedImageMime($img)') === 2 && substr_count($routes, 'SsrfGuard::proxiedImageHeaders($response') === 2,
+    'both proxies use the raster check and the headers');
+
+echo "G. handleCoverUrl() fetches through SsrfGuard (F029)\n";
+$libri = (string) file_get_contents($root . '/app/Controllers/LibriController.php');
+$hStart = (int) strpos($libri, 'private function handleCoverUrl(');
+$handle = substr($libri, $hStart, (int) strpos($libri, 'private function handleCoverUpload(', $hStart) - $hStart);
+$check($hStart > 0 && str_contains($handle, 'SsrfGuard::fetchImage($url,') && !str_contains($handle, 'gethostbyname(')
+    && !str_contains($handle, 'FILTER_FLAG_NO_PRIV_RANGE') && !str_contains($handle, 'curl_init('),
+    'no own resolution, filter_var or cURL left: the audited fetch does it all');
+$guard = (string) file_get_contents($root . '/app/Support/SsrfGuard.php');
+$fStart = (int) strpos($guard, 'public static function fetchImage(');
+$check(str_contains(substr($guard, $fStart), 'CURLOPT_MAXFILESIZE     => $maxBytes') && str_contains(substr($guard, $fStart), 'CURLOPT_PROGRESSFUNCTION'),
+    'SsrfGuard::fetchImage() enforces its cap while streaming');
+
 echo "\n{$pass} passed, {$fail} failed\n";
 exit($fail === 0 ? 0 : 1);

@@ -298,7 +298,9 @@ class GovernanceModule extends AbstractModule
         foreach ($books as $book) {
             $entityId = (int) $book['id'];
             $when = date('d/m/Y', (int) strtotime((string) $book['reading_ends']));
-            $link = absoluteUrl(\App\Support\RouteTranslator::route('book_club') . '/' . $club['slug']);
+            // Emailed from cron: TrustedLink (the configured host), never
+            // absoluteUrl(); with none the email goes without the link.
+            $link = \App\Support\TrustedLink::build(\App\Support\RouteTranslator::route('book_club') . '/' . $club['slug']);
             $subject = sprintf(
                 __('La lettura di "%s" per il club "%s" si conclude a breve'),
                 (string) $book['titolo'],
@@ -310,8 +312,8 @@ class GovernanceModule extends AbstractModule
                 (string) $book['titolo'],
                 $when
             ), ENT_QUOTES, 'UTF-8') . '</p>'
-                . '<p><a href="' . htmlspecialchars($link, ENT_QUOTES, 'UTF-8') . '">'
-                . htmlspecialchars(__('Vai alla pagina del club'), ENT_QUOTES, 'UTF-8') . '</a></p>';
+                . ($link !== null ? '<p><a href="' . htmlspecialchars($link, ENT_QUOTES, 'UTF-8') . '">'
+                . htmlspecialchars(__('Vai alla pagina del club'), ENT_QUOTES, 'UTF-8') . '</a></p>' : '');
 
             if ($channel === 'email' || $channel === 'both') {
                 $this->emailMembers($club, self::TRIGGER_READING, $entityId, $subject, $bodyHtml);
@@ -364,7 +366,7 @@ class GovernanceModule extends AbstractModule
             $entityId = (int) $poll['id'];
             $when = date('d/m/Y H:i', (int) strtotime((string) $poll['closes_at']));
             $pollPath = \App\Support\RouteTranslator::route('book_club') . '/' . $club['slug'] . '/polls/' . $entityId;
-            $link = absoluteUrl($pollPath);
+            $link = \App\Support\TrustedLink::build($pollPath);
             $subject = sprintf(
                 __('La votazione "%s" del club "%s" si chiude a breve'),
                 (string) $poll['title'],
@@ -375,8 +377,8 @@ class GovernanceModule extends AbstractModule
                 (string) $poll['title'],
                 $when
             ), ENT_QUOTES, 'UTF-8') . '</p>'
-                . '<p><a href="' . htmlspecialchars($link, ENT_QUOTES, 'UTF-8') . '">'
-                . htmlspecialchars(__('Vai alla votazione'), ENT_QUOTES, 'UTF-8') . '</a></p>';
+                . ($link !== null ? '<p><a href="' . htmlspecialchars($link, ENT_QUOTES, 'UTF-8') . '">'
+                . htmlspecialchars(__('Vai alla votazione'), ENT_QUOTES, 'UTF-8') . '</a></p>' : '');
 
             if ($channel === 'email' || $channel === 'both') {
                 $this->emailMembers($club, self::TRIGGER_POLL, $entityId, $subject, $bodyHtml);

@@ -375,8 +375,9 @@ unset($workspaceHeader);
 
   function confirmDelete(eventId, eventTitle) {
     window.SwalApp.confirmDelete({
-      // A Swal title is HTML: escape the translation and the event title.
-      title: escapeHtml(<?= json_encode(__("Sei sicuro di voler eliminare l'evento"), JSON_HEX_TAG) ?> + ' "' + eventTitle + '"?'),
+      // Plain text: confirmDelete escapes it for the Swal title (HTML) and shows
+      // it as is in the native confirm() fallback.
+      titleText: <?= json_encode(__("Sei sicuro di voler eliminare l'evento"), JSON_HEX_TAG) ?> + ' "' + eventTitle + '"?',
       text:  <?= json_encode(__("Questa azione non può essere annullata."), JSON_HEX_TAG) ?>
     }).then((r) => {
       if (!r.isConfirmed) return;

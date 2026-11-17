@@ -28,8 +28,14 @@ if ($cfgStart === false || $cfgEnd === false || $cfgEnd <= $cfgStart) {
     fwrite(STDERR, "FAIL: upgradePasswordConfigured() not found in the configuration block\n");
     exit(1);
 }
+$dumpStart = strpos($source, '// BEGIN upgrade-dump-credentials');
+$dumpEnd = strpos($source, '// END upgrade-dump-credentials');
+if ($dumpStart === false || $dumpEnd === false || $dumpEnd <= $dumpStart) {
+    fwrite(STDERR, "FAIL: mysqldump credentials helper not found between its markers\n");
+    exit(1);
+}
 $fixture = tempnam(sys_get_temp_dir(), 'upgrade_throttle_fixture_');
-file_put_contents($fixture, "<?php\n" . substr($source, $cfgStart, $cfgEnd - $cfgStart) . substr($source, $start, $end - $start));
+file_put_contents($fixture, "<?php\n" . substr($source, $cfgStart, $cfgEnd - $cfgStart) . substr($source, $start, $end - $start) . "\n" . substr($source, $dumpStart, $dumpEnd - $dumpStart));
 require $fixture;
 unlink($fixture); // nosemgrep: php.lang.security.unlink-use.unlink-use -- test temp file
 
@@ -222,7 +228,31 @@ try {
     proc_close($p);
     $check(str_contains($out, '.env non trovato'), 'the CLI run reached the upgrade body (stops on the missing .env)');
     $check(!file_exists($install . '/storage/cache'), 'and created neither storage/cache nor the state directory');
-    $check(str_contains($source, "tempnam(\$rootPath . '/storage/tmp', 'pinakes_dump_')"), 'the mysqldump credentials file is created inside the install, not the shared temp dir');
+
+    echo "G. The mysqldump credentials file never lands in the shared temp dir\n";
+    $check(str_contains($source, '$defaultsFile = upgradeCreateDumpCredentialsFile($rootPath);'), 'the upgrade body uses the checked helper');
+    $sharedBefore = glob(sys_get_temp_dir() . '/pinakes_dump_*') ?: [];
+    $rootG = $mkRoot('siteDump');
+    $credFile = upgradeCreateDumpCredentialsFile($rootG);
+    $check(dirname((string) realpath($credFile)) === realpath($rootG . '/storage/tmp'), 'a missing storage/tmp is created and the file is inside it');
+    $check((fileperms($rootG . '/storage/tmp') & 0777) === 0700, 'the created storage/tmp is 0700');
+    unlink($credFile); // nosemgrep: php.lang.security.unlink-use.unlink-use -- test temp file
+    $rootRo = $mkRoot('siteDumpReadOnly');
+    mkdir($rootRo . '/storage/tmp', 0500);
+    // Premise: this is the case tempnam() alone gets wrong.
+    $fallback = @tempnam($rootRo . '/storage/tmp', 'pinakes_premise_');
+    $check(is_string($fallback) && dirname((string) realpath($fallback)) !== realpath($rootRo . '/storage/tmp'),
+        'premise: tempnam() on a read-only storage/tmp silently answers with a file elsewhere');
+    if (is_string($fallback)) { @unlink($fallback); }
+    $refused = '';
+    try {
+        upgradeCreateDumpCredentialsFile($rootRo);
+    } catch (RuntimeException $e) {
+        $refused = $e->getMessage();
+    }
+    $check(str_contains($refused, 'storage/tmp') && str_contains($refused, 'Backup DB annullato'), 'a read-only storage/tmp refuses the dump with a clear error');
+    $check((glob(sys_get_temp_dir() . '/pinakes_dump_*') ?: []) === $sharedBefore, 'and leaves no credentials file in the shared temp dir');
+    chmod($rootRo . '/storage/tmp', 0700);
 } finally {
     if (is_dir($tmp)) {
         $rm($tmp);

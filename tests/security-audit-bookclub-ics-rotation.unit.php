@@ -121,6 +121,10 @@ try {
     $tpl->execute();
     $tpl->close();
     $db->query("INSERT INTO bookclub_roles (id, club_id, slug, name) VALUES (3, NULL, 'member', 'Member'), (1, NULL, 'owner', 'Owner')");
+    // The feed asks the library account too (Repo::feedViewerAllowed()).
+    $db->query("CREATE TEMPORARY TABLE utenti (
+        id INT NOT NULL, tipo_utente VARCHAR(20) NOT NULL, stato VARCHAR(20) NOT NULL,
+        PRIMARY KEY (id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
 
     $repo = new Repo($db);
     $clubId = (int) $repo->createClub(['name' => 'Audit ICS Club', 'privacy' => 'private', 'max_members' => null], 1);
@@ -151,10 +155,21 @@ try {
         return [$res->getStatusCode(), (string) $res->getBody()];
     };
 
+    // The person-bound URL each viewer is shown (MeetingController::feedToken()),
+    // keyed with the server secret, never the disclosed club token.
+    $savedKey = getenv('PLUGIN_ENCRYPTION_KEY');
+    putenv('PLUGIN_ENCRYPTION_KEY=audit-server-secret-' . bin2hex(random_bytes(8)));
+    unset($_ENV['PLUGIN_ENCRYPTION_KEY']);
+    $urlOf = static fn (int $userId): string => (string) MeetingController::feedToken($repo->clubById($clubId), $userId);
+    $keeper = $add(506, 'active');
+    $staffUser = 507;     // a Pinakes Staff account, not a member: sees the club page as a manager
+    $db->query("INSERT INTO utenti (id, tipo_utente, stato) VALUES (501, 'standard', 'attivo'), (502, 'standard', 'attivo'),
+        (503, 'standard', 'attivo'), (504, 'standard', 'attivo'), (505, 'standard', 'attivo'), (506, 'premium', 'attivo'), (507, 'staff', 'attivo')");
+
     echo "A. Before any change the member URL works\n";
     $t0 = $tokenOf();
-    [$code, $body] = $feed($t0);
-    $check($code === 200 && str_contains($body, 'BEGIN:VCALENDAR'), 'feed with the club token: 200 text/calendar');
+    [$code, $body] = $feed($urlOf(501));
+    $check($code === 200 && str_contains($body, 'BEGIN:VCALENDAR'), "feed with a member's URL: 200 text/calendar");
     if (str_contains($body, 'BEGIN:VEVENT')) {
         $check(str_contains($body, 'video.audit.invalid'), 'members-only video link present for a valid token');
     } else {
@@ -162,27 +177,54 @@ try {
     }
     [$code] = $feed('');
     $check($code === 404, 'no token on a private club: 404');
+    [$code] = $feed($t0);
+    $check($code === 404, 'the bare club-wide token proves nobody and is no longer accepted (review of PR #536, F071)');
+    [$code] = $feed('u501.' . str_repeat('0', 32));
+    $check($code === 404, 'a forged person token: 404');
+    [$code] = $feed($urlOf(502));
+    $check($code === 404, 'a pending requester (never shown the URL) gets nothing with a computed token');
+    [$code] = $feed($urlOf($staffUser));
+    $check($code === 200, 'a Pinakes Staff account (club manager) reads the feed');
+    // Security review of the per-person token: the club ics_token was shown in
+    // the old club-wide URLs, so it must not be enough to forge a member's token.
+    $clubRow = $repo->clubById($clubId);
+    $forged = 'u501.' . substr(hash_hmac('sha256', 'bookclub-ics:' . $clubId . ':501', (string) $clubRow['ics_token']), 0, 32);
+    $forgedWithNonce = 'u501.' . substr(hash_hmac('sha256', 'bookclub-ics:' . $clubId . ':501:' . $clubRow['ics_token'], (string) $clubRow['ics_token']), 0, 32);
+    [$code] = $feed($forged);
+    [$code2] = $feed($forgedWithNonce);
+    $check($code === 404 && $code2 === 404, 'a token forged from the disclosed ics_token alone is rejected');
+    $realKey = getenv('PLUGIN_ENCRYPTION_KEY');
+    putenv('PLUGIN_ENCRYPTION_KEY');
+    $savedAppKey = getenv('APP_KEY');
+    putenv('APP_KEY');
+    unset($_ENV['APP_KEY']);
+    [$code] = $feed($urlOf(501));
+    $check($code === 404 && MeetingController::feedToken($clubRow, 501) === null, 'without a server key no personal token is issued or accepted');
+    putenv('PLUGIN_ENCRYPTION_KEY=' . $realKey);
+    if ($savedAppKey !== false) { putenv('APP_KEY=' . $savedAppKey); }
 
     echo "B. Declining a pending request keeps the token (no needless re-subscribe)\n";
     $repo->setMemberStatus($requester, 'left');
     $check($tokenOf() === $t0, 'pending -> left: token unchanged');
 
     echo "C. An active member leaving revokes the URL they had\n";
+    $leaverUrl = $urlOf(501);
     $repo->setMemberStatus($leaver, 'left');
     $t1 = $tokenOf();
     $check($t1 !== $t0 && preg_match('/^[0-9a-f]{32}$/', $t1) === 1, 'active -> left: new 32-hex token');
-    [$code, $body] = $feed($t0);
+    [$code, $body] = $feed($leaverUrl);
     $check($code === 404 && !str_contains($body, 'video.audit.invalid'), 'old URL now 404, no video link');
-    [$code] = $feed($t1);
+    [$code] = $feed($urlOf(506));
     $check($code === 200, 'current members keep working with the new token');
 
     echo "D. Suspension, ban and demotion to pending revoke it too\n";
-    foreach ([[$suspendee, 'suspended'], [$bannee, 'banned'], [$demotee, 'pending']] as [$memberId, $status]) {
+    foreach ([[$suspendee, 503, 'suspended'], [$bannee, 504, 'banned'], [$demotee, 505, 'pending']] as [$memberId, $userId, $status]) {
         $before = $tokenOf();
+        $theirs = $urlOf($userId);
         $repo->setMemberStatus($memberId, $status);
         $after = $tokenOf();
         $check($after !== $before, "active -> {$status}: token rotated");
-        [$code] = $feed($before);
+        [$code] = $feed($theirs);
         $check($code === 404, "active -> {$status}: previous URL 404");
     }
 
@@ -192,11 +234,32 @@ try {
     $check($tokenOf() === $before, 'suspended -> active: token unchanged');
     $repo->setMemberStatus($bannee, 'banned');
     $check($tokenOf() === $before, 'banned -> banned (no longer active): token unchanged');
+
+    echo "F. Losing access outside the club ends the URL at once (review of PR #536, F071)\n";
+    $keeperUrl = $urlOf(506);
+    $suspendeeUrl = $urlOf(503);
+    [$code] = $feed($keeperUrl);
+    $check($code === 200, 'setup: an active member reads the feed');
+    $db->query("UPDATE utenti SET stato = 'sospeso' WHERE id = 503");
+    [$code] = $feed($suspendeeUrl);
+    $check($code === 404, 'a member whose library account is suspended: 404, membership untouched');
+    $db->query("DELETE FROM utenti WHERE id = 506");
+    [$code] = $feed($keeperUrl);
+    $check($code === 404, 'a member whose library account was deleted: 404');
+    $staffUrl = $urlOf($staffUser);
+    $db->query("UPDATE utenti SET tipo_utente = 'standard' WHERE id = {$staffUser}");
+    [$code] = $feed($staffUrl);
+    $check($code === 404, 'a Staff account demoted to reader (not a member): 404');
+    $db->query("UPDATE utenti SET stato = 'attivo' WHERE id = 503");
+    [$code] = $feed($suspendeeUrl);
+    $check($code === 200, 'reactivating the account restores the same URL (no rotation needed)');
+    $check($tokenOf() === $before, 'none of this rotated the club token, so nobody else had to re-subscribe');
+    putenv($savedKey === false ? 'PLUGIN_ENCRYPTION_KEY' : 'PLUGIN_ENCRYPTION_KEY=' . $savedKey);
 } catch (\Throwable $e) {
     $fail++;
     echo "  FAIL unexpected " . get_class($e) . ': ' . $e->getMessage() . "\n";
 } finally {
-    foreach (['bookclub_meetings', 'bookclub_members', 'bookclub_roles', 'bookclub_clubs', 'bookclub_workflows', 'bookclub_affinity', 'bookclub_affinity_optin'] as $t) {
+    foreach (['bookclub_meetings', 'bookclub_members', 'bookclub_roles', 'bookclub_clubs', 'bookclub_workflows', 'bookclub_affinity', 'bookclub_affinity_optin', 'utenti'] as $t) {
         try { $db->query("DROP TEMPORARY TABLE IF EXISTS {$t}"); } catch (\Throwable) {}
     }
 }

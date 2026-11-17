@@ -2190,19 +2190,17 @@ class LibriController
                 return;
             }
 
-            // Otherwise, download and save locally
-
-            // SSRF-safe fetch through the shared guard: every hop must use port
-            // 80/443, every A and AAAA record must be public, and the validated
-            // IP is pinned with CURLOPT_RESOLVE so cURL never re-resolves the
-            // host. The former inline gethostbyname() check looked at one A
-            // record only and let two separately resolved requests follow it.
+            // Otherwise, download and save locally, through the same SSRF-safe
+            // fetch as downloadExternalCover() (App\Support\SsrfGuard): every
+            // A/AAAA record checked with the audited isPublicIp() predicate
+            // (CGNAT, NAT64, 6to4, IPv4-mapped... included), the connection
+            // pinned to the checked IP, redirects followed by hand with each hop
+            // re-checked, and a 2 MB cap enforced while streaming. The old check
+            // (a single A record and the bare private/reserved filter_var flags)
+            // let those ranges through and resolved the host again inside cURL.
             $fetched = \App\Support\SsrfGuard::fetchImage($url, 2 * 1024 * 1024);
             if ($fetched === null) {
-                $this->logCoverDebug('handleCoverUrl.download.fail', [
-                    'bookId' => $bookId,
-                    'url' => $url,
-                ]);
+                $this->logCoverDebug('handleCoverUrl.security.fetch_refused', ['bookId' => $bookId, 'url' => $url]);
                 return;
             }
             $img = $fetched[0];

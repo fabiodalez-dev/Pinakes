@@ -156,6 +156,36 @@ final class SsrfGuard
      * @return array{0:string,1:string}|null [rawBytes, mimeType] on success, null on
      *         any failure (non-public host, non-image, too large, redirect loop, …).
      */
+    /** Byte cap of the image proxies (/proxy/cover, /api/plugins/proxy-image). */
+    public const PROXY_MAX_BYTES = 5 * 1024 * 1024;
+
+    /** Raster image types the proxies relay; anything else is refused. */
+    private const PROXY_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/avif', 'image/bmp'];
+
+    /**
+     * The MIME type of $bytes when it is a raster image the proxies may relay,
+     * else null. Not SVG: relayed under the application's origin, an
+     * attacker's SVG opened directly runs its script there (with a staff
+     * session, for proxy-image).
+     */
+    public static function proxiedImageMime(string $bytes): ?string
+    {
+        $mime = (new \finfo(FILEINFO_MIME_TYPE))->buffer($bytes);
+        return is_string($mime) && in_array(strtolower($mime), self::PROXY_IMAGE_TYPES, true) ? strtolower($mime) : null;
+    }
+
+    /**
+     * Response headers for a relayed image: its sniffed type, no MIME
+     * sniffing by the browser, and a CSP sandbox so a document opened from
+     * the proxy URL can never run script in the application's origin.
+     */
+    public static function proxiedImageHeaders(\Psr\Http\Message\ResponseInterface $response, string $mimeType): \Psr\Http\Message\ResponseInterface
+    {
+        return $response->withHeader('Content-Type', $mimeType)
+            ->withHeader('X-Content-Type-Options', 'nosniff')
+            ->withHeader('Content-Security-Policy', "default-src 'none'; sandbox");
+    }
+
     public static function fetchImage(string $url, int $maxBytes, int $maxHops = 4): ?array
     {
         if (!extension_loaded('curl')) {
@@ -198,6 +228,14 @@ final class SsrfGuard
                 // Pin the hop's port (always 80 or 443, enforced above) to the
                 // validated IP so cURL never re-resolves the host.
                 CURLOPT_RESOLVE         => ["$host:$port:$pin"],
+                // The cap holds while streaming, not only after the body is
+                // buffered: an announced or streamed excess aborts the transfer.
+                CURLOPT_MAXFILESIZE     => $maxBytes,
+                CURLOPT_NOPROGRESS      => false,
+                CURLOPT_PROGRESSFUNCTION => static function ($handle, $dlTotal, $dlNow, $ulTotal, $ulNow) use ($maxBytes): int {
+                    unset($handle, $ulTotal, $ulNow);
+                    return ($dlNow > $maxBytes || $dlTotal > $maxBytes) ? 1 : 0;
+                },
             ]);
             if (defined('CURLOPT_PROTOCOLS_STR')) {
                 curl_setopt($ch, CURLOPT_PROTOCOLS_STR, 'https,http');

@@ -51,4 +51,51 @@ final class TrustedLink
 
         return null;
     }
+
+    /**
+     * build() for a link the caller already has in the application's own form:
+     * a path that may carry the base path (url(), book_url()), or an absolute
+     * URL that absoluteUrl() made from the request. Only the path, query and
+     * fragment are kept; the host is re-derived from the operator's
+     * configuration, never taken from $url. Null as for build(), and for
+     * anything that is not an http(s) URL or a site-rooted path.
+     */
+    public static function fromAppUrl(string $url): ?string
+    {
+        $url = trim($url);
+        if ($url === '') {
+            return null;
+        }
+        if (preg_match('#^(?:https?:)?//#i', $url) === 1) {
+            $parts = parse_url(str_starts_with($url, '//') ? 'https:' . $url : $url);
+            if (!is_array($parts)) {
+                return null;
+            }
+            $path = (string) ($parts['path'] ?? '/');
+            if (isset($parts['query'])) {
+                $path .= '?' . $parts['query'];
+            }
+            if (isset($parts['fragment'])) {
+                $path .= '#' . $parts['fragment'];
+            }
+        } elseif (str_starts_with($url, '/')) {
+            $path = $url;
+        } else {
+            return null;
+        }
+        if ($path === '' || $path[0] !== '/') {
+            $path = '/' . $path;
+        }
+        // build() puts the base path back; a path that already has it would
+        // get it twice.
+        $basePath = HtmlHelper::getBasePath();
+        if ($basePath !== '' && ($path === $basePath || str_starts_with($path, $basePath . '/')
+            || str_starts_with($path, $basePath . '?') || str_starts_with($path, $basePath . '#'))) {
+            $path = substr($path, strlen($basePath));
+            if ($path === '' || $path[0] !== '/') {
+                $path = '/' . $path;
+            }
+        }
+        return self::build($path);
+    }
 }

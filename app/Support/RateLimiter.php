@@ -9,6 +9,15 @@ class RateLimiter
     private const MAX_ATTEMPTS = 10; // Max attempts per window
 
     /**
+     * A counter file untouched for this long has expired whatever its window
+     * (the longest one in use is an hour), so pruning it changes no answer.
+     */
+    public const PRUNE_AFTER_SECONDS = 172800;
+
+    /** Prune the state directory at most this often (per directory, across processes). */
+    public const PRUNE_INTERVAL_SECONDS = 3600;
+
+    /**
      * Check if the request should be rate limited.
      * Uses file-based storage with flock() for atomic read-modify-write.
      */
@@ -259,7 +268,7 @@ class RateLimiter
             return null;
         }
         $root = realpath(dirname(__DIR__, 2)) ?: dirname(__DIR__, 2);
-        $uid = function_exists('posix_geteuid') ? (string) posix_geteuid() : (string) getmyuid();
+        $uid = (string) self::effectiveUid();
         return rtrim(sys_get_temp_dir(), '/\\') . '/pinakes_rl_'
             . substr(hash('sha256', $secret . "\0" . $root . "\0" . $uid), 0, 32);
     }
@@ -501,7 +510,7 @@ class RateLimiter
     private static function prepareDirectory(string $dir, bool $acceptForeignOwner, ?int $euid = null, ?callable $ownerOf = null): ?string
     {
         if ($euid === null) {
-            $euid = function_exists('posix_geteuid') ? posix_geteuid() : getmyuid();
+            $euid = self::effectiveUid();
         }
         $ownerOf ??= static fn (string $path): int|false => @fileowner($path);
         if (!is_dir($dir) && !is_link($dir)) {
@@ -537,7 +546,7 @@ class RateLimiter
         // install's directory: it would be root-owned and 0700, and the web
         // server user could not use it. Root goes to its own fallback instead,
         // and never writes into a directory owned by another uid.
-        $isRoot = function_exists('posix_geteuid') && posix_geteuid() === 0;
+        $isRoot = self::effectiveUid() === 0;
         $creatable = !$isRoot || is_dir($dir) || is_link($dir);
         if ($creatable) {
             $usable = self::prepareDirectory($dir, !$isRoot);
@@ -552,6 +561,75 @@ class RateLimiter
             return self::prepareDirectory($fallback, false);
         }
         return null;
+    }
+
+    /**
+     * The uid this process runs as. posix_geteuid() when ext-posix is loaded;
+     * otherwise the owner of a file this process creates, which is the
+     * effective uid. Not getmyuid(): that is the owner of the running script,
+     * and with root-owned code under PHP-FPM as www-data every directory check
+     * failed, so the limiter stayed degraded and logged on every request.
+     * getmyuid() remains the last resort when no file can be created.
+     */
+    private static ?int $effectiveUid = null;
+
+    public static function effectiveUid(): int
+    {
+        if (function_exists('posix_geteuid')) {
+            return posix_geteuid();
+        }
+        if (self::$effectiveUid !== null) {
+            return self::$effectiveUid;
+        }
+        $probe = @tempnam(sys_get_temp_dir(), 'pk_uid_');
+        if (is_string($probe)) {
+            clearstatcache(true, $probe);
+            $owner = @fileowner($probe);
+            @unlink($probe); // nosemgrep: php.lang.security.unlink-use.unlink-use -- tempnam() file of this process
+            if (is_int($owner)) {
+                return self::$effectiveUid = $owner;
+            }
+        }
+        return self::$effectiveUid = (int) getmyuid();
+    }
+
+    /**
+     * Delete the counter files of $dir untouched for PRUNE_AFTER_SECONDS, at
+     * most once per PRUNE_INTERVAL_SECONDS (a marker file's mtime records the
+     * last pass). One file is written per identifier, and identifiers are
+     * chosen by callers (an email, an address, a token), so without this the
+     * directory grew for ever. Only hash-named regular files are touched.
+     */
+    public static function pruneStateDirectory(string $dir, ?int $now = null): int
+    {
+        $now ??= time();
+        $marker = $dir . '/.last-prune';
+        clearstatcache(true, $marker);
+        $last = is_file($marker) ? @filemtime($marker) : false;
+        if ($last !== false && $now - $last < self::PRUNE_INTERVAL_SECONDS) {
+            return 0;
+        }
+        @touch($marker, $now);
+        $entries = @scandir($dir);
+        if ($entries === false) {
+            return 0;
+        }
+        $removed = 0;
+        foreach ($entries as $entry) {
+            if (preg_match('/^[0-9a-f]{64}\.json$/D', $entry) !== 1) {
+                continue;
+            }
+            $path = $dir . '/' . $entry;
+            if (is_link($path) || !is_file($path)) {
+                continue;
+            }
+            $mtime = @filemtime($path);
+            if ($mtime !== false && $now - $mtime > self::PRUNE_AFTER_SECONDS
+                && @unlink($path)) { // nosemgrep: php.lang.security.unlink-use.unlink-use -- hash-named counter in the limiter's own directory
+                $removed++;
+            }
+        }
+        return $removed;
     }
 
     /**
@@ -570,6 +648,8 @@ class RateLimiter
             ]);
             return null;
         }
+
+        self::pruneStateDirectory($dir);
 
         $root = realpath(dirname(__DIR__, 2)) ?: dirname(__DIR__, 2);
         $file = $dir . '/' . hash('sha256', $root . "\0" . $identifier) . '.json';

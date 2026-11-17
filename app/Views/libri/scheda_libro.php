@@ -2244,12 +2244,12 @@ unset($workspaceHeader);
 
       if (window.Swal) {
         Swal.fire({
-          title: __('Conferma modifica'),
+          title: escapeHtml(__('Conferma modifica')),
           text: __('Vuoi aggiornare lo stato di questa copia?'),
           icon: 'question',
           showCancelButton: true,
-          confirmButtonText: __('Sì, aggiorna'),
-          cancelButtonText: __('Annulla'),
+          confirmButtonText: escapeHtml(__('Sì, aggiorna')),
+          cancelButtonText: escapeHtml(__('Annulla')),
           confirmButtonColor: '#1f2937'
         }).then(result => {
           if (result.isConfirmed) {
@@ -2266,12 +2266,12 @@ unset($workspaceHeader);
     function confirmDeleteCopy(copyId, numeroInventario) {
       if (window.Swal) {
         Swal.fire({
-          title: __('Elimina copia'),
+          title: escapeHtml(__('Elimina copia')),
           html: `${escapeHtml(__('Sei sicuro di voler eliminare la copia'))} <strong>${escapeHtml(numeroInventario)}</strong>?<br><span class="text-sm text-gray-600">${escapeHtml(__('Questa azione non può essere annullata.'))}</span>`,
           icon: 'warning',
           showCancelButton: true,
-          confirmButtonText: __('Sì, elimina'),
-          cancelButtonText: __('Annulla'),
+          confirmButtonText: escapeHtml(__('Sì, elimina')),
+          cancelButtonText: escapeHtml(__('Annulla')),
           confirmButtonColor: '#dc2626'
         }).then(result => {
           if (result.isConfirmed) {

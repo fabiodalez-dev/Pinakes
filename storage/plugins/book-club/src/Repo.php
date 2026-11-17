@@ -606,6 +606,24 @@ class Repo
     }
 
     /**
+     * upsertMember() for a self-service join or an accepted invitation, then
+     * the status the row actually has: upsertMember() keeps a settled row
+     * (active, suspended, banned) and still succeeds, so a ban or suspension
+     * that lands between the caller's pre-check and the write leaves the row
+     * as it was. Callers report, notify and consume the invitation from what
+     * this returns, never from what they asked for. Null when the write or the
+     * read-back failed.
+     */
+    public function joinMember(int $clubId, int $userId, int $roleId, string $status, ?int $invitedBy = null): ?string
+    {
+        if (!$this->upsertMember($clubId, $userId, $roleId, $status, $invitedBy)) {
+            return null;
+        }
+        $row = $this->memberRow($clubId, $userId);
+        return $row !== null ? (string) $row['status'] : null;
+    }
+
+    /**
      * Change a membership's status. When an ACTIVE member stops being one
      * (left, suspended, banned, back to pending), the club's calendar token is
      * rotated: the tokenized iCal URL is shown to active members only and is
@@ -703,6 +721,31 @@ class Repo
             }
         } catch (\Throwable $e) {
             SecureLogger::error('[BookClub] setMemberStatus rollback failed', ['error' => $e->getMessage()]);
+        }
+    }
+
+    /**
+     * Whether $userId may read the club's members-only calendar feed now: an
+     * 'attivo' account that is an active member of the club, or a Pinakes
+     * administrator or Staff account (who see the club page as managers).
+     * False on any lookup failure.
+     */
+    public function feedViewerAllowed(int $clubId, int $userId): bool
+    {
+        try {
+            return $this->row(
+                "SELECT 1 AS ok
+                   FROM utenti u
+                   LEFT JOIN bookclub_members m ON m.club_id = ? AND m.user_id = u.id AND m.status = 'active'
+                  WHERE u.id = ? AND u.stato = 'attivo'
+                    AND (u.tipo_utente IN ('admin', 'staff') OR m.id IS NOT NULL)
+                  LIMIT 1",
+                'ii',
+                [$clubId, $userId]
+            ) !== null;
+        } catch (\Throwable $e) {
+            SecureLogger::error('[BookClub] feed viewer lookup failed', ['error' => $e->getMessage()]);
+            return false;
         }
     }
 

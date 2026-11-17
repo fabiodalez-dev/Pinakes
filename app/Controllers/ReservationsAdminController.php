@@ -47,8 +47,12 @@ class ReservationsAdminController
                 array_push($params, ...$cond['params']);
             }
         }
+        // Borrower scope (Permissions::accountScopeSql): a custom role sees the
+        // reservations of reader accounts only, the same accounts its writes
+        // may touch (mayActOnBorrower); administrators and Staff see all.
+        $sql .= ' WHERE 1=1' . \App\Support\Permissions::accountScopeSql('u', \App\Support\Permissions::SCOPE_BORROWER);
         if ($conds) {
-            $sql .= ' WHERE ' . implode(' AND ', $conds);
+            $sql .= ' AND ' . implode(' AND ', $conds);
         }
         $sql .= ' ORDER BY p.created_at DESC LIMIT 200';
 
@@ -92,11 +96,12 @@ class ReservationsAdminController
     {
         $stmt = $db->prepare("SELECT p.*, l.titolo AS libro_titolo, CONCAT(u.nome,' ',u.cognome) AS utente_nome 
                                FROM prenotazioni p JOIN libri l ON l.id=p.libro_id AND l.deleted_at IS NULL JOIN utenti u ON u.id=p.utente_id
-                               WHERE p.id=?");
+                               WHERE p.id=?" . \App\Support\Permissions::accountScopeSql('u', \App\Support\Permissions::SCOPE_BORROWER));
         $stmt->bind_param('i', $id);
         $stmt->execute();
         $item = $stmt->get_result()->fetch_assoc();
         $stmt->close();
+        // Out of the borrower scope reads as absent, like update() answers.
         if (!$item)
             return $response->withStatus(404);
         // La vista legge la riga come $p: senza questo alias il form usciva
@@ -234,8 +239,8 @@ class ReservationsAdminController
             $oldStato = (string) $libroResult['stato'];
 
             // Borrower scope on the write (Permissions::mayActOnBorrower): a
-            // custom role edits reservations of reader accounts only. The
-            // reservations list already hides the others; answer as if absent.
+            // custom role edits reservations of reader accounts only. index()
+            // and editForm() apply the same scope in SQL; answer as if absent.
             if (!\App\Support\Permissions::mayActOnBorrower($db, $utenteId)) {
                 $db->rollback();
                 return $response->withHeader('Location', url('/admin/reservations') . '?error=not_found')->withStatus(302);
@@ -487,9 +492,15 @@ class ReservationsAdminController
             }
         }
 
-        // Get all users for dropdown
+        // Users for the dropdown, within the borrower scope: a custom role is
+        // offered reader accounts only, the ones store() accepts
+        // (Permissions::mayActOnBorrower), and never sees an administrator's
+        // or a Staff account's name and email. Administrators and Staff get
+        // every active account, as before.
         $utenti = [];
-        $result = $db->query("SELECT id, CONCAT(nome, ' ', cognome) as nome_completo, email FROM utenti WHERE stato = 'attivo' ORDER BY nome, cognome");
+        $result = $db->query("SELECT id, CONCAT(nome, ' ', cognome) as nome_completo, email FROM utenti WHERE stato = 'attivo'"
+            . \App\Support\Permissions::accountScopeSql('', \App\Support\Permissions::SCOPE_BORROWER)
+            . " ORDER BY nome, cognome");
         if ($result) {
             while ($row = $result->fetch_assoc()) {
                 $utenti[] = $row;
@@ -633,9 +644,10 @@ class ReservationsAdminController
             $userLockStmt->bind_param('i', $utenteId);
             $userLockStmt->execute();
             $userLockStmt->close();
-            // Borrower scope on the write, not only on the picker: a custom role
-            // queues reservations for reader accounts only (the app's create
-            // delegates here too). Same answer as an account that does not exist.
+            // Borrower scope on the write as well as on the picker (createForm):
+            // a custom role queues reservations for reader accounts only (the
+            // app's create delegates here too). Same answer as an account that
+            // does not exist.
             if (!\App\Support\Permissions::mayActOnBorrower($db, $utenteId)) {
                 $db->rollback();
                 return $response->withHeader('Location', url('/admin/reservations/create') . '?error=user_not_found')->withStatus(302);

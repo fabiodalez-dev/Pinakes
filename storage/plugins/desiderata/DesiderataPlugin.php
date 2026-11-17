@@ -1710,10 +1710,14 @@ class DesiderataPlugin
                 return;
             }
             $mailer = $this->emailService ?? new \App\Support\EmailService($this->db);
+            // $link came from absoluteUrl(), i.e. from a visitor's Host header:
+            // the emailed copy is rebuilt on a host the operator configured, and
+            // left out when there is none.
+            $mailLink = \App\Support\TrustedLink::fromAppUrl($link);
             foreach ($recipients as $recipient) {
                 $locale = $notifications->resolveRecipientLocale($recipient['email']);
                 $body = '<p>' . self::e($this->inLocale($locale, $message)) . '</p>'
-                    . '<p><a href="' . self::e($link) . '">' . self::e($link) . '</a></p>';
+                    . ($mailLink !== null ? '<p><a href="' . self::e($mailLink) . '">' . self::e($mailLink) . '</a></p>' : '');
                 $mailer->sendEmail(
                     $recipient['email'],
                     (string) $this->inLocale($locale, $title),

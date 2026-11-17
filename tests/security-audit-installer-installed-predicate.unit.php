@@ -71,10 +71,27 @@ final class ProbeInstaller extends WebInstaller
 {
     public bool $emptyDb = false;
     public int $probes = 0;
+    /** The import-proof nonce "stored in the configured database"; false = unreachable. */
+    public string|false|null $dbNonce = null;
     protected function configuredDatabaseIsEmpty(): bool
     {
         $this->probes++;
         return $this->emptyDb;
+    }
+    protected function storeProofNonce(string $nonce): bool
+    {
+        $this->dbNonce = $nonce;
+        return true;
+    }
+    protected function readProofNonce(): string|false|null
+    {
+        return $this->dbNonce;
+    }
+    protected function dropProofNonce(): void
+    {
+        if ($this->dbNonce !== false) {
+            $this->dbNonce = null;
+        }
     }
 }
 
@@ -119,26 +136,107 @@ $check($inst->claimInstallOwnership() === true, 'claimInstallOwnership() succeed
 $token = (string) ($_SESSION[Installer::INSTALL_OWNER_SESSION_KEY] ?? '');
 $marker = (string) @file_get_contents($site . '/storage/.install_in_progress');
 $check($token !== '' && strlen($token) === 64, 'a 256-bit token is kept in the session');
-$check($marker === hash('sha256', $token) && !str_contains($marker, $token), 'only the token hash is on disk');
+$markerLines = explode("\n", $marker);
+$check(($markerLines[0] ?? '') === hash('sha256', $token) && !str_contains($marker, $token), 'only the token hash is on disk');
+$check(isset($markerLines[1]) && abs((int) $markerLines[1] - time()) < 5, 'with the claim time, for the absolute limit');
 // The owner goes on over a populated database only once it has itself started
 // the schema import there (section E covers the rule).
 $inst->emptyDb = true; // step 3 imports into the database step 2 accepted empty
 $check(method_exists($inst, 'recordSchemaImportByOwner') && $inst->recordSchemaImportByOwner(), 'the owner records its schema import');
 $inst->emptyDb = false; // the import filled it
 $proof = $_SESSION[$popKey] ?? null;
+$nonceKey = defined('Installer::INSTALL_PROOF_NONCE_SESSION_KEY') ? Installer::INSTALL_PROOF_NONCE_SESSION_KEY : 'installer_populated_nonce';
+$nonce = $_SESSION[$nonceKey] ?? null;
 $check($inst->ownsInstallInProgress() && $inst->isInstalled() === false, 'the owning session may continue the install');
 
 $_SESSION = [];
 $check($inst->isInstalled() === true, 'a fresh session (no token) is refused');
 $_SESSION[Installer::INSTALL_OWNER_SESSION_KEY] = bin2hex(random_bytes(32));
 $check($inst->isInstalled() === true, 'a forged token is refused');
-$_SESSION = [Installer::INSTALL_OWNER_SESSION_KEY => $token, $popKey => $proof];
-touch($site . '/storage/.install_in_progress', time() - Installer::INSTALL_OWNER_TTL - 10);
+$_SESSION = [Installer::INSTALL_OWNER_SESSION_KEY => $token, $popKey => $proof, $nonceKey => $nonce];
+// Review of PR #536 (F117/F116): the TTL lets OTHER sessions take over a lost
+// binding; it does not expire the owner's own session. An owner that paused
+// for more than the TTL between the schema import (step 3) and the admin
+// account (step 4) was locked out for good, the database being no longer empty.
+touch($site . '/storage/.install_in_progress', time() - Installer::INSTALL_OWNER_TTL - 3600);
 clearstatcache();
-$check($inst->isInstalled() === true, 'an expired binding is refused');
+$check($inst->ownsInstallInProgress() && $inst->isInstalled() === false,
+    'the owner that imported the schema goes on after pausing longer than the TTL');
+clearstatcache();
+$check(time() - (int) filemtime($site . '/storage/.install_in_progress') < 5, '... and its binding is renewed');
+$_SESSION = [];
+touch($site . '/storage/.install_in_progress', time() - Installer::INSTALL_OWNER_TTL - 3600);
+clearstatcache();
+$check($inst->isInstalled() === true, 'every other session still finds the populated database installed');
+$_SESSION = [Installer::INSTALL_OWNER_SESSION_KEY => $token];
+$check($inst->isInstalled() === true, 'the owner token without its import proof is still refused over the populated database');
+$_SESSION = [Installer::INSTALL_OWNER_SESSION_KEY => $token, $popKey => $proof, $nonceKey => $nonce];
 touch($site . '/storage/.install_in_progress');
 clearstatcache();
-$check($inst->isInstalled() === false, 'a live binding is honoured again');
+$check($inst->isInstalled() === false, 'a live binding is honoured');
+
+// Upper bound on the owner (security review of the change above): an absolute
+// TTL from the claim. Inside it the owner always goes on; past it the marker,
+// the database nonce and the session proof are deleted together.
+$markerPathAbs = $site . '/storage/.install_in_progress';
+$hashLine = explode("\n", (string) file_get_contents($markerPathAbs))[0];
+file_put_contents($markerPathAbs, $hashLine . "\n" . (time() - Installer::INSTALL_OWNER_ABSOLUTE_TTL + 3600));
+touch($markerPathAbs, time() - Installer::INSTALL_OWNER_TTL - 600);
+clearstatcache();
+$check($inst->isInstalled() === false, 'an idle owner one hour inside the absolute limit still goes on');
+file_put_contents($markerPathAbs, $hashLine . "\n" . (time() - Installer::INSTALL_OWNER_ABSOLUTE_TTL - 60));
+clearstatcache();
+$check($inst->isInstalled() === true && !is_file($markerPathAbs), 'past the absolute limit the owner is refused and the marker deleted');
+$check(!isset($_SESSION[Installer::INSTALL_OWNER_SESSION_KEY]) && !isset($_SESSION[$popKey]) && !isset($_SESSION[$nonceKey]) && $inst->dbNonce === null,
+    '... together with the session proof and the database nonce');
+$check(Installer::INSTALL_OWNER_ABSOLUTE_TTL > Installer::INSTALL_OWNER_TTL && Installer::INSTALL_OWNER_ABSOLUTE_TTL <= 86400,
+    'the absolute limit is longer than the sliding one, and at most a day');
+// A foreign session meeting an abandoned binding deletes it without touching its own keys.
+$_SESSION = [];
+$inst->claimInstallOwnership();
+$ownerAbs = $_SESSION;
+$hashLine = explode("\n", (string) file_get_contents($markerPathAbs))[0];
+file_put_contents($markerPathAbs, $hashLine . "\n" . (time() - Installer::INSTALL_OWNER_ABSOLUTE_TTL - 60));
+$_SESSION = [$forceKey => true];
+clearstatcache();
+$check($inst->installClaimedByAnotherSession() === false && !is_file($markerPathAbs) && ($_SESSION[$forceKey] ?? null) === true,
+    'another session finds an abandoned binding gone, and keeps its own session keys');
+// A marker written before the claim time existed gets one at the owner's next renewal.
+$_SESSION = $ownerAbs;
+file_put_contents($markerPathAbs, hash('sha256', (string) $ownerAbs[Installer::INSTALL_OWNER_SESSION_KEY]));
+$inst->emptyDb = true;
+$inst->isInstalled();
+$inst->emptyDb = false;
+$legacyLines = explode("\n", (string) file_get_contents($markerPathAbs));
+$check(isset($legacyLines[1]) && abs((int) $legacyLines[1] - time()) < 5, 'a legacy marker gets its claim time on renewal');
+
+// The import proof is tied to the database it was earned on.
+$inst->releaseInstallOwnership();
+$_SESSION = [];
+$check($inst->claimInstallOwnership(), 'setup: a new owner claims the install');
+$inst->emptyDb = true;
+$inst->recordSchemaImportByOwner();
+$inst->emptyDb = false;
+$earned = $inst->dbNonce;
+$check(is_string($earned) && $earned === ($_SESSION[$nonceKey] ?? null) && $inst->isInstalled() === false,
+    'the import stores a nonce in the database and the owner goes on');
+$inst->dbNonce = bin2hex(random_bytes(32));
+$check($inst->isInstalled() === true, 'a database replaced under the same .env (other nonce) invalidates the proof');
+$inst->dbNonce = null;
+$check($inst->isInstalled() === true, 'so does a restored database without the nonce');
+$inst->dbNonce = false;
+$check($inst->isInstalled() === true && $inst->ownerProofUnverifiable(), 'an unreachable database proves nothing (and is reported as such)');
+$inst->dbNonce = $earned;
+$check($inst->isInstalled() === false && $inst->recordSchemaImportByOwner() === true && $inst->dbNonce === $earned,
+    'the original database is accepted again, and a retried import keeps its proof');
+$inst->releaseInstallOwnership();
+$check($inst->dbNonce === null && !is_file($markerPathAbs), 'finishing the install drops the nonce with the marker');
+$_SESSION = [];
+$inst->claimInstallOwnership();
+$_SESSION = [Installer::INSTALL_OWNER_SESSION_KEY => $token, $popKey => $proof, $nonceKey => $nonce];
+file_put_contents($markerPathAbs, hash('sha256', $token) . "\n" . time());
+$inst->dbNonce = $nonce;
+clearstatcache();
 
 // A lost owner session must not shut everyone out for half a day: the binding
 // lasts INSTALL_OWNER_TTL of inactivity (2 hours), renewed by the owner's use.
@@ -212,7 +310,7 @@ $res7 = @$inst7->createEnvFile('127.0.0.1', 'u', 'p', 'db');
 clearstatcache();
 $check($res7 === false
     && ($_SESSION[Installer::INSTALL_OWNER_SESSION_KEY] ?? null) === $prevToken7
-    && (string) @file_get_contents($site7 . '/storage/.install_in_progress') === hash('sha256', $prevToken7)
+    && explode("\n", (string) @file_get_contents($site7 . '/storage/.install_in_progress'))[0] === hash('sha256', $prevToken7)
     && filemtime($site7 . '/storage/.install_in_progress') === $prevMtime7,
     'failed .env write with a previous binding: token, marker and expiry restored as they were');
 
@@ -252,6 +350,9 @@ clearstatcache();
 $_SESSION = []; // session B again, after expiry
 $check($inst8->isInstalled() === false, 'an expired claim no longer blocks the empty-database exception');
 $check($inst8->claimInstallOwnership() === true, 'an expired claim can be taken');
+$_SESSION = [Installer::INSTALL_OWNER_SESSION_KEY => $tokenA]; // session A comes back
+$check(!$inst8->ownsInstallInProgress() && $inst8->isInstalled() === true,
+    'once another session took the expired claim over, the old owner no longer owns the install');
 
 $site9 = $mkSite();
 $inst9 = new ProbeInstaller($site9);
@@ -336,10 +437,88 @@ $check($envPos !== false && $resetPos !== false && $resetPos > $envPos && $reset
     'step 2 resets the progress right after a successful .env write, before marking step 2 done');
 $_SESSION = [];
 
+// The reinstall gate (?force=1) runs with .installed present, where isInstalled()
+// answers before its own renewal: the owner's binding must still slide.
+$siteR = $mkSite();
+$instR = new ProbeInstaller($siteR);
+$instR->emptyDb = true;
+$_SESSION = [];
+$instR->createEnvFile('127.0.0.1', 'u', 'p', 'newdb');
+file_put_contents($siteR . '/.installed', 'x');
+$markerR = $siteR . '/storage/.install_in_progress';
+$aged = time() - Installer::INSTALL_OWNER_TTL + 60;
+touch($markerR, $aged);
+clearstatcache(true, $markerR);
+$check($instR->isInstalled() === true && (int) filemtime($markerR) === $aged,
+    'with .installed present isInstalled() answers installed and does not renew the binding (why the gate must)');
+$check($instR->ownerMayContinue() === true, 'the owner still passes ownerMayContinue() over the empty database');
+$instR->renewInstallOwnership();
+clearstatcache(true, $markerR);
+$check((int) filemtime($markerR) >= time() - 5, 'renewInstallOwnership() restarts the binding of the owner');
+touch($markerR, $aged);
+clearstatcache(true, $markerR);
+$_SESSION = [];
+$instR->renewInstallOwnership();
+clearstatcache(true, $markerR);
+$check((int) filemtime($markerR) === $aged, 'a session that does not own the install cannot keep the binding alive');
+$_SESSION = [];
+$gateSrc = (string) file_get_contents($ROOT . '/installer/index.php');
+$ownerMayPos = strpos($gateSrc, 'if ($installer->ownerMayContinue()) {');
+$renewPos = strpos($gateSrc, '$installer->renewInstallOwnership();');
+$check($ownerMayPos !== false && $renewPos !== false && $renewPos > $ownerMayPos && $renewPos < strpos($gateSrc, '$forceAuthenticated = true;', $ownerMayPos),
+    'the ?force=1 gate renews the owner right after ownerMayContinue() confirms it');
+
 $step3 = (string) file_get_contents($ROOT . '/installer/steps/step3.php');
-$recPos = strpos($step3, '$installer->recordSchemaImportByOwner();');
+$recPos = strpos($step3, '$installer->recordSchemaImportByOwner()');
 $impPos = strpos($step3, '$installer->importSchema();');
 $check($recPos !== false && $impPos !== false && $recPos < $impPos, 'step 3 records the import before importSchema() (a failed import stays retryable)');
+
+// Review of PR #536 (F054): installer/.htaccess redirected every request
+// without "force" in it to / while <docroot>/.installed existed, which on a
+// project-root docroot broke a ?force=1 reinstall at its first form. The PHP
+// gate decides on its own; no Apache rule may answer on .installed.
+$installerHtaccess = (string) file_get_contents($ROOT . '/installer/.htaccess');
+$activeRules = implode("\n", array_filter(array_map('trim', explode("\n", $installerHtaccess)), static fn (string $l): bool => $l !== '' && $l[0] !== '#'));
+$check(!str_contains($activeRules, '.installed') && !preg_match('/R=30[12]/', $activeRules),
+    'installer/.htaccess has no redirect keyed on .installed (the PHP force gate decides)');
+
+// Review of PR #536 (F055): step 3 ignored a refused proof and imported anyway,
+// filling the database for nobody and wedging the wizard for every session.
+// Runs the real installer/steps/step3.php in a subprocess over an installer
+// double that records what it is asked to do.
+$runStep3 = static function (bool $proofRecorded) use ($ROOT, $tmpRoot): array {
+    $script = $tmpRoot . '/step3-' . bin2hex(random_bytes(3)) . '.php';
+    file_put_contents($script, '<?php
+        function __(string $k, mixed ...$a): string { return $a ? sprintf($k, ...$a) : $k; }
+        function completeStep($n): void { $GLOBALS["calls"][] = "completeStep" . $n; }
+        function renderHeader($s, $t): void {}
+        function renderFooter(): void {}
+        $calls = [];
+        $installer = new class ((bool) ' . ($proofRecorded ? 'true' : 'false') . ') {
+            public function __construct(private bool $proof) {}
+            public function __call(string $m, array $a): mixed {
+                $GLOBALS["calls"][] = $m;
+                return match ($m) { "recordSchemaImportByOwner" => $this->proof, "getTriggerWarnings" => [], "installOpenLibraryPlugin" => 1, default => true };
+            }
+        };
+        $_SESSION = [];
+        register_shutdown_function(static function () use (&$error): void {
+            echo "\n@@" . json_encode(["calls" => $GLOBALS["calls"], "error" => $GLOBALS["error"] ?? null]);
+        });
+        require ' . var_export($ROOT . '/installer/steps/step3.php', true) . ';
+    ');
+    $out = (string) shell_exec(escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg($script) . ' 2>&1');
+    @unlink($script);
+    $json = substr($out, (int) strrpos($out, '@@') + 2);
+    return (array) json_decode($json, true);
+};
+$refused = $runStep3(false);
+$check(in_array('recordSchemaImportByOwner', $refused['calls'] ?? [], true) && !in_array('importSchema', $refused['calls'] ?? [], true)
+    && !in_array('completeStep3', $refused['calls'] ?? [], true) && is_string($refused['error'] ?? null) && $refused['error'] !== '',
+    'step 3 imports nothing and shows an error when the import proof cannot be recorded');
+$allowed = $runStep3(true);
+$check(in_array('importSchema', $allowed['calls'] ?? [], true) && in_array('completeStep3', $allowed['calls'] ?? [], true),
+    'step 3 imports when the owner records its proof (control)');
 $index = (string) file_get_contents($ROOT . '/installer/index.php');
 $check(str_contains($index, 'if ($installer->ownerMayContinue()) {') && !str_contains($index, 'if ($installer->ownsInstallInProgress()) {'),
     'the ?force=1 gate lets the owner through only under ownerMayContinue()');

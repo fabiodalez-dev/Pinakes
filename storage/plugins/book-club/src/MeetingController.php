@@ -197,13 +197,65 @@ class MeetingController extends BaseController
     // ------------------------------------------------------------------
 
     /**
+     * The server-side key of the feed tokens: PLUGIN_ENCRYPTION_KEY, else
+     * APP_KEY (the order SettingsEncryption uses). Never the club's ics_token,
+     * which the old club-wide URLs disclosed to every member, past ones
+     * included: with it as the key, anyone who had seen one could forge every
+     * member's token. Null when neither is configured.
+     */
+    private static function feedSecret(): ?string
+    {
+        foreach (['PLUGIN_ENCRYPTION_KEY', 'APP_KEY'] as $name) {
+            $value = $_ENV[$name] ?? getenv($name);
+            if (is_string($value) && $value !== '') {
+                return $value;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * The calendar token shown to $userId: "u<id>.<mac>", the MAC keyed with
+     * the server-side secret over the club id, the user id and the club's
+     * ics_token. Per person, so the feed can ask on every request whether that
+     * person may still see it (icsFeed()); ics_token is part of the message,
+     * so Repo::setMemberStatus()'s rotation still revokes every URL. Null when
+     * no server key is configured (no members-only feed is offered then).
+     */
+    public static function feedToken(array $club, int $userId): ?string
+    {
+        $secret = self::feedSecret();
+        if ($secret === null || $userId <= 0) {
+            return null;
+        }
+        $message = 'bookclub-ics:' . (int) $club['id'] . ':' . $userId . ':' . (string) $club['ics_token'];
+        return 'u' . $userId . '.' . substr(hash_hmac('sha256', $message, $secret), 0, 32);
+    }
+
+    /** The user a feedToken() names, or null when it is not one of this club's. */
+    private static function feedTokenUser(array $club, string $token): ?int
+    {
+        if (preg_match('/^u([1-9][0-9]{0,9})\.[0-9a-f]{32}$/D', $token, $m) !== 1) {
+            return null;
+        }
+        $userId = (int) $m[1];
+        $expected = self::feedToken($club, $userId);
+        return $expected !== null && hash_equals($expected, $token) ? $userId : null;
+    }
+
+    /**
      * GET /book-club/{slug}/calendar.ics — public clubs serve the feed
-     * openly; any other privacy requires ?token= matching the club's
-     * ics_token (shown to members on the club page). Calendar apps cannot
-     * send session cookies, hence the token-in-URL design. The token is
-     * club-wide, so Repo::setMemberStatus() rotates it whenever an active
-     * member leaves or is suspended/banned: a former member's saved URL then
-     * returns 404 instead of the members-only schedule and video links.
+     * openly; any other privacy requires ?token= (shown on the club page).
+     * Calendar apps cannot send session cookies, hence the token-in-URL
+     * design. The token names the person it was shown to (feedToken()), and
+     * each request checks that this person may still see the members-only
+     * feed: an 'attivo' account that is an active member of the club or a
+     * Pinakes administrator or Staff account. Leaving the club, a club
+     * suspension or ban, a suspended or deleted account and a demotion all
+     * end it at once, without the club-wide rotation reaching them. The old
+     * club-wide token proved nobody in particular and is no longer accepted
+     * as proof of membership: such a URL gets the anonymous feed of a public
+     * club, 404 otherwise, until it is copied again from the club page.
      */
     public function icsFeed(ServerRequestInterface $request, ResponseInterface $response, string $slug): ResponseInterface
     {
@@ -214,7 +266,8 @@ class MeetingController extends BaseController
         // The token is accepted for public clubs too: it proves membership
         // and unlocks the members-only fields (video-conference links).
         $token = (string) ($request->getQueryParams()['token'] ?? '');
-        $tokenValid = $token !== '' && hash_equals((string) $club['ics_token'], $token);
+        $viewer = $token !== '' ? self::feedTokenUser($club, $token) : null;
+        $tokenValid = $viewer !== null && $this->repo->feedViewerAllowed((int) $club['id'], $viewer);
         if ($club['privacy'] !== 'public' && !$tokenValid) {
             return $this->notFound($response);
         }
@@ -311,15 +364,17 @@ class MeetingController extends BaseController
             if (!empty($meeting['video_url'])) {
                 $where .= ($where !== '' ? ' / ' : '') . (string) $meeting['video_url'];
             }
-            $link = absoluteUrl(\App\Support\RouteTranslator::route('book_club') . '/' . $club['slug']);
+            // Emailed from cron: TrustedLink (the configured host), never
+            // absoluteUrl(); with none the reminder goes without the link.
+            $link = \App\Support\TrustedLink::build(\App\Support\RouteTranslator::route('book_club') . '/' . $club['slug']);
             $bodyHtml = '<p>' . htmlspecialchars(sprintf(
                 __('Il club "%s" si incontra il %s.'),
                 (string) $club['name'],
                 $when
             ), ENT_QUOTES, 'UTF-8') . '</p>'
                 . ($where !== '' ? '<p>' . htmlspecialchars(__('Dove:') . ' ' . $where, ENT_QUOTES, 'UTF-8') . '</p>' : '')
-                . '<p><a href="' . htmlspecialchars($link, ENT_QUOTES, 'UTF-8') . '">'
-                . htmlspecialchars(__('Vai alla pagina del club'), ENT_QUOTES, 'UTF-8') . '</a></p>';
+                . ($link !== null ? '<p><a href="' . htmlspecialchars($link, ENT_QUOTES, 'UTF-8') . '">'
+                . htmlspecialchars(__('Vai alla pagina del club'), ENT_QUOTES, 'UTF-8') . '</a></p>' : '');
 
             foreach ($this->repo->activeMemberEmails((int) $club['id']) as $member) {
                 $rsvp = $this->repo->userRsvp((int) $meeting['id'], (int) $member['id']);
