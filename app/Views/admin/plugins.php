@@ -1559,7 +1559,7 @@ unset($workspaceHeader);
         const escapedName = escapeHtml(pluginName);
         const result = await Swal.fire({
             title: <?= json_encode(__("Conferma Disinstallazione"), JSON_HEX_TAG) ?>,
-            html: <?= json_encode(__("Sei sicuro di voler disinstallare"), JSON_HEX_TAG) ?> + ' <strong>' + escapedName + '</strong>?<br><br><span class="text-sm text-red-600">' + <?= json_encode(__("Questa azione eliminerà tutti i dati del plugin e non può essere annullata."), JSON_HEX_TAG) ?> + '</span>',
+            html: escapeHtml(<?= json_encode(__("Sei sicuro di voler disinstallare"), JSON_HEX_TAG) ?>) + ' <strong>' + escapedName + '</strong>?<br><br><span class="text-sm text-red-600">' + escapeHtml(<?= json_encode(__("Questa azione eliminerà tutti i dati del plugin e non può essere annullata."), JSON_HEX_TAG) ?>) + '</span>',
             icon: 'error',
             showCancelButton: true,
             confirmButtonText: <?= json_encode(__("Sì, disinstalla"), JSON_HEX_TAG) ?>,

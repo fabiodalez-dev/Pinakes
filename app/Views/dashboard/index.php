@@ -1000,11 +1000,11 @@ document.addEventListener('DOMContentLoaded', function() {
                         title: escapeHtml(info.event.title),
                         html: `
                             <div class="text-left">
-                                <p><strong>${<?= json_encode(__("Tipo"), JSON_HEX_TAG) ?>}:</strong> ${escapeHtml(typeLabel)}</p>
-                                <p><strong>${<?= json_encode(__("Utente"), JSON_HEX_TAG) ?>}:</strong> ${escapeHtml(props.user)}</p>
-                                <p><strong>${<?= json_encode(__("Stato"), JSON_HEX_TAG) ?>}:</strong> ${escapeHtml(statusLabel)}</p>
-                                <p><strong>${<?= json_encode(__("Dal"), JSON_HEX_TAG) ?>}:</strong> ${formatDateLocale(start)}</p>
-                                <p><strong>${<?= json_encode(__("Al"), JSON_HEX_TAG) ?>}:</strong> ${formatDateLocale(end)}</p>
+                                <p><strong>${escapeHtml(<?= json_encode(__("Tipo"), JSON_HEX_TAG) ?>)}:</strong> ${escapeHtml(typeLabel)}</p>
+                                <p><strong>${escapeHtml(<?= json_encode(__("Utente"), JSON_HEX_TAG) ?>)}:</strong> ${escapeHtml(props.user)}</p>
+                                <p><strong>${escapeHtml(<?= json_encode(__("Stato"), JSON_HEX_TAG) ?>)}:</strong> ${escapeHtml(statusLabel)}</p>
+                                <p><strong>${escapeHtml(<?= json_encode(__("Dal"), JSON_HEX_TAG) ?>)}:</strong> ${formatDateLocale(start)}</p>
+                                <p><strong>${escapeHtml(<?= json_encode(__("Al"), JSON_HEX_TAG) ?>)}:</strong> ${formatDateLocale(end)}</p>
                             </div>
                         `,
                         icon: 'info',
