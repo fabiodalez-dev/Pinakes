@@ -694,7 +694,7 @@ function upgradeAuthStateFile(string $rootPath, string $clientAddr, ?string &$pr
 function upgradeAuthUnavailableMessage(?string $problem, string $rootPath): string
 {
     if ($problem === 'foreign_owner') {
-        return 'Protezione dai tentativi non disponibile: la cartella ' . upgradeAuthStateDirPath($rootPath)
+        return 'Protezione dai tentativi non disponibile: la cartella storage/cache/upgrade-auth'
             . ' appartiene a un altro utente (di solito perché lo script è stato eseguito come root).'
             . ' Eliminala, oppure assegnala all\'utente del web server con chown, poi riprova.';
     }

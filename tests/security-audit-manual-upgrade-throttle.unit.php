@@ -161,8 +161,11 @@ try {
     $check(upgradeAuthStateDir($rootO, $problem, $foreignUid) === null && $problem === 'foreign_owner',
         'a state directory owned by another user is refused as foreign_owner');
     $msg = upgradeAuthUnavailableMessage($problem, $rootO);
-    $check(str_contains($msg, $rootO . '/storage/cache/upgrade-auth') && str_contains($msg, 'chown') && str_contains($msg, 'Eliminala'),
+    $check(str_contains($msg, 'storage/cache/upgrade-auth') && str_contains($msg, 'chown') && str_contains($msg, 'Eliminala'),
         'the message names the folder to delete or chown');
+    // The message is shown on the login form before anyone is authenticated.
+    $check(!str_contains($msg, $rootO) && !str_contains($msg, $tmp),
+        'it gives the folder relative to the install, never the absolute install path');
     $check(!str_contains($msg, 'rendi scrivibile'), 'it no longer blames a non-writable storage/cache');
     $problem = null;
     upgradeAuthStateDir($rootE, $problem);
