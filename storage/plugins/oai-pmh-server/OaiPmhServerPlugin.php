@@ -4065,7 +4065,7 @@ class OaiPmhServerPlugin
                 $out = $response->withStatus(429)->withHeader('Retry-After', '300');
                 return false;
             }
-            if (count($parts) === 2 && $this->authenticateBasicOai($parts[0], $parts[1])) {
+            if (count($parts) === 2 && $this->authenticateBasicOai($parts[0], $parts[1], $request)) {
                 \App\Support\RateLimiter::reset($rlId);
                 return true;
             }
@@ -4077,10 +4077,16 @@ class OaiPmhServerPlugin
         return false;
     }
 
-    private function authenticateBasicOai(string $email, string $pass): bool
+    /**
+     * Admin/staff Basic credentials, held to the same gates as the
+     * interactive login and NCIP: a verified email and the plugin
+     * 'login.validate' hook (2FA, allow-lists...), on the 'oai-pmh' channel,
+     * so a verification plugin cannot be bypassed through this endpoint.
+     */
+    private function authenticateBasicOai(string $email, string $pass, ServerRequestInterface $request): bool
     {
         $stmt = $this->db->prepare(
-            "SELECT password FROM utenti WHERE email = ? AND stato = 'attivo'
+            "SELECT password, email_verificata FROM utenti WHERE email = ? AND stato = 'attivo'
              AND tipo_utente IN ('admin','staff') LIMIT 1"
         );
         if ($stmt === false) { return false; }
@@ -4092,10 +4098,14 @@ class OaiPmhServerPlugin
         if ($row === null) {
             // Constant-time dummy verify: an unknown admin/staff email costs
             // the same bcrypt work as a wrong password (no enumeration oracle).
-            password_verify($pass, '$2y$12$FYWkjQ0krgMEuFnovQ3C6.vL6MZP/pdGGrLm.Q1PBhX29YNNu.Bfe');
+            \App\Support\PasswordTiming::equalize($pass);
             return false;
         }
-        return password_verify($pass, (string) $row['password']);
+        if (!password_verify($pass, (string) $row['password'])) {
+            return false;
+        }
+        return (int) ($row['email_verificata'] ?? 0) === 1
+            && (bool) \App\Support\Hooks::apply('login.validate', true, [$email, $request, 'oai-pmh']);
     }
 
     /**

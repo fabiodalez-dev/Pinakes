@@ -248,7 +248,7 @@ class ResourceSyncPlugin
                 return false;
             }
 
-            if (count($parts) === 2 && $this->authenticateBasic($parts[0], $parts[1])) {
+            if (count($parts) === 2 && $this->authenticateBasic($parts[0], $parts[1], $request)) {
                 RateLimiter::reset($rlId);
                 return true;
             }
@@ -264,12 +264,15 @@ class ResourceSyncPlugin
     }
 
     /**
-     * FIX F077: validate admin/staff credentials against the `utenti` table.
+     * FIX F077: validate admin/staff credentials against the `utenti` table,
+     * with the same gates as the interactive login and NCIP: a verified
+     * email and the plugin 'login.validate' hook, on the 'resourcesync'
+     * channel, so a verification plugin cannot be bypassed here.
      */
-    private function authenticateBasic(string $email, string $pass): bool
+    private function authenticateBasic(string $email, string $pass, ServerRequestInterface $request): bool
     {
         $stmt = $this->db->prepare(
-            "SELECT password FROM utenti
+            "SELECT password, email_verificata FROM utenti
              WHERE email = ? AND stato = 'attivo'
                AND tipo_utente IN ('admin','staff')
              LIMIT 1"
@@ -284,10 +287,14 @@ class ResourceSyncPlugin
             // Constant-time dummy verify: avoids an account-enumeration timing
             // side channel between "no such admin/staff email" and "wrong
             // password" by always spending one bcrypt verification.
-            password_verify($pass, '$2y$12$FYWkjQ0krgMEuFnovQ3C6.vL6MZP/pdGGrLm.Q1PBhX29YNNu.Bfe');
+            \App\Support\PasswordTiming::equalize($pass);
             return false;
         }
-        return password_verify($pass, (string) $row['password']);
+        if (!password_verify($pass, (string) $row['password'])) {
+            return false;
+        }
+        return (int) ($row['email_verificata'] ?? 0) === 1
+            && (bool) \App\Support\Hooks::apply('login.validate', true, [$email, $request, 'resourcesync']);
     }
 
     /**

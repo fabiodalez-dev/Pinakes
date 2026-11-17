@@ -35,6 +35,8 @@ class ViafAuthorityPlugin
     /** @phpstan-ignore property.onlyWritten */
     private HookManager $hookManager;
     private ?int $pluginId = null;
+    /** The Basic header requireAdminOrStaff() authenticated on this request, if any. */
+    private ?string $verifiedBasicHeader = null;
 
     /** VIAF AutoSuggest base URL */
     private const VIAF_SUGGEST_URL = 'https://viaf.org/viaf/AutoSuggest?query=';
@@ -1066,6 +1068,7 @@ class ViafAuthorityPlugin
         ?ResponseInterface &$out,
         ?ServerRequestInterface $request = null
     ): bool {
+        $this->verifiedBasicHeader = null;
         // Session-based auth (browser/admin panel)
         // The role is read from the database on this request (fails CLOSED on
         // a lookup error or a demoted/suspended account), never taken from the
@@ -1105,8 +1108,13 @@ class ViafAuthorityPlugin
 
             if ($decoded !== false && str_contains($decoded, ':')) {
                 [$email, $pass] = explode(':', $decoded, 2);
-                if ($this->authenticateBasic($email, $pass)) {
+                $request ??= \Slim\Psr7\Factory\ServerRequestFactory::createFromGlobals();
+                if ($this->authenticateBasic($email, $pass, $request)) {
                     RateLimiter::reset($rlId);
+                    // Remembered for validateCsrf() on this same request, so
+                    // the CSRF exemption never re-verifies the password
+                    // outside these throttles.
+                    $this->verifiedBasicHeader = $authHeader;
                     $out = $response;
                     return true;
                 }
@@ -1124,10 +1132,16 @@ class ViafAuthorityPlugin
         return false;
     }
 
-    private function authenticateBasic(string $email, string $pass): bool
+    /**
+     * Admin/staff Basic credentials, held to the same gates as the
+     * interactive login and NCIP: a verified email and the plugin
+     * 'login.validate' hook, on the 'viaf' channel, so a verification plugin
+     * cannot be bypassed through these endpoints.
+     */
+    private function authenticateBasic(string $email, string $pass, ServerRequestInterface $request): bool
     {
         $stmt = $this->db->prepare(
-            "SELECT password, tipo_utente FROM utenti
+            "SELECT password, tipo_utente, email_verificata FROM utenti
               WHERE email = ? AND stato = 'attivo' AND tipo_utente IN ('admin','staff')
               LIMIT 1"
         );
@@ -1141,10 +1155,14 @@ class ViafAuthorityPlugin
             // Constant-time dummy verify: "no such admin/staff email" must cost
             // the same bcrypt round as "wrong password", or the response time
             // enumerates accounts.
-            password_verify($pass, '$2y$12$FYWkjQ0krgMEuFnovQ3C6.vL6MZP/pdGGrLm.Q1PBhX29YNNu.Bfe');
+            \App\Support\PasswordTiming::equalize($pass);
             return false;
         }
-        return password_verify($pass, (string) $row['password']);
+        if (!password_verify($pass, (string) $row['password'])) {
+            return false;
+        }
+        return (int) ($row['email_verificata'] ?? 0) === 1
+            && (bool) \App\Support\Hooks::apply('login.validate', true, [$email, $request, 'viaf']);
     }
 
     /**
@@ -1209,23 +1227,18 @@ class ViafAuthorityPlugin
     }
 
     /**
-     * True only when the request carries an Authorization: Basic header whose
-     * credentials authenticate successfully (same check requireAdminOrStaff
-     * uses). Used to decide CSRF exemption server-side rather than trusting the
-     * raw header.
+     * True only when requireAdminOrStaff() already authenticated this very
+     * Authorization: Basic header on this request. Used to decide the CSRF
+     * exemption server-side rather than trusting the raw header, without a
+     * second password verify (and login.validate run) outside the
+     * viaf_basic throttles.
      */
     private function hasValidBasicAuth(ServerRequestInterface $request): bool
     {
         $authHeader = $request->getHeaderLine('Authorization');
-        if (!str_starts_with($authHeader, 'Basic ')) {
-            return false;
-        }
-        $decoded = base64_decode(substr($authHeader, 6), true);
-        if ($decoded === false || !str_contains($decoded, ':')) {
-            return false;
-        }
-        [$email, $pass] = explode(':', $decoded, 2);
-        return $this->authenticateBasic($email, $pass);
+        return str_starts_with($authHeader, 'Basic ')
+            && $this->verifiedBasicHeader !== null
+            && hash_equals($this->verifiedBasicHeader, $authHeader);
     }
 
     private function authorExists(int $id): bool

@@ -65,7 +65,9 @@ $adminEmail = 'viaf-unit-' . bin2hex(random_bytes(4)) . '@example.invalid';
 $adminPass  = 'Viaf-unit-' . bin2hex(random_bytes(6));
 $hash = password_hash($adminPass, PASSWORD_DEFAULT);
 $card = 'VU' . strtoupper(bin2hex(random_bytes(5)));
-$ins = $db->prepare("INSERT INTO utenti (codice_tessera, nome, cognome, email, password, tipo_utente, stato) VALUES (?, 'Viaf', 'Unit', ?, ?, 'staff', 'attivo')");
+// Verified email: the Basic gate applies the same verified-email rule as the
+// interactive login.
+$ins = $db->prepare("INSERT INTO utenti (codice_tessera, nome, cognome, email, password, tipo_utente, stato, email_verificata) VALUES (?, 'Viaf', 'Unit', ?, ?, 'staff', 'attivo', 1)");
 $ins->bind_param('sss', $card, $adminEmail, $hash);
 $ins->execute();
 $ins->close();
@@ -121,13 +123,13 @@ RateLimiter::reset($rlId);
 RateLimiter::reset($rlKey('nobody@example.invalid'));
 
 // Unknown account: the dummy bcrypt verify keeps the timing of a real one.
-$src = (string) file_get_contents($root . '/storage/plugins/viaf-authority/ViafAuthorityPlugin.php');
-$check(
-    preg_match('/if \(\$row === null\) \{[^}]*password_verify\(\$pass, \'\$2y\$/s', $src) === 1,
-    'an unknown account still spends a constant-time dummy password_verify'
-);
+$equalizedBefore = \App\Support\PasswordTiming::equalizedCount();
 $t0 = microtime(true);
 $attempt('nobody-timing@example.invalid', 'x');
+$check(
+    \App\Support\PasswordTiming::equalizedCount() === $equalizedBefore + 1,
+    'an unknown account still spends a constant-time dummy password_verify'
+);
 $unknownMs = (microtime(true) - $t0) * 1000;
 RateLimiter::reset($rlKey('nobody-timing@example.invalid'));
 $check($unknownMs > 20, sprintf('an unknown account costs a bcrypt round (%.1f ms)', $unknownMs));

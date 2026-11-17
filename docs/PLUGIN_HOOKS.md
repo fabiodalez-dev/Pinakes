@@ -266,19 +266,19 @@ Hooks::add('login.form.fields', function() {
 
 ### `login.validate` (Filter)
 **Status:** Implementato
-**File:** `app/Controllers/AuthController.php` (login web), `storage/plugins/mobile-api/src/Controllers/AuthController.php` (login dell'app), `storage/plugins/ncip-server/NcipServerPlugin.php` (Basic auth NCIP)
+**File:** `app/Controllers/AuthController.php` (login web), `storage/plugins/mobile-api/src/Controllers/AuthController.php` (login dell'app), `storage/plugins/ncip-server/NcipServerPlugin.php`, `storage/plugins/oai-pmh-server/OaiPmhServerPlugin.php`, `storage/plugins/resource-sync/ResourceSyncPlugin.php`, `storage/plugins/viaf-authority/ViafAuthorityPlugin.php` (Basic auth)
 
-Validazione personalizzata durante il login (reCAPTCHA, 2FA, etc.). Scatta per ogni accesso con email e password: il form web, il login dell'app mobile e l'autenticazione Basic dei client NCIP.
+Validazione personalizzata durante il login (reCAPTCHA, 2FA, etc.). Scatta per ogni accesso con email e password: il form web, il login dell'app mobile e l'autenticazione Basic di NCIP, OAI-PMH (download UNIMARC), ResourceSync e VIAF. Nei canali Basic il filtro gira solo dopo una password corretta su un account con email verificata.
 
 **Parametri:**
 - `$isValid` (bool): Risultato validazione predefinita
 - `$email` (string): Email fornita
 - `$request` (ServerRequestInterface): Oggetto richiesta
-- `$channel` (string): da dove arriva il login: `'web'` (form del browser), `'mobile'` (API dell'app), `'ncip'` (Basic auth di un client NCIP). Argomento aggiunto in coda: un callback che dichiara solo i primi tre parametri continua a funzionare.
+- `$channel` (string): da dove arriva il login: `'web'` (form del browser), `'mobile'` (API dell'app), `'ncip'` (Basic auth di un client NCIP), `'oai-pmh'`, `'resourcesync'`, `'viaf'` (Basic auth di quei plugin). Argomento aggiunto in coda: un callback che dichiara solo i primi tre parametri continua a funzionare.
 
 **Restituisce:** bool - true se valido, false altrimenti
 
-Un controllo che ha senso solo nel browser (un CAPTCHA, un campo del form) va limitato a `$channel === 'web'`: un client NCIP o l'app non possono rispondere e verrebbero sempre rifiutati. Un controllo sull'account (2FA, blocco, lista consentiti) vale invece per tutti i canali.
+Un controllo che ha senso solo nel browser (un CAPTCHA, un campo del form) va limitato a `$channel === 'web'`: un client NCIP, un harvester o l'app non possono rispondere e verrebbero sempre rifiutati. Un controllo sull'account (2FA, blocco, lista consentiti) vale invece per tutti i canali.
 
 **Esempio:**
 ```php

@@ -17,6 +17,9 @@ declare(strict_types=1);
  *  49  Staff errors.csv answers catalogue imports only.
  *  50  OAI-PMH archival arm + GetRecord gated on isArchivesSetExposed().
  *  52  NCIP Basic auth requires a verified email and runs 'login.validate'.
+ *  52b OAI-PMH, ResourceSync and VIAF Basic auth do too (own channel name);
+ *      every gate spends a dummy verify on an unknown / inactive email, and
+ *      VIAF's CSRF exemption reuses the gate's verdict (no second verify).
  *  63  Per-loan .ics links expire 30 days after a closed loan's due date.
  *  67  RateLimiter buckets IPv6 per /64 and prunes expired state files.
  *  86  An in-app password change keeps the app's own token.
@@ -453,6 +456,71 @@ if ($sandboxError !== null) {
         $allow->addHook('login.validate', static fn ($ok) => $ok);
         \App\Support\Hooks::init($allow);
         $check(is_array($ncipAuth($ADMIN, $RIGHT)), 'NCIP: a permissive login.validate leaves the login working');
+
+        // ── 52b: OAI-PMH / ResourceSync / VIAF Basic = NCIP's gates ──────
+        // A verified email and the 'login.validate' hook with the gate's own
+        // channel, so a 2FA / allow-list plugin cannot be bypassed through
+        // the harvesting or authority endpoints.
+        $channelOf = ['OAI-PMH' => 'oai-pmh', 'ResourceSync' => 'resourcesync', 'VIAF' => 'viaf', 'NCIP' => 'ncip'];
+        $channels = [];
+        $refuseAll = new \App\Support\HookManager($db);
+        $refuseAll->addHook('login.validate', static function ($ok, $email, $rq, string $channel = '?') use (&$channels) {
+            $channels[] = [$email, $channel, $rq instanceof ServerRequestInterface];
+            return false;
+        });
+        $allowAll = new \App\Support\HookManager($db);
+        $allowAll->addHook('login.validate', static function ($ok, $email, $rq, string $channel = '?') use (&$channels) {
+            $channels[] = [$email, $channel, $rq instanceof ServerRequestInterface];
+            return $ok;
+        });
+        foreach ($gates as $label => $gate) {
+            \App\Support\Hooks::init($allowAll);
+            $check($gate($basicRequest($freshIp(), $UNVERIFIED, $RIGHT)) === 401, "{$label}: an unverified email is refused even with the right password");
+            $channels = [];
+            $check($gate($basicRequest($freshIp(), $ADMIN, $RIGHT)) === 200, "{$label}: a permissive login.validate leaves the Basic login working");
+            $check($channels === [[$ADMIN, $channelOf[$label], true]], "{$label}: login.validate runs once with channel '{$channelOf[$label]}' and the request");
+            \App\Support\Hooks::init($refuseAll);
+            $channels = [];
+            $check($gate($basicRequest($freshIp(), $ADMIN, $RIGHT)) === 401, "{$label}: a login.validate refusal turns the right password into 401");
+            $channels = [];
+            $gate($basicRequest($freshIp(), $ADMIN, 'wrong'));
+            $check($channels === [], "{$label}: login.validate is not asked about a wrong password");
+            // An unknown (or inactive) email spends one dummy verify, like a
+            // wrong password: no timing oracle on which emails are accounts.
+            $before = \App\Support\PasswordTiming::equalizedCount();
+            $check($gate($basicRequest($freshIp(), 'hb-nobody@example.org', $RIGHT)) === 401, "{$label}: an unknown email is answered 401");
+            $check(\App\Support\PasswordTiming::equalizedCount() === $before + 1, "{$label}: an unknown email spends one dummy password verify");
+        }
+        $inactive = 'hb-inactive@example.org';
+        hardeningSeedUser($db, $inactive, $RIGHT, 'staff', ['stato' => 'sospeso']);
+        $bucketAccounts[] = $inactive;
+        $bucketAccounts[] = 'hb-nobody@example.org';
+        $before = \App\Support\PasswordTiming::equalizedCount();
+        $check($gates['NCIP']($basicRequest($freshIp(), $inactive, $RIGHT)) === 401, 'NCIP: an inactive account is refused');
+        $check(\App\Support\PasswordTiming::equalizedCount() === $before + 1, 'NCIP: an inactive account spends one dummy password verify');
+        $dummy = (new ReflectionProperty(\App\Support\PasswordTiming::class, 'dummyHash'))->getValue();
+        $check(is_string($dummy) && password_get_info($dummy)['algo'] === password_get_info(password_hash('x', PASSWORD_DEFAULT))['algo']
+            && password_get_info($dummy)['options'] == password_get_info(password_hash('x', PASSWORD_DEFAULT))['options'],
+            'the dummy hash uses the algorithm and cost of PASSWORD_DEFAULT');
+        \App\Support\Hooks::init($allow);
+
+        // ── VIAF CSRF exemption: only the header the throttled gate verified
+        $viafCsrf = new ReflectionMethod($viafPlugin, 'validateCsrf');
+        $viafGate = new ReflectionMethod($viafPlugin, 'requireAdminOrStaff');
+        $xhr = static fn (string $ip, string $user, string $password): ServerRequestInterface => $basicRequest($ip, $user, $password)
+            ->withMethod('POST')->withHeader('X-Requested-With', 'XMLHttpRequest');
+        $_SESSION = [];
+        $check($viafCsrf->invoke($viafPlugin, $xhr($freshIp(), $ADMIN, $RIGHT)) === false,
+            'VIAF: the CSRF exemption never verifies a password on its own (no gate pass on this request)');
+        $rq = $xhr($freshIp(), $ADMIN, $RIGHT);
+        $out = null;
+        $check($viafGate->invokeArgs($viafPlugin, [$template, &$out, $rq]) === true && $viafCsrf->invoke($viafPlugin, $rq) === true,
+            'VIAF: after the gate authenticated this Basic header, the API client is exempt from CSRF');
+        $other = $xhr($freshIp(), $spray[0], $RIGHT);
+        $check($viafCsrf->invoke($viafPlugin, $other) === false, 'VIAF: a different Basic header is not exempt');
+        $out = null;
+        $viafGate->invokeArgs($viafPlugin, [$template, &$out, $basicRequest($freshIp(), $ADMIN, 'wrong')]);
+        $check($viafCsrf->invoke($viafPlugin, $rq) === false, 'VIAF: a later failed gate pass clears the remembered header');
 
         // ── 47: mobile login runs and honours login.validate ──────────────
         $db->query("INSERT INTO system_settings (category, setting_key, setting_value) VALUES ('mobile_api', 'enabled', '1')");

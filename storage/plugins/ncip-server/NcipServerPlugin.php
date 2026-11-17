@@ -3010,7 +3010,13 @@ class NcipServerPlugin
         $user = $res->fetch_assoc();
         $stmt->close();
 
-        if (!is_array($user)) { return $failed(); }
+        if (!is_array($user)) {
+            // An unknown or inactive email spends the same password verify as
+            // a wrong password, or the response time tells which emails are
+            // active accounts (CWE-208).
+            \App\Support\PasswordTiming::equalize($password);
+            return $failed();
+        }
         if (!password_verify($password, (string) ($user['password'] ?? ''))) {
             return $failed();
         }
