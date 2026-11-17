@@ -262,13 +262,23 @@ $guard(function () use ($check): void {
               '/installer/', '/admin/books/import/chunk', '/admin/users/import/upload', '/admin/books/export/csv',
               '/admin/archives/export.xml', '/api/autori/bulk-export', '/admin/updates/backup/restore',
               '/api/dewey-editor/restore/it_IT', '/admin/settings/advanced/regenerate-sitemap',
-              '/admin/books/import-sbn', '/admin/loans/export-csv', '/sitemap.xml',
-              '/admin/inventory/7/report.csv', '/admin/books/12/export.unimarc.xml',
-              // harvesting protocols
-              '/oai', '/archives/oai', '/resync/resourcelist.xml', '/.well-known/resourcesync',
-              '/api/sru', '/api/archives/sru'] as $path) {
+              '/admin/books/import-sbn', '/admin/loans/export-csv',
+              '/admin/inventory/7/report.csv', '/admin/books/12/export.unimarc.xml'] as $path) {
         $check(DbStatementTimeout::isExemptPath($path), "exempt long-running path: {$path}");
     }
+    // Anonymous whole-catalogue endpoints: never exempt, a raised limit instead.
+    foreach (['/oai', '/archives/oai', '/resync/resourcelist.xml', '/.well-known/resourcesync',
+              '/api/sru', '/api/archives/sru', '/sitemap.xml'] as $path) {
+        $check(!DbStatementTimeout::isExemptPath($path) && DbStatementTimeout::isRaisedPath($path),
+            "anonymous harvesting path is raised, not exempt: {$path}");
+    }
+    $check(!DbStatementTimeout::isRaisedPath('/catalogo') && !DbStatementTimeout::isRaisedPath('/libro/1/oai'),
+        'other paths do not get the raised limit');
+    $check(DbStatementTimeout::harvestSeconds($my, '') === 300 && DbStatementTimeout::harvestSeconds($maria, '') === 300,
+        'harvest limit defaults to 300 s on both flavours');
+    $check(DbStatementTimeout::harvestSeconds($my, '12') === 120, 'harvest limit scales with DB_STATEMENT_TIMEOUT (x10)');
+    $check(DbStatementTimeout::harvestSeconds($my, '0') === 0, 'DB_STATEMENT_TIMEOUT=0 disables the harvest limit too');
+    $check(DbStatementTimeout::harvestSeconds($my, 'abc') === 300, 'an invalid DB_STATEMENT_TIMEOUT keeps the 300 s harvest default');
     $check(DbStatementTimeout::isExemptPath('/sub/admin/updates/backup', '/sub'),
         'exempt route under a base path');
     foreach (['/', '/catalogo', '/api/search/autori', '/api/libri', '/admin/books', '/libro/12/titolo',
@@ -309,6 +319,18 @@ $guard(function () use ($check): void {
     $check($stub->queries === [], 'web + exempt path: no query is sent');
     DbStatementTimeout::lift($stub);
     $check($stub->queries === [], 'lift() on a connection that never had the limit sends nothing');
+
+    // Harvesting routes get the raised, non-zero limit; any other path the default.
+    $harvest = $makeStub(false);
+    DbStatementTimeout::applyForWebRequest($harvest, '/oai', false);
+    $harvestMs = DbStatementTimeout::harvestSeconds('') * 1000;
+    $check($harvestMs > 0 && in_array('SET SESSION max_execution_time = ' . $harvestMs, $harvest->queries, true),
+        "web + /oai: raised limit of {$harvestMs} ms is set");
+    $plain = $makeStub(false);
+    DbStatementTimeout::applyForWebRequest($plain, '/libro/42/important-oai-export', false);
+    $defaultMs = DbStatementTimeout::configuredSeconds('') * 1000;
+    $check(in_array('SET SESSION max_execution_time = ' . $defaultMs, $plain->queries, true),
+        "web + arbitrary path: default limit of {$defaultMs} ms is set");
 
     $broken = $makeStub(true);
     $threw = false;

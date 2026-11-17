@@ -15,11 +15,14 @@ namespace App\Support;
  *
  * Because the MariaDB variable also interrupts writes, the limit is only ever
  * applied on the web request path, never in CLI (cron, scripts, tests), and
- * long-running web operations (updater, installer, backup/restore, imports,
- * exports, maintenance, sitemap, harvesting protocols) are exempt by exact
- * route. Classes that run long work regardless of the route (updater, backups,
- * plugin activation, SchemaRepair, the admin-login maintenance run) call
- * lift() on the connection they receive.
+ * long-running authenticated admin operations (updater, installer,
+ * backup/restore, imports, exports, maintenance, sitemap regeneration) are
+ * exempt by exact route. Anonymous whole-catalogue endpoints (OAI-PMH,
+ * ResourceSync, SRU, the public sitemap) are never exempt: they get a raised
+ * limit (HARVEST_TIMEOUT_SECONDS, or a multiple of DB_STATEMENT_TIMEOUT).
+ * Authenticated admin work that runs long regardless of the route (updater,
+ * backups, plugin activation, SchemaRepair, the admin-login maintenance run)
+ * calls lift() on the connection it receives.
  *
  * Configuration: env DB_STATEMENT_TIMEOUT in seconds (0 disables). Without it
  * MySQL gets 30 s and MariaDB a more generous 60 s.
@@ -70,17 +73,31 @@ final class DbStatementTimeout
         'admin/archives/(?:authorities/)?\d+/export\.xml',
         'admin/periodicals/export/(?:kbart|acnp)',
         'admin/books/\d+/export\.unimarc\.xml',
-        // Sitemap.
-        'sitemap\.xml',
+        // Sitemap regeneration (the public /sitemap.xml is raised, see below).
         'admin/settings/advanced/regenerate-sitemap',
-        // Harvesting protocols: whole-catalogue pages by design.
+    ];
+
+    /**
+     * Anonymous whole-catalogue endpoints (harvesting protocols, the public
+     * sitemap). They legitimately run longer statements, but anyone can call
+     * them and SRU takes user-supplied CQL, so they are never exempt: they
+     * get a raised limit instead (harvestSeconds()).
+     */
+    private const RAISED_ROUTES = [
         'oai',
         'archives/oai',
         'resync/(?:capabilitylist|resourcelist|changelist)\.xml',
         '\.well-known/resourcesync',
         'api/sru',
         'api/archives/sru',
+        'sitemap\.xml',
     ];
+
+    /** Limit of the RAISED_ROUTES when DB_STATEMENT_TIMEOUT is not set. */
+    public const HARVEST_TIMEOUT_SECONDS = 300;
+
+    /** With DB_STATEMENT_TIMEOUT set, the RAISED_ROUTES get this multiple of it. */
+    public const HARVEST_TIMEOUT_FACTOR = 10;
 
     /** @var array<int, string> spl_object_id => variable name set on that connection */
     private static array $applied = [];
@@ -119,7 +136,10 @@ final class DbStatementTimeout
                 $version = is_array($row) ? (string) ($row[0] ?? '') : '';
                 $result->free();
             }
-            $sql = self::statementFor($version, self::configuredSeconds($version));
+            $seconds = self::isRaisedPath($requestPath, $basePath)
+                ? self::harvestSeconds($version)
+                : self::configuredSeconds($version);
+            $sql = self::statementFor($version, $seconds);
             if ($sql === null) {
                 return;
             }
@@ -175,6 +195,28 @@ final class DbStatementTimeout
         return self::isMariaDb($version) ? self::DEFAULT_SECONDS_MARIADB : self::DEFAULT_SECONDS_MYSQL;
     }
 
+    /**
+     * Seconds for the RAISED_ROUTES: HARVEST_TIMEOUT_SECONDS by default,
+     * HARVEST_TIMEOUT_FACTOR x DB_STATEMENT_TIMEOUT when that is set, and
+     * 0 (disabled) only when DB_STATEMENT_TIMEOUT=0.
+     */
+    public static function harvestSeconds(string $version, ?string $envValue = null): int
+    {
+        if ($envValue === null) {
+            $raw = $_ENV['DB_STATEMENT_TIMEOUT'] ?? getenv('DB_STATEMENT_TIMEOUT');
+            $envValue = is_string($raw) ? $raw : '';
+        }
+        $envValue = trim($envValue);
+        if ($envValue === '' || preg_match('/^\d+$/D', $envValue) !== 1) {
+            return self::HARVEST_TIMEOUT_SECONDS;
+        }
+        $base = self::configuredSeconds($version, $envValue);
+        if ($base <= 0) {
+            return 0;
+        }
+        return min($base * self::HARVEST_TIMEOUT_FACTOR, 86400);
+    }
+
     /** The SET statement for this server flavour, or null when disabled. */
     public static function statementFor(string $version, int $seconds): ?string
     {
@@ -193,6 +235,18 @@ final class DbStatementTimeout
      */
     public static function isExemptPath(string $path, string $basePath = ''): bool
     {
+        return self::matchesRoute(self::EXEMPT_ROUTES, $path, $basePath);
+    }
+
+    /** Whether the path gets the raised (never absent) harvesting limit. */
+    public static function isRaisedPath(string $path, string $basePath = ''): bool
+    {
+        return self::matchesRoute(self::RAISED_ROUTES, $path, $basePath);
+    }
+
+    /** @param list<string> $patterns */
+    private static function matchesRoute(array $patterns, string $path, string $basePath): bool
+    {
         $path = '/' . ltrim($path, '/');
         $basePath = rtrim($basePath, '/');
         if ($basePath !== '') {
@@ -202,7 +256,7 @@ final class DbStatementTimeout
             $path = '/' . ltrim(substr($path, strlen($basePath)), '/');
         }
         $route = rtrim(substr($path, 1), '/');
-        foreach (self::EXEMPT_ROUTES as $pattern) {
+        foreach ($patterns as $pattern) {
             if (preg_match('#^' . $pattern . '$#iD', $route) === 1) {
                 return true;
             }
