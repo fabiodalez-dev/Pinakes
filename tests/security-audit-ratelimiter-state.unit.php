@@ -10,7 +10,13 @@ declare(strict_types=1);
  * redirected the next write (fopen 'c+' follows links), and a pre-created
  * directory was trusted as-is. State now lives in storage/cache/ratelimit
  * (0700, owned by the PHP user), names mix in the install root, symlinks are
- * refused, and an untrusted directory still fails CLOSED.
+ * refused. An untrusted or unusable directory falls back to a directory under
+ * sys_get_temp_dir() named from the install secret, with the same checks; when
+ * that fails too, an APCu or in-session counter still limits, and only with
+ * none of them does the limiter let requests through (logged once per
+ * request). It used to answer 429 to every login with no way back. A
+ * foreign-owned directory is only used through a private 0700 subdirectory,
+ * and root never writes into a directory owned by another uid.
  *
  * Touches only <root>/storage/cache/ratelimit (test identifiers are random and
  * removed at the end) and a private temp dir of its own.
@@ -36,11 +42,17 @@ $stateFile = static function (string $id): ?string {
     return $m->invoke(null, $id);
 };
 
+// The temp fallback is named from the install secret; give this run one.
+$testAppKey = 'secaudit-rl-key-' . bin2hex(random_bytes(8));
+putenv('APP_KEY=' . $testAppKey);
+$_ENV['APP_KEY'] = $testAppKey;
+
 $expectedDir = $root . '/storage/cache/ratelimit';
 $tag = 'secaudit-rl-' . bin2hex(random_bytes(6));
 $ids = [];
 $scratch = sys_get_temp_dir() . '/secaudit-rl-' . bin2hex(random_bytes(6));
 @mkdir($scratch, 0700, true);
+$fallbackExisted = is_dir((string) RateLimiter::fallbackStateDirectory());
 
 try {
     echo "A. Location and ownership\n";
@@ -83,23 +95,221 @@ try {
     $check(file_get_contents($victim) === 'ORIGINAL', 'the link target was not overwritten');
     $check(!is_link($file2) && is_file($file2), 'the link was replaced by a regular state file');
 
-    echo "E. An untrusted state directory fails closed\n";
+    echo "E. An untrusted state directory is refused, the temp fallback takes over\n";
+    $fallbackDir = (string) RateLimiter::fallbackStateDirectory();
+    $realTmp = realpath(sys_get_temp_dir()) ?: sys_get_temp_dir();
+    $check(str_starts_with(realpath(dirname($fallbackDir)) ?: '', $realTmp) && str_contains(basename($fallbackDir), 'pinakes_rl_'),
+        'the fallback is a directory under sys_get_temp_dir()');
+    putenv('APP_KEY=another-install-secret');
+    $_ENV['APP_KEY'] = 'another-install-secret';
+    $otherName = RateLimiter::fallbackStateDirectory();
+    putenv('APP_KEY');
+    unset($_ENV['APP_KEY']);
+    $savedPluginKey = getenv('PLUGIN_ENCRYPTION_KEY');
+    putenv('PLUGIN_ENCRYPTION_KEY');
+    unset($_ENV['PLUGIN_ENCRYPTION_KEY']);
+    $noSecretName = RateLimiter::fallbackStateDirectory();
+    putenv('APP_KEY=' . $testAppKey);
+    $_ENV['APP_KEY'] = $testAppKey;
+    if ($savedPluginKey !== false) {
+        putenv('PLUGIN_ENCRYPTION_KEY=' . $savedPluginKey);
+    }
+    $check($otherName !== null && $otherName !== $fallbackDir,
+        'the fallback name depends on the install secret (a co-tenant cannot predict it to squat it)');
+    $check($noSecretName === null, 'without any install secret no predictable temp directory is offered');
+
     $id3 = $ids[] = "192.0.2.53:{$tag}:login";
     $moved = $expectedDir . '.secaudit-' . bin2hex(random_bytes(4));
     $check(rename($expectedDir, $moved), 'test setup: move the real state dir aside');
     try {
         $foreign = $scratch . '/foreign-dir';
         mkdir($foreign, 0777);
+        chmod($foreign, 0777);
         symlink($foreign, $expectedDir);
-        $check(RateLimiter::isLimited($id3, 5, 60) === true, 'a symlinked state directory makes every attempt limited');
+        $check(RateLimiter::isLimited($id3, 2, 60) === false, 'a symlinked state directory no longer locks everyone out');
         $check(glob($foreign . '/*') === [], 'nothing was written through the symlinked directory');
+        $f3 = (string) $stateFile($id3);
+        $check(str_starts_with($f3, $fallbackDir . '/') && is_file($f3), 'the counter went to the fallback directory');
+        $check(is_dir($fallbackDir) && !is_link($fallbackDir) && (fileperms($fallbackDir) & 0777) === 0700,
+            'the fallback directory is a real 0700 directory');
+        RateLimiter::isLimited($id3, 2, 60);
+        $check(RateLimiter::isLimited($id3, 2, 60) === true, 'the fallback still counts: the third attempt over a limit of 2 is limited');
+        RateLimiter::reset($id3);
+        $check(!is_file($f3), 'reset() clears the fallback counter');
+        unlink($expectedDir);
+
+        // A directory we cannot write to (chown'ed away, read-only...).
+        mkdir($expectedDir, 0500);
+        $check(RateLimiter::isLimited($id3, 5, 60) === false, 'an unwritable state directory falls back instead of answering 429');
+        $check(str_starts_with((string) $stateFile($id3), $fallbackDir . '/'), '... to the fallback directory');
+        chmod($expectedDir, 0700);
+        rmdir($expectedDir);
+
+        // A plain file where the directory should be.
+        file_put_contents($expectedDir, 'x');
+        $check(RateLimiter::isLimited($id3, 5, 60) === false, 'a file in place of the state directory falls back too');
+        unlink($expectedDir);
+    } finally {
+        if (is_link($expectedDir) || is_file($expectedDir)) {
+            unlink($expectedDir);
+        } elseif (is_dir($expectedDir)) {
+            @chmod($expectedDir, 0700);
+            @rmdir($expectedDir);
+        }
+        rename($moved, $expectedDir);
+    }
+    $check(is_dir($expectedDir) && !is_link($expectedDir), 'test teardown: the real state dir is back');
+    $f3b = (string) $stateFile($id3);
+    $check(str_starts_with($f3b, $expectedDir . '/'), 'with the real directory back, the counters live there again');
+
+    echo "F. Ownership rules (prepareDirectory)\n";
+    $prepare = new ReflectionMethod(RateLimiter::class, 'prepareDirectory');
+    $prepare->setAccessible(true);
+    $me = function_exists('posix_geteuid') ? posix_geteuid() : getmyuid();
+    $other = $me + 4242;
+    // Stage "owned by someone else" for listed paths; everything else is real.
+    $foreignPaths = [];
+    $ownerOf = static function (string $p) use (&$foreignPaths, $other): int|false {
+        return in_array($p, $foreignPaths, true) ? $other : @fileowner($p);
+    };
+    $d = $scratch . '/owned';
+    mkdir($d, 0770);
+    chmod($d, 0770);
+    $foreignPaths = [$d];
+    $got = $prepare->invoke(null, $d, true, $me, $ownerOf);
+    $check($got === $d . '/u' . $me, 'foreign-owned, group-shared directory (chown deploy:www-data storage): counters go to a private subdirectory');
+    $check(is_string($got) && is_dir($got) && !is_link($got) && fileowner($got) === $me && (fileperms($got) & 0777) === 0700,
+        '... which is ours and 0700');
+    $check((fileperms($d) & 0777) === 0770, '... and the shared parent keeps its mode');
+    $check($prepare->invoke(null, $d, false, $me, $ownerOf) === null, 'the temp-dir fallback never accepts a directory owned by someone else');
+    $check($prepare->invoke(null, $d, true, 0, $ownerOf) === null, 'root never writes into a directory owned by another uid');
+    rmdir($d . '/u' . $me);
+    // A co-tenant pre-created our private subdirectory: it is not ours, refused.
+    mkdir($d . '/u' . $me, 0700);
+    $foreignPaths = [$d, $d . '/u' . $me];
+    $check($prepare->invoke(null, $d, true, $me, $ownerOf) === null, 'a private subdirectory created by someone else is refused');
+    rmdir($d . '/u' . $me);
+    // ... or planted a symlink there.
+    mkdir($scratch . '/elsewhere', 0700);
+    symlink($scratch . '/elsewhere', $d . '/u' . $me);
+    $foreignPaths = [$d];
+    $check($prepare->invoke(null, $d, true, $me, $ownerOf) === null, 'a symlink in place of the private subdirectory is refused');
+    unlink($d . '/u' . $me);
+    rmdir($scratch . '/elsewhere');
+    chmod($d, 0777);
+    $check($prepare->invoke(null, $d, true, $me, $ownerOf) === null && !is_dir($d . '/u' . $me),
+        'world-writable and owned by someone else: refused, nothing created in it');
+    $foreignPaths = [];
+    $check($prepare->invoke(null, $d, true, $me, $ownerOf) === $d && (fileperms($d) & 0777) === 0700,
+        'world-writable but ours: tightened to 0700 and used directly');
+    chmod($d, 0500);
+    $check($prepare->invoke(null, $d, true, $me, $ownerOf) === null, 'not writable by us: refused');
+    chmod($d, 0700);
+    rmdir($d);
+    $l = $scratch . '/linked';
+    mkdir($scratch . '/target', 0700);
+    symlink($scratch . '/target', $l);
+    $check($prepare->invoke(null, $l, true, $me, $ownerOf) === null, 'a symlink is refused even when its target is ours');
+    unlink($l);
+    rmdir($scratch . '/target');
+
+    echo "G. No usable directory at all: the degraded limiter still limits\n";
+    $id4 = "192.0.2.54:{$tag}:login";
+    $moved = $expectedDir . '.secaudit-' . bin2hex(random_bytes(4));
+    $check(rename($expectedDir, $moved), 'test setup: move the real state dir aside');
+    $logFile = $root . '/storage/logs/app.log';
+    $countLog = static function (string $needle) use ($logFile): int {
+        return substr_count((string) @file_get_contents($logFile), $needle);
+    };
+    $notDir = $scratch . '/not-a-dir';
+    // A child PHP whose temp dir is a regular file (no fallback either), with or
+    // without APCu, with or without a session; prints one char per attempt.
+    $runChild = static function (bool $apcu, bool $session) use ($root, $notDir, $id4, $testAppKey): string {
+        $code = 'require ' . var_export($root . '/vendor/autoload.php', true) . ';'
+            . ($session ? 'ini_set("session.use_cookies","0"); session_save_path(' . var_export(dirname($notDir), true) . '); session_start();' : '')
+            . '$r = ""; for ($i = 0; $i < 3; $i++) { $r .= \App\Support\RateLimiter::isLimited(' . var_export($id4, true) . ', 1, 60) ? "L" : "-"; }'
+            . '\App\Support\RateLimiter::reset(' . var_export($id4, true) . ');'
+            . '$r .= \App\Support\RateLimiter::isLimited(' . var_export($id4, true) . ', 1, 60) ? "L" : "-";'
+            . 'echo $r;';
+        $cmd = 'APP_KEY=' . escapeshellarg($testAppKey) . ' ' . escapeshellarg(PHP_BINARY)
+            . ' -d sys_temp_dir=' . escapeshellarg($notDir . '/sub')
+            . ' -d apc.enable_cli=' . ($apcu ? '1' : '0')
+            . ' -r ' . escapeshellarg($code) . ' 2>&1';
+        return trim((string) shell_exec($cmd));
+    };
+    try {
+        symlink($scratch, $expectedDir);
+        file_put_contents($notDir, 'x');
+        $before = $countLog('RateLimiter: no usable state directory');
+        if (function_exists('apcu_enabled')) {
+            $check($runChild(true, false) === '-LL-', 'APCu: attempts over the limit are still limited, reset() clears it');
+            $check($countLog('RateLimiter: no usable state directory') - $before === 1, 'the degraded mode is logged once for the whole request');
+        } else {
+            echo "  note: APCu extension not loaded, APCu case not run\n";
+        }
+        $check($runChild(false, true) === '-LL-', 'no APCu, active session: the in-session counter still limits, reset() clears it');
+        $beforeOff = $countLog('no APCu and no session, throttling is off');
+        $check($runChild(false, false) === '----', 'nothing available at all: not limited (never a lock-out)');
+        $check($countLog('no APCu and no session, throttling is off') - $beforeOff === 1, '... and that is logged once');
+        $check(glob($scratch . '/*.json') === [], 'nothing was written through the symlinked directory');
     } finally {
         if (is_link($expectedDir)) {
             unlink($expectedDir);
         }
         rename($moved, $expectedDir);
+        @unlink($notDir);
+        foreach (glob($scratch . '/sess_*') ?: [] as $sf) {
+            @unlink($sf);
+        }
     }
-    $check(is_dir($expectedDir) && !is_link($expectedDir), 'test teardown: the real state dir is back');
+    echo "H. APCu counter: the window comes from the stored start, never from the TTL\n";
+    if (extension_loaded('apcu')) {
+        // In a child with APCu on in the CLI. Each line printed is "OK|FAIL label".
+        $code = 'require ' . var_export($root . '/vendor/autoload.php', true) . ';'
+            . '$m = new ReflectionMethod(\App\Support\RateLimiter::class, "apcuCount"); $m->setAccessible(true);'
+            . '$k = "pinakes_rl_test_" . bin2hex(random_bytes(6)); $w = 60; $now = time();'
+            . '$o = function ($ok, $l) { echo ($ok ? "OK" : "FAIL") . "|" . $l . "\n"; };'
+            . '$o($m->invoke(null, $k, $w) === 1 && $m->invoke(null, $k, $w) === 2 && $m->invoke(null, $k, $w) === 3, "counts 1, 2, 3 within a window");'
+            . '$info = apcu_key_info($k); $o(is_array($info) && (int) $info["ttl"] === $w, "the entry starting a window carries the TTL");'
+            // The race outcome: an entry with no TTL, a full count, and a window long gone.
+            . 'apcu_store($k, (($now - $w - 5) << 20) | 99, 0);'
+            . '$o($m->invoke(null, $k, $w) === 1, "an expired window whose entry still exists (no TTL) starts a fresh window: no permanent lock-out");'
+            . '$o($m->invoke(null, $k, $w) === 2, "and the fresh window then counts normally");'
+            // Contention exhausting the compare-and-swap retries fails closed.
+            . '$o($m->invoke(null, $k, $w, 0) > 1000, "retries exhausted under contention: counted as limited (fail closed)");'
+            // Two requests both see the expired window: only one may reset it.
+            . 'apcu_store($k, (($now - $w - 5) << 20) | 99, 0); $inner = null;'
+            . '$outer = $m->invoke(null, $k, $w, 16, function () use ($m, $k, $w, &$inner) { static $once = false; if (!$once) { $once = true; $inner = $m->invoke(null, $k, $w); } });'
+            . '$o($inner === 1 && $outer === 2, "concurrent reset of an expired window: one resets it, the other counts on top (got " . var_export($inner, true) . "/" . var_export($outer, true) . ")");'
+            // A reset must not keep the old TTL: an entry about to expire (TTL 2 s)
+            // is reset, the old TTL runs out, and the new window's count survives.
+            . 'apcu_store($k, (($now - $w - 5) << 20) | 99, 2);'
+            . '$first = $m->invoke(null, $k, $w); $info = apcu_key_info($k);'
+            . '$o($first === 1 && is_array($info) && (int) $info["ttl"] === $w, "a window reset writes a fresh entry with the full TTL");'
+            . 'sleep(3);'
+            . '$o($m->invoke(null, $k, $w) === 2, "after the old TTL would have run out the new window still counts (no early eviction)");'
+            // A tombstone left by a request that died mid-reset is taken over.
+            . 'apcu_store($k, -($now - 60), 0);'
+            . '$o($m->invoke(null, $k, $w) === 1, "a stale reset tombstone is taken over: fresh window");'
+            . 'apcu_store($k, -time(), 0);'
+            . '$o($m->invoke(null, $k, $w, 3) > 1000, "a live reset by another request that never finishes: retries run out, limited");'
+            . 'apcu_delete($k);'
+            . '$o($m->invoke(null, $k, $w, 32, null, 4) === null, "32-bit PHP: the packed counter is not used (the session counter takes over)");'
+            . 'apcu_store($k, (($now - 10) << 20) | 99, 0);'
+            . '$o($m->invoke(null, $k, $w) === 100, "a live window keeps counting (still limited)");'
+            . 'apcu_store($k, "garbage", 0);'
+            . '$o($m->invoke(null, $k, $w) === 1, "a foreign value under the key is replaced by a fresh window");'
+            . 'apcu_delete($k);';
+        $out = (string) shell_exec(escapeshellarg(PHP_BINARY) . ' -d apc.enable_cli=1 -r ' . escapeshellarg($code) . ' 2>&1');
+        $lines = array_filter(explode("\n", trim($out)));
+        $check(count($lines) === 13, 'the APCu child ran all its checks' . (count($lines) === 13 ? '' : ': ' . trim($out)));
+        foreach ($lines as $line) {
+            [$status, $label] = array_pad(explode('|', $line, 2), 2, $line);
+            $check($status === 'OK', 'APCu: ' . $label);
+        }
+    } else {
+        echo "  note: APCu extension not loaded, APCu counter checks not run\n";
+    }
 } finally {
     foreach ($ids as $cleanupId) {
         RateLimiter::reset($cleanupId);
@@ -111,6 +321,9 @@ try {
         is_dir($f) && !is_link($f) ? @rmdir($f) : @unlink($f);
     }
     @rmdir($scratch);
+    if (!$fallbackExisted) {
+        @rmdir((string) RateLimiter::fallbackStateDirectory()); // only if this run created it (and left it empty)
+    }
 }
 
 echo "\n{$pass} passed, {$fail} failed\n";

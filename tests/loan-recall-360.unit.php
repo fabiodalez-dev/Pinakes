@@ -159,7 +159,7 @@ $check(
 $registrationPendingSrc = substr(
     (string) $runSource,
     (int) strpos((string) $runSource, 'public function sendUserRegistrationPending'),
-    4000
+    6000
 );
 $check(
     str_contains($registrationPendingSrc, 'formatEmailDate($user[\'created_at\'], true, $locale)'),
