@@ -77,7 +77,7 @@ $display = static function (?string $value, string $placeholder = '—'): string
       <i class="fas fa-exclamation-triangle text-amber-600 mt-0.5"></i>
       <div>
         <p class="font-medium text-amber-900"><?= __("Utente approvato, ma l'email non è stata inviata") ?></p>
-        <p class="text-sm text-amber-700 mt-1"><?= __("L'utente aveva già verificato il proprio indirizzo e può accedere. L'email non è stata inviata: controlla che APP_CANONICAL_URL sia impostato nel file .env e che la posta funzioni.") ?></p>
+        <p class="text-sm text-amber-700 mt-1"><?= __("L'utente aveva già verificato il proprio indirizzo e può accedere. L'email non è stata inviata: controlla che nel file .env sia impostato APP_CANONICAL_URL oppure APP_TRUSTED_HOSTS e che la posta funzioni.") ?></p>
       </div>
     </div>
   <?php endif; ?>
@@ -97,7 +97,17 @@ $display = static function (?string $value, string $placeholder = '—'): string
       <i class="fas fa-exclamation-circle text-red-600 mt-0.5"></i>
       <div>
         <p class="font-medium text-red-900"><?= __("Approvazione annullata: l'email non è stata inviata") ?></p>
-        <p class="text-sm text-red-700 mt-1"><?= __("L'utente è rimasto sospeso perché non è stato possibile inviargli l'email di verifica. Controlla che APP_CANONICAL_URL sia impostato nel file .env e che la posta funzioni, poi riprova ad approvarlo oppure usa «Attiva Direttamente».") ?></p>
+        <p class="text-sm text-red-700 mt-1"><?= __("L'utente è rimasto sospeso perché non è stato possibile inviargli l'email di verifica. Controlla che nel file .env sia impostato APP_CANONICAL_URL oppure APP_TRUSTED_HOSTS e che la posta funzioni, poi riprova ad approvarlo oppure usa «Attiva Direttamente».") ?></p>
+      </div>
+    </div>
+  <?php endif; ?>
+
+  <?php if ($error === 'approval_rollback_failed'): ?>
+    <div class="bg-red-50 border border-red-200 rounded-lg p-4 flex items-start gap-3" role="alert">
+      <i class="fas fa-exclamation-circle text-red-600 mt-0.5"></i>
+      <div>
+        <p class="font-medium text-red-900"><?= __("Approvazione non annullata: l'account è attivo ma non verificato") ?></p>
+        <p class="text-sm text-red-700 mt-1"><?= __("L'email di verifica non è stata inviata e non è stato possibile riportare l'utente allo stato sospeso: l'account è attivo, ma il suo indirizzo non è verificato e il link non gli è mai arrivato. Da «Modifica Utente» imposta lo stato su «Sospeso», poi riprova ad approvarlo oppure usa «Attiva Direttamente». Controlla anche la connessione al database e che nel file .env sia impostato APP_CANONICAL_URL oppure APP_TRUSTED_HOSTS.") ?></p>
       </div>
     </div>
   <?php endif; ?>

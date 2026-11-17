@@ -24,12 +24,28 @@ use App\Controllers\UsersController;
 final class ApprovalTestConnection extends mysqli
 {
     public ?Closure $duringSend = null;
+    /** Runs once, right before the direct activation's UPDATE is prepared. */
+    public ?Closure $beforeActivate = null;
+    /** Makes the undo of a failed approval fail, as a lost connection would. */
+    public bool $failRevert = false;
+    /** Keeps the welcome email of a direct activation from reaching mail(). */
+    public bool $blockMail = false;
 
     public function prepare(string $query): mysqli_stmt|false
     {
         if ($this->duringSend !== null && str_contains($query, 'SELECT nome, cognome, email, codice_tessera')) {
             ($this->duringSend)();
             $this->duringSend = null;
+        }
+        if ($this->blockMail && str_contains($query, 'SELECT nome, cognome, email, codice_tessera')) {
+            throw new RuntimeException('mail blocked by the test');
+        }
+        if ($this->beforeActivate !== null && str_contains($query, 'email_verificata = 1')) {
+            ($this->beforeActivate)();
+            $this->beforeActivate = null;
+        }
+        if ($this->failRevert && str_contains($query, 'SET stato = ?,')) {
+            throw new mysqli_sql_exception('revert failed (simulated)');
         }
         return parent::prepare($query);
     }
@@ -82,17 +98,27 @@ foreach (['APP_CANONICAL_URL', 'APP_TRUSTED_HOSTS'] as $n) {
     unset($_ENV[$n], $_SERVER[$n]);
 }
 $_SERVER['HTTP_HOST'] = 'attacker.example';
+// A sub-directory install: url() keeps the base path it resolved first, so the
+// redirects can be checked for it while no host is configured for the mails.
+putenv('APP_CANONICAL_URL=https://library.example/pinakes');
+$_ENV['APP_CANONICAL_URL'] = 'https://library.example/pinakes';
+$basePath = \App\Support\HtmlHelper::getBasePath();
+putenv('APP_CANONICAL_URL');
+unset($_ENV['APP_CANONICAL_URL']);
+if ($basePath !== '/pinakes') {
+    $skip('the base path could not be pinned for this run (' . $basePath . ')');
+}
 
 $db->begin_transaction();
 try {
-    $mk = static function (int $verified) use ($db): int {
+    $mk = static function (int $verified, ?string $role = 'standard') use ($db): int {
         $suffix = bin2hex(random_bytes(4));
         $email = "audit-approval-{$suffix}@example.test";
         $hash = password_hash('x-' . $suffix, PASSWORD_DEFAULT);
         $tessera = 'ZP' . strtoupper($suffix);
         $stmt = $db->prepare("INSERT INTO utenti (nome, cognome, email, password, telefono, indirizzo, tipo_utente, stato, email_verificata, codice_tessera, locale)
-                              VALUES ('Audit', 'Approval', ?, ?, '000', 'Audit street 1', 'standard', 'sospeso', ?, ?, 'it_IT')");
-        $stmt->bind_param('ssis', $email, $hash, $verified, $tessera);
+                              VALUES ('Audit', 'Approval', ?, ?, '000', 'Audit street 1', ?, 'sospeso', ?, ?, 'it_IT')");
+        $stmt->bind_param('sssis', $email, $hash, $role, $verified, $tessera);
         $stmt->execute();
         $id = (int) $db->insert_id;
         $stmt->close();
@@ -101,11 +127,23 @@ try {
     $state = static function (int $id) use ($db): array {
         return (array) $db->query("SELECT stato, token_verifica_email, data_token_verifica FROM utenti WHERE id = {$id}")->fetch_assoc();
     };
-    $approve = static function (int $id) use ($db): string {
-        $_SESSION = ['user' => ['id' => 1, 'tipo_utente' => 'staff', 'stato' => 'attivo']];
+    $approve = static function (int $id, string $as = 'staff') use ($db): string {
+        $_SESSION = ['user' => ['id' => 1, 'tipo_utente' => $as, 'stato' => 'attivo']];
         $request = (new Slim\Psr7\Factory\ServerRequestFactory())->createServerRequest('POST', "/admin/users/{$id}/approve-and-send-activation");
         $out = (new UsersController())->approveAndSendActivation($request, new Slim\Psr7\Response(), $db, ['id' => (string) $id]);
         $_SESSION = [];
+        return $out->getHeaderLine('Location');
+    };
+    $activate = static function (int $id, string $as = 'staff') use ($db): string {
+        $_SESSION = ['user' => ['id' => 1, 'tipo_utente' => $as, 'stato' => 'attivo']];
+        $request = (new Slim\Psr7\Factory\ServerRequestFactory())->createServerRequest('POST', "/admin/users/{$id}/activate-directly");
+        $db->blockMail = true;
+        try {
+            $out = (new UsersController())->activateDirectly($request, new Slim\Psr7\Response(), $db, ['id' => (string) $id]);
+        } finally {
+            $db->blockMail = false;
+            $_SESSION = [];
+        }
         return $out->getHeaderLine('Location');
     };
 
@@ -146,6 +184,76 @@ try {
     $row = $state($verified);
     $check(str_contains($location, 'success=approved_email_not_sent'), 'it stays approved, with a notice that the email was not sent (' . $location . ')');
     $check($row['stato'] === 'attivo', "and is 'attivo' (it can already sign in)");
+
+    echo "An account whose role is NULL (nullable column)\n";
+    $roleless = $mk(0, null);
+    $location = $approve($roleless, 'admin');
+    $check(!str_contains($location, 'error=state_changed'), 'the claim matches a NULL role instead of reporting a change (' . $location . ')');
+    $check(str_contains($location, 'error=approval_email_failed') && $state($roleless)['stato'] === 'sospeso',
+        'and the approval runs its normal course (undone: no mail can be sent)');
+
+    echo "The undo of a failed approval fails too\n";
+    $stuck = $mk(0);
+    $db->failRevert = true;
+    try {
+        $location = $approve($stuck);
+    } finally {
+        $db->failRevert = false;
+    }
+    $row = (array) $db->query("SELECT stato, email_verificata FROM utenti WHERE id = {$stuck}")->fetch_assoc();
+    $check($row['stato'] === 'attivo' && (int) $row['email_verificata'] === 0, 'premise: the account is left active and unverified');
+    $check(str_contains($location, 'error=approval_rollback_failed'),
+        'the admin is told exactly that, not a generic database error (' . $location . ')');
+    $view = (string) file_get_contents($root . '/app/Views/utenti/dettagli_utente.php');
+    $check(str_contains($view, "\$error === 'approval_rollback_failed'"), 'the user page has a banner for it');
+
+    echo "The banners name both settings the activation link accepts\n";
+    // NotificationService builds the link from APP_CANONICAL_URL or, failing
+    // that, APP_TRUSTED_HOSTS: telling the admin to set only the first one is
+    // wrong for an install that relies on the second.
+    preg_match_all('/__\("([^"]*APP_CANONICAL_URL[^"]*)"\)/', $view, $m);
+    $check(count($m[1]) === 3, 'three banners mention the site address settings');
+    foreach ($m[1] as $key) {
+        $check(str_contains($key, 'APP_TRUSTED_HOSTS'), 'the source text names APP_TRUSTED_HOSTS too: ' . mb_substr($key, 0, 50) . '…');
+        foreach (['it_IT', 'en_US', 'de_DE', 'fr_FR', 'da_DK'] as $loc) {
+            $cat = json_decode((string) file_get_contents($root . "/locale/{$loc}.json"), true);
+            $tr = is_array($cat) ? (string) ($cat[$key] ?? '') : '';
+            if (!str_contains($tr, 'APP_CANONICAL_URL') || !str_contains($tr, 'APP_TRUSTED_HOSTS')) {
+                $check(false, "{$loc} names both settings for: " . mb_substr($key, 0, 50) . '…');
+            }
+        }
+    }
+
+    echo "Redirects keep the base path of a sub-directory install\n";
+    $check(str_starts_with($approve($mk(0)), '/pinakes/admin/users/details/'), 'approve and send activation');
+    $direct = $mk(0);
+    $location = $activate($direct);
+    $check(str_starts_with($location, '/pinakes/admin/users/details/' . $direct . '?success=activated_directly'),
+        'activate directly (' . $location . ')');
+    $check($state($direct)['stato'] === 'attivo', 'and the account is active');
+
+    echo "Activate directly races another change\n";
+    $raced = $mk(0);
+    $otherToken = bin2hex(random_bytes(24));
+    $db->beforeActivate = static function () use ($db, $raced, $otherToken): void {
+        // A concurrent "approve and send activation" landed after the read.
+        $db->query("UPDATE utenti SET stato = 'attivo', token_verifica_email = '{$otherToken}' WHERE id = {$raced}");
+    };
+    $location = $activate($raced);
+    $row = (array) $db->query("SELECT stato, email_verificata, token_verifica_email FROM utenti WHERE id = {$raced}")->fetch_assoc();
+    $check(str_contains($location, 'error=state_changed'), 'the admin is told the account changed meanwhile (' . $location . ')');
+    $check((int) $row['email_verificata'] === 0 && $row['token_verifica_email'] === $otherToken,
+        'and the concurrent approval is not overwritten');
+    $promoted = $mk(0);
+    $db->beforeActivate = static function () use ($db, $promoted): void {
+        $db->query("UPDATE utenti SET tipo_utente = 'staff' WHERE id = {$promoted}");
+    };
+    $location = $activate($promoted);
+    $check(str_contains($location, 'error=state_changed') && $state($promoted)['stato'] === 'sospeso',
+        'a role changed after the permission check is not activated (' . $location . ')');
+    $nullRole = $mk(0, null);
+    $location = $activate($nullRole, 'admin');
+    $check(str_contains($location, 'success=activated_directly'), 'a NULL role can still be activated directly (' . $location . ')');
 
 } catch (\Throwable $e) {
     $fail++;

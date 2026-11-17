@@ -1011,7 +1011,7 @@ class UsersController
                 token_verifica_email = ?,
                 data_token_verifica = ?,
                 updated_at = NOW()
-            WHERE id = ? AND stato = 'sospeso' AND tipo_utente = ?
+            WHERE id = ? AND stato = 'sospeso' AND tipo_utente <=> ?
                 AND email_verificata <=> ? AND token_verifica_email <=> ? AND data_token_verifica <=> ?
         ");
         $stmt->bind_param('ssisiss', $token, $tokenExpiry, $userId, $previousRole, $previousVerified, $previousToken, $previousExpiry);
@@ -1055,6 +1055,16 @@ class UsersController
                 $restored = false;
                 $stillOwned = false;
             }
+            if (!$restored && $rollbackState === 'sospeso') {
+                // The undo itself failed: the account is left active with an
+                // unverified address and a link that was never mailed. Neither
+                // approval action can be retried from here (both require
+                // 'sospeso'), so the admin must be told exactly that.
+                \App\Support\SecureLogger::error('[Users] approval left active and unverified: the verification email failed and the approval could not be undone', [
+                    'user_id' => $userId,
+                ]);
+                return $response->withHeader('Location', $detailsUrl . '?error=approval_rollback_failed')->withStatus(302);
+            }
             if (!$restored || !$stillOwned) {
                 // Zero rows matched: another request changed the account while
                 // the email was being sent. It is neither "not suspended" nor an
@@ -1095,11 +1105,16 @@ class UsersController
         }
 
         if (!self::canChangeAccountState($user)) { return $response->withStatus(403); }
+        $detailsUrl = url("/admin/users/details/{$userId}");
         if ($user['stato'] !== 'sospeso') {
-            return $response->withHeader('Location', url("/admin/users/details/{$userId}?error=not_suspended"))->withStatus(302);
+            return $response->withHeader('Location', $detailsUrl . '?error=not_suspended')->withStatus(302);
         }
 
-        // Attiva direttamente: stato = attivo, email_verificata = 1, rimuovi token
+        // Attiva direttamente: stato = attivo, email_verificata = 1, rimuovi token.
+        // Only while the account is still the suspended one read above (same
+        // compare-and-set as approveAndSendActivation): a concurrent approval or
+        // role change in between must not be overwritten.
+        $previousRole = $user['tipo_utente'];
         $stmt = $db->prepare("
             UPDATE utenti
             SET stato = 'attivo',
@@ -1107,15 +1122,16 @@ class UsersController
                 token_verifica_email = NULL,
                 data_token_verifica = NULL,
                 updated_at = NOW()
-            WHERE id = ?
+            WHERE id = ? AND stato = 'sospeso' AND tipo_utente <=> ?
         ");
-        $stmt->bind_param('i', $userId);
+        $stmt->bind_param('is', $userId, $previousRole);
 
-        if (!$stmt->execute()) {
-            $stmt->close();
-            return $response->withHeader('Location', url("/admin/users/details/{$userId}?error=db_error"))->withStatus(302);
-        }
+        $saved = $stmt->execute();
+        $claimed = $stmt->affected_rows === 1;
         $stmt->close();
+        if (!$saved || !$claimed) {
+            return $response->withHeader('Location', $detailsUrl . ($saved ? '?error=state_changed' : '?error=db_error'))->withStatus(302);
+        }
 
         // Card validity from the patron type, when it sets one.
         \App\Support\PatronTypeAssignment::applyCardDurationOnApproval($db, $userId);
@@ -1125,10 +1141,7 @@ class UsersController
         $notifier->sendUserAccountApproved($userId);
 
         // Redirect con messaggio di successo
-        return $response->withHeader(
-            'Location',
-            "/admin/users/details/{$userId}?success=activated_directly"
-        )->withStatus(302);
+        return $response->withHeader('Location', $detailsUrl . '?success=activated_directly')->withStatus(302);
     }
 
     /**
