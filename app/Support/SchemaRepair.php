@@ -47,6 +47,12 @@ final class SchemaRepair
         if (@file_get_contents($marker) === $version) {
             return;
         }
+        // A fresh install in progress (.env already written, schema import
+        // still running) owns the schema: an anonymous request must not race
+        // its CREATE TABLE steps.
+        if (self::installInProgress($root)) {
+            return;
+        }
         // Only an installed application is repaired: during installation
         // the installer owns the schema. utenti exists in every install,
         // also in the oldest ones that predate the migrations table.
@@ -244,6 +250,29 @@ final class SchemaRepair
             }
         }
         return $out;
+    }
+
+    /**
+     * Lifetime of the installer's binding; mirrors Installer::INSTALL_OWNER_TTL
+     * (the installer class is not loaded by the application).
+     */
+    private const INSTALL_CLAIM_TTL = 43200;
+
+    /**
+     * True while the web installer holds a live install-in-progress claim
+     * (storage/.install_in_progress, written with .env and removed at the
+     * last step). Fails closed like the installer: a claim whose age cannot
+     * be read counts as live.
+     */
+    public static function installInProgress(string $root): bool
+    {
+        $claim = $root . '/storage/.install_in_progress';
+        clearstatcache(true, $claim);
+        if (!is_file($claim)) {
+            return false;
+        }
+        $mtime = @filemtime($claim);
+        return $mtime === false || (time() - $mtime) <= self::INSTALL_CLAIM_TTL;
     }
 
     private static function installedVersion(string $root): string

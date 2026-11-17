@@ -553,9 +553,11 @@ if (!$isCli) {
 // lacks. The update that installs a release runs the previous release's
 // updater, so this is where a newer repair first runs. Not while an update
 // holds maintenance mode: its migrations may still be running.
-// Not during a fresh install either (.env written, .installed not yet):
-// an anonymous request would race the installer's own CREATE TABLE steps.
-if (!$isCli && !file_exists($maintenanceFile) && file_exists($installerLockFile)) {
+// Not during a fresh install either: runOncePerVersion() skips while the
+// installer holds its install-in-progress claim, since an anonymous request
+// would race the installer's own CREATE TABLE steps. An install with .env
+// but no .installed (treated as installed above) is still repaired.
+if (!$isCli && !file_exists($maintenanceFile)) {
     try {
         \App\Support\SchemaRepair::runOncePerVersion($container->get('db'));
     } catch (\Throwable $e) {

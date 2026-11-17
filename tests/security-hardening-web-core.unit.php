@@ -161,7 +161,9 @@ $check(str_contains($sc, "\$limitSql = \$isOperator ? '' : ' LIMIT '"), 'non-ope
 echo "-- [27/28/98] public/index.php --\n";
 $index = $code($src('public/index.php'));
 $check(str_contains($index, "storage/cache/update.lock") && str_contains($index, '!$maintenanceUpdateRunning && time() - $maintenanceTime > 1800'), 'stale maintenance flag is kept while the updater holds update.lock');
-$check(str_contains($index, '!file_exists($maintenanceFile) && file_exists($installerLockFile)'), 'SchemaRepair skipped while .installed is absent');
+$check(str_contains($index, "if (!\$isCli && !file_exists(\$maintenanceFile)) {\n    try {\n        \\App\\Support\\SchemaRepair::runOncePerVersion(")
+    && str_contains($src('app/Support/SchemaRepair.php'), 'if (self::installInProgress($root))'),
+    'SchemaRepair is gated on the installer claim, not on .installed (.env alone counts as installed)');
 $check(str_contains($index, '\\App\\Support\\HtmlHelper::isRemoteAddrTrustedProxy()')
     && str_contains($index, "getenv('APP_ENV') === 'production' && \$httpsForSharedHeaders"), 'CSP upgrade-insecure-requests needs a trusted proxy for X-Forwarded-*');
 
