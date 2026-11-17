@@ -3041,7 +3041,7 @@ function setupEnhancedAutocomplete(inputId, suggestId, fetchUrl, onSelect, onEmp
 async function handleDuplicateBook(existingBook) {
     const result = await Swal.fire({
         icon: 'warning',
-        title: __('Libro Già Esistente'),
+        title: escapeHtml(__('Libro Già Esistente')),
         html: `
             <p class="mb-4">${escapeHtml(__('Esiste già un libro con lo stesso identificatore (ISBN/EAN).'))}</p>
             <div class="bg-gray-100 p-4 rounded-lg mb-4 text-left">
@@ -3058,7 +3058,7 @@ async function handleDuplicateBook(existingBook) {
         showDenyButton: true,
         confirmButtonText: '<i class="fas fa-plus mr-2"></i>' + escapeHtml(__('Aumenta Copie')),
         denyButtonText: '<i class="fas fa-eye mr-2"></i>' + escapeHtml(__('Visualizza Libro')),
-        cancelButtonText: __('Annulla'),
+        cancelButtonText: escapeHtml(__('Annulla')),
         confirmButtonColor: '#10b981',
         denyButtonColor: '#3b82f6',
         reverseButtons: true
@@ -3076,19 +3076,19 @@ async function handleDuplicateBook(existingBook) {
 // Increase copies of existing book
 async function increaseCopies(book) {
     const { value: copiesToAdd } = await Swal.fire({
-        title: __('Aumenta Copie'),
+        title: escapeHtml(__('Aumenta Copie')),
         html: `
             <p class="mb-4">${escapeHtml(__('Quante copie vuoi aggiungere a "%s"?')).replace('%s', escapeHtml(book.title))}</p>
             <input type="number" id="copiesToAdd" class="swal2-input" value="1" min="1" max="100" style="width: 150px;">
         `,
         focusConfirm: false,
         showCancelButton: true,
-        confirmButtonText: __('Aggiungi'),
-        cancelButtonText: __('Annulla'),
+        confirmButtonText: escapeHtml(__('Aggiungi')),
+        cancelButtonText: escapeHtml(__('Annulla')),
         preConfirm: () => {
             const value = parseInt(document.getElementById('copiesToAdd').value);
             if (!value || value < 1) {
-                Swal.showValidationMessage(__('Inserisci un numero valido di copie'));
+                Swal.showValidationMessage(escapeHtml(__('Inserisci un numero valido di copie')));
                 return false;
             }
             return value;
@@ -3098,7 +3098,7 @@ async function increaseCopies(book) {
     if (copiesToAdd) {
         // Show loading
         Swal.fire({
-            title: __('Aggiornamento in corso...'),
+            title: escapeHtml(__('Aggiornamento in corso...')),
             text: __('Attendere prego'),
             allowOutsideClick: false,
             showConfirmButton: false,
@@ -3124,9 +3124,9 @@ async function increaseCopies(book) {
             if (data.code === 'SESSION_EXPIRED' || data.code === 'CSRF_INVALID') {
                 await Swal.fire({
                     icon: 'error',
-                    title: __('Errore di sicurezza'),
+                    title: escapeHtml(__('Errore di sicurezza')),
                     text: data.error || __('Errore di sicurezza'),
-                    confirmButtonText: __('OK')
+                    confirmButtonText: escapeHtml(__('OK'))
                 });
                 setTimeout(() => window.location.reload(), 2000);
                 return;
@@ -3136,9 +3136,9 @@ async function increaseCopies(book) {
             if (!response.ok || data.error) {
                 await Swal.fire({
                     icon: 'error',
-                    title: __('Errore'),
+                    title: escapeHtml(__('Errore')),
                     text: data.error || data.message || __('Errore durante l\'aggiornamento delle copie'),
-                    confirmButtonText: __('OK')
+                    confirmButtonText: escapeHtml(__('OK'))
                 });
                 return;
             }
@@ -3146,13 +3146,13 @@ async function increaseCopies(book) {
             if (data.success) {
                 await Swal.fire({
                     icon: 'success',
-                    title: __('Copie Aggiunte!'),
+                    title: escapeHtml(__('Copie Aggiunte!')),
                     html: `
                         <p class="mb-2">${escapeHtml(__('Hai aggiunto %s copie a "%s"')).replace('%s', copiesToAdd).replace('%s', escapeHtml(book.title))}</p>
                         <p class="text-sm text-gray-600">${escapeHtml(__('Copie in circolazione'))}: ${data.copie_totali}</p>
                         <p class="text-sm text-gray-600">${escapeHtml(__('Copie disponibili:'))}: ${data.copie_disponibili}</p>
                     `,
-                    confirmButtonText: __('OK')
+                    confirmButtonText: escapeHtml(__('OK'))
                 });
                 // Redirect to book list
                 window.location.href = window.BASE_PATH + '/admin/books';
@@ -3160,7 +3160,7 @@ async function increaseCopies(book) {
                 const error = data;
                 Swal.fire({
                     icon: 'error',
-                    title: __('Errore'),
+                    title: escapeHtml(__('Errore')),
                     text: error.message || __('Impossibile aggiornare le copie.')
                 });
             }
@@ -3168,7 +3168,7 @@ async function increaseCopies(book) {
             console.error('Error increasing copies:', error);
             Swal.fire({
                 icon: 'error',
-                title: __('Errore'),
+                title: escapeHtml(__('Errore')),
                 text: __('Si è verificato un errore di rete.')
             });
         }

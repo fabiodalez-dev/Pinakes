@@ -533,6 +533,8 @@ $exceptions = [
         'Swal text option: plain text'],
     ['app/Views/dashboard/index.php', 'moreLinkText: function (n)',
         'FullCalendar renders moreLinkText as a text node'],
+    ['app/Views/events/index.php', 'titleText: <?= json_encode(__("Sei sicuro di voler eliminare l\'evento")',
+        'SwalApp.confirmDelete() titleText: plain text, shown as is by confirm() and HTML-escaped by confirmDelete for the Swal title'],
     ['app/Views/editori/modifica_editore.php', 'text: <?= json_encode(__("Sei sicuro di voler aggiornare l\'editore")',
         'SwalApp.confirm() text option: plain text'],
     ['app/Views/frontend/book-detail.php', 'window.SwalApp.success(undefined,',
