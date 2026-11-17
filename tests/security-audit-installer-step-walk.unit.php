@@ -91,7 +91,15 @@ $mkSite = static function () use ($tmpRoot, $ROOT, $stubs, &$seamsOk): string {
         $installer,
         $n2
     );
-    $seamsOk = $seamsOk && $n1 === 1 && $n2 === 1;
+    // Each simulated request runs as a CLI subprocess, but it stands for a web
+    // request: answer isInstalled() with the web predicate, not the CLI one.
+    $installer = str_replace(
+        'protected function runsUnderCli(): bool {',
+        'protected function runsUnderCli(): bool { return false;',
+        $installer,
+        $n3
+    );
+    $seamsOk = $seamsOk && $n1 === 1 && $n2 === 1 && $n3 === 1;
     file_put_contents($site . '/installer/index.php', $index);
     file_put_contents($site . '/installer/classes/Installer.php', $installer);
     copy($ROOT . '/installer/classes/Validator.php', $site . '/installer/classes/Validator.php');
