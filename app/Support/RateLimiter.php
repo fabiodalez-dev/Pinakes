@@ -246,22 +246,30 @@ class RateLimiter
      * Count one attempt in APCu and return the attempts in the current window,
      * or null when APCu cannot hold the counter (32-bit PHP).
      *
-     * The entry is one integer packing [window_start, count] (64-bit PHP only:
-     * the packed start would overflow a 32-bit int). Every change is an
-     * apcu_add() or an apcu_cas() against the value just read, the window reset
-     * included, so concurrent requests can neither lose an attempt nor reset a
-     * window twice. The window is judged from the stored start, never from the
-     * entry's TTL: an entry that outlived its TTL, or one left without a TTL,
-     * starts a fresh window instead of locking the identifier out for good.
-     * When the compare-and-swap keeps losing (heavy contention, which is what
-     * an attacker produces), the attempt counts as limited: fail closed.
+     * One entry per identifier, a single integer packing [window_start, count]
+     * (64-bit PHP only: the packed start would overflow a 32-bit int).
      *
-     * $maxTries and $beforeWrite (run between the read and the write) exist
-     * for the tests.
+     *  - Missing: apcu_add() of a fresh window, with the TTL. One request wins,
+     *    the others retry against the new entry.
+     *  - Live window: apcu_cas() from the value read to count + 1, so
+     *    concurrent requests never lose an attempt.
+     *  - Expired window (judged from the stored start, never from the TTL, so
+     *    an entry left without a TTL cannot lock anyone out): one request swaps
+     *    the stale value for a tombstone (a negative timestamp) with
+     *    apcu_cas(), then deletes it and apcu_add()s the fresh window with a
+     *    fresh TTL. A reset never keeps the old TTL, which could evict the new
+     *    window early and hand out extra attempts. The others retry. A
+     *    tombstone left by a request that died mid-reset is taken over after
+     *    a few seconds.
+     * When the retries run out (contention, which is what an attacker
+     * produces), the attempt counts as limited: fail closed.
+     *
+     * $maxTries, $beforeWrite (run between the read and the write) and
+     * $intSize exist for the tests.
      */
-    private static function apcuCount(string $key, int $window, int $maxTries = 16, ?callable $beforeWrite = null): ?int
+    private static function apcuCount(string $key, int $window, int $maxTries = 32, ?callable $beforeWrite = null, int $intSize = PHP_INT_SIZE): ?int
     {
-        if (PHP_INT_SIZE < 8) {
+        if ($intSize < 8) {
             return null;
         }
         $window = max(1, $window);
@@ -273,25 +281,45 @@ class RateLimiter
             if ($beforeWrite !== null) {
                 $beforeWrite();
             }
-            if (!$found || !is_int($current)) {
-                if ($found) {
-                    apcu_delete($key); // not ours / corrupt: start over
-                }
+            if (!$found) {
                 if (apcu_add($key, $fresh, $window)) {
                     return 1;
                 }
-                continue; // somebody else created it first
+                continue; // somebody else started the window first
+            }
+            if (!is_int($current) || $current === 0) {
+                apcu_delete($key); // not ours / corrupt: start over
+                continue;
+            }
+            if ($current < 0) {
+                // Another request is resetting the window. Take over only a
+                // tombstone whose owner evidently died.
+                if ($now + $current > 5 && apcu_cas($key, $current, -$now)) {
+                    apcu_delete($key);
+                    if (apcu_add($key, $fresh, $window)) {
+                        return 1;
+                    }
+                }
+                usleep(1000);
+                continue;
             }
             $start = $current >> self::APCU_COUNT_BITS;
             $count = $current & $mask;
-            $next = ($now - $start >= $window || $start > $now)
-                ? $fresh // a new window; it keeps the old TTL, harmless since the start decides
-                : ($start << self::APCU_COUNT_BITS) | min($count + 1, $mask);
+            if ($now - $start >= $window || $start > $now) {
+                if (apcu_cas($key, $current, -$now)) {
+                    apcu_delete($key);
+                    if (apcu_add($key, $fresh, $window)) {
+                        return 1;
+                    }
+                }
+                continue;
+            }
+            $next = ($start << self::APCU_COUNT_BITS) | min($count + 1, $mask);
             if (apcu_cas($key, $current, $next)) {
                 return $next & $mask;
             }
         }
-        return $mask; // contention exhausted the retries: limited
+        return $mask; // retries exhausted: limited
     }
 
     /**

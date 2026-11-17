@@ -281,6 +281,20 @@ try {
             . 'apcu_store($k, (($now - $w - 5) << 20) | 99, 0); $inner = null;'
             . '$outer = $m->invoke(null, $k, $w, 16, function () use ($m, $k, $w, &$inner) { static $once = false; if (!$once) { $once = true; $inner = $m->invoke(null, $k, $w); } });'
             . '$o($inner === 1 && $outer === 2, "concurrent reset of an expired window: one resets it, the other counts on top (got " . var_export($inner, true) . "/" . var_export($outer, true) . ")");'
+            // A reset must not keep the old TTL: an entry about to expire (TTL 2 s)
+            // is reset, the old TTL runs out, and the new window's count survives.
+            . 'apcu_store($k, (($now - $w - 5) << 20) | 99, 2);'
+            . '$first = $m->invoke(null, $k, $w); $info = apcu_key_info($k);'
+            . '$o($first === 1 && is_array($info) && (int) $info["ttl"] === $w, "a window reset writes a fresh entry with the full TTL");'
+            . 'sleep(3);'
+            . '$o($m->invoke(null, $k, $w) === 2, "after the old TTL would have run out the new window still counts (no early eviction)");'
+            // A tombstone left by a request that died mid-reset is taken over.
+            . 'apcu_store($k, -($now - 60), 0);'
+            . '$o($m->invoke(null, $k, $w) === 1, "a stale reset tombstone is taken over: fresh window");'
+            . 'apcu_store($k, -time(), 0);'
+            . '$o($m->invoke(null, $k, $w, 3) > 1000, "a live reset by another request that never finishes: retries run out, limited");'
+            . 'apcu_delete($k);'
+            . '$o($m->invoke(null, $k, $w, 32, null, 4) === null, "32-bit PHP: the packed counter is not used (the session counter takes over)");'
             . 'apcu_store($k, (($now - 10) << 20) | 99, 0);'
             . '$o($m->invoke(null, $k, $w) === 100, "a live window keeps counting (still limited)");'
             . 'apcu_store($k, "garbage", 0);'
@@ -288,7 +302,7 @@ try {
             . 'apcu_delete($k);';
         $out = (string) shell_exec(escapeshellarg(PHP_BINARY) . ' -d apc.enable_cli=1 -r ' . escapeshellarg($code) . ' 2>&1');
         $lines = array_filter(explode("\n", trim($out)));
-        $check(count($lines) === 8, 'the APCu child ran all its checks' . (count($lines) === 8 ? '' : ': ' . trim($out)));
+        $check(count($lines) === 13, 'the APCu child ran all its checks' . (count($lines) === 13 ? '' : ': ' . trim($out)));
         foreach ($lines as $line) {
             [$status, $label] = array_pad(explode('|', $line, 2), 2, $line);
             $check($status === 'OK', 'APCu: ' . $label);
