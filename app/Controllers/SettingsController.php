@@ -79,6 +79,14 @@ class SettingsController
         $eventsHeaderTexts = \App\Support\CatalogHeader::stored($repository, 'events');
         $eventsHeaderDefaults = \App\Support\CatalogHeader::defaultsFor(array_map('strval', array_keys($catalogHeaderLocales)), 'events');
         $advancedSettings = $this->resolveAdvancedSettings($repository);
+        // HTTPS seen only through untrusted forwarded headers: HSTS would
+        // silently never be sent, so the advanced tab says why.
+        $canonicalUrl = getenv('APP_CANONICAL_URL') ?: ($_ENV['APP_CANONICAL_URL'] ?? '');
+        $hstsProxyNotice = \App\Support\Hsts::untrustedForwardedHttps(
+            $_SERVER,
+            \App\Support\HtmlHelper::isRemoteAddrTrustedProxy(),
+            is_string($canonicalUrl) ? $canonicalUrl : ''
+        );
         $loansSettings = $this->resolveLoansSettings($repository);
         // Patron types and rules matrix (Settings → Circulation): reserved to
         // administrators like every CirculationSettingsController action, so
@@ -139,6 +147,7 @@ class SettingsController
             'eventsHeaderTexts',
             'eventsHeaderDefaults',
             'advancedSettings',
+            'hstsProxyNotice',
             'loansSettings',
             'circulationData',
             'moduleSettings',

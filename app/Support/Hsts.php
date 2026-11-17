@@ -32,4 +32,25 @@ final class Hsts
             || (is_scalar($enabledSetting) && in_array(strtolower((string) $enabledSetting), ['1', 'true', 'yes', 'on'], true));
         return $enabled ? self::HEADER_VALUE : null;
     }
+
+    /**
+     * True when the request looks like HTTPS only through forwarded headers
+     * that do not count: X-Forwarded-Proto: https (or X-Forwarded-Ssl: on)
+     * from a peer outside TRUSTED_PROXIES, on an install whose
+     * APP_CANONICAL_URL does not say https either. Behind such an unconfigured
+     * reverse proxy HSTS and upgrade-insecure-requests are never sent, so the
+     * settings page warns the administrator.
+     *
+     * @param array<string, mixed> $server $_SERVER
+     */
+    public static function untrustedForwardedHttps(array $server, bool $peerTrusted, string $canonicalUrl): bool
+    {
+        $direct = !empty($server['HTTPS']) && $server['HTTPS'] !== 'off';
+        if ($direct || $peerTrusted || stripos(trim($canonicalUrl), 'https://') === 0) {
+            return false;
+        }
+        $proto = strtolower(trim(explode(',', (string) ($server['HTTP_X_FORWARDED_PROTO'] ?? ''))[0]));
+        $ssl = strtolower(trim((string) ($server['HTTP_X_FORWARDED_SSL'] ?? '')));
+        return $proto === 'https' || $ssl === 'on';
+    }
 }

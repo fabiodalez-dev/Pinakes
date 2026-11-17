@@ -164,6 +164,47 @@ $guard(function () use ($check): void {
 }, 'Hsts::headerValue');
 
 $guard(function () use ($check, $ROOT): void {
+    $fwd = ['HTTP_X_FORWARDED_PROTO' => 'https'];
+    $check(Hsts::untrustedForwardedHttps($fwd, false, ''), 'X-Forwarded-Proto: https from an untrusted peer is flagged');
+    $check(Hsts::untrustedForwardedHttps(['HTTP_X_FORWARDED_SSL' => 'on'], false, ''), 'X-Forwarded-Ssl: on from an untrusted peer is flagged');
+    $check(Hsts::untrustedForwardedHttps(['HTTP_X_FORWARDED_PROTO' => 'https, http'], false, 'http://lib.example'), 'first hop of a forwarded list counts; an http canonical URL does not help');
+    $check(!Hsts::untrustedForwardedHttps($fwd, true, ''), 'a TRUSTED_PROXIES peer is not flagged');
+    $check(!Hsts::untrustedForwardedHttps($fwd, false, 'https://lib.example'), 'an https APP_CANONICAL_URL is not flagged');
+    $check(!Hsts::untrustedForwardedHttps($fwd + ['HTTPS' => 'on'], false, ''), 'direct HTTPS is not flagged');
+    $check(!Hsts::untrustedForwardedHttps([], false, '') && !Hsts::untrustedForwardedHttps(['HTTP_X_FORWARDED_PROTO' => 'http'], false, ''),
+        'plain HTTP without forwarded HTTPS is not flagged');
+
+    // The advanced tab renders the notice only when the controller sets it.
+    // The partial is rendered without a database, so it stops at the API-key
+    // block (after the HSTS toggle): only the markup before that is checked.
+    $render = static function (bool $notice) use ($ROOT): string {
+        $advancedSettings = [];
+        $isAdmin = true;
+        $hstsProxyNotice = $notice;
+        $csrfToken = 't';
+        set_error_handler(static fn (): bool => true);
+        ob_start();
+        try {
+            include $ROOT . '/app/Views/settings/advanced-tab.php';
+        } catch (\Throwable) {
+            // expected: no database for the API-key block
+        } finally {
+            restore_error_handler();
+        }
+        return (string) ob_get_clean();
+    };
+    $with = $render(true);
+    $without = $render(false);
+    $check(str_contains($with, 'data-testid="hsts-proxy-notice"') && str_contains($with, 'TRUSTED_PROXIES')
+        && str_contains($with, 'APP_CANONICAL_URL'), 'advanced tab shows the TRUSTED_PROXIES / APP_CANONICAL_URL notice');
+    $check(str_contains($without, 'id="enable_hsts"') && !str_contains($without, 'hsts-proxy-notice'),
+        'no notice when the request is not untrusted forwarded HTTPS');
+    $ctl = (string) file_get_contents($ROOT . '/app/Controllers/SettingsController.php');
+    $check(str_contains($ctl, 'Hsts::untrustedForwardedHttps(') && str_contains($ctl, "'hstsProxyNotice',"),
+        'SettingsController computes the notice and passes it to the view');
+}, 'HSTS untrusted-proxy notice');
+
+$guard(function () use ($check, $ROOT): void {
     $index = (string) file_get_contents($ROOT . '/public/index.php');
     $check(preg_match('/withHeader\(\s*[\'"]Strict-Transport-Security/', $index) !== 1
         && !str_contains($index, 'includeSubDomains; preload'),

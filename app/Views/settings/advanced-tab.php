@@ -391,6 +391,14 @@ use App\Support\HtmlHelper;
             </div>
           </label>
         </div>
+        <?php if (!empty($hstsProxyNotice)): ?>
+        <div class="pk-inline-note" role="status" data-testid="hsts-proxy-notice">
+          <p class="text-xs text-gray-700">
+            <i class="fas fa-exclamation-triangle text-amber-600" aria-hidden="true"></i>
+            <?= __("Questa richiesta arriva in HTTPS tramite un proxy non attendibile (X-Forwarded-Proto). Finché il proxy non è configurato, HSTS e upgrade-insecure-requests non vengono inviati: imposta TRUSTED_PROXIES con l'indirizzo del proxy oppure APP_CANONICAL_URL con l'indirizzo https:// del sito nel file .env.") ?>
+          </p>
+        </div>
+        <?php endif; ?>
         <div class="pk-inline-note">
           <div class="text-xs text-gray-700 space-y-1">
             <p><strong><?= __("Requisiti:") ?></strong></p>
