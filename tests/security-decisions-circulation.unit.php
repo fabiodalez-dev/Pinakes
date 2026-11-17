@@ -253,6 +253,19 @@ try {
     $r = $approval->approveLoan($post('/admin/loans/approve', ['loan_id' => (string) $pending])->withAttribute('automatic_loan_approval', true), new SlimResponse(), $db);
     $json = json_decode((string) $r->getBody(), true);
     $check(($json['code'] ?? '') !== 'self_dealing', "an automatic approval of the reader's own request is not an operator action");
+    // Cancelling one's own reservation from the desk is guarded as well.
+    [$resBook] = $newBook('prestato');
+    $db->query("INSERT INTO prenotazioni (libro_id, utente_id, stato, queue_position) VALUES ({$resBook}, {$deskId}, 'attiva', 1)");
+    $ownReservation = (int) $db->insert_id;
+    $resState = static fn (): string => (string) $db->query("SELECT stato FROM prenotazioni WHERE id = {$ownReservation}")->fetch_row()[0];
+    $as($deskId, 'standard');
+    $r = $approval->cancelReservation($post('/admin/loans/cancel-reservation', ['reservation_id' => (string) $ownReservation]), new SlimResponse(), $db);
+    $json = json_decode((string) $r->getBody(), true);
+    $check($r->getStatusCode() === 403 && ($json['code'] ?? '') === 'self_dealing' && $resState() === 'attiva',
+        'cancelReservation on its own reservation: 403 self_dealing, the reservation stays active');
+    $as($adminId, 'admin');
+    $r = $approval->cancelReservation($post('/admin/loans/cancel-reservation', ['reservation_id' => (string) $ownReservation]), new SlimResponse(), $db);
+    $check($r->getStatusCode() === 200 && $resState() === 'annullata', "control: an administrator cancels the operator's reservation (HTTP {$r->getStatusCode()})");
 
     // ── E. Creating for oneself ───────────────────────────────────────────
     echo "E. Loan and reservation created for oneself\n";
@@ -321,6 +334,37 @@ foreach (['CREATE', 'UPDATE', 'RETURN', 'RENEW', 'BULK', 'RESERVATION'] as $tabl
 $check(($C::UPDATE['extension_reason_required'][2] ?? null) === 'waive_reason', 'UPDATE: extension_reason_required -> 422 on waive_reason');
 $check(($C::BULK['bulk_extend_fine_accruing'][0] ?? 0) === 409, 'BULK: bulk_extend_fine_accruing -> 409 (meta.loan_id names the loan)');
 $check(\App\Plugins\MobileApi\Staff090\Support\LedgerOutcome::error('self_dealing') === [403, 'not_permitted', null], 'ledger: self_dealing -> 403 not_permitted');
+
+// ── H. The desk page shows the refusal, not "connection error" ────────────
+// The return and cancel-reservation handlers of pending_loans.php run in node
+// against a 403 JSON refusal (the self-dealing answer above): the operator
+// must get its message, not the generic connection error.
+echo "H. pending_loans.php reads the JSON refusal\n";
+$view = (string) file_get_contents($root . '/app/Views/admin/pending_loans.php');
+$view = (string) preg_replace_callback('/<\?= json_encode\(__\("((?:[^"\\\\]|\\\\.)*)"\), JSON_HEX_TAG\) \?>/', static fn (array $m): string => (string) json_encode(stripslashes($m[1])), $view);
+preg_match_all('/\.then\(response => \{.*?\n                    \}\)/s', $view, $handlers);
+$check(count($handlers[0]) === 2, 'the return and cancel-reservation response handlers are found (' . count($handlers[0]) . ')');
+$node = trim((string) @shell_exec('command -v node 2>/dev/null'));
+if ($node === '') {
+    echo "SKIP: node not available for the pending_loans.php handler check\n";
+} else {
+    foreach ($handlers[0] as $i => $then) {
+        $handler = substr($then, strlen('.then('), -1);
+        $js = 'const h = ' . $handler . ';'
+            . 'const json = (status, body) => ({ ok: status < 400, status, headers: { get: () => "application/json" }, json: () => Promise.resolve(body) });'
+            . 'const html = (status) => ({ ok: status < 400, status, headers: { get: () => "text/html" }, json: () => Promise.reject(new Error("not json")) });'
+            . 'const out = [];'
+            . 'Promise.resolve().then(() => h(json(403, { success: false, code: "self_dealing", message: "REFUSAL" })))'
+            . '.then(d => out.push(d.message), e => out.push("threw:" + e.message))'
+            . '.then(() => h(html(502))).then(() => out.push("no-throw"), e => out.push("threw:" + e.message))'
+            . '.then(() => console.log(out.join("|")));';
+        $tmp = tempnam(sys_get_temp_dir(), 'pkdesk') . '.js';
+        file_put_contents($tmp, $js);
+        $out = trim((string) shell_exec(escapeshellarg($node) . ' ' . escapeshellarg($tmp) . ' 2>&1'));
+        @unlink($tmp);
+        $check($out === 'REFUSAL|threw:HTTP 502', "handler #{$i}: a 403 JSON refusal reaches the operator, a non-JSON 502 is still an error (got {$out})");
+    }
+}
 
 $_SESSION = [];
 $finish();

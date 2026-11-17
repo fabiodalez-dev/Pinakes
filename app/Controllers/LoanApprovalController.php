@@ -1768,6 +1768,12 @@ class LoanApprovalController
         if ($scopeDenied = $this->outOfBorrowerScope($db, $response, 'prenotazioni', $reservationId)) {
             return $scopeDenied;
         }
+        // Separation of duties, as for every other desk action: an operator who
+        // is not an administrator never cancels their own reservation from the
+        // desk (the user area has its own cancel path).
+        if (\App\Support\SelfDealingGuard::blocksReservation($db, $reservationId)) {
+            return $this->selfDealingResponse($response);
+        }
 
         try {
             $db->begin_transaction();

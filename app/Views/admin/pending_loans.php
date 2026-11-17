@@ -528,11 +528,13 @@ document.addEventListener('DOMContentLoaded', function() {
                         body: JSON.stringify({ _csrf: csrfToken, loan_id: loanId })
                     })
                     .then(response => {
-                        if (!response.ok) {
-                            throw new Error('HTTP ' + response.status);
-                        }
+                        // A refusal (400/403/404) is JSON with the reason, e.g. a
+                        // self-dealing block: read it, do not turn it into
+                        // "connection error". Only a non-JSON answer is one.
                         if (!response.headers.get('content-type')?.includes('application/json')) {
-                            throw new Error(<?= json_encode(__("Risposta del server non valida"), JSON_HEX_TAG) ?>);
+                            throw new Error(response.ok
+                                ? <?= json_encode(__("Risposta del server non valida"), JSON_HEX_TAG) ?>
+                                : 'HTTP ' + response.status);
                         }
                         return response.json();
                     })
@@ -580,11 +582,13 @@ document.addEventListener('DOMContentLoaded', function() {
                         body: JSON.stringify({ _csrf: csrfToken, reservation_id: reservationId })
                     })
                     .then(response => {
-                        if (!response.ok) {
-                            throw new Error('HTTP ' + response.status);
-                        }
+                        // A refusal (400/403/404) is JSON with the reason, e.g. a
+                        // self-dealing block: read it, do not turn it into
+                        // "connection error". Only a non-JSON answer is one.
                         if (!response.headers.get('content-type')?.includes('application/json')) {
-                            throw new Error(<?= json_encode(__("Risposta del server non valida"), JSON_HEX_TAG) ?>);
+                            throw new Error(response.ok
+                                ? <?= json_encode(__("Risposta del server non valida"), JSON_HEX_TAG) ?>
+                                : 'HTTP ' + response.status);
                         }
                         return response.json();
                     })
