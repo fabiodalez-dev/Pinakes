@@ -93,7 +93,17 @@ final class SitemapCache
      * @return bool false when the lock could not be taken; a publisher must
      *         then not publish
      */
-    public static function acquirePublishLock(): bool
+    /**
+     * Longest wait for the publish lock, in seconds. The lock is held for a
+     * generation at most, which is short; a holder that never lets go (a hung
+     * cron, a local user opening the 0666 file) must not block the settings
+     * save, every plugin lifecycle change and the publishers forever. Past it
+     * the caller gets false, which it already handles: invalidate() withdraws
+     * anyway, publishers do not publish.
+     */
+    public const PUBLISH_LOCK_WAIT_SECONDS = 15.0;
+
+    public static function acquirePublishLock(?float $waitSeconds = null): bool
     {
         if (self::$lockDepth > 0) {
             self::$lockDepth++;
@@ -121,10 +131,24 @@ final class SitemapCache
             // must be able to open it. Its content is never read.
             @chmod($path, 0666);
         }
-        if (!flock($handle, LOCK_EX)) {
-            fclose($handle);
-            SecureLogger::error('[SitemapCache] Publish lock unavailable: flock() failed on storage/cache/sitemap-publish.lock.');
-            return false;
+        // Bounded wait: non-blocking attempts until the deadline.
+        $deadline = microtime(true) + max(0.0, $waitSeconds ?? self::PUBLISH_LOCK_WAIT_SECONDS);
+        while (true) {
+            $wouldBlock = 0;
+            if (flock($handle, LOCK_EX | LOCK_NB, $wouldBlock)) {
+                break;
+            }
+            if (!$wouldBlock) {
+                fclose($handle);
+                SecureLogger::error('[SitemapCache] Publish lock unavailable: flock() failed on storage/cache/sitemap-publish.lock.');
+                return false;
+            }
+            if (microtime(true) >= $deadline) {
+                fclose($handle);
+                SecureLogger::warning('[SitemapCache] Publish lock still held by another process after the wait limit: going on without it.');
+                return false;
+            }
+            usleep(100_000);
         }
 
         self::$lockHandle = $handle;
