@@ -3401,16 +3401,18 @@ return function (App $app): void {
             return $response->withStatus(403);
         }
 
-        // Validate all resolved IPs are public
+        // Validate all resolved IPs are public, with the single audited
+        // predicate (SsrfGuard::isPublicIp: CGNAT, NAT64, 6to4, IPv4-mapped...
+        // that the bare filter_var flags pass), as /api/plugins/proxy-image does.
         foreach ($ips as $ip) {
-            if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false) {
+            if (!\App\Support\SsrfGuard::isPublicIp((string) $ip)) {
                 return $response->withStatus(403);
             }
         }
 
         foreach ($aaaaRecords as $record) {
             $ipv6 = $record['ipv6'] ?? null;
-            if ($ipv6 && filter_var($ipv6, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false) {
+            if ($ipv6 && !\App\Support\SsrfGuard::isPublicIp((string) $ipv6)) {
                 return $response->withStatus(403);
             }
         }
@@ -3439,9 +3441,13 @@ return function (App $app): void {
         // public so it can't be steered to an internal address on the second
         // lookup (same fix as /api/plugins/proxy-image; a whitelisted host that
         // is compromised could otherwise resolve internally). Entries in $ips /
-        // $aaaaRecords already passed the NO_PRIV_RANGE|NO_RES_RANGE filter.
-        // Scheme is guaranteed 'https' here (enforced with a 403 above).
+        // $aaaaRecords already passed SsrfGuard::isPublicIp().
+        // Scheme is guaranteed 'https' here (enforced with a 403 above), and
+        // only its default port: the allow-listed CDNs never need another.
         $coverPort = isset($parts['port']) ? (int) $parts['port'] : 443;
+        if ($coverPort !== 443) {
+            return $response->withStatus(403);
+        }
         $coverIps = $ips;
         foreach ($aaaaRecords as $record) {
             if (!empty($record['ipv6'])) {
@@ -3463,28 +3469,33 @@ return function (App $app): void {
             CURLOPT_SSL_VERIFYHOST => 2,
             CURLOPT_USERAGENT => $userAgent,
             CURLOPT_HTTPHEADER => $headers,
-            CURLOPT_MAXREDIRS => 0
+            CURLOPT_MAXREDIRS => 0,
+            // Anonymous endpoint: a hard byte cap, announced or streamed, so a
+            // caller cannot pin a worker on a large download.
+            CURLOPT_MAXFILESIZE => \App\Support\SsrfGuard::PROXY_MAX_BYTES,
+            CURLOPT_NOPROGRESS => false,
+            CURLOPT_PROGRESSFUNCTION => static function ($handle, $dlTotal, $dlNow, $ulTotal, $ulNow): int {
+                unset($handle, $ulTotal, $ulNow);
+                return ($dlNow > \App\Support\SsrfGuard::PROXY_MAX_BYTES || $dlTotal > \App\Support\SsrfGuard::PROXY_MAX_BYTES) ? 1 : 0;
+            },
         ]);
 
         $img = curl_exec($ch);
         $httpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
         /* curl_close(): no-op since PHP 8.0, deprecated 8.5 */
 
-        if ($img === false || $httpCode !== 200) {
+        if (!is_string($img) || $httpCode !== 200 || strlen($img) > \App\Support\SsrfGuard::PROXY_MAX_BYTES) {
             return $response->withStatus(404);
         }
 
-        // Validate it's actually an image
-        $finfo = new finfo(FILEINFO_MIME_TYPE);
-        $mimeType = $finfo->buffer($img);
-
-        // Only allow image MIME types
-        if (!str_starts_with($mimeType, 'image/')) {
+        // Validate it's actually a raster image (never SVG: see proxiedImageMime()).
+        $mimeType = \App\Support\SsrfGuard::proxiedImageMime($img);
+        if ($mimeType === null) {
             return $response->withStatus(403);
         }
 
         $response->getBody()->write($img);
-        return $response->withHeader('Content-Type', $mimeType)
+        return \App\Support\SsrfGuard::proxiedImageHeaders($response, $mimeType)
             ->withHeader('Cache-Control', 'public, max-age=3600');
     });
 
@@ -3586,6 +3597,10 @@ return function (App $app): void {
         // so it never re-resolves. All entries in $ips / $aaaaRecords already
         // passed SsrfGuard::isPublicIp() above.
         $port = isset($parts['port']) ? (int) $parts['port'] : 443;
+        if ($port !== 443) {
+            // HTTPS on its default port only, like SsrfGuard::fetchImage().
+            return $response->withStatus(403);
+        }
         $validatedIps = $ips;
         foreach ($aaaaRecords as $record) {
             if (!empty($record['ipv6'])) {
@@ -3599,7 +3614,7 @@ return function (App $app): void {
 
         // Hard byte cap: a cover preview never needs more than this, and without
         // it curl_exec buffers whatever the origin streams for the whole timeout.
-        $maxProxyBytes = 5 * 1024 * 1024;
+        $maxProxyBytes = \App\Support\SsrfGuard::PROXY_MAX_BYTES;
 
         // Fetch image with secure settings
         $ch = curl_init($url);
@@ -3640,19 +3655,16 @@ return function (App $app): void {
             return $response->withStatus(404);
         }
 
-        // Validate it's actually an image
-        $finfo = new finfo(FILEINFO_MIME_TYPE);
-        $mimeType = $finfo->buffer($img);
-
-        // Only allow image MIME types
-        if (!is_string($mimeType) || !str_starts_with($mimeType, 'image/')) {
+        // Validate it's actually a raster image (never SVG: see proxiedImageMime()).
+        $mimeType = \App\Support\SsrfGuard::proxiedImageMime($img);
+        if ($mimeType === null) {
             return $response->withStatus(403);
         }
 
         $response->getBody()->write($img);
         // private: the route now sits behind a staff session, so shared caches
         // (LiteSpeed edge, proxies) must not store or replay the body.
-        return $response->withHeader('Content-Type', $mimeType)
+        return \App\Support\SsrfGuard::proxiedImageHeaders($response, $mimeType)
             ->withHeader('Cache-Control', 'private, max-age=3600')
             ->withHeader('X-Proxy-Type', 'plugin');
     })->add(new AdminAuthMiddleware());
