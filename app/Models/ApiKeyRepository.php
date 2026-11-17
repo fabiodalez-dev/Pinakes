@@ -160,6 +160,52 @@ class ApiKeyRepository
      */
     private static array $indexChecked = [];
 
+    /** Seconds a failed conversion is not retried by the public API path. */
+    private const UPGRADE_RETRY_AFTER = 600;
+
+    /** Flag file of the last failed conversion; null = the install's default. */
+    private static ?string $upgradeFailureFlag = null;
+
+    /** Last failed conversion in this process (when the flag cannot be written). */
+    private static ?int $upgradeFailedAt = null;
+
+    private static function upgradeFailureFlag(): string
+    {
+        return self::$upgradeFailureFlag ?? dirname(__DIR__, 2) . '/storage/cache/api_keys_upgrade_failed';
+    }
+
+    /**
+     * True while a conversion failed less than UPGRADE_RETRY_AFTER seconds
+     * ago, in this process or (through the flag file) in any other: a
+     * database user without ALTER/UPDATE rights must not cost every API
+     * request the DDL attempts and an error log line.
+     */
+    private static function upgradeRecentlyFailed(): bool
+    {
+        $now = time();
+        if (self::$upgradeFailedAt !== null && $now - self::$upgradeFailedAt < self::UPGRADE_RETRY_AFTER) {
+            return true;
+        }
+        $flag = self::upgradeFailureFlag();
+        clearstatcache(true, $flag);
+        $mtime = @filemtime($flag);
+        return $mtime !== false && $now - $mtime < self::UPGRADE_RETRY_AFTER && $mtime <= $now + 60;
+    }
+
+    private static function recordUpgradeOutcome(bool $failed): void
+    {
+        $flag = self::upgradeFailureFlag();
+        if ($failed) {
+            self::$upgradeFailedAt = time();
+            @touch($flag);
+            return;
+        }
+        self::$upgradeFailedAt = null;
+        if (is_file($flag)) {
+            @unlink($flag);
+        }
+    }
+
     /**
      * Get the active API key matching a presented key, looked up by its hash.
      *
@@ -189,12 +235,19 @@ class ApiKeyRepository
             $needsUpgrade = true;
         }
         if ($needsUpgrade) {
+            if (self::upgradeRecentlyFailed()) {
+                // Retried after UPGRADE_RETRY_AFTER (or at once by the API
+                // settings page, which calls ensureTable() itself).
+                return $this->fallbackLookup($apiKey, $hash);
+            }
             try {
                 $this->ensureTable();
                 self::$indexChecked[spl_object_id($this->db)] = true;
+                self::recordUpgradeOutcome(false);
                 $row = $this->lookup($hash);
             } catch (\Throwable $e) {
                 self::$indexChecked[spl_object_id($this->db)] = true;
+                self::recordUpgradeOutcome(true);
                 \App\Support\SecureLogger::error('[ApiKeyRepository] could not convert the api_keys table; using the legacy lookup', [
                     'error' => $e->getMessage(),
                 ]);
@@ -240,6 +293,10 @@ class ApiKeyRepository
     /**
      * Lookup on a table the conversion could not bring up to date: by hash
      * when key_hash exists, by the legacy plaintext column when api_key does.
+     *
+     * A database error is thrown, never answered as "no such key": the
+     * middleware turns it into 503, so an outage does not read as 401
+     * "invalid key" to API clients.
      */
     private function fallbackLookup(string $apiKey, string $hash): ?array
     {
@@ -251,9 +308,13 @@ class ApiKeyRepository
                     AND COLUMN_NAME IN ('api_key', 'key_hash', 'key_prefix')"
             );
             if ($stmt === false) {
-                return null;
+                throw new RuntimeException('Failed to prepare the api_keys column probe: ' . $this->db->error);
             }
-            $stmt->execute();
+            if (!$stmt->execute()) {
+                $error = $stmt->error;
+                $stmt->close();
+                throw new RuntimeException('Failed to probe the api_keys columns: ' . $error);
+            }
             $res = $stmt->get_result();
             while ($res instanceof \mysqli_result && ($c = $res->fetch_row())) {
                 $columns[(string) $c[0]] = true;
@@ -284,11 +345,13 @@ class ApiKeyRepository
                    FROM api_keys WHERE is_active = 1 AND (' . implode(' OR ', $where) . ') LIMIT 1'
             );
             if ($stmt === false) {
-                return null;
+                throw new RuntimeException('Failed to prepare the legacy API key lookup: ' . $this->db->error);
             }
             try {
                 $stmt->bind_param($types, ...$params);
-                $stmt->execute();
+                if (!$stmt->execute()) {
+                    throw new RuntimeException('Failed to run the legacy API key lookup: ' . $stmt->error);
+                }
                 $res = $stmt->get_result();
                 $row = $res instanceof \mysqli_result ? $res->fetch_assoc() : null;
             } finally {
@@ -297,7 +360,7 @@ class ApiKeyRepository
             return is_array($row) && isset($row['id']) ? $row : null;
         } catch (\Throwable $e) {
             \App\Support\SecureLogger::error('[ApiKeyRepository] legacy API key lookup failed', ['error' => $e->getMessage()]);
-            return null;
+            throw new RuntimeException('Legacy API key lookup failed: ' . $e->getMessage(), 0, $e);
         }
     }
 

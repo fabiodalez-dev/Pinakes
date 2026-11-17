@@ -31,6 +31,8 @@ final class ApiKeyMigrationTestConnection extends mysqli
     public array $prepared = [];
     /** Simulates a database user without ALTER rights. */
     public bool $denyAlter = false;
+    /** Simulates a database that fails the legacy lookup (an outage). */
+    public bool $failLegacyLookup = false;
 
     public function query(string $query, int $result_mode = MYSQLI_STORE_RESULT): mysqli_result|bool
     {
@@ -45,6 +47,9 @@ final class ApiKeyMigrationTestConnection extends mysqli
     public function prepare(string $query): mysqli_stmt|false
     {
         $this->prepared[] = $query;
+        if ($this->failLegacyLookup && str_contains($query, 'FROM api_keys WHERE is_active = 1')) {
+            return false;
+        }
         return parent::prepare($query);
     }
 }
@@ -261,10 +266,20 @@ try {
     $db->query('DELETE FROM api_keys WHERE id = ' . (int) $probe['id']);
 
     echo "A database user without ALTER rights\n";
-    $resetIndexMemo = static function (): void {
+    // The failed-conversion backoff writes a flag file: point it at a temp
+    // file so the run never touches the checkout's storage/cache.
+    $failureFlag = sys_get_temp_dir() . '/pk_apikeys_upgrade_failed_' . bin2hex(random_bytes(4));
+    if (property_exists(\App\Models\ApiKeyRepository::class, 'upgradeFailureFlag')) {
+        (new ReflectionProperty(\App\Models\ApiKeyRepository::class, 'upgradeFailureFlag'))->setValue(null, $failureFlag);
+    }
+    $resetIndexMemo = static function () use ($failureFlag): void {
         if (property_exists(\App\Models\ApiKeyRepository::class, 'indexChecked')) {
             (new ReflectionProperty(\App\Models\ApiKeyRepository::class, 'indexChecked'))->setValue(null, []);
         }
+        if (property_exists(\App\Models\ApiKeyRepository::class, 'upgradeFailedAt')) {
+            (new ReflectionProperty(\App\Models\ApiKeyRepository::class, 'upgradeFailedAt'))->setValue(null, null);
+        }
+        @unlink($failureFlag);
     };
     $seed(); // pre-0.9.6 plaintext table, no key_hash
     $db->denyAlter = true;
@@ -283,6 +298,38 @@ try {
     $check($repo->getByKey($keyB) === null && $repo->getByKey(str_repeat('0', 64)) === null,
         'an inactive or unknown key is still refused on the legacy path');
     $check(!array_key_exists('key_hash', $columns()), 'nothing was altered');
+
+    // A conversion that keeps failing is not retried on every request: the
+    // next lookups (in this process or another one, through the flag file)
+    // go straight to the legacy lookup, with no DDL.
+    $db->directQueries = [];
+    $repo->getByKey($keyA);
+    (new \App\Models\ApiKeyRepository($db))->getByKey($keyA);
+    $ddl = array_filter($db->directQueries, static fn (string $q): bool => preg_match('/^\s*(CREATE|ALTER)\b/i', $q) === 1);
+    $check($ddl === [], 'a failed conversion is not retried on the next requests (' . count($ddl) . ' DDL statements)');
+    $check(is_file($failureFlag), 'the failure is recorded for the other PHP workers');
+    if (property_exists(\App\Models\ApiKeyRepository::class, 'upgradeFailedAt')) {
+        (new ReflectionProperty(\App\Models\ApiKeyRepository::class, 'upgradeFailedAt'))->setValue(null, null);
+    }
+    $db->directQueries = [];
+    $check(is_array($repo->getByKey($keyA)) && array_filter($db->directQueries, static fn (string $q): bool => str_starts_with(ltrim($q), 'CREATE')) === [],
+        'another worker (no in-process memo) also skips the conversion while the flag is fresh');
+    touch($failureFlag, time() - 601);
+    $db->directQueries = [];
+    $repo->getByKey($keyA);
+    $check(array_filter($db->directQueries, static fn (string $q): bool => str_starts_with(ltrim($q), 'CREATE')) !== [],
+        'after the retry period the conversion is attempted again');
+
+    // An outage on the legacy lookup is an error (503), never "invalid key" (401).
+    $db->failLegacyLookup = true;
+    $threw = null;
+    try {
+        $repo->getByKey($keyA);
+    } catch (\Throwable $e) {
+        $threw = $e;
+    }
+    $check($threw instanceof RuntimeException, 'a failing legacy lookup throws instead of answering "no such key"');
+    $db->failLegacyLookup = false;
 
     // The middleware answers cleanly on that path: 200 / 401, never 500.
     $db->query('DROP TABLE IF EXISTS system_settings');
@@ -303,7 +350,14 @@ try {
     $db->query('DROP TABLE api_keys');
     $code = $mw->process($req->withHeader('X-API-Key', $keyA), $handler)->getStatusCode();
     $check($code === 401 || $code === 503, "middleware: a table it cannot create answers {$code}, not 500");
+    $db->query('DROP TABLE IF EXISTS api_keys');
+    $seed();
+    $db->failLegacyLookup = true;
+    $code = $mw->process($req->withHeader('X-API-Key', $keyA), $handler)->getStatusCode();
+    $check($code === 503, "middleware: a database error on the legacy lookup answers 503, not 401 (got {$code})");
+    $db->failLegacyLookup = false;
     $db->denyAlter = false;
+    $resetIndexMemo();
 
     echo "A converted table that lost its hash index\n";
     $seed();
