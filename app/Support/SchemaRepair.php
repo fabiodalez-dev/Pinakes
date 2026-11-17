@@ -253,10 +253,13 @@ final class SchemaRepair
     }
 
     /**
-     * Lifetime of the installer's binding; mirrors Installer::INSTALL_OWNER_TTL
-     * (the installer class is not loaded by the application).
+     * Lifetime of the installer's binding: the same value as
+     * Installer::INSTALL_OWNER_TTL (2 h, sliding), which the application does
+     * not load. A longer value kept repairs off for hours after the installer
+     * itself had already released an abandoned claim.
+     * tests/security-hardening-web-core.unit.php pins the two equal.
      */
-    private const INSTALL_CLAIM_TTL = 43200;
+    public const INSTALL_CLAIM_TTL = 7200;
 
     /**
      * True while the web installer holds a live install-in-progress claim

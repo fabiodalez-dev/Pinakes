@@ -147,7 +147,9 @@ $edge = $middleware->process($request, $handler($document, ContentSecurityPolicy
 if ($edge->getHeaderLine('X-LiteSpeed-Cache-Control') === 'no-cache') {
     // Container runtimes force a bypass (see ContainerRuntime); the hash
     // contract above is what matters there.
-    echo "  SKIP edge-cache response checks: LSCache bypassed in this runtime\n";
+    // "SKIP:" at the start of the line: ci-run-unit-tests.sh counts it, so
+    // CI_STRICT_TESTS=1 cannot pass without these assertions.
+    echo "SKIP: edge-cache response checks: LSCache bypassed in this runtime\n";
 } else {
     $edgeCsp = $edge->getHeaderLine('Content-Security-Policy');
     $check(str_contains($edgeCsp, $sha($templateScript)), 'edge-cached page: the template script stays allowed');

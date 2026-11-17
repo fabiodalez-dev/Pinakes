@@ -428,13 +428,13 @@ if (is_file('/opt/homebrew/var/mariadb.sock') || @fsockopen('127.0.0.1', 3307, $
 }
 mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 foreach ($liveTargets as $label => $t) {
-    if ($t['user'] === '') { $skip++; echo "  SKIP {$label}: no credentials\n"; continue; }
+    if ($t['user'] === '') { $skip++; echo "SKIP: {$label}: no credentials\n"; continue; }
     try {
         $host = ($t['host'] === 'localhost' && $t['socket'] === '') ? '127.0.0.1' : $t['host'];
         $db = new \mysqli($host, $t['user'], $t['pass'], '', $t['port'], $t['socket'] !== '' ? $t['socket'] : null);
     } catch (\Throwable $e) {
         $skip++;
-        echo "  SKIP {$label}: not reachable\n";
+        echo "SKIP: {$label}: not reachable\n";
         continue;
     }
     $version = (string) ($db->query('SELECT VERSION()')->fetch_row()[0] ?? '');
@@ -460,7 +460,7 @@ foreach ($liveTargets as $label => $t) {
         $hasUsers = $db->query("SELECT 1 FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'utenti'")->num_rows > 0;
         if (!$hasUsers) {
             $skip++;
-            echo "  SKIP {$label}: SchemaRepair lift needs an installed database\n";
+            echo "SKIP: {$label}: SchemaRepair lift needs an installed database\n";
         } else {
             $root = sys_get_temp_dir() . '/pk_dbst_repair_' . bin2hex(random_bytes(4));
             mkdir($root . '/storage', 0700, true);

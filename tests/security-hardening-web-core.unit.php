@@ -164,6 +164,25 @@ $check(str_contains($index, "storage/cache/update.lock") && str_contains($index,
 $check(str_contains($index, "if (!\$isCli && !file_exists(\$maintenanceFile)) {\n    try {\n        \\App\\Support\\SchemaRepair::runOncePerVersion(")
     && str_contains($src('app/Support/SchemaRepair.php'), 'if (self::installInProgress($root))'),
     'SchemaRepair is gated on the installer claim, not on .installed (.env alone counts as installed)');
+// The claim lifetime is the installer's own: an abandoned claim the installer
+// has released must not keep SchemaRepair off for hours more.
+require_once $root . '/installer/classes/Installer.php';
+$check(\App\Support\SchemaRepair::INSTALL_CLAIM_TTL === \Installer::INSTALL_OWNER_TTL, 'SchemaRepair claim TTL equals Installer::INSTALL_OWNER_TTL');
+$claimRoot = sys_get_temp_dir() . '/pk_claim_' . bin2hex(random_bytes(4));
+mkdir($claimRoot . '/storage', 0700, true);
+$claimFile = $claimRoot . '/storage/.install_in_progress';
+try {
+    $check(\App\Support\SchemaRepair::installInProgress($claimRoot) === false, 'no claim file: not in progress');
+    file_put_contents($claimFile, 'x');
+    touch($claimFile, time() - 3600);
+    $check(\App\Support\SchemaRepair::installInProgress($claimRoot) === true, 'a claim touched an hour ago is live');
+    touch($claimFile, time() - \Installer::INSTALL_OWNER_TTL - 60);
+    $check(\App\Support\SchemaRepair::installInProgress($claimRoot) === false, 'a claim the installer has already released (past its TTL) no longer blocks SchemaRepair');
+} finally {
+    @unlink($claimFile);
+    @rmdir($claimRoot . '/storage');
+    @rmdir($claimRoot);
+}
 $check(str_contains($index, '\\App\\Support\\HtmlHelper::isRemoteAddrTrustedProxy()')
     && str_contains($index, "getenv('APP_ENV') === 'production' && \$httpsForSharedHeaders"), 'CSP upgrade-insecure-requests needs a trusted proxy for X-Forwarded-*');
 
@@ -179,7 +198,10 @@ echo "-- [41] notification link allow-list --\n";
 $layout = $src('app/Views/layout.php');
 $check(str_contains($layout, 'isSafeNotificationLink(notif.link)') && !str_contains($layout, '!/^javascript:/i.test(String(notif.link))'), 'notification renderer uses an allow-list');
 $node = trim((string) @shell_exec('command -v node 2>/dev/null'));
-if ($node !== '' && preg_match('/const isSafeNotificationLink = (\(value\) => \{.*?\n            \});/s', $layout, $m)) {
+$hasAllowList = preg_match('/const isSafeNotificationLink = (\(value\) => \{.*?\n            \});/s', $layout, $m) === 1;
+// A layout change that moves the function must fail, not read as "no node".
+$check($hasAllowList, 'the notification allow-list function is found in the layout');
+if ($node !== '' && $hasAllowList) {
     $js = 'global.window={location:{origin:"https://lib.example"}};const f=' . $m[1] . ';'
         . 'const c={"/admin/loans":true,"https://lib.example/admin/x":true,"//evil.com":false,"/\\\\evil.com":false,'
         . '" javascript:alert(1)":false,"\\u0001javascript:alert(1)":false,"javascript:alert(1)":false,'
@@ -191,7 +213,8 @@ if ($node !== '' && preg_match('/const isSafeNotificationLink = (\(value\) => \{
     @unlink($tmp);
     $check($out === '', 'allow-list accepts app paths/same origin and refuses the rest' . ($out !== '' ? " (wrong: {$out})" : ''));
 } else {
-    echo "  SKIP node not available for the behavioural JS check\n";
+    // "SKIP:" at the start of the line, so CI_STRICT_TESTS=1 sees it.
+    echo "SKIP: node not available for the behavioural JS check\n";
 }
 
 // ---------------------------------------------------------------------------
