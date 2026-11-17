@@ -159,6 +159,12 @@ class AiController extends BaseController
             $user .= "\n\n" . __('Descrizione del libro:') . "\n" . $description;
         }
 
+        // No key, no call: check it before booking, or a generation that can
+        // never reach the provider would still use up one of the daily slots.
+        if ($this->ai->apiKey() === '') {
+            $this->flash('error', __('Il modulo IA non è configurato: chiedi all\'amministratore di Pinakes di impostare la chiave API.'));
+            return $this->redirect($response, $this->aiPath($slug));
+        }
         // The attempt is booked against the daily cap before the paid call.
         $attemptId = $this->ai->reserveAttempt($clubId, 'questions', (int) $clubBook['id'], $this->userId());
         if ($attemptId === null) {
@@ -210,6 +216,12 @@ class AiController extends BaseController
         );
         $user .= "\n\n" . __('Verbale:') . "\n" . mb_substr($minutes, 0, 6000);
 
+        // No key, no call: check it before booking, or a generation that can
+        // never reach the provider would still use up one of the daily slots.
+        if ($this->ai->apiKey() === '') {
+            $this->flash('error', __('Il modulo IA non è configurato: chiedi all\'amministratore di Pinakes di impostare la chiave API.'));
+            return $this->redirect($response, $this->aiPath($slug));
+        }
         // The attempt is booked against the daily cap before the paid call.
         $attemptId = $this->ai->reserveAttempt($clubId, 'minutes', (int) $meeting['id'], $this->userId());
         if ($attemptId === null) {
