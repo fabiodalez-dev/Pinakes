@@ -306,9 +306,17 @@ class MobileApiController extends BaseController
         if ($roleId === null) {
             return $this->fail($response, 'internal_error', __('Errore del server'), 500);
         }
-        $status = $club['privacy'] === 'public' ? 'active' : 'pending';
-        $this->repo->upsertMember((int) $club['id'], $userId, $roleId, $status);
-        if (function_exists('do_action')) {
+        $requested = $club['privacy'] === 'public' ? 'active' : 'pending';
+        // The status the row really has (Repo::joinMember()): a ban or
+        // suspension that landed after the check above is kept by the write.
+        $status = $this->repo->joinMember((int) $club['id'], $userId, $roleId, $requested);
+        if ($status === null) {
+            return $this->fail($response, 'internal_error', __('Errore del server'), 500);
+        }
+        if (!in_array($status, ['active', 'pending'], true)) {
+            return $this->fail($response, 'banned', __('Non puoi unirti a questo club.'), 403);
+        }
+        if ($status === $requested && function_exists('do_action')) {
             do_action('bookclub.member.joined', (int) $club['id'], $userId, $status);
         }
         return $this->ok($response, ['status' => $status]);

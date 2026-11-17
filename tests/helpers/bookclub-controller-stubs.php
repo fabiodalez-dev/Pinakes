@@ -53,11 +53,22 @@ final class BcFakeRepo extends Repo
 
     public function clubManagerEmails(int $clubId): array { return []; }
 
+    /** A status that lands on the row between the controller's check and its write (a concurrent ban). */
+    public ?string $concurrentStatus = null;
+
+    /** Like the real one: a settled row (active, suspended, banned) keeps its status unless overridden. */
     public function upsertMember(int $clubId, int $userId, int $roleId, string $status, ?int $invitedBy = null, bool $overrideSettled = false): bool
     {
         $this->writes[] = ['upsertMember', $clubId, $userId, $status];
         $key = $clubId . ':' . $userId;
-        $this->members[$key] = array_merge($this->members[$key] ?? ['id' => 99, 'club_id' => $clubId, 'user_id' => $userId, 'role_slug' => 'member'], ['status' => $status]);
+        $row = $this->members[$key] ?? ['id' => 99, 'club_id' => $clubId, 'user_id' => $userId, 'role_slug' => 'member', 'status' => null];
+        if ($this->concurrentStatus !== null) {
+            $row['status'] = $this->concurrentStatus;
+        }
+        if ($overrideSettled || !in_array($row['status'], ['active', 'suspended', 'banned'], true)) {
+            $row['status'] = $status;
+        }
+        $this->members[$key] = $row;
         return true;
     }
 

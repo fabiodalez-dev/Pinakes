@@ -197,13 +197,39 @@ class MeetingController extends BaseController
     // ------------------------------------------------------------------
 
     /**
+     * The calendar token shown to $userId: "u<id>.<mac>", the MAC keyed with
+     * the club's ics_token. Per person, so the feed can ask on every request
+     * whether that person may still see it (icsFeed()); keyed with the club
+     * token, so Repo::setMemberStatus()'s rotation still revokes every URL.
+     */
+    public static function feedToken(array $club, int $userId): string
+    {
+        return 'u' . $userId . '.' . substr(hash_hmac('sha256', 'bookclub-ics:' . (int) $club['id'] . ':' . $userId, (string) $club['ics_token']), 0, 32);
+    }
+
+    /** The user a feedToken() names, or null when it is not one of this club's. */
+    private static function feedTokenUser(array $club, string $token): ?int
+    {
+        if (preg_match('/^u([1-9][0-9]{0,9})\.[0-9a-f]{32}$/D', $token, $m) !== 1) {
+            return null;
+        }
+        $userId = (int) $m[1];
+        return hash_equals(self::feedToken($club, $userId), $token) ? $userId : null;
+    }
+
+    /**
      * GET /book-club/{slug}/calendar.ics — public clubs serve the feed
-     * openly; any other privacy requires ?token= matching the club's
-     * ics_token (shown to members on the club page). Calendar apps cannot
-     * send session cookies, hence the token-in-URL design. The token is
-     * club-wide, so Repo::setMemberStatus() rotates it whenever an active
-     * member leaves or is suspended/banned: a former member's saved URL then
-     * returns 404 instead of the members-only schedule and video links.
+     * openly; any other privacy requires ?token= (shown on the club page).
+     * Calendar apps cannot send session cookies, hence the token-in-URL
+     * design. The token names the person it was shown to (feedToken()), and
+     * each request checks that this person may still see the members-only
+     * feed: an 'attivo' account that is an active member of the club or a
+     * Pinakes administrator or Staff account. Leaving the club, a club
+     * suspension or ban, a suspended or deleted account and a demotion all
+     * end it at once, without the club-wide rotation reaching them. The old
+     * club-wide token proved nobody in particular and is no longer accepted
+     * as proof of membership: such a URL gets the anonymous feed of a public
+     * club, 404 otherwise, until it is copied again from the club page.
      */
     public function icsFeed(ServerRequestInterface $request, ResponseInterface $response, string $slug): ResponseInterface
     {
@@ -214,7 +240,8 @@ class MeetingController extends BaseController
         // The token is accepted for public clubs too: it proves membership
         // and unlocks the members-only fields (video-conference links).
         $token = (string) ($request->getQueryParams()['token'] ?? '');
-        $tokenValid = $token !== '' && hash_equals((string) $club['ics_token'], $token);
+        $viewer = $token !== '' ? self::feedTokenUser($club, $token) : null;
+        $tokenValid = $viewer !== null && $this->repo->feedViewerAllowed((int) $club['id'], $viewer);
         if ($club['privacy'] !== 'public' && !$tokenValid) {
             return $this->notFound($response);
         }

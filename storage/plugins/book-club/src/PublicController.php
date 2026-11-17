@@ -134,9 +134,19 @@ class PublicController extends BaseController
         if ($roleId === null) {
             return $this->notFound($response);
         }
-        $status = $club['privacy'] === 'public' ? 'active' : 'pending';
-        $this->repo->upsertMember((int) $club['id'], $userId, $roleId, $status);
-        if (function_exists('do_action')) {
+        $requested = $club['privacy'] === 'public' ? 'active' : 'pending';
+        // The status the row really has: a ban or suspension that landed after
+        // the check above is kept by the write (Repo::joinMember()).
+        $status = $this->repo->joinMember((int) $club['id'], $userId, $roleId, $requested);
+        if ($status === null) {
+            $this->flash('error', __("Si è verificato un errore durante l'operazione. Riprova più tardi."));
+            return $this->redirect($response, \App\Support\RouteTranslator::route('book_club') . '/' . $slug);
+        }
+        if (!in_array($status, ['active', 'pending'], true)) {
+            $this->flash('error', __('Non puoi unirti a questo club.'));
+            return $this->redirect($response, \App\Support\RouteTranslator::route('book_club') . '/' . $slug);
+        }
+        if ($status === $requested && function_exists('do_action')) {
             do_action('bookclub.member.joined', (int) $club['id'], $userId, $status);
         }
         if ($status === 'pending') {
@@ -325,9 +335,20 @@ class PublicController extends BaseController
                 'token' => $token,
             ], __('Invito al club'));
         }
-        $this->repo->upsertMember((int) $club['id'], $userId, $roleId, 'active', $invitation['invited_by'] !== null ? (int) $invitation['invited_by'] : null);
+        // From the status the row really has (Repo::joinMember()): a ban or
+        // suspension that landed after the check above is kept, and then the
+        // invitation is not consumed and no join is announced.
+        $status = $this->repo->joinMember((int) $club['id'], $userId, $roleId, 'active', $invitation['invited_by'] !== null ? (int) $invitation['invited_by'] : null);
+        if ($status === null) {
+            $this->flash('error', __("Si è verificato un errore durante l'operazione. Riprova più tardi."));
+            return $this->redirect($response, \App\Support\RouteTranslator::route('book_club'));
+        }
+        if ($status !== 'active') {
+            $this->flash('error', __('Non puoi unirti a questo club.'));
+            return $this->redirect($response, \App\Support\RouteTranslator::route('book_club'));
+        }
         $this->repo->markInvitationAccepted((int) $invitation['id']);
-        if (function_exists('do_action')) {
+        if (($existing === null || $existing['status'] !== 'active') && function_exists('do_action')) {
             do_action('bookclub.member.joined', (int) $club['id'], $userId, 'active');
         }
         $this->flash('success', sprintf(__('Benvenuto nel club "%s"!'), (string) $club['name']));

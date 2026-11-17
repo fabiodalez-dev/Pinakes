@@ -73,6 +73,34 @@ foreach (['suspended', 'banned'] as $status) {
     $check($repo->members['300:' . $READER]['status'] === $status, "row stays '{$status}'");
 }
 
+// Review of PR #536 (F032): upsertMember() keeps a row that a concurrent ban
+// or suspension settled between the check and the write, and still returns
+// true. The callers used to report success, announce the join and consume the
+// invitation anyway; they now answer from the status the row really has.
+foreach (['banned', 'suspended'] as $raced) {
+    echo "A {$raced} landing between the check and the write\n";
+    $repo = $scenario('public', 'left');
+    $repo->concurrentStatus = $raced;
+    $_SESSION['bookclub_flash'] = null;
+    bcController(BcTestPublicController::class, $repo)->join(bcRequest(), bcResponse(), 'audit-club');
+    $check(($_SESSION['bookclub_flash']['type'] ?? '') === 'error' && $repo->members['300:' . $READER]['status'] === $raced,
+        "web join: an error, not 'Benvenuto', and the row stays '{$raced}'");
+
+    $repo = $scenario('public', 'left');
+    $repo->concurrentStatus = $raced;
+    $res = bcController(MobileApiController::class, $repo)->join(bcRequest(), bcResponse(), 'audit-club');
+    $payload = json_decode((string) $res->getBody(), true);
+    $check($res->getStatusCode() === 403 && ($payload['error']['code'] ?? '') === 'banned',
+        "mobile join: 403 'banned', never {status: active}");
+
+    $repo = $scenario('invite', 'left');
+    $repo->concurrentStatus = $raced;
+    $_SESSION['bookclub_flash'] = null;
+    bcController(BcTestPublicController::class, $repo)->acceptInvite(bcRequest('POST'), bcResponse(), str_repeat('b', 64));
+    $check(!in_array(['markInvitationAccepted', 77], $repo->writes, true) && ($_SESSION['bookclub_flash']['type'] ?? '') === 'error',
+        'invitation accept: the invitation is not consumed and an error is shown');
+}
+
 echo "Controls — legitimate (re)joins still work\n";
 $repo = $scenario('public', 'left');
 bcController(BcTestPublicController::class, $repo)->join(bcRequest(), bcResponse(), 'audit-club');
