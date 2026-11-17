@@ -127,11 +127,24 @@ try {
     $state = static function (int $id) use ($db): array {
         return (array) $db->query("SELECT stato, token_verifica_email, data_token_verifica FROM utenti WHERE id = {$id}")->fetch_assoc();
     };
-    $approve = static function (int $id, string $as = 'staff') use ($db): string {
+    // A trusted host is configured (approval refuses up front without one, see
+    // below) and the send itself fails, as an SMTP error would.
+    $approve = static function (int $id, string $as = 'staff', bool $hostConfigured = true) use ($db): string {
         $_SESSION = ['user' => ['id' => 1, 'tipo_utente' => $as, 'stato' => 'attivo']];
         $request = (new Slim\Psr7\Factory\ServerRequestFactory())->createServerRequest('POST', "/admin/users/{$id}/approve-and-send-activation");
-        $out = (new UsersController())->approveAndSendActivation($request, new Slim\Psr7\Response(), $db, ['id' => (string) $id]);
-        $_SESSION = [];
+        if ($hostConfigured) {
+            putenv('APP_CANONICAL_URL=https://library.example/pinakes');
+            $_ENV['APP_CANONICAL_URL'] = 'https://library.example/pinakes';
+            $db->blockMail = true;
+        }
+        try {
+            $out = (new UsersController())->approveAndSendActivation($request, new Slim\Psr7\Response(), $db, ['id' => (string) $id]);
+        } finally {
+            $db->blockMail = false;
+            putenv('APP_CANONICAL_URL');
+            unset($_ENV['APP_CANONICAL_URL']);
+            $_SESSION = [];
+        }
         return $out->getHeaderLine('Location');
     };
     $activate = static function (int $id, string $as = 'staff') use ($db): string {
@@ -146,6 +159,13 @@ try {
         }
         return $out->getHeaderLine('Location');
     };
+
+    echo "No trusted host configured\n";
+    $noHost = $mk(0);
+    $before = $state($noHost);
+    $location = $approve($noHost, 'staff', false);
+    $check(str_contains($location, 'error=no_trusted_host'), 'approval is refused before the account changes (' . $location . ')');
+    $check($state($noHost) === $before, "the account stays 'sospeso' with its token untouched");
 
     echo "An account that never verified its address\n";
     $unverified = $mk(0);

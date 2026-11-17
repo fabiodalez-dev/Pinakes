@@ -265,6 +265,11 @@ try {
     $later = (new DateTimeImmutable((string) $before['data_scadenza']))->modify('+7 days')->format('Y-m-d');
     $r = (new PrestitiController())->update($post(['data_prestito' => $today, 'data_scadenza' => $later]), new Response(), $db, $staffActive);
     $check(str_contains($location($r), 'error=loan_not_found'), "a custom role cannot edit the dates of a Staff account's loan");
+    $_GET = ['error' => 'loan_not_found'];
+    $loans = (string) (new PrestitiController())->index((new ServerRequestFactory())->createServerRequest('GET', 'http://library.test/admin/loans')->withQueryParams($_GET), new Response(), $db)->getBody();
+    $_GET = [];
+    $check(str_contains($loans, 'Prestito non trovato o non modificabile con il tuo ruolo.') && !str_contains($loans, "Errore durante l'aggiornamento del prestito."),
+        'the loans list explains the refusal instead of a generic update error (F067)');
     $r = (new PrestitiController())->renew($post([]), new Response(), $db, $staffActive);
     $check(str_contains($location($r), 'error=loan_not_found'), '...nor renew it');
     $r = (new PrestitiController())->bulkExtend($post(['ids' => [(string) $staffActive], 'days' => '7']), new Response(), $db);
@@ -292,6 +297,76 @@ try {
     $a = $json($approval->cancelReservation($post(['reservation_id' => (string) $staffReservation, 'reason' => 'audit']), new Response(), $db));
     $check($a['status'] === 404, "a custom role cannot cancel a Staff account's reservation");
     $check(($one('SELECT stato FROM prenotazioni WHERE id = ?', $staffReservation)['stato'] ?? '') === 'attiva', 'the reservation is still active');
+
+    echo "  Reservation reads and the create picker (review of PR #536: F024, F090, F066)\n";
+    $render = static function (callable $action): string {
+        $r = $action();
+        return $r->getStatusCode() . "\n" . (string) $r->getBody();
+    };
+    $get = static fn (array $q = []) => (new ServerRequestFactory())->createServerRequest('GET', 'http://library.test/')->withQueryParams($q);
+    $email = static function (int $id) use ($db): string {
+        $stmt = $db->prepare('SELECT email FROM utenti WHERE id = ?');
+        $stmt->bind_param('i', $id);
+        $stmt->execute();
+        $e = (string) ($stmt->get_result()->fetch_row()[0] ?? '');
+        $stmt->close();
+        return $e;
+    };
+    $stmt = $db->prepare("INSERT INTO prenotazioni (libro_id, utente_id, data_prenotazione, data_scadenza_prenotazione, queue_position, stato) VALUES (?, ?, NOW(), DATE_ADD(NOW(), INTERVAL 30 DAY), 2, 'attiva')");
+    $stmt->bind_param('ii', $bookId, $reader);
+    $stmt->execute();
+    $readerReservation = (int) $stmt->insert_id;
+    $stmt->close();
+    $editLink = static fn (int $id): string => '/admin/reservations/edit/' . $id . '"';
+
+    $actAs($operator);
+    $form = $render(fn () => (new ReservationsAdminController())->createForm($get(), new Response(), $db));
+    $check(str_contains($form, $email($reader)), 'create form: a custom role is offered the reader accounts');
+    $check(!str_contains($form, $email($staff)) && !str_contains($form, $email($admin)),
+        "create form: a custom role never sees a Staff or administrator account's email");
+    $list = $render(fn () => (new ReservationsAdminController())->index($get(['libro_id' => (string) $bookId]), new Response(), $db));
+    $check(str_contains($list, $editLink($readerReservation)), "reservations list: a custom role sees a reader's reservation");
+    $check(!str_contains($list, $editLink($staffReservation)), "reservations list: a custom role does not see a Staff account's reservation");
+    $edit = $render(fn () => (new ReservationsAdminController())->editForm($get(), new Response(), $db, $staffReservation));
+    $check(str_starts_with($edit, '404'), "edit form: a Staff account's reservation answers 404 to a custom role");
+    $edit = $render(fn () => (new ReservationsAdminController())->editForm($get(), new Response(), $db, $readerReservation));
+    $check(str_starts_with($edit, '200'), "edit form: a reader's reservation opens (control)");
+    $_GET = ['error' => 'not_found'];
+    $list = $render(fn () => (new ReservationsAdminController())->index($get(['error' => 'not_found']), new Response(), $db));
+    $_GET = [];
+    $check(str_contains($list, 'Prenotazione non trovata o non modificabile con il tuo ruolo.'), 'a refused edit tells the operator why on the list');
+    $actAs($staff);
+    $form = $render(fn () => (new ReservationsAdminController())->createForm($get(), new Response(), $db));
+    $check(str_contains($form, $email($admin)) && str_contains($form, $email($reader)), 'Staff keeps every active account in the create form');
+    $list = $render(fn () => (new ReservationsAdminController())->index($get(['libro_id' => (string) $bookId]), new Response(), $db));
+    $check(str_contains($list, $editLink($staffReservation)) && str_contains($list, $editLink($readerReservation)), 'Staff keeps every reservation in the list');
+
+    echo "  Loan reads of an out-of-scope borrower (F076)\n";
+    $actAs($operator);
+    $readerLoanR = $insertLoan($reader, $copies[6]);
+    $page = static fn (string $m, int $loanId): string => (string) (new PrestitiController())->{$m}($get(), new Response(), $db, $loanId)->getBody();
+    $check(!str_contains($page('details', $staffActive), $email($staff)), "loan details: a custom role does not see a Staff account's email");
+    $check(str_contains($page('details', $readerLoanR), $email($reader)), "loan details: a reader's email is shown (control)");
+    $check(!str_contains($page('returnForm', $staffActive), $email($staff)), "return form: the copy can come back, the Staff account's email stays hidden");
+    $pdf = (new PrestitiController())->downloadPdf($get(), new Response(), $db, $staffActive);
+    $check($pdf->getStatusCode() === 302 && str_contains($pdf->getHeaderLine('Location'), 'error=loan_not_found'),
+        "loan receipt PDF: refused for a Staff account's loan");
+    $actAs($staff);
+    $check(str_contains($page('details', $staffActive), $email($staff)), 'Staff keeps every borrower in loan details');
+
+    echo "  User edit page error box (F065)\n";
+    $actAs($admin);
+    $editUser = static function (string $error) use ($db, $reader): string {
+        $_GET = ['error' => $error];
+        $r = (new \App\Controllers\UsersController())->editForm((new ServerRequestFactory())->createServerRequest('GET', 'http://library.test/')->withQueryParams($_GET), new Response(), $db, $reader);
+        $_GET = [];
+        return (string) $r->getBody();
+    };
+    $emptyBox = static fn (string $html): bool => preg_match('#<div class="mb-6 border border-red-200 bg-red-50 text-red-700 rounded-lg px-4 py-3 text-sm" role="alert">\s*</div>#', $html) === 1;
+    $html = $editUser('wrong_current_password');
+    $check($html !== '' && !$emptyBox($html), 'wrong_current_password no longer renders an empty red box');
+    $html = $editUser('email_exists');
+    $check(str_contains($html, 'Email già registrata'), 'a known error still renders its message (control)');
 
     echo "  Controls: the same writes on a reader in scope go through\n";
     $readerActive = $insertLoan($reader, $copies[5]);

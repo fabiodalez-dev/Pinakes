@@ -33,7 +33,7 @@ if (isset($_GET['reset'])) {
     // on-disk claim pointing at no session, and the wizard shut out until it
     // expires. The token is still checked against the hash on disk and its TTL.
     // (Literal keys: the Installer class is not loaded yet.)
-    $keptBinding = array_intersect_key($_SESSION ?? [], array_flip(['installer_owner_token', 'installer_populated_by_owner']));
+    $keptBinding = array_intersect_key($_SESSION ?? [], array_flip(['installer_owner_token', 'installer_populated_by_owner', 'installer_populated_nonce']));
     session_destroy();
     session_start(); // Start a fresh session
     foreach ($keptBinding as $bindingKey => $bindingValue) {
@@ -253,7 +253,7 @@ if ($forceRequested && $installer->isInstalled()) {
         $sessionToken = (string) ($_SESSION['installer_csrf_token'] ?? '');
         if ($sessionToken === '' || !hash_equals($sessionToken, $submittedToken)) {
             $csrfFailed = true;
-        } elseif (!$installer->recordForceLoginAttempt((string) ($_SERVER['REMOTE_ADDR'] ?? ''))) {
+        } elseif (!$installer->recordForceLoginAttempt(Installer::forceLoginClientIp($_SERVER))) {
             // Same budget as the main POST /login (15 attempts / 5 minutes per IP).
             // Also refused when the attempt cannot be recorded: fail closed.
             $rateLimited = true;
@@ -311,6 +311,13 @@ if ($forceRequested && $installer->isInstalled()) {
 
         // Regenerate CSRF token after each POST attempt
         $_SESSION['installer_csrf_token'] = bin2hex(random_bytes(32));
+    }
+
+    // A refused reinstall that this session owns ends here: its binding and
+    // import proof are deleted, rather than left for the absolute TTL. Not
+    // while the database is unreachable, which says nothing about the proof.
+    if (!$forceAuthenticated && $installer->ownsInstallInProgress() && !$installer->ownerProofUnverifiable()) {
+        $installer->discardInstallOwnership();
     }
 
     // Route this session's next requests of the reinstall through this gate

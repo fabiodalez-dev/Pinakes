@@ -52,6 +52,9 @@ final class CirculationOutcome
         'concurrent_retry'   => [409, 'concurrent_retry', null, false],
         'loan_copy_conflict' => [409, 'not_available', null, true],
         'loan_update_failed' => [500, 'internal_error', null, false],
+        // A loan whose borrower is outside the operator's loan-desk scope
+        // (Permissions::mayActOnBorrower) answers as absent.
+        'loan_not_found'     => [404, 'not_found', null, false],
     ];
 
     /** ④ return / return-by-code (PrestitiController::processReturn). */

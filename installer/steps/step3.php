@@ -36,7 +36,14 @@ if (true) {
         // Import database schema. Recorded first: from now on the database is
         // not empty because this session filled it (Installer::ownerMayContinue()),
         // and a failed import must stay retryable by this session.
-        $installer->recordSchemaImportByOwner();
+        // Refused when it cannot be recorded (this session does not own the
+        // install, or the database is not empty and this session did not fill
+        // it): an import without the proof would populate the database for
+        // nobody, and every session, this one included, would then find it
+        // "installed" with no administrator to finish or recover it.
+        if (!$installer->recordSchemaImportByOwner()) {
+            throw new Exception(__("Questa sessione non può importare lo schema: l'installazione è in corso in un altro browser oppure il database non è vuoto. Riprendi l'installazione dal browser che l'ha iniziata, oppure ricomincia dal passo 2 con un database vuoto."));
+        }
         $debug[] = __("Import schema in corso...");
         $installer->importSchema();
         $_SESSION['schema_imported'] = true;

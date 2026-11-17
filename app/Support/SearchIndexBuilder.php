@@ -627,6 +627,12 @@ final class SearchIndexBuilder
     }
 
     /**
+     * Most characters of a query the builder will tokenize. Callers cap the
+     * user-facing box far lower (200); this only bounds the tokenizer itself.
+     */
+    private const MAX_QUERY_CHARS = 1000;
+
+    /**
      * Split a raw user query into search terms: quoted groups become one exact
      * term (#501, see ExactSearch), other words are tolerant terms with a
      * trailing '*' stripped (the wildcard the FULLTEXT boolean path adds
@@ -634,15 +640,6 @@ final class SearchIndexBuilder
      * and buildRelevanceOrder (the ORDER BY) so all paths tokenize identically
      * and ranking never diverges from the rows the WHERE admitted.
      *
-     * @return list<array{term: string, exact: bool}>
-     */
-    /**
-     * Most characters of a query the builder will tokenize. Callers cap the
-     * user-facing box far lower (200); this only bounds the tokenizer itself.
-     */
-    private const MAX_QUERY_CHARS = 1000;
-
-    /**
      * Normalized, de-duplicated query terms, at most ExactSearch::MAX_FILTER_TERMS.
      *
      * Every term becomes its own predicate (a LIKE '%x%' when FULLTEXT cannot

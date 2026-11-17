@@ -1458,6 +1458,9 @@ class PrestitiController
         }
         $prestito = $result->fetch_assoc();
         $stmt->close();
+        // A plain return of any loan stays possible (the copy has to come back),
+        // but an out-of-scope borrower's contact details stay out of reach.
+        $this->redactOutOfScopeContact($db, $prestito);
 
         // Plan §7: the late fine a return today would charge, shown before the
         // operator confirms (with the option to waive it on the spot).
@@ -1928,6 +1931,7 @@ class PrestitiController
         }
         $prestito = $result->fetch_assoc();
         $stmt->close();
+        $this->redactOutOfScopeContact($db, $prestito);
 
         $prestito += \App\Support\LibraryCalendar::loanDates($db, $prestito);
         // Plan §7: fine accruing on an open overdue loan (shown, written only at
@@ -1962,6 +1966,12 @@ class PrestitiController
     {
         if ($guard = $this->guardStaffAccess($response)) {
             return $guard;
+        }
+        // The receipt prints the borrower's address, phone and email: a custom
+        // role gets it only for a borrower in its scope (Permissions::mayActOnBorrower),
+        // and an out-of-scope loan answers as absent, as the writes do.
+        if (!\App\Support\Permissions::mayActOnBorrower($db, $this->loanBorrowerId($db, $id))) {
+            return $response->withHeader('Location', url('/admin/loans') . '?error=loan_not_found')->withStatus(302);
         }
 
         try {
@@ -2921,6 +2931,40 @@ class PrestitiController
             'message' => (string) $result['message'],
         ]));
         return $response->withHeader('Content-Type', 'application/json');
+    }
+
+    /** Borrower of loan $id, or 0 when the loan does not exist. */
+    private function loanBorrowerId(mysqli $db, int $id): int
+    {
+        $stmt = $db->prepare('SELECT utente_id FROM prestiti WHERE id = ?');
+        if ($stmt === false) {
+            return 0;
+        }
+        $stmt->bind_param('i', $id);
+        $stmt->execute();
+        $row = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        return (int) ($row['utente_id'] ?? 0);
+    }
+
+    /**
+     * Blank the borrower's contact fields of a loan row when the borrower is
+     * outside the operator's loan-desk scope (Permissions::mayActOnBorrower):
+     * a custom role sees an administrator's or Staff account's loan to return
+     * the copy, never that account's email or phone.
+     *
+     * @param array<string, mixed> $row
+     */
+    private function redactOutOfScopeContact(mysqli $db, array &$row): void
+    {
+        if (\App\Support\Permissions::mayActOnBorrower($db, (int) ($row['utente_id'] ?? 0))) {
+            return;
+        }
+        foreach (['utente_email', 'utente_telefono', 'utente_indirizzo'] as $field) {
+            if (array_key_exists($field, $row)) {
+                $row[$field] = '';
+            }
+        }
     }
 
     private function guardStaffAccess(Response $response): ?Response

@@ -14,6 +14,8 @@ ob_start();
 ?>
 
       <?php if (!empty($_GET['updated'])): ?><div class="mt-3 p-3 bg-green-50 text-green-700 rounded border border-green-200" role="alert"><?= __("Prenotazione aggiornata.") ?></div><?php endif; ?>
+      <?php $reservationListError = (string) ($_GET['error'] ?? ''); ?>
+      <?php if ($reservationListError === 'not_found'): ?><div class="mt-3 p-3 bg-red-50 text-red-700 rounded border border-red-200" role="alert"><?= __("Prenotazione non trovata o non modificabile con il tuo ruolo.") ?></div><?php elseif ($reservationListError === 'book_not_found'): ?><div class="mt-3 p-3 bg-red-50 text-red-700 rounded border border-red-200" role="alert"><?= __("Libro non trovato.") ?></div><?php endif; ?>
     <?php
 $workspaceHeader['context'] = (string) ob_get_clean();
 ob_start();
