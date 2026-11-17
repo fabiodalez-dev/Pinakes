@@ -3720,9 +3720,6 @@ class Updater
     }
 
     /**
-     * Copy directory contents, respecting preserve and skip lists
-     */
-    /**
      * Files the package ships inside a preserved directory (see $preservePaths)
      * that are code, not data, and so must follow the release: copyDirectory()
      * keeps an existing copy, so a changed version would never reach upgraded
@@ -3753,30 +3750,20 @@ class Updater
                 $this->debugLog('WARNING', 'Packaged file unreadable, not healed', ['file' => $relative]);
                 continue;
             }
-            $target = $this->rootPath . '/' . $relative;
-            if (!is_link($target) && is_file($target) && @file_get_contents($target) === $content) {
-                continue;
-            }
-            $dir = dirname($target);
-            if (!is_dir($dir) && !@mkdir($dir, 0755, true) && !is_dir($dir)) {
-                $this->debugLog('WARNING', 'Packaged file not healed: directory missing', ['file' => $relative]);
-                continue;
-            }
-            if (is_link($target) && !@unlink($target)) {
-                $this->debugLog('WARNING', 'Packaged file not healed: cannot replace a symlink', ['file' => $relative]);
-                continue;
-            }
-            $tmp = $target . '.' . bin2hex(random_bytes(6)) . '.tmp';
-            if (@file_put_contents($tmp, $content) === false || !@rename($tmp, $target)) {
-                @unlink($tmp);
-                $this->debugLog('WARNING', 'Packaged file not healed: write failed, restore it from the release by hand', ['file' => $relative]);
-                continue;
-            }
-            @chmod($target, 0644);
-            $this->debugLog('INFO', 'Packaged file healed', ['file' => $relative]);
+            $status = PackagedFileHeal::write($this->rootPath . '/' . $relative, $content);
+            match ($status) {
+                PackagedFileHeal::UNCHANGED => null,
+                PackagedFileHeal::WRITTEN => $this->debugLog('INFO', 'Packaged file healed', ['file' => $relative]),
+                PackagedFileHeal::DIR_MISSING => $this->debugLog('WARNING', 'Packaged file not healed: directory missing', ['file' => $relative]),
+                PackagedFileHeal::SYMLINK => $this->debugLog('WARNING', 'Packaged file not healed: cannot replace a symlink', ['file' => $relative]),
+                default => $this->debugLog('WARNING', 'Packaged file not healed: write failed, restore it from the release by hand', ['file' => $relative]),
+            };
         }
     }
 
+    /**
+     * Copy directory contents, respecting preserve and skip lists
+     */
     private function copyDirectory(string $source, string $dest): void
     {
         // Normalize to forward slashes for Windows compatibility
