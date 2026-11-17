@@ -391,7 +391,7 @@ I seguenti hook sono effettivamente invocati dal core (verificato nel codice):
 | `publisher.data.get` | Filter | Modifica dati editore | `PublisherRepository` |
 | `login.form.render.before` / `login.form.html` | Action / Filter | Pre-render e modifica HTML del form login | `AuthController` |
 | `login.form.fields` | Action | Campi extra nel form login | `auth/login.php` |
-| `login.validate` | Filter | Validazione custom credenziali | `AuthController` |
+| `login.validate` | Filter | Validazione custom credenziali (`$isValid, $email, $request, $channel` con `$channel` = `web`/`mobile`/`ncip`) | `AuthController`, mobile-api, ncip-server |
 | `login.success` / `login.failed` | Action | Esito login | `AuthController` |
 | `scrape.sources` | Filter | Aggiunge/modifica fonti scraping | `ScrapeController` |
 | `scrape.fetch.custom` | Filter | Fetch dati da fonte custom | `ScrapeController` |

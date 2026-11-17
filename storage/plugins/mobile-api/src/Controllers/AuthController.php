@@ -100,7 +100,7 @@ final class AuthController
             // plugin-provided check (2FA, reCAPTCHA, ...) must not be
             // bypassable by logging in through the app instead. A refusal
             // reads as a credentials failure, exactly as on the web form.
-            $customValidation = \App\Support\Hooks::apply('login.validate', true, [$email, $request]);
+            $customValidation = \App\Support\Hooks::apply('login.validate', true, [$email, $request, 'mobile']);
 
             if (!$passwordOk || $row === null || !$customValidation) {
                 SecureLogger::warning('[MobileApi] login.invalid_credentials');

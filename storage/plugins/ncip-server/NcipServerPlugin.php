@@ -3017,8 +3017,10 @@ class NcipServerPlugin
         // Same gates as the interactive login (core AuthController): a
         // verified email, and the plugin 'login.validate' hook (2FA,
         // reCAPTCHA, ...), so a future verification plugin also covers NCIP.
+        // The 'ncip' channel lets a hook skip browser-only checks (a CAPTCHA
+        // an NCIP client cannot answer) without exempting the login.
         if ((int) ($user['email_verificata'] ?? 0) !== 1
-            || !\App\Support\Hooks::apply('login.validate', true, [$email, $request])) {
+            || !\App\Support\Hooks::apply('login.validate', true, [$email, $request, 'ncip'])) {
             return $failed();
         }
 

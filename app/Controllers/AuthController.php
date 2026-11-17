@@ -106,7 +106,7 @@ class AuthController
             $hashToCheck = (string) ($row['password'] ?? $dummyHash);
 
             // Plugin hook: Custom login validation (e.g., reCAPTCHA, 2FA)
-            $customValidation = \App\Support\Hooks::apply('login.validate', true, [$email, $request]);
+            $customValidation = \App\Support\Hooks::apply('login.validate', true, [$email, $request, 'web']);
 
             if (password_verify($password, $hashToCheck) && $row && $customValidation) {
                 // Allow login only if email verified and stato attivo

@@ -266,21 +266,25 @@ Hooks::add('login.form.fields', function() {
 
 ### `login.validate` (Filter)
 **Status:** Implementato
-**File:** `app/Controllers/AuthController.php:107`
+**File:** `app/Controllers/AuthController.php` (login web), `storage/plugins/mobile-api/src/Controllers/AuthController.php` (login dell'app), `storage/plugins/ncip-server/NcipServerPlugin.php` (Basic auth NCIP)
 
-Validazione personalizzata durante il login (reCAPTCHA, 2FA, etc.).
+Validazione personalizzata durante il login (reCAPTCHA, 2FA, etc.). Scatta per ogni accesso con email e password: il form web, il login dell'app mobile e l'autenticazione Basic dei client NCIP.
 
 **Parametri:**
 - `$isValid` (bool): Risultato validazione predefinita
 - `$email` (string): Email fornita
 - `$request` (ServerRequestInterface): Oggetto richiesta
+- `$channel` (string): da dove arriva il login: `'web'` (form del browser), `'mobile'` (API dell'app), `'ncip'` (Basic auth di un client NCIP). Argomento aggiunto in coda: un callback che dichiara solo i primi tre parametri continua a funzionare.
 
 **Restituisce:** bool - true se valido, false altrimenti
 
+Un controllo che ha senso solo nel browser (un CAPTCHA, un campo del form) va limitato a `$channel === 'web'`: un client NCIP o l'app non possono rispondere e verrebbero sempre rifiutati. Un controllo sull'account (2FA, blocco, lista consentiti) vale invece per tutti i canali.
+
 **Esempio:**
 ```php
-Hooks::add('login.validate', function($isValid, $email, $request) {
+Hooks::add('login.validate', function($isValid, $email, $request, string $channel = 'web') {
     if (!$isValid) return false; // Già fallito
+    if ($channel !== 'web') return true; // il CAPTCHA esiste solo nel form web
 
     // Valida reCAPTCHA
     $response = $_POST['g-recaptcha-response'] ?? '';
