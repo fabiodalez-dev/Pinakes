@@ -11,7 +11,8 @@
 //      contentRating) and "Cita questo film";
 //   5. the RIS download is TY MPCT, named film-{id}.ris;
 //   6. the public catalogue lists the film under the "Film e video" facet;
-//   7. switching the type away keeps the values (the hidden card is still
+//   7. the individual UNIMARC download preserves film metadata;
+//   8. switching the type away keeps the values (the hidden card is still
 //      posted), and a cleared field becomes NULL.
 //
 // Marker-scoped to titles `ZZ_FILM539_%`, cleaned up in afterAll.
@@ -144,7 +145,24 @@ test.describe.serial('Film cataloguing (#539)', () => {
     await expect(page.getByText(TITLE).first()).toBeVisible();
   });
 
-  test('7. Switching type keeps the values; a cleared field is NULL', async () => {
+  test('7. The admin UNIMARC download preserves film metadata', async () => {
+    const res = await page.request.get(`${h.BASE}/admin/books/${bookId}/export.unimarc.xml`);
+    expect(res.status()).toBe(200);
+    expect(res.headers()['content-type']).toContain('xml');
+    const fields = await page.evaluate((xml) => {
+      const doc = new DOMParser().parseFromString(xml, 'application/xml');
+      const sub = (tag, code) => doc.querySelector(`datafield[tag="${tag}"] subfield[code="${code}"]`)?.textContent;
+      return {
+        type: doc.querySelector('leader')?.textContent?.[6],
+        extent: sub('215', 'a'), cast: sub('323', 'a'), audience: sub('333', 'a'), directorRole: sub('700', '4'),
+      };
+    }, await res.text());
+    expect(fields).toEqual({
+      type: 'g', extent: '1 videodisc (95 min)', cast: 'Ana de Armas, Daniel Craig', audience: '15', directorRole: '300',
+    });
+  });
+
+  test('8. Switching type keeps the values; a cleared field is NULL', async () => {
     await page.goto(`${h.BASE}/admin/books/edit/${bookId}`);
     await page.selectOption('#tipo_media', 'libro');
     await expect(page.locator('#film-details')).toBeHidden();

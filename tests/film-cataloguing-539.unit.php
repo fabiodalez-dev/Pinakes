@@ -37,12 +37,12 @@ $check = static function (bool $ok, string $label) use (&$count): void {
 };
 
 // ── Media type ───────────────────────────────────────────────────────────
-foreach (['dvd', 'DVD', 'Blu-ray', 'bluray', 'Blu-ray Disc', 'VHS', 'videocassetta', '4K UHD', 'movie', 'Film', 'film e video'] as $alias) {
+foreach (['dvd', 'DVD', 'Blu-ray', 'bluray', 'Blu-ray Disc', 'VHS', 'VHS videocassette', 'videocassetta PAL', 'videocassetta', '4K UHD', 'movie', 'Film', 'film e video'] as $alias) {
     $check(MediaLabels::resolveTipoMedia($alias, null) === 'dvd', "\"$alias\" is a film");
 }
 $check(MediaLabels::isFilm(null, 'dvd') && !MediaLabels::isFilm(null, 'libro') && !MediaLabels::isFilm(null, 'disco'), 'isFilm follows tipo_media');
 $check(MediaLabels::isFilm('libro', 'dvd') && !MediaLabels::isFilm('DVD', 'libro'), 'an explicit tipo_media wins over the format');
-foreach (['Audiobook CD' => 'audiolibro', 'cdrom' => 'libro', 'CD' => 'disco', 'Vinile' => 'disco', 'Cartaceo' => 'libro', 'help' => 'libro', 'video game' => 'libro'] as $format => $expected) {
+foreach (['Audiobook CD' => 'audiolibro', 'audio cassette' => 'disco', 'audiocassetta' => 'disco', 'cdrom' => 'libro', 'CD' => 'disco', 'Vinile' => 'disco', 'Cartaceo' => 'libro', 'help' => 'libro', 'video game' => 'libro'] as $format => $expected) {
     $check(MediaLabels::inferTipoMedia($format) === $expected, "\"$format\" still infers $expected");
 }
 $check(MediaLabels::tipoMediaDisplayName('dvd') === 'Film e video', 'the dvd media type reads "Film e video"');
@@ -72,7 +72,7 @@ foreach (['0', '-5', '65536', '1.5', 'abc', '', null, []] as $bad) {
 $check(mb_strlen((string) FilmFields::normalize(['classificazione_eta' => str_repeat('é', 80)])['classificazione_eta']) === 50, 'text is capped to the column size');
 $check(FilmFields::iso8601(95) === 'PT1H35M' && FilmFields::iso8601(120) === 'PT2H' && FilmFields::iso8601(45) === 'PT45M' && FilmFields::iso8601(null) === null, 'ISO 8601 duration');
 $check(FilmFields::marc306(95) === '013500' && FilmFields::marc306(6000) === null, 'MARC 306 HHMMSS');
-$check(FilmFields::marc008Runtime(95) === '095' && FilmFields::marc008Runtime(1200) === '000' && FilmFields::marc008Runtime(null) === 'nnn', 'MARC 008/18-20');
+$check(FilmFields::marc008Runtime(95) === '095' && FilmFields::marc008Runtime(1200) === '000' && FilmFields::marc008Runtime(null) === '---', 'MARC 008/18-20');
 $check(FilmFields::castList("Ana de Armas; Daniel Craig,Rami Malek\nDaniel Craig") === ['Ana de Armas', 'Daniel Craig', 'Rami Malek'], 'the cast list splits and de-duplicates');
 $check(FilmFields::runtimeLabel('95') === '95 min' && FilmFields::runtimeLabel('') === '', 'runtime label');
 
@@ -93,6 +93,16 @@ $ris = BookCitation::ris($input, $film, 'https://example.org/film/9');
 $check(str_starts_with($ris, "TY  - MPCT\r\n") && str_ends_with($ris, "ER  - \r\n"), 'RIS: TY MPCT ... ER');
 foreach (["AU  - Nolan, Christopher", "TI  - The end of Oak Street", "PY  - 2009", "PB  - Warner Bros.", "M3  - Blu-ray", "SN  - 5051889012345", "KW  - til voksne", "N1  - Cast: Ana de Armas, Daniel Craig", "N1  - Running time: 95 min", "UR  - https://example.org/film/9"] as $line) {
     $check(str_contains($ris, $line . "\r\n"), "RIS carries \"$line\"");
+}
+foreach ([
+    ['5051889012345', '9788845292613', '8845292614', '5051889012345'],
+    [' ', '9788845292613', '8845292614', '9788845292613'],
+    [null, '', '8845292614', '8845292614'],
+    ['', '', '', null],
+] as [$ean, $isbn13, $isbn10, $expected]) {
+    $withIds = compact('ean', 'isbn13', 'isbn10') + $film;
+    $identifierLines = preg_grep('/^SN  - /', explode("\r\n", BookCitation::ris($input, $withIds)));
+    $check(array_values($identifierLines) === ($expected === null ? [] : ['SN  - ' . $expected]), 'film RIS identifier fallback ' . ($expected ?? '(none)'));
 }
 $evil = BookCitation::ris(BookCitation::input(['interpreti' => "A\r\nER  - \r\nTY  - BOOK"] + $film, $directors), ['interpreti' => "A\r\nER  - \r\nTY  - BOOK"] + $film);
 $check(substr_count($evil, "TY  - ") === 1 && substr_count($evil, "ER  - ") === 1, 'a line break in a film field cannot start a RIS tag');
@@ -135,7 +145,20 @@ $check($m->subfield('546', 'a') === 'Subtitles: danese', '546 subtitles in words
 $check($m->subfieldValues('041', 'a') === ['eng'] && $m->subfieldValues('041', 'j') === ['dan'], '041 $a audio, $j subtitles');
 $check([$m->subfield('336', 'b'), $m->subfield('337', 'b'), $m->subfield('338', 'b')] === ['tdi', 'v', 'vd'], '336-338 tdi/v/vd');
 $vhs = BookMarcBuilder::marc21(['formato' => 'VHS', 'durata_minuti' => null] + $row, $directors, [], null);
-$check($vhs->subfield('300', 'a') === '1 videocassette' && $vhs->first('306') === null && substr((string) $vhs->controlField('008'), 18, 3) === 'nnn', 'a VHS without running time');
+$check($vhs->subfield('300', 'a') === '1 videocassette' && $vhs->first('306') === null && substr((string) $vhs->controlField('008'), 18, 3) === '---', 'a VHS without running time');
+foreach ([
+    'DVD' => ['vd', 'v'], 'Blu-ray Disc' => ['vd', 's'], '4K Ultra HD Blu-ray' => ['vd', 't'],
+    'VHS videocassette' => ['vf', 'b'], 'videocassetta PAL' => ['vf', 'u'], 'videodisc' => ['vd', 'u'],
+] as $format => [$carrier, $code]) {
+    $legacyRow = ['tipo_media' => null, 'formato' => $format] + $row;
+    $marc = BookMarcBuilder::marc21($legacyRow, [], [], null);
+    $extent = $carrier === 'vf' ? '1 videocassette (95 min)' : '1 videodisc (95 min)';
+    $check($marc->leader()[6] === 'g' && $marc->controlField('007') === $carrier . ' |' . $code . '||||', "$format MARC 007");
+    $check($marc->subfield('338', 'b') === $carrier && $marc->subfield('300', 'a') === $extent, "$format MARC carrier and extent");
+    $check(BookMarcBuilder::unimarc($legacyRow, [], [], null)->subfield('215', 'a') === $extent, "$format UNIMARC extent");
+}
+$override = BookMarcBuilder::marc21(['rda_carrier_type' => 'cr'] + $row, [], [], null);
+$check($override->subfield('338', 'b') === 'cr' && $override->subfield('300', 'a') === '1 online resource (95 min)', 'explicit RDA carrier override');
 $onlySubs = BookMarcBuilder::marc21(['lingua' => ''] + $row, $directors, [], null);
 $check($onlySubs->subfieldValues('041', 'a') === [] && $onlySubs->subfieldValues('041', 'j') === ['dan'], '041 with subtitles only');
 $back = (new Marc21LibriMapper())->map(array_values(array_filter(iterator_to_array(Iso2709Reader::fromString(Iso2709Writer::serialize($m)), false), static fn ($r): bool => $r instanceof MarcRecord))[0]);
@@ -156,6 +179,19 @@ $check($u->subfield('323', 'a') === 'Ana de Armas, Daniel Craig' && $u->subfield
 $check($u->subfield('700', '4') === '300' && $u->subfield('702', '4') === '730', 'UNIMARC 700 $4 300 (director), translator unchanged');
 $ub = BookMarcBuilder::unimarc($bookRow, $directors, [], null);
 $check($ub->subfield('215', 'a') === '2 p.' && $ub->subfield('700', '4') === '070' && $ub->first('323') === null && $ub->first('333') === null, 'a UNIMARC book is unchanged');
+
+// The per-record admin download uses the Z39 plugin and adds authority subjects.
+require_once $root . '/storage/plugins/z39-server/classes/UnimarcLibriParser.php';
+$xml = (new \Z39Server\UnimarcLibriParser())->toUnimarcXml(
+    ['contributors' => $directors, 'classificazione_dewey' => '791.43'] + $row,
+    [['termine' => 'Cinema', 'bncf_id' => '1930']]
+);
+$download = iterator_to_array(\App\Support\Marc\MarcXmlReader::fromString($xml), false)[0];
+$check($download instanceof MarcRecord && $download->leader()[6] === 'g', 'individual UNIMARC export identifies the film');
+foreach ([['215', 'a'], ['215', 'd'], ['323', 'a'], ['333', 'a'], ['700', '4'], ['702', '4']] as [$tag, $sub]) {
+    $check($download->subfield($tag, $sub) === $u->subfield($tag, $sub), "individual and bulk UNIMARC agree on $tag $$sub");
+}
+$check($download->subfield('676', 'a') === '791.43' && $download->subfieldValues('606', '3') === ['1930'], 'individual export keeps Dewey and authority subjects');
 
 // ── Schema ───────────────────────────────────────────────────────────────
 $schema = (string) file_get_contents($root . '/installer/database/schema.sql');
