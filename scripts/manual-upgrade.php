@@ -882,9 +882,32 @@ function upgradeAuthHandlePasswordPost(
 // END upgrade-auth-throttle
 
 // ============================================================
-// MYSQLDUMP CREDENTIALS FILE
+// MYSQLDUMP CLIENT
 // ============================================================
 // BEGIN upgrade-dump-credentials
+function upgradeFindDumpBinary(): ?string
+{
+    if (!function_exists('proc_open')) {
+        throw new RuntimeException('Il backup richiede la funzione PHP proc_open.');
+    }
+    // open_basedir may prohibit PHP from stat-ing system binaries. Probe the
+    // fixed paths with the same process API that will run the actual dump.
+    foreach (['/usr/bin', '/usr/local/bin', '/opt/homebrew/bin'] as $dir) {
+        foreach (['mysqldump', 'mariadb-dump'] as $name) {
+            $binary = $dir . '/' . $name;
+            $process = @proc_open([$binary, '--no-defaults', '--version'], [1 => ['pipe', 'w'], 2 => ['redirect', 1]], $pipes);
+            if (is_resource($process)) {
+                stream_get_contents($pipes[1]);
+                fclose($pipes[1]);
+                if (proc_close($process) === 0) {
+                    return $binary;
+                }
+            }
+        }
+    }
+    return null;
+}
+
 /**
  * Pass the client options on an inherited pipe. The dump child reads its own
  * descriptor, so neither deployment ownership nor PHP's open_basedir matters.
@@ -1069,14 +1092,7 @@ if ($authenticated && $requestMethod === 'POST' && isset($_FILES['zipfile'])) {
         ]);
         $log[] = '[OK] Spazio cumulativo per dump, backup critici e riserva verificato';
 
-        $mysqldumpBin = null;
-        foreach (['/usr/bin/mysqldump', '/usr/local/bin/mysqldump', '/opt/homebrew/bin/mysqldump'] as $candidate) {
-            if (is_file($candidate) && is_executable($candidate)) {
-                $mysqldumpBin = $candidate;
-                break;
-            }
-        }
-
+        $mysqldumpBin = upgradeFindDumpBinary();
         if ($mysqldumpBin) {
             $args = [];
             if (!empty($env['DB_SOCKET'])) {
