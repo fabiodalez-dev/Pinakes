@@ -247,72 +247,23 @@ try {
     $check(str_contains($out, '.env non trovato'), 'the CLI run reached the upgrade body (stops on the missing .env)');
     $check(!file_exists($install . '/storage/cache'), 'and created neither storage/cache nor the state directory');
 
-    echo "G. The mysqldump credentials file never lands in the shared temp dir\n";
-    $check(str_contains($source, '$defaultsFile = upgradeWriteDumpCredentialsFile($rootPath,'), 'the upgrade body uses the checked helper');
-    $check(!str_contains($source, 'file_put_contents($defaultsFile'), 'and never reopens the path to write the password');
-    $sharedBefore = glob(sys_get_temp_dir() . '/pinakes_dump_*') ?: [];
-    $rootG = $mkRoot('siteDump');
-    $credFile = upgradeWriteDumpCredentialsFile($rootG, "[client]\npassword=s3cret\n");
-    $check(dirname((string) realpath($credFile)) === realpath($rootG . '/storage/tmp'), 'a missing storage/tmp is created and the file is inside it');
-    $check((fileperms($rootG . '/storage/tmp') & 0777) === 0700, 'the created storage/tmp is 0700');
-    $check(file_get_contents($credFile) === "[client]\npassword=s3cret\n" && (fileperms($credFile) & 0777) === 0600, 'the credentials are written whole, 0600');
-    unlink($credFile); // nosemgrep: php.lang.security.unlink-use.unlink-use -- test temp file
+    echo "G. Dump credentials travel only on the child's descriptor\n";
+    $dump = $tmp . '/dump.sql';
+    $reader = $tmp . '/dump-client';
+    file_put_contents($reader, "#!/bin/sh\n" . <<<'SH'
+test "$1" = '--defaults-extra-file=/dev/fd/3' || exit 1
+cat <&3
+echo child-warning >&2
+SH
+    );
+    chmod($reader, 0700);
+    $result = upgradeRunDump($reader, ['db'], ['DB_USER' => 'reader', 'DB_PASS' => 'test"#pw'], $dump);
+    $options = file_get_contents($dump);
+    $check($result === 0 && str_contains($options, 'password="test\\"#pw"'), 'the child reads quoted option values from its own pipe');
+    $check(!str_contains($options, 'child-warning'), 'diagnostics stay out of the SQL dump');
+    file_put_contents($reader, "#!/bin/sh\ncat <&3 >/dev/null\nexit 3\n");
+    $check(upgradeRunDump($reader, [], [], $dump) === 3, 'a failed child aborts the backup');
 
-    $rootLoose = $mkRoot('siteDumpLoose');
-    mkdir($rootLoose . '/storage/tmp', 0777);
-    chmod($rootLoose . '/storage/tmp', 0777);
-    $credFile = upgradeWriteDumpCredentialsFile($rootLoose, 'x');
-    $check((fileperms($rootLoose . '/storage/tmp') & 0777) === 0700, 'an existing world-writable storage/tmp is tightened to 0700 first');
-    unlink($credFile); // nosemgrep: php.lang.security.unlink-use.unlink-use -- test temp file
-
-    $refusedWith = static function (callable $fn): string {
-        try { $fn(); } catch (RuntimeException $e) { return $e->getMessage(); }
-        return '';
-    };
-    $rootF = $mkRoot('siteDumpForeign');
-    mkdir($rootF . '/storage/tmp', 0700);
-    $msg = $refusedWith(static fn () => upgradeWriteDumpCredentialsFile($rootF, 'x', $foreignUid));
-    $check(str_contains($msg, 'Backup DB annullato') && str_contains($msg, 'chown') && glob($rootF . '/storage/tmp/*') === [],
-        'a storage/tmp owned by another user is refused before anything is written');
-    $rootS = $mkRoot('siteDumpLink');
-    mkdir($tmp . '/elsewhere-tmp', 0700);
-    symlink($tmp . '/elsewhere-tmp', $rootS . '/storage/tmp');
-    $msg = $refusedWith(static fn () => upgradeWriteDumpCredentialsFile($rootS, 'x'));
-    $check(str_contains($msg, 'Backup DB annullato') && glob($tmp . '/elsewhere-tmp/*') === [], 'a symlinked storage/tmp is refused');
-    $rootW = $tmp . '/open-parent';
-    mkdir($rootW, 0777);
-    chmod($rootW, 0777);
-    mkdir($rootW . '/site/storage', 0775, true);
-    $msg = $refusedWith(static fn () => upgradeWriteDumpCredentialsFile($rootW . '/site', 'x'));
-    $check(str_contains($msg, 'scrivibile da tutti'), 'a world-writable parent without the sticky bit is refused');
-    chmod($rootW, 01777);
-    $credFile = upgradeWriteDumpCredentialsFile($rootW . '/site', 'x');
-    $check(is_file($credFile), 'with the sticky bit (like /tmp) it is accepted');
-    unlink($credFile); // nosemgrep: php.lang.security.unlink-use.unlink-use -- test temp file
-    chmod($rootW, 0755);
-
-    $rootGrp = $tmp . '/group-parent';
-    mkdir($rootGrp . '/site/storage', 0755, true);
-    chmod($rootGrp, 0775);
-    $ownGid = function_exists('posix_getegid') ? posix_getegid() : (int) filegroup($rootGrp);
-    $msg = $refusedWith(static fn () => upgradeWriteDumpCredentialsFile($rootGrp . '/site', 'x', null, $ownGid + 4242));
-    $check(str_contains($msg, 'gruppo diverso') && !file_exists($rootGrp . '/site/storage/tmp/x'), 'a parent writable by a group other than the process group is refused');
-    $credFile = upgradeWriteDumpCredentialsFile($rootGrp . '/site', 'x', null, (int) filegroup($rootGrp));
-    $check(is_file($credFile), 'a parent writable only by the process group is accepted');
-    unlink($credFile); // nosemgrep: php.lang.security.unlink-use.unlink-use -- test temp file
-    chmod($rootGrp, 0755);
-
-    $rootRo = $mkRoot('siteDumpReadOnly');
-    mkdir($rootRo . '/storage/tmp', 0500);
-    // Premise: this is the case tempnam() alone gets wrong.
-    $fallback = @tempnam($rootRo . '/storage/tmp', 'pinakes_premise_');
-    $check(is_string($fallback) && dirname((string) realpath($fallback)) !== realpath($rootRo . '/storage/tmp'),
-        'premise: tempnam() on a read-only storage/tmp silently answers with a file elsewhere');
-    if (is_string($fallback)) { @unlink($fallback); }
-    $refused = $refusedWith(static fn () => upgradeWriteDumpCredentialsFile($rootRo, 'x'));
-    $check(str_contains($refused, 'storage/tmp') && str_contains($refused, 'Backup DB annullato'), 'a read-only storage/tmp refuses the dump with a clear error');
-    $check((glob(sys_get_temp_dir() . '/pinakes_dump_*') ?: []) === $sharedBefore, 'and leaves no credentials file in the shared temp dir');
-    chmod($rootRo . '/storage/tmp', 0700);
 } finally {
     if (is_dir($tmp)) {
         $rm($tmp);

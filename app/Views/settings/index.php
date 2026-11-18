@@ -343,7 +343,7 @@ unset($workspaceHeader);
               // not depend on the layout's escapeHtml() having loaded yet.
               var spinner = document.createElement('i');
               spinner.className = 'fas fa-spinner fa-spin';
-              btn.replaceChildren(spinner, document.createTextNode(' ' + <?= json_encode(__("Invio in corso…"), JSON_HEX_TAG) ?>));
+              btn.replaceChildren(spinner, ' ', <?= json_encode(__("Invio in corso…"), JSON_HEX_TAG) ?>);
               out.className = 'mt-3 text-sm text-gray-500';
               out.textContent = '';
               var body = 'test_email=' + encodeURIComponent(to);
