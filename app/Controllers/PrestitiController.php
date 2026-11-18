@@ -2033,16 +2033,13 @@ class PrestitiController
         if ($guard = $this->guardStaffAccess($response)) {
             return $guard;
         }
-        // The receipt prints the borrower's address, phone and email: a custom
-        // role gets it only for a borrower in its scope (Permissions::mayActOnBorrower),
-        // and an out-of-scope loan answers as absent, as the writes do.
-        if (!\App\Support\Permissions::mayActOnBorrower($db, $this->loanBorrowerId($db, $id))) {
-            return $response->withHeader('Location', url('/admin/loans') . '?error=loan_not_found')->withStatus(302);
-        }
-
         try {
+            $loan = (new \App\Models\LoanRepository($db))->getById($id, scopeToBorrower: true);
+            if ($loan === null) {
+                return $response->withHeader('Location', url('/admin/loans') . '?error=loan_not_found')->withStatus(302);
+            }
             $generator = new \App\Support\LoanPdfGenerator($db);
-            $pdfContent = $generator->generate($id);
+            $pdfContent = $generator->generateFromLoan($loan);
 
             $filename = 'prestito_' . $id . '_' . date('Ymd') . '.pdf';
 

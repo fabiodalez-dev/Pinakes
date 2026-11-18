@@ -1097,20 +1097,6 @@ class SettingsController
             'private_mode' => isset($data['private_mode']) && $data['private_mode'] === '1' ? '1' : '0',
         ];
 
-        foreach ($settings as $key => $value) {
-            if ($key === 'private_mode' && $value === '1') {
-                continue; // written below, under the sitemap publish lock
-            }
-            $repository->set('advanced', $key, $value);
-            if ($key === 'days_before_expiry_warning' || $key === 'session_lifetime') {
-                ConfigStore::set("advanced.$key", (int) $value);
-            } elseif ($key === 'force_https' || $key === 'enable_hsts' || $key === 'private_mode') {
-                ConfigStore::set("advanced.$key", $value === '1');
-            } else {
-                ConfigStore::set("advanced.$key", $value);
-            }
-        }
-
         // public/sitemap.xml is served by the web server without running PHP,
         // so PrivateModeMiddleware cannot gate it: withdraw the published copy
         // when private mode is on, and /sitemap.xml goes back through the gated
@@ -1122,7 +1108,10 @@ class SettingsController
         // instead of hidden behind the success message.
         $withdrawalErrors = [];
         if ($settings['private_mode'] === '1') {
-            $publishLocked = \App\Support\SitemapCache::acquirePublishLock();
+            if (!\App\Support\SitemapCache::acquirePublishLock()) {
+                $_SESSION['error_message'] = __('Impossibile acquisire il lock. Riprova tra qualche secondo.');
+                return $this->redirect($response, '/admin/settings?tab=advanced');
+            }
             try {
                 $repository->set('advanced', 'private_mode', '1');
                 ConfigStore::set('advanced.private_mode', true);
@@ -1133,9 +1122,21 @@ class SettingsController
                     $withdrawalErrors[] = __('Impossibile rimuovere il calendario pubblico (storage/calendar/library-calendar.ics), che resta accessibile a chiunque. Verifica i permessi della cartella storage/calendar/ e rimuovi il file.');
                 }
             } finally {
-                if ($publishLocked) {
-                    \App\Support\SitemapCache::releasePublishLock();
-                }
+                \App\Support\SitemapCache::releasePublishLock();
+            }
+        }
+
+        foreach ($settings as $key => $value) {
+            if ($key === 'private_mode' && $value === '1') {
+                continue; // written above, under the sitemap publish lock
+            }
+            $repository->set('advanced', $key, $value);
+            if ($key === 'days_before_expiry_warning' || $key === 'session_lifetime') {
+                ConfigStore::set("advanced.$key", (int) $value);
+            } elseif ($key === 'force_https' || $key === 'enable_hsts' || $key === 'private_mode') {
+                ConfigStore::set("advanced.$key", $value === '1');
+            } else {
+                ConfigStore::set("advanced.$key", $value);
             }
         }
 

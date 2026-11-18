@@ -198,8 +198,8 @@ $settings = (string) file_get_contents($ROOT . '/app/Controllers/SettingsControl
 $advStart = strpos($settings, 'public function updateAdvancedSettings(');
 $advEnd = strpos($settings, 'public function regenerateSitemap(');
 $adv = ($advStart === false || $advEnd === false) ? '' : substr($settings, $advStart, $advEnd - $advStart);
-$check(preg_match("/if \(\\\$settings\['private_mode'\] === '1'\) \{\s*\\\$publishLocked = \\\\App\\\\Support\\\\SitemapCache::acquirePublishLock\(\);\s*try \{\s*\\\$repository->set\('advanced', 'private_mode', '1'\);\s*ConfigStore::set\('advanced.private_mode', true\);\s*if \(!\\\\App\\\\Support\\\\SitemapCache::withdraw\(/", $adv) === 1
-    && preg_match('/\} finally \{\s*if \(\$publishLocked\) \{\s*\\\\App\\\\Support\\\\SitemapCache::releasePublishLock\(\);/', $adv) === 1
+$check(preg_match('~if \(!\\\\App\\\\Support\\\\SitemapCache::acquirePublishLock\(\)\) \{[^}]*return \$this->redirect\([^}]+\}\s*try \{\s*\$repository->set\(\'advanced\', \'private_mode\', \'1\'\);~s', $adv) === 1
+    && str_contains($adv, 'SitemapCache::releasePublishLock();')
     && str_contains($adv, "if (\$key === 'private_mode' && \$value === '1') {\n                continue;"),
     'saving Advanced settings with private mode on writes the flag and withdraws the sitemap under the publish lock (E)');
 $pmBranch = preg_match("/if \(\\\$settings\['private_mode'\] === '1'\) \{(.*?)\n        \}\n/s", $adv, $m) === 1 ? $m[1] : '';

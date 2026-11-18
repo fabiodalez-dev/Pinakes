@@ -623,24 +623,6 @@ function copyTree(string $src, string $dst, string $rootDst, array $skipRelative
 // ============================================================
 // BEGIN upgrade-auth-throttle
 /**
- * The primary group of this PHP process, or null when it cannot be told
- * (same probe as upgradeEffectiveUid()).
- */
-function upgradeEffectiveGid(): ?int
-{
-    if (function_exists('posix_getegid')) {
-        return posix_getegid();
-    }
-    $probe = @tempnam(sys_get_temp_dir(), 'pinakes_gid_');
-    if ($probe === false) {
-        return null;
-    }
-    $group = @filegroup($probe);
-    @unlink($probe);
-    return $group === false ? null : $group;
-}
-
-/**
  * The user this PHP process runs as, or null when it cannot be told. Without
  * the posix extension (not among the documented requirements) it is read from
  * the owner of a file this process creates.
@@ -916,106 +898,38 @@ function upgradeAuthHandlePasswordPost(
 // ============================================================
 // BEGIN upgrade-dump-credentials
 /**
- * Write the mysqldump credentials file inside <install>/storage/tmp and return
- * its path. Never anywhere else: the file holds the database password.
- *
- * - storage/tmp is created 0700 when absent; an existing one must be a real
- *   directory owned by this process user, and is tightened to 0700 (refused
- *   if it cannot be). None of its parents may be writable by everyone without
- *   the sticky bit, nor writable by a group other than this process's own:
- *   another account could otherwise rename storage/tmp away after the checks
- *   and put its own options file at the path mysqldump reads. (Their owners
- *   are not required to be this user: whoever owns a parent of the install
- *   can already replace the install itself.)
- * - The file gets a random name and is created exclusively (O_EXCL, which
- *   never follows a planted symlink), then written through that same handle,
- *   after checking the handle is still the regular file at the path.
- *
- * @param int|null $euid the user storage/tmp must belong to (process user by default)
- * @param int|null $egid the only group a parent may be writable by (process group by default)
+ * Pass the client options on an inherited pipe. The dump child reads its own
+ * descriptor, so neither deployment ownership nor PHP's open_basedir matters.
+ * @param list<string> $arguments
  */
-function upgradeWriteDumpCredentialsFile(string $rootPath, string $contents, ?int $euid = null, ?int $egid = null): string
+function upgradeRunDump(string $binary, array $arguments, array $env, string $backupFile): int
 {
-    $refuse = static function (string $why): RuntimeException {
-        return new RuntimeException('Backup DB annullato: ' . $why
-            . ' Il file credenziali di mysqldump non viene scritto altrove.');
-    };
-    $dir = rtrim(str_replace('\\', '/', $rootPath), '/') . '/storage/tmp';
-    if (!is_dir($dir) && !is_link($dir) && !@mkdir($dir, 0700, true) && !is_dir($dir)) {
-        throw $refuse('impossibile creare la cartella storage/tmp. Rendi scrivibile storage/ per l\'utente del web server, poi riprova.');
+    $quote = static fn (string $value): string => '"' . strtr($value, [
+        '\\' => '\\\\', '"' => '\\"', "\n" => '\n', "\r" => '\r', "\t" => '\t',
+    ]) . '"';
+    $options = "[client]\n"
+        . 'host=' . $quote((string) ($env['DB_HOST'] ?? 'localhost')) . "\n"
+        . 'user=' . $quote((string) ($env['DB_USER'] ?? '')) . "\n"
+        . 'password=' . $quote((string) ($env['DB_PASS'] ?? '')) . "\n"
+        . 'port=' . (int) ($env['DB_PORT'] ?? 3306) . "\n";
+    $command = array_merge([$binary, '--defaults-extra-file=/dev/fd/3'], $arguments);
+    $process = proc_open($command, [
+        1 => ['file', $backupFile, 'wb'],
+        2 => ['pipe', 'w'],
+        3 => ['pipe', 'r'],
+    ], $pipes);
+    if (!is_resource($process)) {
+        throw new RuntimeException('Impossibile avviare mysqldump.');
     }
-    clearstatcache();
-    if (is_link($dir) || !is_dir($dir)) {
-        throw $refuse('storage/tmp non è una cartella (collegamento simbolico?).');
+    $sent = fwrite($pipes[3], $options);
+    fclose($pipes[3]);
+    // Keep diagnostic output separate from the SQL backup.
+    while (!feof($pipes[2]) && fread($pipes[2], 8192) !== false) {
+        // Drain stderr before waiting for the child.
     }
-    $euid ??= upgradeEffectiveUid();
-    $owner = @fileowner($dir);
-    if ($euid === null || $owner === false || $owner !== $euid) {
-        throw $refuse('storage/tmp appartiene a un altro utente. Assegnala all\'utente del web server con chown, poi riprova.');
-    }
-    $perms = @fileperms($dir);
-    if ($perms !== false && ($perms & 0077) !== 0) {
-        @chmod($dir, 0700);
-        clearstatcache();
-        $perms = @fileperms($dir);
-    }
-    if ($perms === false || ($perms & 0077) !== 0) {
-        throw $refuse('i permessi di storage/tmp non possono essere ristretti a 0700.');
-    }
-    $realDir = realpath($dir);
-    if ($realDir === false) {
-        throw $refuse('storage/tmp non è raggiungibile.');
-    }
-    $egid ??= upgradeEffectiveGid();
-    for ($parent = dirname($realDir); ; $parent = dirname($parent)) {
-        $mode = @fileperms($parent);
-        if ($mode === false) {
-            throw $refuse('i permessi delle cartelle che contengono storage/tmp non sono leggibili.');
-        }
-        $sticky = ($mode & 01000) !== 0;
-        if (($mode & 0002) !== 0 && !$sticky) {
-            throw $refuse('una cartella che contiene storage/tmp è scrivibile da tutti gli utenti del server.');
-        }
-        if (($mode & 0020) !== 0 && !$sticky && ($egid === null || @filegroup($parent) !== $egid)) {
-            throw $refuse('una cartella che contiene storage/tmp è scrivibile da un gruppo diverso da quello del web server.'
-                . ' Togli il permesso di scrittura al gruppo (chmod g-w) o assegnala al gruppo del web server, poi riprova.');
-        }
-        if ($parent === dirname($parent)) {
-            break;
-        }
-    }
-
-    $file = $realDir . '/pinakes_dump_' . bin2hex(random_bytes(12)) . '.cnf';
-    $oldUmask = umask(0077);
-    try {
-        $handle = @fopen($file, 'x');
-    } finally {
-        umask($oldUmask);
-    }
-    if ($handle === false) {
-        throw $refuse('impossibile creare il file credenziali in storage/tmp (cartella non scrivibile?). Rendi scrivibile storage/tmp per l\'utente del web server, poi riprova.');
-    }
-    $ok = false;
-    try {
-        $opened = @fstat($handle);
-        $atPath = @lstat($file);
-        if ($opened === false || $atPath === false
-            || ($atPath['mode'] & 0170000) !== 0100000
-            || $opened['dev'] !== $atPath['dev'] || $opened['ino'] !== $atPath['ino']) {
-            throw $refuse('il file credenziali in storage/tmp è stato sostituito durante la creazione.');
-        }
-        @chmod($file, 0600);
-        if (fwrite($handle, $contents) !== strlen($contents) || !fflush($handle)) {
-            throw new RuntimeException('Impossibile scrivere il file temporaneo credenziali mysqldump');
-        }
-        $ok = true;
-    } finally {
-        fclose($handle);
-        if (!$ok) {
-            @unlink($file);
-        }
-    }
-    return $file;
+    fclose($pipes[2]);
+    $status = proc_close($process);
+    return $sent === strlen($options) ? $status : 1;
 }
 // END upgrade-dump-credentials
 
@@ -1176,20 +1090,7 @@ if ($authenticated && $requestMethod === 'POST' && isset($_FILES['zipfile'])) {
         }
 
         if ($mysqldumpBin) {
-            // Use defaults-extra-file to avoid exposing password in process list.
-            // Inside the install, never the host-shared temp dir (checked there).
-            $defaultsFile = upgradeWriteDumpCredentialsFile($rootPath,
-                "[client]\n"
-                . "host=" . ($env['DB_HOST'] ?? 'localhost') . "\n"
-                . "user=" . ($env['DB_USER'] ?? '') . "\n"
-                . "password=" . ($env['DB_PASS'] ?? '') . "\n"
-                . "port=" . (int) ($env['DB_PORT'] ?? 3306) . "\n"
-            );
-
-            $args = [
-                $mysqldumpBin,
-                '--defaults-extra-file=' . $defaultsFile,
-            ];
+            $args = [];
             if (!empty($env['DB_SOCKET'])) {
                 $args[] = '--socket=' . $env['DB_SOCKET'];
             }
@@ -1198,14 +1099,7 @@ if ($authenticated && $requestMethod === 'POST' && isset($_FILES['zipfile'])) {
             $args[] = '--triggers';
             $args[] = $env['DB_NAME'];
 
-            $safeCmd = implode(' ', array_map('escapeshellarg', $args)) . ' > ' . escapeshellarg($backupFile) . ' 2>&1';
-            $cmdOutput = [];
-            $exitCode = 0;
-            try {
-                exec($safeCmd, $cmdOutput, $exitCode);
-            } finally {
-                @unlink($defaultsFile);
-            }
+            $exitCode = upgradeRunDump($mysqldumpBin, $args, $env, $backupFile);
 
             if ($exitCode === 0 && is_file($backupFile) && filesize($backupFile) > 100) {
                 $log[] = '[OK] Backup DB creato: ' . basename($backupFile) . ' (' . formatBytes(filesize($backupFile)) . ')';

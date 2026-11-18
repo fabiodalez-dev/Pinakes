@@ -1205,7 +1205,7 @@ class UsersController
             return $response->withStatus(403);
         }
         try {
-            $expiry = \App\Support\PatronTypeAssignment::renewCard($db, $id);
+            $expiry = \App\Support\PatronTypeAssignment::renewCard($db, $id, self::canChangeAccountState(...));
         } catch (\Throwable $e) {
             \App\Support\SecureLogger::error('[Users] card renewal failed for user ' . $id, ['error' => $e->getMessage()]);
             $expiry = null;

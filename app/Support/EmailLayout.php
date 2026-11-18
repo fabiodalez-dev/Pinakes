@@ -48,10 +48,8 @@ final class EmailLayout
         I18n::setLocale($previousLocale);
 
         $logo = Branding::logo();
-        // The logo is fetched by the recipient's mail client, so its host must
-        // be one the operator configured (TrustedLink), never the request's;
-        // with none, the header shows the library name instead.
-        $logoAbsolute = $logo !== '' ? TrustedLink::fromAppUrl($logo) : null;
+        // Branding accepts operator-configured HTTP(S) assets, including CDN logos.
+        $logoAbsolute = preg_match('~^https?://~i', $logo) === 1 ? $logo : TrustedLink::fromAppUrl($logo);
         if ($logoAbsolute !== null) {
             $logoUrl = htmlspecialchars($logoAbsolute, ENT_QUOTES, 'UTF-8');
             $brand = '<img src="' . $logoUrl . '" height="40" alt="' . $safeAppName . '" '
