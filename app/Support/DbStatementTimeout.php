@@ -59,7 +59,11 @@ final class DbStatementTimeout
         'admin/books/import-unimarc',
         'admin/books/copy-cataloging/import',
         'api/dewey-editor/(?:import|export|restore)/[^/]+',
+        'api/v1/staff/(?:imports|marc/imports|user-imports)/[0-9a-f-]{36}/chunk',
         // Exports.
+        'api/v1/staff/exports/librarything\.tsv',
+        'api/v1/staff/marc/export',
+        'api/v1/staff/attendance/export\.csv',
         'admin/books/export/(?:csv|marc|librarything)',
         'admin/users/export/csv',
         'admin/users/export-pdf',

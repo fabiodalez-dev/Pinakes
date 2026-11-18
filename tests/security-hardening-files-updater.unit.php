@@ -482,6 +482,30 @@ PHP);
             $check($visible('/uploads/archives/documents/legacy-1.pdf'), 'legacy document_path of a published unit is served');
             $check(!$visible('/uploads/archives/documents/2-unpub.pdf'), 'file of an unpublished unit: refused');
             $check(!$visible('/uploads/archives/documents/3-deleted.pdf'), 'file of a soft-deleted unit: refused');
+            $check(!$visible('/uploads/archives/documents/4-PUB.pdf'), 'a different file spelling cannot borrow publication from another record');
+            $name = 'review-' . bin2hex(random_bytes(8)) . '.pdf';
+            $archive = $ROOT . '/public/uploads/archives/documents';
+            $storage = $ROOT . '/public/uploads/storage';
+            foreach ([$archive, $storage] as $dir) {
+                if (!is_dir($dir)) { mkdir($dir, 0755, true); }
+            }
+            try {
+                file_put_contents($archive . '/' . $name, 'archive fixture');
+                symlink($archive . '/' . $name, $storage . '/' . $name);
+                $resolve = $ctlRef->getMethod('privateUpload');
+                $controller = new \App\Controllers\ProtectedUploadController($db);
+                $check($resolve->invoke($controller, 'storage/' . $name) === null, 'generic link to an unpublished archive file is refused');
+                $path = '/uploads/archives/documents/' . $name;
+                $insert = $db->prepare('INSERT INTO archival_unit_files (unit_id, file_path) VALUES (4, ?)');
+                $insert->bind_param('s', $path);
+                $insert->execute();
+                $insert->close();
+                $check($resolve->invoke($controller, 'storage/' . $name) === realpath($archive . '/' . $name),
+                    'the same link opens after its canonical archive record is published');
+            } finally {
+                if (is_link($storage . '/' . $name)) { unlink($storage . '/' . $name); }
+                if (is_file($archive . '/' . $name)) { unlink($archive . '/' . $name); }
+            }
             $check(!$visible('/uploads/archives/documents/orphan.pdf'), 'file belonging to no unit: refused');
             $db->query('CREATE TABLE utenti (id INT PRIMARY KEY, tipo_utente VARCHAR(16), stato VARCHAR(16), ruolo_id INT NULL)');
             $db->query('CREATE TABLE ruoli (id INT PRIMARY KEY, nome VARCHAR(50), permessi TEXT)');

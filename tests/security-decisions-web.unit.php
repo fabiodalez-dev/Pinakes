@@ -319,6 +319,10 @@ $guard(function () use ($check): void {
               '/installer/', '/admin/books/import/chunk', '/admin/users/import/upload', '/admin/books/export/csv',
               '/admin/archives/export.xml', '/api/autori/bulk-export', '/admin/updates/backup/restore',
               '/api/dewey-editor/restore/it_IT', '/admin/settings/advanced/regenerate-sitemap',
+              '/api/v1/staff/imports/10000000-0000-4000-8000-000000000001/chunk',
+              '/api/v1/staff/marc/imports/10000000-0000-4000-8000-000000000001/chunk',
+              '/api/v1/staff/user-imports/10000000-0000-4000-8000-000000000001/chunk',
+              '/api/v1/staff/exports/librarything.tsv', '/api/v1/staff/marc/export', '/api/v1/staff/attendance/export.csv',
               '/admin/books/import-sbn', '/admin/loans/export-csv',
               '/admin/inventory/7/report.csv', '/admin/books/12/export.unimarc.xml'] as $path) {
         $check(DbStatementTimeout::isExemptPath($path), "exempt long-running path: {$path}");
@@ -339,6 +343,7 @@ $guard(function () use ($check): void {
     $check(DbStatementTimeout::isExemptPath('/sub/admin/updates/backup', '/sub'),
         'exempt route under a base path');
     foreach (['/', '/catalogo', '/api/search/autori', '/api/libri', '/admin/books', '/libro/12/titolo',
+              '/api/v1/staff/marc/imports/10000000-0000-4000-8000-000000000001', '/api/v1/staff/imports/invalid/chunk',
               '/admin/updatesx', '/admin/settings',
               // free-form segments that merely CONTAIN a keyword stay bounded
               '/libro/123/important-book', '/libro/5/the-exporter', '/autore/9/backup-singers',

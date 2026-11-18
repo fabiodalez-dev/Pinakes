@@ -185,11 +185,16 @@ class LoanApprovalController
      */
     private function lockedRowOutOfScope(mysqli $db, Response $response, array $row, string $table): ?Response
     {
-        if (\App\Support\Permissions::mayActOnBorrower($db, (int) ($row['utente_id'] ?? 0))) {
-            return null;
+        $borrowerId = (int) ($row['utente_id'] ?? 0);
+        if (!\App\Support\Permissions::mayActOnBorrower($db, $borrowerId)) {
+            $db->rollback();
+            return $this->scopeNotFound($response, $table);
         }
-        $db->rollback();
-        return $this->scopeNotFound($response, $table);
+        if (\App\Support\SelfDealingGuard::blocks($borrowerId)) {
+            $db->rollback();
+            return $this->selfDealingResponse($response);
+        }
+        return null;
     }
 
     private function scopeNotFound(Response $response, string $table): Response

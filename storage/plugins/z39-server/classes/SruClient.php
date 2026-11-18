@@ -87,6 +87,8 @@ class SruClient
      */
     public const NOT_RETRYABLE = 1001;
 
+    private const MAX_QUEUE_WAIT_MICROS = 10_000_000;
+
     /** Largest SRU response body read, in bytes (16 MiB). */
     public const MAX_RESPONSE_BYTES = 16 * 1024 * 1024;
 
@@ -440,9 +442,9 @@ class SruClient
     public static function reserveApcuSlot(string $key, int $intervalMicros, ?int $now = null): ?int
     {
         for ($attempt = 0; $attempt < 50; $attempt++) {
-            $at = $now ?? (int) (microtime(true) * 1_000_000);
             $found = false;
             $previous = apcu_fetch($key, $found);
+            $at = $now ?? (int) (microtime(true) * 1_000_000);
             if (!$found) {
                 // No TTL: one integer per server, and an old value only means
                 // the next slot is now.
@@ -455,7 +457,13 @@ class SruClient
                 apcu_delete($key);
                 continue;
             }
-            $slot = max($at, $previous + $intervalMicros);
+            // This schedule never reserves beyond the horizon. Recover a stale
+            // or invalid timestamp by CAS, without doing arithmetic on it first.
+            $limit = $at + self::MAX_QUEUE_WAIT_MICROS;
+            $slot = $previous > $limit ? $at : max($at, $previous + $intervalMicros);
+            if ($slot > $limit) {
+                throw new \RuntimeException('SRU request queue is full', self::NOT_RETRYABLE);
+            }
             if (apcu_cas($key, $previous, $slot)) {
                 return $slot;
             }
@@ -474,9 +482,7 @@ class SruClient
         if (function_exists('apcu_enabled') && apcu_enabled() && function_exists('apcu_cas')) {
             $slot = self::reserveApcuSlot('sru_rate_' . md5($serverKey), (int) ($minIntervalSeconds * 1_000_000));
             if ($slot !== null) {
-                // Clamp to one interval: a far-future slot written by another
-                // user of the same APCu segment must not stall this worker.
-                $wait = min($slot - (int) (microtime(true) * 1_000_000), (int) ($minIntervalSeconds * 1_000_000));
+                $wait = min($slot - (int) (microtime(true) * 1_000_000), self::MAX_QUEUE_WAIT_MICROS);
                 if ($wait > 0) {
                     usleep($wait);
                 }

@@ -35,7 +35,7 @@ use Slim\Psr7\Stream;
 class ProtectedUploadController
 {
     /**
-     * Private upload roots served without a per-file check, relative to public/uploads/.
+     * Allowed private upload roots, relative to public/uploads/. Check archive visibility first.
      * Digital Library files are NOT here: they are reached only through the digital/
      * branch, which asks DigitalAccess (issue #480).
      */
@@ -93,9 +93,6 @@ class ProtectedUploadController
             $candidate = $this->privateUpload($rel);
         }
         if ($candidate === null) {
-            return new SlimResponse(404);
-        }
-        if (str_starts_with($rel, 'archives/documents/') && !$this->archiveDocumentVisible('/uploads/' . $rel)) {
             return new SlimResponse(404);
         }
 
@@ -251,7 +248,13 @@ class ProtectedUploadController
         foreach (self::ALLOWED_ROOTS as $root) {
             $base = realpath($uploadsRoot . '/' . $root);
             if ($base !== false && str_starts_with($candidate, $base . DIRECTORY_SEPARATOR)) {
-                return $candidate;
+                if ($root === 'archives/documents') {
+                    $name = substr($candidate, strlen($base) + 1);
+                    $storedPath = '/uploads/' . $root . '/' . str_replace(DIRECTORY_SEPARATOR, '/', $name);
+                    return $this->archiveDocumentVisible($storedPath) ? $candidate : null;
+                }
+                // An archive link resolving into generic storage has no canonical archive record.
+                return str_starts_with($rel, 'storage/') ? $candidate : null;
             }
         }
         return null;
@@ -291,13 +294,13 @@ class ProtectedUploadController
             $parts = [];
             $params = [];
             if ($schema['legacy']) {
-                $parts[] = 'SELECT 1 FROM archival_units u WHERE u.document_path = ? AND ' . $live;
+                $parts[] = 'SELECT 1 FROM archival_units u WHERE BINARY u.document_path = ? AND ' . $live;
                 $params[] = $storedPath;
             }
             if ($schema['files']) {
                 $parts[] = 'SELECT 1 FROM archival_unit_files f'
                     . ' JOIN archival_units u ON u.id = f.unit_id'
-                    . ' WHERE f.file_path = ? AND ' . $live;
+                    . ' WHERE BINARY f.file_path = ? AND ' . $live;
                 $params[] = $storedPath;
             }
             if ($parts === []) {
