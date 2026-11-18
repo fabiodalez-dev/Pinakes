@@ -43,6 +43,7 @@ class RouteTranslator
         'wishlist' => '/wishlist',
         'reservations' => '/reservations',
         'catalog' => '/catalog',
+        'films' => '/films',
         'catalog_legacy' => '/catalog.php',
         'book' => '/book',
         'book_legacy' => '/book-detail.php',

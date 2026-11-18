@@ -3096,6 +3096,13 @@ return function (App $app): void {
         });
     }
 
+    foreach ($supportedLocales as $locale) {
+        $registerRouteIfUnique('GET', RouteTranslator::getRouteForLocale('films', $locale), function ($request, $response) use ($app) {
+            $container = $app->getContainer();
+            return (new \App\Controllers\FrontendController($container))->films($response, $container->get('db'));
+        });
+    }
+
     // Legacy book detail redirect (all language variants)
     foreach ($supportedLocales as $locale) {
         $registerRouteIfUnique('GET', RouteTranslator::getRouteForLocale('book_legacy', $locale), function ($request, $response) use ($app) {

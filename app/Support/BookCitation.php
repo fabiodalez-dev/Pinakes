@@ -68,11 +68,14 @@ final class BookCitation
      * @param array<string,mixed> $input from input()
      * @param array<string,mixed> $book  the libri row, for the identifiers
      */
-    public static function ris(array $input, array $book, string $recordUrl = ''): string
+    public static function ris(array $input, array $book, string $recordUrl = '', string $provider = ''): string
     {
         $clean = static fn(mixed $value): string => trim((string) preg_replace('/\s+/u', ' ', (string) $value));
         $isFilm = ($input['type'] ?? 'book') === 'film';
         $lines = [['TY', $isFilm ? 'MPCT' : 'BOOK']];
+        if ($isFilm && (int) ($book['id'] ?? 0) > 0) {
+            $lines[] = ['ID', (string) (int) $book['id']];
+        }
         foreach ($input['authors'] ?? [] as $author) {
             $lines[] = ['AU', $author];
         }
@@ -92,6 +95,7 @@ final class BookCitation
             'LA' => $book['lingua'] ?? '',
             'M3' => $input['medium'] ?? '',
             'UR' => $recordUrl,
+            'DP' => $isFilm ? $provider : '',
         ] as $tag => $value) {
             if ($clean($value) !== '') {
                 $lines[] = [$tag, $value];
