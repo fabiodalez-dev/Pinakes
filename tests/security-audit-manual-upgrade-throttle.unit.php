@@ -102,14 +102,23 @@ try {
     $read = upgradeAuthUpdate((string) $fileA, static fn (array $s): array => $s);
     $check($read !== null && $read['failed'] >= 5, 'a corrupt state file counts as attempts used up, never as a reset counter');
     $r = upgradeAuthReserveAttempt((string) $fileA, 5, 300);
-    $check($r !== null && upgradeAuthUpdate((string) $fileA, static fn (array $s): array => $s)['lock_until'] > time(),
-        'so the next attempt locks');
+    $check($r !== null && $r['allowed'] === false && upgradeAuthUpdate((string) $fileA, static fn (array $s): array => $s)['lock_until'] > time(),
+        'so the next attempt locks without comparing the password');
     file_put_contents((string) $fileA, '');
     $check(upgradeAuthUpdate((string) $fileA, static fn (array $s): array => $s) === ['failed' => 0, 'lock_until' => 0],
         'an empty file, as created, starts from zero');
     upgradeAuthUpdate((string) $fileA, static fn (array $s): array => ['failed' => 12345, 'lock_until' => 0]);
     upgradeAuthUpdate((string) $fileA, static fn (array $s): array => ['failed' => 1, 'lock_until' => 0]);
     $check(file_get_contents((string) $fileA) === '{"failed":1,"lock_until":0}', 'a shorter state overwrites a longer one without leftovers');
+    // The state is replaced whole (new file renamed over the old one), never
+    // rewritten in place: an interrupted write cannot leave a valid-looking
+    // lower count behind.
+    $inodeBefore = fileinode((string) $fileA);
+    upgradeAuthUpdate((string) $fileA, static fn (array $s): array => ['failed' => 2, 'lock_until' => 0]);
+    clearstatcache();
+    $check(fileinode((string) $fileA) !== $inodeBefore, 'each update replaces the state file atomically (new inode)');
+    $check(glob(dirname((string) $fileA) . '/*.tmp') === [], 'and leaves no temporary file behind');
+    $check(is_file((string) $fileA . '.lock'), 'the lock is held on a separate, stable file');
 
     echo "B2. The attempt is reserved before the password is checked\n";
     $rootR = $mkStateRoot('siteR');
@@ -291,6 +300,17 @@ try {
     $check(is_file($credFile), 'with the sticky bit (like /tmp) it is accepted');
     unlink($credFile); // nosemgrep: php.lang.security.unlink-use.unlink-use -- test temp file
     chmod($rootW, 0755);
+
+    $rootGrp = $tmp . '/group-parent';
+    mkdir($rootGrp . '/site/storage', 0755, true);
+    chmod($rootGrp, 0775);
+    $ownGid = function_exists('posix_getegid') ? posix_getegid() : (int) filegroup($rootGrp);
+    $msg = $refusedWith(static fn () => upgradeWriteDumpCredentialsFile($rootGrp . '/site', 'x', null, $ownGid + 4242));
+    $check(str_contains($msg, 'gruppo diverso') && !file_exists($rootGrp . '/site/storage/tmp/x'), 'a parent writable by a group other than the process group is refused');
+    $credFile = upgradeWriteDumpCredentialsFile($rootGrp . '/site', 'x', null, (int) filegroup($rootGrp));
+    $check(is_file($credFile), 'a parent writable only by the process group is accepted');
+    unlink($credFile); // nosemgrep: php.lang.security.unlink-use.unlink-use -- test temp file
+    chmod($rootGrp, 0755);
 
     $rootRo = $mkRoot('siteDumpReadOnly');
     mkdir($rootRo . '/storage/tmp', 0500);
