@@ -2,6 +2,20 @@
 
 Full version-by-version history for Pinakes. The README shows only the last three releases; everything older lives here.
 
+## [Unreleased]
+
+### Films and video ([#539](https://github.com/fabiodalez-dev/Pinakes/issues/539))
+
+Films can be catalogued as films. No migration: five nullable columns of `libri` (`durata_minuti`, `interpreti`, `sottotitoli`, `classificazione_eta`, `codice_regione`) are added to existing installs by the schema check that runs after every update.
+
+- **The media type "DVD" is now "Film e video"** and covers every video carrier: DVD, Blu-ray, 4K Ultra HD and VHS are recognised in the format. The stored value stays `dvd`, so existing records, loan rules and statistics are unchanged.
+- **A film record speaks film.** The principal author reads as the director, the publisher as production / distribution, the description as the plot, the EAN as the barcode and the language as the audio languages, as a music record already reads artist and label.
+- **Running time, cast, subtitles, age rating and region code** have their own fields in a "Dettagli film" card of the book form, shown when the media type is film and video. Switching the type away keeps what was entered. The admin record and the public page show them, the public page in place of the page count.
+- **The public page describes a film to search engines** as a schema.org `Movie` with its director, studio, duration, cast and content rating.
+- **The reference of a film is a film.** The RIS download is `TY  - MPCT` (motion picture), with the carrier in `M3`, the barcode in `SN` and the cast and running time as notes. APA, Chicago, Harvard, MLA and Oxford cite the director and the "[Film]" or carrier the style asks for. Books, articles and chapters are cited exactly as before.
+- **MARC 21 and UNIMARC exports describe a videorecording**: 300 / 215 "1 videodisc (95 min)" (videocassette for VHS), 306 playing time, 008/18-20 running time and 008/33 `v`, 041 `$j` subtitle languages, 511 / 323 cast, 521 / 333 age rating, 538 region and 546 subtitles; the director is `$e film director` (UNIMARC `$4 300`) and comes back as the principal author on import. A book's record is unchanged.
+- **The catalogue's media type filter is translated** in every language; it showed the Italian names.
+
 ## [0.9.5]
 
 A patch release for loans and reservations, from an audit of circulation with 120 new browser scenarios ([#533](https://github.com/fabiodalez-dev/Pinakes/pull/533)). No migration: one nullable column, `prenotazioni.prestito_promosso_id`, is added to existing installs by the schema check that runs after every update.

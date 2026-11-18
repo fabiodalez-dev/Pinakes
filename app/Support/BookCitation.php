@@ -39,9 +39,17 @@ final class BookCitation
         }
         $title = $decode($book['titolo'] ?? '');
         $subtitle = $decode($book['sottotitolo'] ?? '');
+        // A film (#539) is cited as a film: its principal authors are its
+        // directors and the publisher its studio or distributor.
+        $isFilm = MediaLabels::isFilm(
+            isset($book['formato']) ? (string) $book['formato'] : null,
+            isset($book['tipo_media']) ? (string) $book['tipo_media'] : null
+        );
+        $formato = trim((string) ($book['formato'] ?? ''));
 
         return [
-            'type' => 'book',
+            'type' => $isFilm ? 'film' : 'book',
+            'medium' => $isFilm && $formato !== '' ? MediaLabels::formatDisplayName($formato) : '',
             'authors' => array_values(array_unique($citeAuthors)),
             'editors' => array_values(array_unique($citeEditors)),
             'year' => !empty($book['anno_pubblicazione']) ? (string) (int) $book['anno_pubblicazione'] : '',
@@ -53,8 +61,9 @@ final class BookCitation
     }
 
     /**
-     * The RIS record (TY BOOK). Every value is collapsed to one line: in RIS a
-     * line break starts a new tag.
+     * The RIS record: TY BOOK, or TY MPCT (motion picture) for a film (#539).
+     * Every value is collapsed to one line: in RIS a line break starts a new
+     * tag.
      *
      * @param array<string,mixed> $input from input()
      * @param array<string,mixed> $book  the libri row, for the identifiers
@@ -62,7 +71,8 @@ final class BookCitation
     public static function ris(array $input, array $book, string $recordUrl = ''): string
     {
         $clean = static fn(mixed $value): string => trim((string) preg_replace('/\s+/u', ' ', (string) $value));
-        $lines = [['TY', 'BOOK']];
+        $isFilm = ($input['type'] ?? 'book') === 'film';
+        $lines = [['TY', $isFilm ? 'MPCT' : 'BOOK']];
         foreach ($input['authors'] ?? [] as $author) {
             $lines[] = ['AU', $author];
         }
@@ -76,13 +86,24 @@ final class BookCitation
             'PB' => $input['publisher'] ?? '',
             'CY' => $input['place'] ?? '',
             'ET' => $input['edition'] ?? '',
-            'SN' => $isbn,
+            'SN' => $isFilm ? ($book['ean'] ?? '') : $isbn,
             'T2' => $book['collana'] ?? '',
             'LA' => $book['lingua'] ?? '',
+            'M3' => $input['medium'] ?? '',
             'UR' => $recordUrl,
         ] as $tag => $value) {
             if ($clean($value) !== '') {
                 $lines[] = [$tag, $value];
+            }
+        }
+        if ($isFilm) {
+            $cast = FilmFields::castLine($book['interpreti'] ?? null);
+            if ($cast !== '') {
+                $lines[] = ['N1', 'Cast: ' . $cast];
+            }
+            $runtime = FilmFields::runtime($book['durata_minuti'] ?? null);
+            if ($runtime !== null) {
+                $lines[] = ['N1', 'Running time: ' . $runtime . ' min'];
             }
         }
         foreach (preg_split('/\s*[,;]\s*/u', $clean($book['parole_chiave'] ?? '')) ?: [] as $keyword) {

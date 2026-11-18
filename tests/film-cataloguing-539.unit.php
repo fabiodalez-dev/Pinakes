@@ -1,0 +1,168 @@
+<?php
+declare(strict_types=1);
+/**
+ * Film cataloguing (#539). A film is a record with tipo_media 'dvd' (the enum
+ * value is kept; the label reads "Film e video"): its director is the
+ * principal author, its studio the publisher, and five film facts live in
+ * their own columns (durata_minuti, interpreti, sottotitoli,
+ * classificazione_eta, codice_regione). No network or DB.
+ *
+ * Covers: media type aliases and film labels, FilmFields normalisation and
+ * formatting, the citation input and the RIS record (TY MPCT), the five
+ * citation styles for a film, and the MARC 21 / UNIMARC export; a book's
+ * output is checked unchanged next to each.
+ */
+$root = dirname(__DIR__);
+require $root . '/vendor/autoload.php';
+\App\Support\Features::override('rda_types', true);
+require_once $root . '/app/helpers.php';
+
+use App\Support\BookCitation;
+use App\Support\CitationStyles;
+use App\Support\FilmFields;
+use App\Support\Marc\BookMarcBuilder;
+use App\Support\Marc\Iso2709Reader;
+use App\Support\Marc\Iso2709Writer;
+use App\Support\Marc\Marc21LibriMapper;
+use App\Support\Marc\MarcRecord;
+use App\Support\MediaLabels;
+
+$count = 0;
+$check = static function (bool $ok, string $label) use (&$count): void {
+    if (!$ok) {
+        throw new RuntimeException('FAIL ' . $label);
+    }
+    $count++;
+    echo "OK $label\n";
+};
+
+// ── Media type ───────────────────────────────────────────────────────────
+foreach (['dvd', 'DVD', 'Blu-ray', 'bluray', 'Blu-ray Disc', 'VHS', 'videocassetta', '4K UHD', 'movie', 'Film', 'film e video'] as $alias) {
+    $check(MediaLabels::resolveTipoMedia($alias, null) === 'dvd', "\"$alias\" is a film");
+}
+$check(MediaLabels::isFilm(null, 'dvd') && !MediaLabels::isFilm(null, 'libro') && !MediaLabels::isFilm(null, 'disco'), 'isFilm follows tipo_media');
+$check(MediaLabels::isFilm('libro', 'dvd') && !MediaLabels::isFilm('DVD', 'libro'), 'an explicit tipo_media wins over the format');
+foreach (['Audiobook CD' => 'audiolibro', 'cdrom' => 'libro', 'CD' => 'disco', 'Vinile' => 'disco', 'Cartaceo' => 'libro', 'help' => 'libro', 'video game' => 'libro'] as $format => $expected) {
+    $check(MediaLabels::inferTipoMedia($format) === $expected, "\"$format\" still infers $expected");
+}
+$check(MediaLabels::tipoMediaDisplayName('dvd') === 'Film e video', 'the dvd media type reads "Film e video"');
+$check(MediaLabels::allTypes()['dvd']['schema'] === 'Movie' && MediaLabels::icon('dvd') === 'fa-film', 'schema.org Movie, film icon');
+$check(MediaLabels::formatDisplayName('vhs') === 'VHS' && MediaLabels::formatDisplayName('blu-ray') === 'Blu-ray' && MediaLabels::formatDisplayName('4k') === '4K Ultra HD', 'carrier display names');
+
+// ── Labels ───────────────────────────────────────────────────────────────
+$check(MediaLabels::label('autore', null, 'dvd') === 'Regista' && MediaLabels::label('autori', null, 'dvd') === 'Regia', 'a film\'s author is its director');
+$check(MediaLabels::label('editore', null, 'dvd') === 'Produzione / Distribuzione', 'a film\'s publisher is its studio or distributor');
+$check(MediaLabels::label('descrizione', null, 'dvd') === 'Trama' && MediaLabels::label('ean', null, 'dvd') === 'Barcode', 'plot and barcode');
+$check(MediaLabels::label('autore', null, 'libro') === 'Autore' && MediaLabels::label('editore', null, 'libro') === 'Editore', 'a book keeps its labels');
+$check(MediaLabels::label('autore', null, 'disco') === 'Artista' && MediaLabels::label('descrizione', null, 'disco') === 'Tracklist', 'music keeps its labels');
+
+// ── FilmFields ───────────────────────────────────────────────────────────
+$n = FilmFields::normalize([
+    'durata_minuti' => ' 95 ', 'interpreti' => "  Ana de Armas\r\nDaniel Craig\n\n\n\nRami Malek ",
+    'sottotitoli' => "  italiano,\n inglese  ", 'classificazione_eta' => '', 'titolo' => 'not a film field',
+]);
+$check($n['durata_minuti'] === 95, 'runtime is an integer');
+$check($n['interpreti'] === "Ana de Armas\nDaniel Craig\n\nRami Malek", 'the cast keeps one name per line, blank runs collapsed');
+$check($n['sottotitoli'] === 'italiano, inglese', 'a one-line field is collapsed to one line');
+$check(array_key_exists('classificazione_eta', $n) && $n['classificazione_eta'] === null, 'a blank field clears the value');
+$check(!array_key_exists('codice_regione', $n) && !array_key_exists('titolo', $n), 'absent keys stay absent; other fields are ignored');
+foreach (['0', '-5', '65536', '1.5', 'abc', '', null, []] as $bad) {
+    $check(FilmFields::normalize(['durata_minuti' => $bad])['durata_minuti'] === null, 'runtime ' . json_encode($bad) . ' is rejected');
+}
+$check(mb_strlen((string) FilmFields::normalize(['classificazione_eta' => str_repeat('é', 80)])['classificazione_eta']) === 50, 'text is capped to the column size');
+$check(FilmFields::iso8601(95) === 'PT1H35M' && FilmFields::iso8601(120) === 'PT2H' && FilmFields::iso8601(45) === 'PT45M' && FilmFields::iso8601(null) === null, 'ISO 8601 duration');
+$check(FilmFields::marc306(95) === '013500' && FilmFields::marc306(6000) === null, 'MARC 306 HHMMSS');
+$check(FilmFields::marc008Runtime(95) === '095' && FilmFields::marc008Runtime(1200) === '000' && FilmFields::marc008Runtime(null) === 'nnn', 'MARC 008/18-20');
+$check(FilmFields::castList("Ana de Armas; Daniel Craig,Rami Malek\nDaniel Craig") === ['Ana de Armas', 'Daniel Craig', 'Rami Malek'], 'the cast list splits and de-duplicates');
+$check(FilmFields::runtimeLabel('95') === '95 min' && FilmFields::runtimeLabel('') === '', 'runtime label');
+
+// ── Citation and RIS ─────────────────────────────────────────────────────
+$film = [
+    'id' => 9, 'titolo' => 'The end of Oak Street', 'sottotitolo' => '', 'anno_pubblicazione' => 2009,
+    'editore' => 'Warner Bros.', 'luogo_pubblicazione' => 'Burbank', 'edizione' => '', 'isbn13' => '', 'isbn10' => '',
+    'ean' => '5051889012345', 'lingua' => 'inglese', 'collana' => '', 'parole_chiave' => 'til voksne',
+    'tipo_media' => 'dvd', 'formato' => 'blu-ray', 'durata_minuti' => 95,
+    'interpreti' => "Ana de Armas\nDaniel Craig", 'sottotitoli' => 'danese', 'classificazione_eta' => '15',
+    'codice_regione' => 'B',
+];
+$directors = [['nome' => 'Christopher Nolan', 'ruolo' => 'principale'], ['nome' => 'Some Translator', 'ruolo' => 'traduttore']];
+$input = BookCitation::input($film, $directors);
+$check($input['type'] === 'film' && $input['medium'] === 'Blu-ray', 'a film is cited as a film, with its carrier');
+$check($input['authors'] === ['Nolan, Christopher'] && $input['publisher'] === 'Warner Bros.', 'director and studio');
+$ris = BookCitation::ris($input, $film, 'https://example.org/film/9');
+$check(str_starts_with($ris, "TY  - MPCT\r\n") && str_ends_with($ris, "ER  - \r\n"), 'RIS: TY MPCT ... ER');
+foreach (["AU  - Nolan, Christopher", "TI  - The end of Oak Street", "PY  - 2009", "PB  - Warner Bros.", "M3  - Blu-ray", "SN  - 5051889012345", "KW  - til voksne", "N1  - Cast: Ana de Armas, Daniel Craig", "N1  - Running time: 95 min", "UR  - https://example.org/film/9"] as $line) {
+    $check(str_contains($ris, $line . "\r\n"), "RIS carries \"$line\"");
+}
+$evil = BookCitation::ris(BookCitation::input(['interpreti' => "A\r\nER  - \r\nTY  - BOOK"] + $film, $directors), ['interpreti' => "A\r\nER  - \r\nTY  - BOOK"] + $film);
+$check(substr_count($evil, "TY  - ") === 1 && substr_count($evil, "ER  - ") === 1, 'a line break in a film field cannot start a RIS tag');
+$book = ['tipo_media' => 'libro', 'formato' => 'cartaceo', 'isbn13' => '9788845292613', 'interpreti' => 'x'] + $film;
+$bookRis = BookCitation::ris(BookCitation::input($book, $directors), $book);
+$check(str_starts_with($bookRis, "TY  - BOOK\r\n") && str_contains($bookRis, "SN  - 9788845292613\r\n") && !str_contains($bookRis, 'M3  -') && !str_contains($bookRis, 'N1  -'), 'a book is still TY BOOK, with its ISBN and no film notes');
+$check(BookCitation::input($book, $directors)['type'] === 'book', 'a book is cited as a book');
+
+$styles = [];
+foreach (CitationStyles::all($input) as $style) {
+    $styles[$style['key']] = $style;
+}
+$check($styles['apa']['text'] === 'Nolan, C. (Director). (2009). The end of Oak Street [Film]. Warner Bros.', 'APA film: ' . $styles['apa']['text']);
+$check($styles['apa']['html'] === 'Nolan, C. (Director). (2009). <i>The end of Oak Street</i> [Film]. Warner Bros.', 'APA film italicises the title');
+$check($styles['harvard']['text'] === 'The end of Oak Street (2009) Directed by Christopher Nolan [Blu-ray]. Burbank: Warner Bros.', 'Harvard film: ' . $styles['harvard']['text']);
+$check($styles['chicago']['text'] === 'Nolan, Christopher, dir. 2009. The end of Oak Street. Burbank: Warner Bros. Blu-ray.', 'Chicago film: ' . $styles['chicago']['text']);
+$check($styles['mla']['text'] === 'The end of Oak Street. Directed by Christopher Nolan, Warner Bros., 2009.', 'MLA film: ' . $styles['mla']['text']);
+$check($styles['oxford']['text'] === 'Nolan, C. (dir.) The end of Oak Street [Blu-ray]. (Warner Bros., 2009).', 'Oxford film: ' . $styles['oxford']['text']);
+$anon = CitationStyles::apa(['type' => 'film', 'title' => 'Untitled', 'year' => '']);
+$check($anon['text'] === 'Untitled [Film]. (n.d.).', 'APA film without director or year: ' . $anon['text']);
+$two = CitationStyles::chicago(['type' => 'film', 'title' => 'Avengers', 'year' => '2019', 'authors' => ['Russo, Anthony', 'Russo, Joe']]);
+$check($two['text'] === 'Russo, Anthony, and Joe Russo, dirs. 2019. Avengers.', 'Chicago two directors: ' . $two['text']);
+$bookApa = CitationStyles::apa(BookCitation::input($book, $directors))['text'];
+$check(!str_contains($bookApa, '[Film]') && !str_contains($bookApa, '(Director)'), 'a book\'s APA has no film markers');
+
+// ── MARC 21 ──────────────────────────────────────────────────────────────
+$row = $film + ['numero_pagine' => 2, 'dimensioni' => '19 cm', 'created_at' => '2024-01-01 00:00:00', 'updated_at' => '2024-01-02 00:00:00'];
+$m = BookMarcBuilder::marc21($row, $directors, [['nome' => 'Warner Bros.']], null);
+$f008 = (string) $m->controlField('008');
+$check($m->leader()[6] === 'g' && strlen($f008) === 40, 'leader/06 g, 008 of 40 positions');
+$check(substr($f008, 18, 3) === '095' && substr($f008, 33, 2) === 'v|', '008/18-20 running time, 33 videorecording');
+$check($m->subfield('300', 'a') === '1 videodisc (95 min)' && $m->subfield('300', 'c') === '19 cm', '300: carrier and running time, not pages');
+$check($m->subfield('306', 'a') === '013500', '306 playing time');
+$check($m->subfield('100', 'a') === 'Christopher Nolan' && $m->subfield('100', 'e') === 'film director', '100 $e film director');
+$check($m->subfield('700', 'e') === 'translator', 'other roles keep their relator term');
+$check($m->subfield('511', 'a') === 'Ana de Armas, Daniel Craig' && $m->first('511')?->ind1 === '1', '511 cast');
+$check($m->subfield('521', 'a') === '15' && $m->first('521')?->ind1 === '8', '521 age rating');
+$check($m->subfield('538', 'a') === 'Region B', '538 region');
+$check($m->subfield('546', 'a') === 'Subtitles: danese', '546 subtitles in words');
+$check($m->subfieldValues('041', 'a') === ['eng'] && $m->subfieldValues('041', 'j') === ['dan'], '041 $a audio, $j subtitles');
+$check([$m->subfield('336', 'b'), $m->subfield('337', 'b'), $m->subfield('338', 'b')] === ['tdi', 'v', 'vd'], '336-338 tdi/v/vd');
+$vhs = BookMarcBuilder::marc21(['formato' => 'VHS', 'durata_minuti' => null] + $row, $directors, [], null);
+$check($vhs->subfield('300', 'a') === '1 videocassette' && $vhs->first('306') === null && substr((string) $vhs->controlField('008'), 18, 3) === 'nnn', 'a VHS without running time');
+$onlySubs = BookMarcBuilder::marc21(['lingua' => ''] + $row, $directors, [], null);
+$check($onlySubs->subfieldValues('041', 'a') === [] && $onlySubs->subfieldValues('041', 'j') === ['dan'], '041 with subtitles only');
+$back = (new Marc21LibriMapper())->map(array_values(array_filter(iterator_to_array(Iso2709Reader::fromString(Iso2709Writer::serialize($m)), false), static fn ($r): bool => $r instanceof MarcRecord))[0]);
+$check($back['tipo_media'] === 'dvd' && $back['autori'] === ['Christopher Nolan'], 'export → import: the film and its director come back');
+
+$bookRow = ['tipo_media' => 'libro', 'formato' => 'cartaceo'] + $row;
+$bm = BookMarcBuilder::marc21($bookRow, $directors, [], null);
+$check($bm->subfield('300', 'a') === '2 pages' && $bm->subfield('100', 'e') === 'author', 'a book: 300 pages, 100 author');
+foreach (['306', '511', '521', '538', '546'] as $tag) {
+    $check($bm->first($tag) === null, "a book has no $tag");
+}
+$check($bm->subfieldValues('041', 'j') === [] && substr((string) $bm->controlField('008'), 18, 3) === '   ' && substr((string) $bm->controlField('008'), 33, 2) === '  ', 'a book: no 041 $j, 008/18-20 and 33-34 untouched');
+
+// ── UNIMARC ──────────────────────────────────────────────────────────────
+$u = BookMarcBuilder::unimarc($row, $directors, [], null);
+$check($u->leader()[6] === 'g' && $u->subfield('215', 'a') === '1 videodisc (95 min)', 'UNIMARC 215 carrier and running time');
+$check($u->subfield('323', 'a') === 'Ana de Armas, Daniel Craig' && $u->subfield('333', 'a') === '15', 'UNIMARC 323 cast, 333 audience');
+$check($u->subfield('700', '4') === '300' && $u->subfield('702', '4') === '730', 'UNIMARC 700 $4 300 (director), translator unchanged');
+$ub = BookMarcBuilder::unimarc($bookRow, $directors, [], null);
+$check($ub->subfield('215', 'a') === '2 p.' && $ub->subfield('700', '4') === '070' && $ub->first('323') === null && $ub->first('333') === null, 'a UNIMARC book is unchanged');
+
+// ── Schema ───────────────────────────────────────────────────────────────
+$schema = (string) file_get_contents($root . '/installer/database/schema.sql');
+foreach (array_keys(FilmFields::COLUMNS) as $column) {
+    $check(preg_match('/^\s+`' . $column . '` [^\n]*(DEFAULT NULL|text COLLATE)/m', $schema) === 1, "schema.sql declares libri.$column, nullable");
+}
+$parsed = \App\Support\SchemaRepair::parse($schema);
+$check(array_keys(FilmFields::COLUMNS) === array_values(array_intersect(array_keys($parsed['libri']['columns']), array_keys(FilmFields::COLUMNS))), 'the schema check sees the film columns, so updated installs get them');
+
+echo "SUCCESS $count film cataloguing checks\n";

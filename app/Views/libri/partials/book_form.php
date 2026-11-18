@@ -584,6 +584,55 @@ $selectedSeriesType = \App\Support\SeriesLabels::canonical($book['tipo_collana']
           </div>
         </div>
       </div>
+      <?php
+      // Film and video (#539): shown when the media type is film/video, kept
+      // in the form (and posted) when hidden so switching type loses nothing.
+      $isFilmRecord = \App\Support\MediaLabels::resolveTipoMedia($book['formato'] ?? null, $book['tipo_media'] ?? null) === 'dvd';
+      ?>
+      <!-- Film / Video Section -->
+      <div class="card" id="film-details" <?= $isFilmRecord ? '' : 'hidden' ?>>
+        <div class="card-header">
+          <h2 class="form-section-title flex items-center gap-2">
+            <i class="fas fa-film text-gray-900"></i>
+            <?= __("Dettagli film") ?>
+          </h2>
+        </div>
+        <div class="card-body form-section">
+          <p class="text-xs text-gray-500 mb-3"><?= __("Il regista va inserito come autore principale, la casa di produzione o il distributore come editore e le lingue audio nel campo Lingua.") ?></p>
+          <div class="form-grid-3">
+            <div>
+              <label for="durata_minuti" class="form-label"><?= __("Durata (minuti)") ?></label>
+              <input id="durata_minuti" name="durata_minuti" type="number" min="1" max="<?= \App\Support\FilmFields::MAX_RUNTIME ?>" step="1" class="form-input" placeholder="<?= htmlspecialchars(__('es. 120'), ENT_QUOTES, 'UTF-8') ?>" value="<?php echo HtmlHelper::e((string) ($book['durata_minuti'] ?? '')); ?>" />
+            </div>
+            <div>
+              <label for="classificazione_eta" class="form-label"><?= __("Classificazione per età") ?></label>
+              <input id="classificazione_eta" name="classificazione_eta" type="text" maxlength="50" class="form-input" placeholder="<?= htmlspecialchars(__('es. PG-13, 12+, FSK 12'), ENT_QUOTES, 'UTF-8') ?>" value="<?php echo HtmlHelper::e($book['classificazione_eta'] ?? ''); ?>" />
+            </div>
+            <div>
+              <label for="codice_regione" class="form-label"><?= __("Codice regione") ?></label>
+              <input id="codice_regione" name="codice_regione" type="text" maxlength="20" class="form-input" placeholder="<?= htmlspecialchars(__('es. 2 (Europa), B'), ENT_QUOTES, 'UTF-8') ?>" value="<?php echo HtmlHelper::e($book['codice_regione'] ?? ''); ?>" />
+            </div>
+          </div>
+          <div class="mt-4">
+            <label for="sottotitoli" class="form-label"><?= __("Sottotitoli") ?></label>
+            <input id="sottotitoli" name="sottotitoli" type="text" maxlength="255" class="form-input" placeholder="<?= htmlspecialchars(__('es. italiano, inglese, danese'), ENT_QUOTES, 'UTF-8') ?>" value="<?php echo HtmlHelper::e($book['sottotitoli'] ?? ''); ?>" />
+          </div>
+          <div class="mt-4">
+            <label for="interpreti" class="form-label"><?= __("Interpreti") ?></label>
+            <textarea id="interpreti" name="interpreti" rows="3" maxlength="5000" class="form-input" placeholder="<?= htmlspecialchars(__('Un nome per riga, oppure separati da virgola'), ENT_QUOTES, 'UTF-8') ?>"><?php echo HtmlHelper::e($book['interpreti'] ?? ''); ?></textarea>
+          </div>
+        </div>
+      </div>
+      <script>
+      (function () {
+        const media = document.getElementById('tipo_media');
+        const card = document.getElementById('film-details');
+        if (!media || !card) { return; }
+        const sync = function () { card.hidden = media.value !== 'dvd'; };
+        media.addEventListener('change', sync);
+        sync();
+      })();
+      </script>
       <!-- Library Management Section -->
       <div class="card">
         <div class="card-header">
