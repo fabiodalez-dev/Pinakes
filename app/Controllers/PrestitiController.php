@@ -2930,20 +2930,6 @@ class PrestitiController
         return $response->withHeader('Content-Type', 'application/json');
     }
 
-    /** Borrower of loan $id, or 0 when the loan does not exist. */
-    private function loanBorrowerId(mysqli $db, int $id): int
-    {
-        $stmt = $db->prepare('SELECT utente_id FROM prestiti WHERE id = ?');
-        if ($stmt === false) {
-            return 0;
-        }
-        $stmt->bind_param('i', $id);
-        $stmt->execute();
-        $row = $stmt->get_result()->fetch_assoc();
-        $stmt->close();
-        return (int) ($row['utente_id'] ?? 0);
-    }
-
     /**
      * Blank the borrower's contact fields of a loan row when the borrower is
      * outside the operator's loan-desk scope (Permissions::mayActOnBorrower):
