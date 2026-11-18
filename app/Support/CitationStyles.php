@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace App\Support;
 
 /**
- * Bibliographic citations in five styles, for books, periodical articles and
- * chapters in edited books (#412).
+ * Bibliographic citations in five styles, for books, periodical articles,
+ * chapters in edited books (#412) and films (#539).
  *
  * A catalogue record holds every part of a citation; this class assembles
  * them, so a reader copies the reference instead of retyping it. The Emeroteca
@@ -57,7 +57,8 @@ final class CitationStyles
      * @param array<string,mixed> $input
      * @return array{type:string,authors:list<string>,editors:list<string>,year:string,month:int,day:int,
      *               title:string,container:string,volume:string,issue:string,pageStart:string,pageEnd:string,
-     *               doi:string,publisher:string,place:string,edition:string,isNewspaper:bool,isMagazine:bool}
+     *               doi:string,publisher:string,place:string,edition:string,isNewspaper:bool,isMagazine:bool,
+     *               medium:string}
      */
     public static function record(array $input): array
     {
@@ -73,7 +74,7 @@ final class CitationStyles
         $type = (string) ($input['type'] ?? 'article');
 
         return [
-            'type' => in_array($type, ['book', 'article', 'chapter'], true) ? $type : 'article',
+            'type' => in_array($type, ['book', 'article', 'chapter', 'film'], true) ? $type : 'article',
             'authors' => $names($input['authors'] ?? []),
             'editors' => $names($input['editors'] ?? []),
             'year' => self::clean($input['year'] ?? ''),
@@ -91,6 +92,10 @@ final class CitationStyles
             'edition' => self::clean($input['edition'] ?? ''),
             'isNewspaper' => !empty($input['isNewspaper']),
             'isMagazine' => !empty($input['isMagazine']),
+            // Film carrier as the catalogue names it ("DVD", "Blu-ray"); the
+            // authors of a film are its directors and the publisher its studio
+            // or distributor.
+            'medium' => self::clean($input['medium'] ?? ''),
         ];
     }
 
@@ -129,6 +134,9 @@ final class CitationStyles
     public static function apa(array $record): array
     {
         $r = self::record($record);
+        if ($r['type'] === 'film') {
+            return self::apaFilm($r);
+        }
         $s = [];
         $date = $r['year'] === '' ? 'n.d.' : $r['year'];
         if ($r['type'] === 'article' && ($r['isNewspaper'] || $r['isMagazine']) && $r['month'] > 0) {
@@ -233,6 +241,9 @@ final class CitationStyles
     public static function harvard(array $record): array
     {
         $r = self::record($record);
+        if ($r['type'] === 'film') {
+            return self::harvardFilm($r);
+        }
         $s = [];
         $year = $r['year'] === '' ? 'no date' : $r['year'];
         $authors = self::join(array_map(static fn (string $n): string => self::initials($n, ''), $r['authors']), ', ', ' and ', ' and ', 20);
@@ -336,6 +347,9 @@ final class CitationStyles
     public static function chicago(array $record): array
     {
         $r = self::record($record);
+        if ($r['type'] === 'film') {
+            return self::chicagoFilm($r);
+        }
         $s = [];
         $year = $r['year'] === '' ? 'n.d.' : $r['year'];
         $lead = self::chicagoNames($r['authors']);
@@ -463,6 +477,9 @@ final class CitationStyles
     public static function mla(array $record): array
     {
         $r = self::record($record);
+        if ($r['type'] === 'film') {
+            return self::mlaFilm($r);
+        }
         $s = [];
         $lead = self::mlaNames($r['authors']);
         if ($lead === '' && $r['type'] === 'book' && $r['editors'] !== []) {
@@ -566,6 +583,9 @@ final class CitationStyles
     public static function oxford(array $record): array
     {
         $r = self::record($record);
+        if ($r['type'] === 'film') {
+            return self::oxfordFilm($r);
+        }
         $s = [];
         $year = $r['year'] !== '' ? $r['year'] : 'n.d.';
         $names = static fn (array $list): string => self::join(
@@ -618,6 +638,161 @@ final class CitationStyles
             self::add($s, '.');
         }
         if ($r['doi'] !== '') { self::add($s, ' https://doi.org/' . $r['doi']); }
+        return self::render($s);
+    }
+
+    // ── Films (#539) ─────────────────────────────────────────────────────────
+    //
+    // A film is cited by its directors (the record's authors), its title in
+    // italics, the year of release and the studio or distributor (the
+    // record's publisher). Each style keeps its own book conventions for
+    // names, dates and punctuation.
+
+    /**
+     * APA 7, film or video:
+     *   Nolan, C. (Director). (2010). Inception [Film]. Warner Bros.
+     *
+     * @param array<string,mixed> $r a normalised record
+     * @return array{text:string,html:string}
+     */
+    private static function apaFilm(array $r): array
+    {
+        $s = [];
+        $date = $r['year'] === '' ? 'n.d.' : $r['year'];
+        $directors = self::join(
+            array_map(static fn (string $n): string => self::initials($n, ' ') . ' (Director)', $r['authors']),
+            ', ', ', & ', ', & ', 20
+        );
+        if ($directors !== '') {
+            self::add($s, $directors . '. (' . $date . '). ');
+            if ($r['title'] !== '') {
+                self::add($s, rtrim($r['title'], '.'), true);
+                self::add($s, ' [Film]. ');
+            }
+        } elseif ($r['title'] !== '') {
+            self::add($s, rtrim($r['title'], '.'), true);
+            self::add($s, ' [Film]. (' . $date . '). ');
+        } else {
+            self::add($s, '(' . $date . '). ');
+        }
+        if ($r['publisher'] !== '') {
+            self::add($s, self::terminate($r['publisher']));
+        }
+        return self::render($s);
+    }
+
+    /**
+     * Harvard (Cite Them Right), film on a carrier:
+     *   Inception (2010) Directed by Christopher Nolan [Blu-ray]. Burbank: Warner Bros.
+     *
+     * @param array<string,mixed> $r
+     * @return array{text:string,html:string}
+     */
+    private static function harvardFilm(array $r): array
+    {
+        $s = [];
+        $year = $r['year'] === '' ? 'no date' : $r['year'];
+        if ($r['title'] !== '') {
+            self::add($s, rtrim($r['title'], '.'), true);
+            self::add($s, ' ');
+        }
+        self::add($s, '(' . $year . ')');
+        if ($r['authors'] !== []) {
+            self::add($s, ' Directed by ' . self::naturalList($r['authors']));
+        }
+        if ($r['medium'] !== '') {
+            self::add($s, ' [' . $r['medium'] . ']');
+        }
+        self::add($s, '.');
+        $imprint = self::imprint($r['place'], $r['publisher'], ': ');
+        if ($imprint !== '') {
+            self::add($s, ' ' . self::terminate($imprint));
+        }
+        return self::render($s);
+    }
+
+    /**
+     * Chicago 17 author-date, film:
+     *   Nolan, Christopher, dir. 2010. Inception. Burbank: Warner Bros. Blu-ray.
+     *
+     * @param array<string,mixed> $r
+     * @return array{text:string,html:string}
+     */
+    private static function chicagoFilm(array $r): array
+    {
+        $s = [];
+        $year = $r['year'] === '' ? 'n.d.' : $r['year'];
+        $lead = self::chicagoNames($r['authors']);
+        if ($lead !== '') {
+            self::add($s, $lead . (count($r['authors']) > 1 ? ', dirs. ' : ', dir. ') . self::terminate($year) . ' ');
+            self::chicagoTitle($s, ['type' => 'book'] + $r);
+        } else {
+            self::chicagoTitle($s, ['type' => 'book'] + $r);
+            self::add($s, self::terminate($year) . ' ');
+        }
+        $imprint = self::imprint($r['place'], $r['publisher'], ': ');
+        if ($imprint !== '') {
+            self::add($s, self::terminate($imprint));
+        }
+        if ($r['medium'] !== '') {
+            self::add($s, ($imprint !== '' ? ' ' : '') . self::terminate($r['medium']));
+        }
+        return self::render($s);
+    }
+
+    /**
+     * MLA 9, film (cited by title):
+     *   Inception. Directed by Christopher Nolan, Warner Bros., 2010.
+     *
+     * @param array<string,mixed> $r
+     * @return array{text:string,html:string}
+     */
+    private static function mlaFilm(array $r): array
+    {
+        $s = [];
+        if ($r['title'] !== '') {
+            self::add($s, rtrim($r['title'], '.'), true);
+            self::add($s, preg_match('/[?!]$/u', $r['title']) === 1 ? ' ' : '. ');
+        }
+        $elements = [];
+        if ($r['authors'] !== []) {
+            $elements[] = 'Directed by ' . self::naturalList($r['authors']);
+        }
+        if ($r['publisher'] !== '') {
+            $elements[] = $r['publisher'];
+        }
+        if ($r['year'] !== '') {
+            $elements[] = $r['year'];
+        }
+        if ($elements !== []) {
+            self::add($s, self::terminate(implode(', ', $elements)));
+        }
+        return self::render($s);
+    }
+
+    /**
+     * Oxford (Umeå), film:
+     *   Nolan, C. (dir.) Inception [Film]. (Warner Bros., 2010).
+     *
+     * @param array<string,mixed> $r
+     * @return array{text:string,html:string}
+     */
+    private static function oxfordFilm(array $r): array
+    {
+        $s = [];
+        $year = $r['year'] !== '' ? $r['year'] : 'n.d.';
+        $lead = self::join(
+            array_map(static fn (string $name): string => self::initials($name, ''), $r['authors']),
+            ', ', ' & ', ' & ', 10000
+        );
+        if ($lead !== '') {
+            self::add($s, $lead . (count($r['authors']) > 1 ? ' (dirs.) ' : ' (dir.) '));
+        }
+        if ($r['title'] !== '') {
+            self::add($s, rtrim($r['title'], '.'), true);
+            self::add($s, ' [' . ($r['medium'] !== '' ? $r['medium'] : 'Film') . ']. ');
+        }
+        self::add($s, '(' . ($r['publisher'] !== '' ? $r['publisher'] . ', ' : '') . $year . ').');
         return self::render($s);
     }
 

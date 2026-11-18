@@ -39,6 +39,7 @@ final class BookMarcBuilder
     {
         $isSerial = self::isSerialRecord($row);
         $tipoMedia = isset($row['tipo_media']) ? (string) $row['tipo_media'] : null;
+        $isFilm = self::isFilmRecord($row);
         // Leader: type of record from the media type (a language material,
         // i/j sound recording, g projected medium), bibliographic level 'm'
         // (monograph), 's' for a serial. Leader/18 stays blank: the record
@@ -90,19 +91,18 @@ final class BookMarcBuilder
             ['c', 'IT-Pinakes'],
         ]);
 
-        // 041 — Languages: one $a per language ("inglese, italiano" is two)
-        if (!empty($row['lingua'])) {
-            $codes = [];
-            foreach (MarcLanguage::listOf((string) $row['lingua']) as $language) {
-                $code = MarcLanguage::codeFor($language);
-                if ($code !== null && !in_array($code, $codes, true)) {
-                    $codes[] = $code;
-                }
-            }
-            if ($codes === []) {
+        // 041 — Languages: one $a per language ("inglese, italiano" is two);
+        // a film adds one $j per subtitle language (#539).
+        $subtitleCodes = $isFilm ? self::languageCodes((string) ($row['sottotitoli'] ?? '')) : [];
+        if (!empty($row['lingua']) || $subtitleCodes !== []) {
+            $codes = !empty($row['lingua']) ? self::languageCodes((string) $row['lingua']) : [];
+            if ($codes === [] && !empty($row['lingua'])) {
                 $codes = ['und'];
             }
-            $record->addDataField('041', '0', ' ', array_map(static fn (string $c): array => ['a', $c], $codes));
+            $record->addDataField('041', '0', ' ', array_merge(
+                array_map(static fn (string $c): array => ['a', $c], $codes),
+                array_map(static fn (string $c): array => ['j', $c], $subtitleCodes)
+            ));
         }
 
         // 050 — LC classification (extended)
@@ -127,6 +127,9 @@ final class BookMarcBuilder
                 'illustratore' => 'illustrator',
                 'curatore' => 'editor',
                 'colorista' => 'colorist',
+                // A film's principal authors are its directors (#539); the
+                // term reads back as an author on import.
+                'principale', 'co-autore' => $isFilm ? 'film director' : 'author',
                 default => 'author',
             };
             $record->addDataField($index === $primaryCreatorIndex ? '100' : '700', '1', ' ', [
@@ -169,9 +172,12 @@ final class BookMarcBuilder
             $record->addDataField('264', ' ', '1', $pubSubs);
         }
 
-        // 300 — Physical description
+        // 300 — Physical description; 306 — playing time (film, #539)
         $physSubs = [];
-        if (!empty($row['numero_pagine'])) {
+        if ($isFilm) {
+            $runtime = \App\Support\FilmFields::runtime($row['durata_minuti'] ?? null);
+            $physSubs[] = ['a', '1 ' . self::videoCarrier($row) . ($runtime !== null ? ' (' . $runtime . ' min)' : '')];
+        } elseif (!empty($row['numero_pagine'])) {
             $physSubs[] = ['a', (string) $row['numero_pagine'] . ' pages'];
         }
         if (!empty($row['dimensioni'])) {
@@ -179,6 +185,9 @@ final class BookMarcBuilder
         }
         if ($physSubs !== []) {
             $record->addDataField('300', ' ', ' ', $physSubs);
+        }
+        if ($isFilm && ($playing = \App\Support\FilmFields::marc306($row['durata_minuti'] ?? null)) !== null) {
+            $record->addDataField('306', ' ', ' ', [['a', $playing]]);
         }
 
         // 336 / 337 / 338 — RDA content, media and carrier types (040 $e
@@ -207,10 +216,33 @@ final class BookMarcBuilder
             $record->addDataField('490', '0', ' ', $serSubs);
         }
 
+        // 511 — Participant or performer note (film cast, #539)
+        if ($isFilm && ($cast = \App\Support\FilmFields::castLine($row['interpreti'] ?? null)) !== '') {
+            $record->addDataField('511', '1', ' ', [['a', $cast]]);
+        }
+
         // 520 — Summary
         $desc = self::plainDescription($row);
         if ($desc !== null) {
             $record->addDataField('520', ' ', ' ', [['a', $desc]]);
+        }
+
+        if ($isFilm) {
+            // 521 — Target audience note: the age rating as printed
+            $rating = self::oneLine($row['classificazione_eta'] ?? '');
+            if ($rating !== '') {
+                $record->addDataField('521', '8', ' ', [['a', $rating]]);
+            }
+            // 538 — System details: the DVD/Blu-ray region
+            $region = self::oneLine($row['codice_regione'] ?? '');
+            if ($region !== '') {
+                $record->addDataField('538', ' ', ' ', [['a', 'Region ' . $region]]);
+            }
+            // 546 — Language note: the subtitles in words
+            $subtitles = self::oneLine($row['sottotitoli'] ?? '');
+            if ($subtitles !== '') {
+                $record->addDataField('546', ' ', ' ', [['a', 'Subtitles: ' . $subtitles]]);
+            }
         }
 
         // 650 — Subject: the keywords (source not specified)
@@ -271,6 +303,7 @@ final class BookMarcBuilder
         // Label/06 (type of record) from the media type, as in MARC 21;
         // label/07 (bibliographic level) is 's' for a serial, 'm' otherwise.
         $isSerial = self::isSerialRecord($row);
+        $isFilm = self::isFilmRecord($row);
         $leader = substr_replace(self::UNIMARC_LEADER_TEMPLATE, MarcMediaType::leaderType(isset($row['tipo_media']) ? (string) $row['tipo_media'] : null), 6, 1);
         $record = new MarcRecord(substr_replace($leader, $isSerial ? 's' : 'm', 7, 1));
         $record->setFormat('UNIMARC');
@@ -364,7 +397,11 @@ final class BookMarcBuilder
 
         // 215 — Physical description
         $subs215 = [];
-        if (!empty($row['numero_pagine'])) {
+        if ($isFilm) {
+            // A film (#539): the carrier and its running time.
+            $runtime = \App\Support\FilmFields::runtime($row['durata_minuti'] ?? null);
+            $subs215[] = ['a', '1 ' . self::videoCarrier($row) . ($runtime !== null ? ' (' . $runtime . ' min)' : '')];
+        } elseif (!empty($row['numero_pagine'])) {
             $subs215[] = ['a', $row['numero_pagine'] . ' p.'];
         }
         if (!empty($row['dimensioni'])) {
@@ -388,10 +425,20 @@ final class BookMarcBuilder
             $record->addDataField('225', '0', ' ', $subs225);
         }
 
+        // 323 — Cast note (film, #539)
+        if ($isFilm && ($cast = \App\Support\FilmFields::castLine($row['interpreti'] ?? null)) !== '') {
+            $record->addDataField('323', ' ', ' ', [['a', $cast]]);
+        }
+
         // 330 — Summary / abstract
         $desc = self::plainDescription($row);
         if ($desc !== null) {
             $record->addDataField('330', ' ', ' ', [['a', $desc]]);
+        }
+
+        // 333 — Users / intended audience note: a film's age rating (#539)
+        if ($isFilm && ($rating = self::oneLine($row['classificazione_eta'] ?? '')) !== '') {
+            $record->addDataField('333', ' ', ' ', [['a', $rating]]);
         }
 
         // 606 — Subject: the keywords.
@@ -421,7 +468,8 @@ final class BookMarcBuilder
                 'curatore'     => '340',
                 'illustratore' => '440',
                 'colorista'    => '410',
-                default        => '070',
+                // A film's creators are its directors (#539): 300 Director.
+                default        => $isFilm && $isCreator ? '300' : '070',
             };
             [$ind2, $nameSubs] = self::unimarcPersonalName((string) $a['nome']);
             $nameSubs[] = ['4', $relCode];
@@ -490,6 +538,50 @@ final class BookMarcBuilder
     }
 
     /**
+     * A film or video record (tipo_media dvd), as the leader says (#539).
+     *
+     * @param array<string, mixed> $row
+     */
+    private static function isFilmRecord(array $row): bool
+    {
+        return MarcMediaType::normalise(isset($row['tipo_media']) ? (string) $row['tipo_media'] : null) === 'dvd';
+    }
+
+    /**
+     * "videodisc", or "videocassette" for a VHS (#539).
+     *
+     * @param array<string, mixed> $row
+     */
+    private static function videoCarrier(array $row): string
+    {
+        $format = strtolower((string) ($row['formato'] ?? ''));
+        return preg_match('/vhs|videocass/u', $format) === 1 ? 'videocassette' : 'videodisc';
+    }
+
+    /**
+     * ISO 639-2/B codes of a language list ("inglese, italiano"), in order,
+     * without duplicates; names the table does not know are skipped.
+     *
+     * @return list<string>
+     */
+    private static function languageCodes(string $languages): array
+    {
+        $codes = [];
+        foreach (MarcLanguage::listOf($languages) as $language) {
+            $code = MarcLanguage::codeFor($language);
+            if ($code !== null && !in_array($code, $codes, true)) {
+                $codes[] = $code;
+            }
+        }
+        return $codes;
+    }
+
+    private static function oneLine(mixed $value): string
+    {
+        return trim((string) preg_replace('/\s+/u', ' ', is_scalar($value) ? (string) $value : ''));
+    }
+
+    /**
      * MARC 21 008 for books/serials: exactly 40 positions.
      *   00-05 date entered (YYMMDD), 06 date type, 07-10 date 1, 11-14 date 2,
      *   15-17 place of publication, 35-37 language, 39 cataloguing source.
@@ -516,6 +608,13 @@ final class BookMarcBuilder
 
         // Place of publication unknown/unspecified.
         $field = substr_replace($field, 'xx ', 15, 3);
+
+        if (self::isFilmRecord($row)) {
+            // Visual materials (#539): 18-20 running time in minutes, 33 type
+            // of visual material (v videorecording), 34 technique not coded.
+            $field = substr_replace($field, \App\Support\FilmFields::marc008Runtime($row['durata_minuti'] ?? null), 18, 3);
+            $field = substr_replace($field, 'v|', 33, 2);
+        }
 
         if (trim((string) ($row['lingua'] ?? '')) !== '') {
             $field = substr_replace($field, MarcLanguage::marcCodeOf((string) $row['lingua']), 35, 3);

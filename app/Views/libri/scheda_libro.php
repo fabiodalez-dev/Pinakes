@@ -19,6 +19,7 @@ $seriesTypeLabels = \App\Support\SeriesLabels::types();
 // Resolve tipo_media once for badge display and dynamic labels
 $resolvedTipoMedia = \App\Support\MediaLabels::resolveTipoMedia($libro['formato'] ?? null, $libro['tipo_media'] ?? null);
 $isMusic = $resolvedTipoMedia === 'disco';
+$isFilm = $resolvedTipoMedia === 'dvd';
 
 $status = strtolower((string)($libro['stato'] ?? ''));
 $statusClasses = [
@@ -448,7 +449,7 @@ unset($workspaceHeader);
         <div class="card-header">
           <h2 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
             <i class="fas fa-info-circle text-gray-900"></i>
-            <?= __("Dettagli Libro") ?>
+            <?= $isFilm ? __("Dettagli film") : __("Dettagli Libro") ?>
           </h2>
         </div>
         <div class="card-body">
@@ -556,7 +557,7 @@ unset($workspaceHeader);
               </dd>
             </div>
             <?php endif; ?>
-            <?php if (!empty($libro['numero_pagine'])): ?>
+            <?php if (!$isFilm && !empty($libro['numero_pagine'])): ?>
             <div>
               <dt class="text-xs uppercase text-gray-500"><?= \App\Support\MediaLabels::label('numero_pagine', $libro['formato'] ?? null, $libro['tipo_media'] ?? null) ?></dt>
               <dd class="text-gray-900 font-medium"><?php echo (int)$libro['numero_pagine']; ?></dd>
@@ -576,9 +577,31 @@ unset($workspaceHeader);
             <?php endif; ?>
             <?php if (!empty($libro['lingua'])): ?>
             <div>
-              <dt class="text-xs uppercase text-gray-500"><?= __("Lingua") ?></dt>
+              <dt class="text-xs uppercase text-gray-500"><?= $isFilm ? __("Lingue audio") : __("Lingua") ?></dt>
               <dd class="text-gray-900 font-medium"><?php echo App\Support\HtmlHelper::e($libro['lingua']); ?></dd>
             </div>
+            <?php endif; ?>
+            <?php if ($isFilm): // Film and video (#539) ?>
+              <?php if (($filmRuntime = \App\Support\FilmFields::runtimeLabel($libro['durata_minuti'] ?? null)) !== ''): ?>
+              <div>
+                <dt class="text-xs uppercase text-gray-500"><?= __("Durata") ?></dt>
+                <dd class="text-gray-900 font-medium" data-film-field="durata_minuti"><?= App\Support\HtmlHelper::e($filmRuntime) ?></dd>
+              </div>
+              <?php endif; ?>
+              <?php foreach (['sottotitoli' => __('Sottotitoli'), 'classificazione_eta' => __('Classificazione per età'), 'codice_regione' => __('Codice regione')] as $filmKey => $filmLabel): ?>
+                <?php if (trim((string) ($libro[$filmKey] ?? '')) !== ''): ?>
+                <div>
+                  <dt class="text-xs uppercase text-gray-500"><?= App\Support\HtmlHelper::e($filmLabel) ?></dt>
+                  <dd class="text-gray-900 font-medium" data-film-field="<?= $filmKey ?>"><?= App\Support\HtmlHelper::e((string) $libro[$filmKey]) ?></dd>
+                </div>
+                <?php endif; ?>
+              <?php endforeach; ?>
+              <?php if (($filmCast = \App\Support\FilmFields::castLine($libro['interpreti'] ?? null)) !== ''): ?>
+              <div class="md:col-span-2">
+                <dt class="text-xs uppercase text-gray-500"><?= __("Interpreti") ?></dt>
+                <dd class="text-gray-900 font-medium" data-film-field="interpreti"><?= App\Support\HtmlHelper::e($filmCast) ?></dd>
+              </div>
+              <?php endif; ?>
             <?php endif; ?>
             <?php if (!empty($libro['peso'])): ?>
             <div>

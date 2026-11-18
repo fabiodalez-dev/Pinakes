@@ -782,11 +782,13 @@ class FrontendController
             'autore_principale' => $book['autore_principale'] ?? '',
             'autori' => $book['autore_principale'] ?? '',
         ]));
-        $body = \App\Support\BookCitation::ris(\App\Support\BookCitation::input($book, $detail['authors']), $book, $recordUrl);
+        $citeInput = \App\Support\BookCitation::input($book, $detail['authors']);
+        $body = \App\Support\BookCitation::ris($citeInput, $book, $recordUrl);
         $response->getBody()->write($body);
+        $filePrefix = ($citeInput['type'] ?? 'book') === 'film' ? 'film' : 'book';
         return $response
             ->withHeader('Content-Type', 'application/x-research-info-systems; charset=UTF-8')
-            ->withHeader('Content-Disposition', 'attachment; filename="book-' . $bookId . '.ris"')
+            ->withHeader('Content-Disposition', 'attachment; filename="' . $filePrefix . '-' . $bookId . '.ris"')
             ->withHeader('X-Content-Type-Options', 'nosniff');
     }
 
@@ -2171,10 +2173,12 @@ private function computeFilterOptions(mysqli $db, array $filters = []): array
             $stmt->execute();
             foreach ($stmt->get_result()->fetch_all(MYSQLI_ASSOC) as $r) {
                 $val = (string) $r['value'];
+                $mediaMeta = $mediaLabels[$val] ?? null;
                 $options['media_types'][] = [
                     'value' => $val,
-                    'label' => $mediaLabels[$val]['label'] ?? ucfirst($val),
-                    'icon'  => $mediaLabels[$val]['icon'] ?? 'fa-tag',
+                    // Translated here: the facets cache is keyed by locale.
+                    'label' => $mediaMeta !== null ? __($mediaMeta['label']) : ucfirst($val),
+                    'icon'  => $mediaMeta !== null ? $mediaMeta['icon'] : 'fa-tag',
                     'cnt'   => (int) $r['cnt'],
                 ];
             }

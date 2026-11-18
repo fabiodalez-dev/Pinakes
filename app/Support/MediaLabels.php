@@ -55,7 +55,7 @@ class MediaLabels
                 return 'audiolibro';
             }
 
-            if (in_array($candidate, ['dvd', 'bluray', 'blu_ray', 'movie', 'film'], true)) {
+            if (in_array($candidate, ['dvd', 'bluray', 'blu_ray', 'bluraydisc', 'blu_ray_disc', 'uhd', '4k', '4k_uhd', '4kuhd', 'vhs', 'videocassetta', 'videocassette', 'videodisc', 'videodisco', 'movie', 'movies', 'film', 'films', 'film_e_video', 'filmevideo'], true)) {
                 return 'dvd';
             }
 
@@ -94,6 +94,20 @@ class MediaLabels
     }
 
     /**
+     * Check if a format string indicates film or video (#539). The enum value
+     * stays 'dvd' for compatibility; it covers every video carrier.
+     */
+    public static function isFilm(?string $formato, ?string $tipoMedia = null): bool
+    {
+        $normalizedTipoMedia = self::normalizeTipoMedia($tipoMedia);
+        if ($normalizedTipoMedia !== null) {
+            return $normalizedTipoMedia === 'dvd';
+        }
+
+        return self::inferTipoMedia($formato) === 'dvd';
+    }
+
+    /**
      * Map of internal format keys to translatable display names.
      */
     private static array $formatDisplayNames = [
@@ -112,6 +126,13 @@ class MediaLabels
         'dvd' => 'DVD',
         'blu-ray' => 'Blu-ray',
         'blu_ray' => 'Blu-ray',
+        'bluray' => 'Blu-ray',
+        'uhd' => '4K Ultra HD',
+        '4k' => '4K Ultra HD',
+        '4k_uhd' => '4K Ultra HD',
+        'vhs' => 'VHS',
+        'videocassetta' => 'Videocassetta',
+        'videocassette' => 'Videocassetta',
         'digitale' => 'Digitale',
         'altro' => 'Altro',
     ];
@@ -207,7 +228,7 @@ class MediaLabels
             'libro' => ['icon' => 'fa-book', 'schema' => 'Book', 'label' => 'Libro'],
             'disco' => ['icon' => 'fa-compact-disc', 'schema' => 'MusicAlbum', 'label' => 'Disco'],
             'audiolibro' => ['icon' => 'fa-headphones', 'schema' => 'Audiobook', 'label' => 'Audiolibro'],
-            'dvd' => ['icon' => 'fa-film', 'schema' => 'Movie', 'label' => 'DVD'],
+            'dvd' => ['icon' => 'fa-film', 'schema' => 'Movie', 'label' => 'Film e video'],
             'altro' => ['icon' => 'fa-box', 'schema' => 'CreativeWork', 'label' => 'Altro'],
         ];
     }
@@ -266,7 +287,13 @@ class MediaLabels
                 return 'disco';
             }
 
-            if (str_contains($candidate, 'dvd') || str_contains($candidate, 'bluray') || str_contains($candidate, 'blu_ray')) {
+            if (str_contains($candidate, 'dvd') || str_contains($candidate, 'bluray') || str_contains($candidate, 'blu_ray')
+                || str_contains($candidate, 'videocassett') || str_contains($candidate, 'videodisc')) {
+                return 'dvd';
+            }
+            // Short video tokens: exact match only ('vhs' is safe, 'uhd'/'4k'
+            // are not substrings to trust inside longer words)
+            if (in_array($candidate, ['vhs', 'uhd', '4k', '4k_uhd'], true)) {
                 return 'dvd';
             }
 
@@ -290,11 +317,17 @@ class MediaLabels
 
     /**
      * Get the appropriate label for a field based on format.
-     * Returns the music label if format is music, otherwise the default.
+     * Returns the music or film label for those media, otherwise the default.
      */
     public static function label(string $field, ?string $formato = null, ?string $tipoMedia = null): string
     {
         $isMusic = self::isMusic($formato, $tipoMedia);
+        if (!$isMusic && self::isFilm($formato, $tipoMedia)) {
+            $film = self::filmLabel($field);
+            if ($film !== null) {
+                return $film;
+            }
+        }
 
         return match ($field) {
             'autore', 'author' => $isMusic ? __('Artista') : __('Autore'),
@@ -308,6 +341,21 @@ class MediaLabels
             'collana', 'series' => $isMusic ? __('Discografia') : __('Collana'),
             'formato', 'format' => __('Formato'),
             default => __($field),
+        };
+    }
+
+    /** Film/video wording of a field, or NULL to use the default label. */
+    private static function filmLabel(string $field): ?string
+    {
+        return match ($field) {
+            'autore', 'author' => __('Regista'),
+            'autori', 'authors' => __('Regia'),
+            'editore', 'publisher' => __('Produzione / Distribuzione'),
+            'anno_pubblicazione', 'year' => __('Anno di Uscita'),
+            'isbn13', 'ean' => __('Barcode'),
+            'descrizione', 'description' => __('Trama'),
+            'collana', 'series' => __('Serie'),
+            default => null,
         };
     }
 }
