@@ -1300,9 +1300,18 @@ HTACCESS;
             }
             $db = $this->openProbeConnection($env);
             try {
-                $result = $db->query('SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE()');
+                $result = $db->query('SELECT COUNT(*), MIN(TABLE_NAME) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE()');
                 $count = $result instanceof \mysqli_result ? $result->fetch_row() : null;
                 $this->configuredDatabaseEmpty = is_array($count) && (int) $count[0] === 0;
+                // A crash between the proof-table DDL and the first schema import
+                // can leave this table as the only object. Only its current owner
+                // may resume, and never over a different installation's proof.
+                if (is_array($count) && (int) $count[0] === 1 && $count[1] === self::INSTALL_PROOF_TABLE
+                    && $this->ownsInstallInProgress()) {
+                    $stored = $this->readProofNonce();
+                    $this->configuredDatabaseEmpty = $stored === null
+                        || (is_string($stored) && hash_equals($this->ownerDatabaseNonce(), $stored));
+                }
             } finally {
                 $db->close();
             }
@@ -1706,10 +1715,15 @@ HTACCESS;
         }
         try {
             $result = $db->query('SELECT nonce FROM `' . self::INSTALL_PROOF_TABLE . '` WHERE id = 1');
-            $row = $result instanceof \mysqli_result ? $result->fetch_row() : null;
+            if (!$result instanceof \mysqli_result) {
+                return $db->errno === 1146 ? null : false;
+            }
+            $row = $result->fetch_row();
             return is_array($row) && is_string($row[0]) && $row[0] !== '' ? $row[0] : null;
+        } catch (\mysqli_sql_exception $e) {
+            return $e->getCode() === 1146 ? null : false;
         } catch (\Throwable $e) {
-            return null;
+            return false;
         } finally {
             $db->close();
         }
@@ -1753,6 +1767,11 @@ HTACCESS;
      */
     public const FORCE_MODE_SESSION_KEY = 'installer_force_mode';
 
+    /** Stable for retries of step 3, renewed whenever step 2 takes a fresh claim. */
+    private function ownerDatabaseNonce(): string {
+        return hash_hmac('sha256', 'installer-database-proof', (string) $_SESSION[self::INSTALL_OWNER_SESSION_KEY]);
+    }
+
     private function populatedProof(string $ownerToken, string $nonce): string {
         return hash('sha256', 'populated:' . $ownerToken . ':' . $nonce);
     }
@@ -1783,7 +1802,7 @@ HTACCESS;
         // The proof is tied to THIS database: a random nonce stored in it and
         // compared on every request (ownerPopulatedConfiguredDatabase()), so a
         // database restored or swapped under the same .env invalidates it.
-        $nonce = bin2hex(random_bytes(32));
+        $nonce = $this->ownerDatabaseNonce();
         if (!$this->storeProofNonce($nonce)) {
             return false;
         }

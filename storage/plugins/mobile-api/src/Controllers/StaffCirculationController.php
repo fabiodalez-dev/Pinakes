@@ -598,10 +598,11 @@ final class StaffCirculationController
     public function receipt(ServerRequestInterface $request, ResponseInterface $response, int $id): ResponseInterface
     {
         try {
-            if ($this->reader->loanRow($id) === null) {
+            $loan = (new \App\Models\LoanRepository($this->db))->getById($id, scopeToBorrower: true);
+            if ($loan === null) {
                 return $this->notFound($response);
             }
-            $pdf = (new \App\Support\LoanPdfGenerator($this->db))->generate($id);
+            $pdf = (new \App\Support\LoanPdfGenerator($this->db))->generateFromLoan($loan);
             $filename = 'prestito_' . $id . '_' . date('Ymd') . '.pdf';
             $response->getBody()->write($pdf);
 

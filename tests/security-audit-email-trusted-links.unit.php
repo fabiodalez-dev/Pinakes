@@ -202,6 +202,18 @@ try {
     $html = EmailLayout::render('<p>Hi</p>', 'Subject', 'it_IT');
     $check(!$leaks($html), 'the email layout never loads its logo from the request Host');
 
+    $settings = \App\Support\ConfigStore::all();
+    $withCdn = $settings;
+    $withCdn['app']['logo'] = 'https://cdn.example/library.svg';
+    $cache = new ReflectionProperty(\App\Support\ConfigStore::class, 'runtimeCache');
+    $cache->setValue(null, $withCdn);
+    try {
+        $check(str_contains(EmailLayout::render('<p>Hi</p>', 'Subject', 'it_IT'), 'src="https://cdn.example/library.svg"'),
+            'an explicitly configured CDN logo keeps its host');
+    } finally {
+        $cache->setValue(null, $settings);
+    }
+
     echo "APP_CANONICAL_URL configured\n";
     $setEnv('APP_CANONICAL_URL', 'https://library.example/biblio');
 

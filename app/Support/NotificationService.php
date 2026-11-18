@@ -1659,7 +1659,7 @@ class NotificationService {
             $requestLocale = I18n::getLocale();
             try {
                 I18n::setLocale($recipientLocale);
-                $pdfContent = (new LoanPdfGenerator($this->db))->generate($loanId);
+                $pdfContent = (new LoanPdfGenerator($this->db))->generateFromLoan($loan);
             } finally {
                 I18n::setLocale($requestLocale);
             }
