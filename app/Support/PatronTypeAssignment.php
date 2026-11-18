@@ -145,14 +145,23 @@ final class PatronTypeAssignment
      * Returns the new expiry date, or null when the account has no card
      * (admin/staff) or does not exist.
      */
-    public static function renewCard(mysqli $db, int $userId): ?string
+    public static function renewCard(mysqli $db, int $userId, ?callable $mayRenew = null): ?string
     {
-        $stmt = $db->prepare('SELECT id, tipo_utente, stato, data_scadenza_tessera FROM utenti WHERE id = ?');
+        $expiry = null;
+        DbAtomic::run($db, static function () use ($db, $userId, $mayRenew, &$expiry): void {
+            $expiry = self::renewLockedCard($db, $userId, $mayRenew);
+        }, 'Users.renewCard');
+        return $expiry;
+    }
+
+    private static function renewLockedCard(mysqli $db, int $userId, ?callable $mayRenew): ?string
+    {
+        $stmt = $db->prepare('SELECT id, tipo_utente, stato, ruolo_id, accesso_digitale, data_scadenza_tessera FROM utenti WHERE id = ? FOR UPDATE');
         $stmt->bind_param('i', $userId);
         $stmt->execute();
         $user = $stmt->get_result()->fetch_assoc();
         $stmt->close();
-        if (!$user || !in_array($user['tipo_utente'], ['standard', 'premium'], true)) {
+        if (!$user || !in_array($user['tipo_utente'], ['standard', 'premium'], true) || ($mayRenew !== null && !$mayRenew($user))) {
             return null;
         }
         $policy = new CirculationPolicy($db);
