@@ -614,6 +614,24 @@ function copyTree(string $src, string $dst, string $rootDst, array $skipRelative
 // ============================================================
 // BEGIN upgrade-auth-throttle
 /**
+ * The primary group of this PHP process, or null when it cannot be told
+ * (same probe as upgradeEffectiveUid()).
+ */
+function upgradeEffectiveGid(): ?int
+{
+    if (function_exists('posix_getegid')) {
+        return posix_getegid();
+    }
+    $probe = @tempnam(sys_get_temp_dir(), 'pinakes_gid_');
+    if ($probe === false) {
+        return null;
+    }
+    $group = @filegroup($probe);
+    @unlink($probe);
+    return $group === false ? null : $group;
+}
+
+/**
  * The user this PHP process runs as, or null when it cannot be told. Without
  * the posix extension (not among the documented requirements) it is read from
  * the owner of a file this process creates.
@@ -691,12 +709,14 @@ function upgradeAuthStateFile(string $rootPath, string $clientAddr, ?string &$pr
     }
     $root = realpath($rootPath) ?: $rootPath;
     $file = $dir . '/' . hash('sha256', $root . "\0" . $clientAddr) . '.json';
-    if (is_link($file)) {
-        // Never follow a link out of the state directory.
-        @unlink($file);
-        if (is_link($file)) {
-            $problem = 'unavailable';
-            return null;
+    foreach ([$file, $file . '.lock'] as $path) {
+        if (is_link($path)) {
+            // Never follow a link out of the state directory.
+            @unlink($path);
+            if (is_link($path)) {
+                $problem = 'unavailable';
+                return null;
+            }
         }
     }
     return $file;
@@ -727,26 +747,39 @@ const UPGRADE_AUTH_SATURATED = 1000000;
  */
 function upgradeAuthUpdate(string $file, callable $mutate): ?array
 {
-    $handle = @fopen($file, 'c+');
-    if ($handle === false) {
+    // A separate, stable lock file serialises the read-modify-write; the state
+    // file itself is only ever replaced whole (rename), so no reader can see a
+    // half-written state, valid-looking or not.
+    $lock = @fopen($file . '.lock', 'c');
+    if ($lock === false) {
         return null;
     }
     try {
-        if (!flock($handle, LOCK_EX)) {
-            return null;
-        }
-        // The handle must be the regular file currently linked at $file.
-        $opened = @fstat($handle);
-        $atPath = @lstat($file);
-        if ($opened === false || $atPath === false
-            || ($atPath['mode'] & 0170000) !== 0100000
-            || $opened['dev'] !== $atPath['dev'] || $opened['ino'] !== $atPath['ino']) {
+        if (!flock($lock, LOCK_EX) || !upgradeAuthIsSameRegularFile($lock, $file . '.lock')) {
             return null;
         }
         $state = ['failed' => 0, 'lock_until' => 0];
-        $raw = stream_get_contents($handle);
-        if (!is_string($raw)) {
+        $raw = '';
+        clearstatcache(true, $file);
+        if (is_link($file) || (file_exists($file) && !is_file($file))) {
             return null;
+        }
+        if (is_file($file)) {
+            $in = @fopen($file, 'r');
+            if ($in === false) {
+                return null;
+            }
+            try {
+                if (!upgradeAuthIsSameRegularFile($in, $file)) {
+                    return null;
+                }
+                $raw = stream_get_contents($in);
+            } finally {
+                fclose($in);
+            }
+            if (!is_string($raw)) {
+                return null;
+            }
         }
         if ($raw !== '') {
             $decoded = json_decode($raw, true);
@@ -754,29 +787,43 @@ function upgradeAuthUpdate(string $file, callable $mutate): ?array
                 $state['failed'] = max(0, (int) ($decoded['failed'] ?? 0));
                 $state['lock_until'] = max(0, (int) ($decoded['lock_until'] ?? 0));
             } else {
-                // Unreadable state (an interrupted write) is never a fresh
-                // counter: it counts as attempts used up, so the next attempt
-                // locks. Only an empty file, as created, starts from zero.
+                // Unreadable state is never a fresh counter: it counts as
+                // attempts used up. Only a missing or empty file starts at zero.
                 $state['failed'] = UPGRADE_AUTH_SATURATED;
             }
         }
         $new = $mutate($state);
         $json = json_encode($new);
-        // Overwrite first, then cut to length: a write that fails part-way
-        // leaves unreadable content (saturated above), never an empty file
-        // that would read as a fresh counter.
-        if ($json === false || rewind($handle) === false) {
+        if ($json === false) {
             return null;
         }
-        $written = fwrite($handle, $json);
-        if ($written !== strlen($json) || !ftruncate($handle, strlen($json)) || !fflush($handle)) {
+        // Written whole to a fresh exclusive file, then renamed over the state.
+        $tmp = $file . '.' . bin2hex(random_bytes(8)) . '.tmp';
+        $out = @fopen($tmp, 'x');
+        if ($out === false) {
+            return null;
+        }
+        $complete = fwrite($out, $json) === strlen($json) && fflush($out);
+        fclose($out);
+        if (!$complete || !@rename($tmp, $file)) {
+            @unlink($tmp);
             return null;
         }
         return $new;
     } finally {
-        flock($handle, LOCK_UN);
-        fclose($handle);
+        flock($lock, LOCK_UN);
+        fclose($lock);
     }
+}
+
+/** True when $handle is the regular file currently linked at $path. */
+function upgradeAuthIsSameRegularFile($handle, string $path): bool
+{
+    $opened = @fstat($handle);
+    $atPath = @lstat($path);
+    return $opened !== false && $atPath !== false
+        && ($atPath['mode'] & 0170000) === 0100000
+        && $opened['dev'] === $atPath['dev'] && $opened['ino'] === $atPath['ino'];
 }
 /**
  * Reserve one login attempt BEFORE the password is compared. Refusal and
@@ -793,6 +840,11 @@ function upgradeAuthReserveAttempt(string $file, int $maxAttempts, int $lockSeco
     $stored = upgradeAuthUpdate($file, static function (array $state) use (&$allowed, $maxAttempts, $lockSeconds): array {
         if (time() < $state['lock_until']) {
             return $state; // locked: refused, nothing more to count
+        }
+        if ($state['failed'] >= $maxAttempts) {
+            // Already over the limit (unreadable state): lock without letting
+            // this attempt compare the password.
+            return ['failed' => 0, 'lock_until' => time() + $lockSeconds];
         }
         $allowed = true;
         $state['failed']++;
@@ -858,14 +910,19 @@ function upgradeAuthHandlePasswordPost(
  * - storage/tmp is created 0700 when absent; an existing one must be a real
  *   directory owned by this process user, and is tightened to 0700 (refused
  *   if it cannot be). None of its parents may be writable by everyone without
- *   the sticky bit, or another account could swap storage/tmp itself.
+ *   the sticky bit, nor writable by a group other than this process's own:
+ *   another account could otherwise rename storage/tmp away after the checks
+ *   and put its own options file at the path mysqldump reads. (Their owners
+ *   are not required to be this user: whoever owns a parent of the install
+ *   can already replace the install itself.)
  * - The file gets a random name and is created exclusively (O_EXCL, which
  *   never follows a planted symlink), then written through that same handle,
  *   after checking the handle is still the regular file at the path.
  *
  * @param int|null $euid the user storage/tmp must belong to (process user by default)
+ * @param int|null $egid the only group a parent may be writable by (process group by default)
  */
-function upgradeWriteDumpCredentialsFile(string $rootPath, string $contents, ?int $euid = null): string
+function upgradeWriteDumpCredentialsFile(string $rootPath, string $contents, ?int $euid = null, ?int $egid = null): string
 {
     $refuse = static function (string $why): RuntimeException {
         return new RuntimeException('Backup DB annullato: ' . $why
@@ -897,10 +954,19 @@ function upgradeWriteDumpCredentialsFile(string $rootPath, string $contents, ?in
     if ($realDir === false) {
         throw $refuse('storage/tmp non è raggiungibile.');
     }
+    $egid ??= upgradeEffectiveGid();
     for ($parent = dirname($realDir); ; $parent = dirname($parent)) {
         $mode = @fileperms($parent);
-        if ($mode !== false && ($mode & 0002) !== 0 && ($mode & 01000) === 0) {
+        if ($mode === false) {
+            throw $refuse('i permessi delle cartelle che contengono storage/tmp non sono leggibili.');
+        }
+        $sticky = ($mode & 01000) !== 0;
+        if (($mode & 0002) !== 0 && !$sticky) {
             throw $refuse('una cartella che contiene storage/tmp è scrivibile da tutti gli utenti del server.');
+        }
+        if (($mode & 0020) !== 0 && !$sticky && ($egid === null || @filegroup($parent) !== $egid)) {
+            throw $refuse('una cartella che contiene storage/tmp è scrivibile da un gruppo diverso da quello del web server.'
+                . ' Togli il permesso di scrittura al gruppo (chmod g-w) o assegnala al gruppo del web server, poi riprova.');
         }
         if ($parent === dirname($parent)) {
             break;
