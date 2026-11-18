@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 namespace App\Support\Marc;
 
+use App\Support\MediaLabels;
+
 /**
  * A book's media type (`libri.tipo_media`: libro, disco, audiolibro, dvd,
  * altro) as MARC says it, and back:
@@ -64,6 +66,12 @@ final class MarcMediaType
         return $type !== null && isset(self::TYPES[$type]) ? $type : self::DEFAULT;
     }
 
+    /** @param array<string, mixed> $row */
+    public static function forRow(array $row): string
+    {
+        return MediaLabels::resolveTipoMedia((string) ($row['formato'] ?? ''), (string) ($row['tipo_media'] ?? ''));
+    }
+
     /** Leader/06 (type of record) for a media type. */
     public static function leaderType(?string $tipoMedia): string
     {
@@ -71,9 +79,20 @@ final class MarcMediaType
     }
 
     /** MARC 21 007 for a media type, null when it has none worth claiming. */
-    public static function field007(?string $tipoMedia): ?string
+    public static function field007(?string $tipoMedia, ?string $formato = null): ?string
     {
-        return self::TYPES[self::normalise($tipoMedia)][1];
+        $type = self::normalise($tipoMedia);
+        if ($type !== 'dvd') {
+            return self::TYPES[$type][1];
+        }
+        return match (MediaLabels::videoFormat($formato)) {
+            'vhs' => 'vf |b||||',
+            'videocassette' => 'vf |u||||',
+            'blu-ray' => 'vd |s||||',
+            'uhd' => 'vd |t||||',
+            'videodisc' => 'vd |u||||',
+            default => self::TYPES['dvd'][1],
+        };
     }
 
     /**
@@ -86,7 +105,11 @@ final class MarcMediaType
      */
     public static function rdaCodes(array $row): array
     {
-        [, , $content, $media, $carrier] = self::TYPES[self::normalise(isset($row['tipo_media']) ? (string) $row['tipo_media'] : null)];
+        $type = self::forRow($row);
+        [, , $content, $media, $carrier] = self::TYPES[$type];
+        if ($type === 'dvd') {
+            $carrier = substr((string) self::field007($type, (string) ($row['formato'] ?? '')), 0, 2);
+        }
         // RDA types module off: the stored overrides are not applied.
         $overridesOn = \App\Support\Features::enabled('rda_types');
         $own = static fn (string $key): string => $overridesOn ? strtolower(trim((string) ($row[$key] ?? ''))) : '';

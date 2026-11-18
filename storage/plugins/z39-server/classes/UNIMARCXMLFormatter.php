@@ -44,15 +44,19 @@ class UNIMARCXMLFormatter extends RecordFormatter
         // _record_type; serial-only fields (011/207/326) key off it.
         $isSerial = ($record['_record_type'] ?? '') === 'periodical';
 
+        $isFilm = !$isSerial && \App\Support\MediaLabels::isFilm($record['formato'] ?? null, $record['tipo_media'] ?? null);
+
         // Record label — 'nam': text language material, monograph.
         // 'nas' for a serial (position 7 = bibliographic level 's').
         // UNIMARC leaves position 9 undefined (blank: 'a' is the MARC 21
         // Unicode flag) and position 18 blank means full ISBD form; 'u' is
         // not a defined value there.
-        $recordEl->appendChild($this->doc->createElement(
-            'leader',
-            $isSerial ? '00000nas  2200000   4500' : '00000nam  2200000   4500'
-        ));
+        $label = match (true) {
+            $isSerial => '00000nas  2200000   4500',
+            $isFilm => '00000ngm  2200000   4500',
+            default => '00000nam  2200000   4500',
+        };
+        $recordEl->appendChild($this->doc->createElement('leader', $label));
 
         // 001 — Control number (local book ID)
         $recordEl->appendChild($this->cf('001', (string) ($record['id'] ?? '')));
@@ -187,7 +191,13 @@ class UNIMARCXMLFormatter extends RecordFormatter
         }
 
         // 215 — Physical description
-        if (!empty($record['numero_pagine'])) {
+        if ($isFilm) {
+            $extent = [['a', \App\Support\Marc\BookMarcBuilder::filmExtent($record)]];
+            if (!empty($record['dimensioni'])) {
+                $extent[] = ['d', (string) $record['dimensioni']];
+            }
+            $recordEl->appendChild($this->df('215', ' ', ' ', $extent));
+        } elseif (!empty($record['numero_pagine'])) {
             $recordEl->appendChild($this->df('215', ' ', ' ', [
                 ['a', $record['numero_pagine'] . ' p.'],
             ]));
@@ -202,6 +212,10 @@ class UNIMARCXMLFormatter extends RecordFormatter
             $recordEl->appendChild($this->df('225', '0', ' ', $subs225));
         }
 
+        if ($isFilm && ($cast = \App\Support\FilmFields::castLine($record['interpreti'] ?? null)) !== '') {
+            $recordEl->appendChild($this->df('323', ' ', ' ', [['a', $cast]]));
+        }
+
         // 326 — Frequency statement (continuing resources only)
         if ($isSerial && !empty($record['periodicita'])) {
             $recordEl->appendChild($this->df('326', ' ', ' ', [['a', (string) $record['periodicita']]]));
@@ -212,6 +226,10 @@ class UNIMARCXMLFormatter extends RecordFormatter
             $recordEl->appendChild($this->df('330', ' ', ' ', [
                 ['a', strip_tags((string) $record['descrizione'])],
             ]));
+        }
+
+        if ($isFilm && trim((string) ($record['classificazione_eta'] ?? '')) !== '') {
+            $recordEl->appendChild($this->df('333', ' ', ' ', [['a', trim((string) $record['classificazione_eta'])]]));
         }
 
         // 606 — Subject — keywords
@@ -251,7 +269,7 @@ class UNIMARCXMLFormatter extends RecordFormatter
                 ? '700'
                 : ($this->isCreatorRole($contributor['ruolo']) ? '701' : '702');
             [$ind2, $nameSubfields] = $this->personalName($contributor['nome']);
-            $nameSubfields[] = ['4', UnimarcLibriParser::relatorForRole($contributor['ruolo'])];
+            $nameSubfields[] = ['4', UnimarcLibriParser::relatorForRole($contributor['ruolo'], $isFilm)];
             $recordEl->appendChild($this->df($tag, ' ', $ind2, $nameSubfields));
         }
 

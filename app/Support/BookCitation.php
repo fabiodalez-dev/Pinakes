@@ -79,6 +79,7 @@ final class BookCitation
         foreach ($input['editors'] ?? [] as $editor) {
             $lines[] = ['A2', $editor];
         }
+        $ean = $clean($book['ean'] ?? '');
         $isbn = $clean($book['isbn13'] ?? '') !== '' ? $book['isbn13'] : ($book['isbn10'] ?? '');
         foreach ([
             'TI' => $input['title'] ?? '',
@@ -86,7 +87,7 @@ final class BookCitation
             'PB' => $input['publisher'] ?? '',
             'CY' => $input['place'] ?? '',
             'ET' => $input['edition'] ?? '',
-            'SN' => $isFilm ? ($book['ean'] ?? '') : $isbn,
+            'SN' => $isFilm && $ean !== '' ? $ean : $isbn,
             'T2' => $book['collana'] ?? '',
             'LA' => $book['lingua'] ?? '',
             'M3' => $input['medium'] ?? '',

@@ -255,6 +255,21 @@ class MediaLabels
         return __($label);
     }
 
+    /** Recognise the physical video format, including qualified catalogue labels. */
+    public static function videoFormat(?string $formato): ?string
+    {
+        $label = strtolower(str_replace('_', ' ', (string) $formato));
+        return match (true) {
+            preg_match('/\b(?:4k(?:uhd)?|uhd|ultra[ -]?hd)\b/', $label) === 1 => 'uhd',
+            preg_match('/blu[ -]?ray/', $label) === 1 => 'blu-ray',
+            preg_match('/\bvhs\b/', $label) === 1 => 'vhs',
+            str_contains($label, 'videocassett') => 'videocassette',
+            str_contains($label, 'dvd') => 'dvd',
+            str_contains($label, 'videodisc') => 'videodisc',
+            default => null,
+        };
+    }
+
     /**
      * Infer tipo_media from formato field (for backward compat / migration).
      */
@@ -275,6 +290,10 @@ class MediaLabels
                 return 'audiolibro';
             }
 
+            if (self::videoFormat($candidate) !== null) {
+                return 'dvd';
+            }
+
             // Long tokens: safe for substring match (unique enough)
             foreach (['cdaudio', 'compactdisc', 'vinile', 'vinyl', 'cassetta', 'cassette', 'audiocassetta'] as $musicToken) {
                 if (str_contains($candidate, $musicToken)) {
@@ -285,16 +304,6 @@ class MediaLabels
             // ('cd' would match 'cdrom', 'lp' would match 'help')
             if ($candidate === 'cd' || $candidate === 'lp') {
                 return 'disco';
-            }
-
-            if (str_contains($candidate, 'dvd') || str_contains($candidate, 'bluray') || str_contains($candidate, 'blu_ray')
-                || str_contains($candidate, 'videocassett') || str_contains($candidate, 'videodisc')) {
-                return 'dvd';
-            }
-            // Short video tokens: exact match only ('vhs' is safe, 'uhd'/'4k'
-            // are not substrings to trust inside longer words)
-            if (in_array($candidate, ['vhs', 'uhd', '4k', '4k_uhd'], true)) {
-                return 'dvd';
             }
 
             if (str_contains($candidate, 'other') || str_contains($candidate, 'altro')) {

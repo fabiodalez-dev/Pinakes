@@ -173,13 +173,13 @@ final class FilmFields
 
     /**
      * MARC 21 008/18-20 for visual materials: the running time in minutes
-     * as three digits, "000" when it exceeds 999, "nnn" when it is unknown.
+     * as three digits, "000" when it exceeds 999, "---" when it is unknown.
      */
     public static function marc008Runtime(mixed $minutes): string
     {
         $m = self::runtime($minutes);
         if ($m === null) {
-            return 'nnn';
+            return '---';
         }
         return $m > 999 ? '000' : sprintf('%03d', $m);
     }
