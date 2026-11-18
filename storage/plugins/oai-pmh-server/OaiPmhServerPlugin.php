@@ -84,7 +84,6 @@ class OaiPmhServerPlugin
      */
     private ?bool $ricExposedCache = null;
 
-    /** Page size for ListRecords / ListIdentifiers */
     /**
      * ", l.col, ..." for the optional MARC columns present in libri, so a
      * book harvested with ListRecords carries the same MARC as with
@@ -108,6 +107,7 @@ class OaiPmhServerPlugin
         return implode('', array_map(static fn (string $c): string => ', l.' . $c, $this->optionalMarcColumns));
     }
 
+    /** Page size for ListRecords / ListIdentifiers */
     private const PAGE_SIZE = 100;
 
     /** Resumption token TTL in seconds (24 hours) */
