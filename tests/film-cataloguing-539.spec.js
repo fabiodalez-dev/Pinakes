@@ -11,8 +11,10 @@
 //      contentRating) and "Cita questo film";
 //   5. the RIS download is TY MPCT, named film-{id}.ris;
 //   6. the public catalogue lists the film under the "Film e video" facet;
-//   7. the individual UNIMARC download preserves film metadata;
-//   8. switching the type away keeps the values (the hidden card is still
+//   7. film discovery shelves reflect genre, audience and circulation;
+//   8. citation services receive the public RIS address;
+//   9. the individual UNIMARC download preserves film metadata;
+//  10. switching the type away keeps the values (the hidden card is still
 //      posted), and a cleared field becomes NULL.
 //
 // Marker-scoped to titles `ZZ_FILM539_%`, cleaned up in afterAll.
@@ -32,6 +34,7 @@ test.describe.serial('Film cataloguing (#539)', () => {
   let bookId = 0;
   let authorId = 0;
   let publisherId = 0;
+  let ordinaryBookId = 0;
 
   const filmRow = () => {
     const [durata, interpreti, sottotitoli, eta, regione, tipo] = h.dbQuery(
@@ -48,17 +51,19 @@ test.describe.serial('Film cataloguing (#539)', () => {
     publisherId = parseInt(h.dbQuery(`SELECT MAX(id) FROM editori WHERE nome = ${h.sqlString(STUDIO)}`), 10);
     bookId = h.seedBook({
       titolo: TITLE, tipo_media: 'libro', formato: 'Blu-ray', anno_pubblicazione: '2009',
-      lingua: 'inglese', ean: `50518${STAMP.replace(/\D/g, '').padEnd(8, '7').slice(0, 8)}`,
+      parole_chiave: 'bambini, drammatico', lingua: 'inglese', ean: `50518${STAMP.replace(/\D/g, '').padEnd(8, '7').slice(0, 8)}`,
       editore_id: String(publisherId), copie_totali: '1', copie_disponibili: '1',
     });
     h.dbQuery(`INSERT INTO libri_autori (libro_id, autore_id, ruolo, ordine_credito) VALUES (${bookId}, ${authorId}, 'principale', 1)`);
+    ordinaryBookId = h.seedBook({ titolo: `ZZ_FILM539_ Text ${STAMP}`, tipo_media: 'libro', parole_chiave: 'bambini, drammatico' });
     context = await browser.newContext();
     page = await context.newPage();
     await h.loginAsAdmin(page);
   });
 
   test.afterAll(async () => {
-    h.deleteBooks([bookId]);
+    if (bookId) h.dbQuery(`DELETE FROM prestiti WHERE libro_id = ${bookId}`);
+    h.deleteBooks([bookId, ordinaryBookId]);
     try { h.dbQuery(`DELETE FROM libri_editori WHERE editore_id = ${publisherId}`); } catch (_) { /* cleanup */ }
     try { h.dbQuery(`DELETE FROM editori WHERE id = ${publisherId}`); } catch (_) { /* cleanup */ }
     try { h.dbQuery(`DELETE FROM autori WHERE id = ${authorId}`); } catch (_) { /* cleanup */ }
@@ -145,7 +150,53 @@ test.describe.serial('Film cataloguing (#539)', () => {
     await expect(page.getByText(TITLE).first()).toBeVisible();
   });
 
-  test('7. The admin UNIMARC download preserves film metadata', async () => {
+  test('7. Film shelves link to the catalogue record and use real circulation', async () => {
+    h.dbQuery(`INSERT INTO prestiti (libro_id, utente_id, data_prestito, data_scadenza, data_restituzione, stato, attivo)
+               SELECT ${bookId}, id, CURRENT_DATE, CURRENT_DATE, CURRENT_DATE, 'restituito', 0 FROM utenti ORDER BY id LIMIT 1`);
+    await page.goto(`${h.BASE}/catalogo?tipo_media=dvd`);
+    await page.getByRole('link', { name: 'Esplora i film' }).click();
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Film e video');
+    for (const key of ['latest', 'children', 'drama']) {
+      await expect(page.locator(`section[aria-labelledby="films-${key}"] [data-book-id="${bookId}"]`)).toBeVisible();
+    }
+    const popular = page.locator('section[aria-labelledby="films-popular"] .book-card');
+    await expect(popular.first()).toBeVisible();
+    const popularIds = await popular.evaluateAll(cards => cards.map(card => Number(card.getAttribute('data-book-id'))));
+    const counts = popularIds.map(id => Number(h.dbQuery(`SELECT COUNT(*) FROM prestiti WHERE libro_id = ${id}
+      AND stato IN ('in_corso','in_ritardo','restituito','perso','danneggiato')`)));
+    expect(Math.min(...counts)).toBeGreaterThan(0);
+    expect(counts).toEqual([...counts].sort((a, b) => b - a));
+    await expect(page.locator(`[data-book-id="${ordinaryBookId}"]`)).toHaveCount(0);
+    await expect(page.getByRole('link', { name: 'Tutti i film' })).toHaveAttribute('href', /tipo_media=dvd$/);
+    await page.locator(`section[aria-labelledby="films-latest"] [data-book-id="${bookId}"] .book-title a`).click();
+    await expect(page.locator('#book-cite-card')).toBeVisible();
+  });
+
+  test('8. The citation dialog offers both direct imports and a public RIS download', async ({ request }) => {
+    await page.goto(`${h.BASE}/autore/film/${bookId}`);
+    await page.locator('#cite-open').click();
+    const dialog = page.getByRole('dialog');
+    await expect(dialog.getByRole('link', { name: 'Scarica RIS' })).toBeVisible();
+    for (const [name, base, expected] of [
+      ['RefWorks', 'https://api.refworks.proquest.com/api-ipa/express', { filter: 'RIS Format', vendor: 'Pinakes', encoding: '65001' }],
+      ['EndNote Web', 'https://www.myendnoteweb.com/', { func: 'directExport', partnerName: 'Pinakes', dataIdentifier: '1' }],
+    ]) {
+      const href = await dialog.getByRole('link', { name }).getAttribute('href');
+      const link = new URL(href);
+      expect(link.origin + link.pathname).toBe(base);
+      for (const [key, value] of Object.entries(expected)) expect(link.searchParams.get(key)).toBe(value);
+      const callback = link.searchParams.get(name === 'RefWorks' ? 'url' : 'dataRequestUrl');
+      expect(new URL(callback).pathname).toMatch(new RegExp(`/books/${bookId}/citation\\.ris$`));
+      const res = await request.get(callback);
+      expect(res.status()).toBe(200);
+      const ris = await res.text();
+      expect(ris).toContain(`ID  - ${bookId}\r\n`);
+      expect(ris).toMatch(/\r\nDP  - [^\r\n]+\r\n/);
+      expect(ris).toContain('TY  - MPCT\r\n');
+    }
+  });
+
+  test('9. The admin UNIMARC download preserves film metadata', async () => {
     const res = await page.request.get(`${h.BASE}/admin/books/${bookId}/export.unimarc.xml`);
     expect(res.status()).toBe(200);
     expect(res.headers()['content-type']).toContain('xml');
@@ -162,7 +213,7 @@ test.describe.serial('Film cataloguing (#539)', () => {
     });
   });
 
-  test('8. Switching type keeps the values; a cleared field is NULL', async () => {
+  test('10. Switching type keeps the values; a cleared field is NULL', async () => {
     await page.goto(`${h.BASE}/admin/books/edit/${bookId}`);
     await page.selectOption('#tipo_media', 'libro');
     await expect(page.locator('#film-details')).toBeHidden();

@@ -256,6 +256,45 @@ class FrontendController
             ->withHeader(\App\Support\LiteSpeedCache::MARKER_HEADER, 'home');
     }
 
+    /** Public film shelves. All four use the same visibility rules as catalogue browsing. */
+    public function films(Response $response, mysqli $db): Response
+    {
+        $author = $this->catalogAuthorSelect($db);
+        $visible = \App\Support\BookVisibility::catalogue($db, 'l');
+        $select = "SELECT l.*, e.nome AS editore, g.nome AS genere, {$author}";
+        $from = "FROM libri l
+                 LEFT JOIN editori e ON e.id = l.editore_id
+                 LEFT JOIN generi g ON g.id = l.genere_id
+                 LEFT JOIN generi sg ON sg.id = l.sottogenere_id
+                 LEFT JOIN generi parent ON parent.id = g.parent_id
+                 WHERE l.deleted_at IS NULL AND {$visible} AND l.tipo_media = 'dvd'";
+        $recent = 'ORDER BY l.created_at DESC, l.id DESC LIMIT 6';
+        // The circulation index (libro_id, stato) counts actual loans of each eligible film.
+        $loanCount = "(SELECT COUNT(*) FROM prestiti p WHERE p.libro_id = l.id
+                       AND p.stato IN ('in_corso','in_ritardo','restituito','perso','danneggiato'))";
+        // Genres, subgenres and keywords are cataloguer-supplied in any supported language.
+        $tags = "CONCAT_WS(' ', g.nome, sg.nome, parent.nome, l.parole_chiave)";
+        $children = 'bambini|ragazzi|infanzia|children|kids|juvenile|young adult|enfants?|jeunesse|kinder(filme?)?|jugend(filme?)?|børn(efilm)?';
+        $drama = 'dramas?|dramma(tic[oi])?|drames?|dramatiques?|filmdramen|dramaer|dramafilme?';
+        $queries = [
+            'latest' => "$select $from $recent",
+            'popular' => "$select, $loanCount AS loans $from HAVING loans > 0
+                          ORDER BY loans DESC, l.created_at DESC, l.id DESC LIMIT 6",
+            'children' => "$select $from AND $tags REGEXP '(^|[^[:alnum:]])($children)([^[:alnum:]]|$)' $recent",
+            'drama' => "$select $from AND $tags REGEXP '(^|[^[:alnum:]])($drama)([^[:alnum:]]|$)' $recent",
+        ];
+        $shelves = [];
+        foreach ($queries as $key => $query) {
+            $shelves[$key] = $db->query($query)->fetch_all(MYSQLI_ASSOC);
+        }
+
+        $container = $this->container;
+        ob_start();
+        include __DIR__ . '/../Views/frontend/films.php';
+        $response->getBody()->write((string) ob_get_clean());
+        return $response->withHeader('Content-Type', 'text/html; charset=UTF-8');
+    }
+
     /**
      * The public catalogue: filtered, paginated results under the header the
      * admin set for the visitor's language, or the translated default.
@@ -783,7 +822,7 @@ class FrontendController
             'autori' => $book['autore_principale'] ?? '',
         ]));
         $citeInput = \App\Support\BookCitation::input($book, $detail['authors']);
-        $body = \App\Support\BookCitation::ris($citeInput, $book, $recordUrl);
+        $body = \App\Support\BookCitation::ris($citeInput, $book, $recordUrl, (string) ConfigStore::get('app.name', 'Pinakes'));
         $response->getBody()->write($body);
         $filePrefix = ($citeInput['type'] ?? 'book') === 'film' ? 'film' : 'book';
         return $response

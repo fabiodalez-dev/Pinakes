@@ -1320,6 +1320,19 @@ $pkHasDigitalFiles = $pkDigitalPlayer !== '' || str_contains($pkDigitalButtons, 
                 $citeDownloads = [
                     ['label' => __('Scarica la citazione in formato RIS (EndNote, Mendeley, Zotero)'), 'url' => url('/books/' . (int) $book['id'] . '/citation.ris')],
                 ];
+                $citeExports = [];
+                if ($isFilm) {
+                    $citeExports[__('Scarica RIS')] = $citeDownloads[0]['url'];
+                    if ((string) \App\Support\ConfigStore::get('advanced.private_mode', '0') !== '1') {
+                        $risUrl = absoluteUrl($citeDownloads[0]['url']);
+                        $citeExports['RefWorks'] = 'https://api.refworks.proquest.com/api-ipa/express?' . http_build_query([
+                            'vendor' => 'Pinakes', 'filter' => 'RIS Format', 'encoding' => '65001', 'url' => $risUrl,
+                        ], '', '&', PHP_QUERY_RFC3986);
+                        $citeExports['EndNote Web'] = 'https://www.myendnoteweb.com/?' . http_build_query([
+                            'func' => 'directExport', 'partnerName' => 'Pinakes', 'dataIdentifier' => '1', 'dataRequestUrl' => $risUrl,
+                        ], '', '&', PHP_QUERY_RFC3986);
+                    }
+                }
                 ?>
                 <div class="card" id="book-cite-card">
                   <div class="card-header">
@@ -1328,7 +1341,7 @@ $pkHasDigitalFiles = $pkDigitalPlayer !== '' || str_contains($pkDigitalButtons, 
                   <div class="card-body py-2 px-3">
                     <?php
                     // The RIS file is already the inline "Download RIS" button: the
-                    // dialog keeps its styles and copy buttons, not a second link.
+                    // film dialog groups all three export choices together.
                     // Its "Cite" button joins the inline actions row (cite-inline.php).
                     $citeDownloadsInline = $citeDownloads;
                     $citeDownloads = [];
