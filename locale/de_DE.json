@@ -9401,5 +9401,6 @@
   "Interpreti": "Darsteller",
   "Un nome per riga, oppure separati da virgola": "Ein Name pro Zeile oder durch Kommas getrennt",
   "Lingue audio": "Tonsprachen",
-  "Cita questo film": "Diesen Film zitieren"
+  "Cita questo film": "Diesen Film zitieren",
+  "Il libro è stato salvato, ma i dati del film (durata, interpreti, sottotitoli, classificazione, regione) no: il database non ha ancora le colonne. Ripeti l'aggiornamento o elimina il file storage/.schema-repaired per rilanciare la verifica dello schema; il motivo è nel log degli errori.": "Das Buch wurde gespeichert, die Filmangaben (Laufzeit, Besetzung, Untertitel, Altersfreigabe, Regionalcode) jedoch nicht: Der Datenbank fehlen diese Spalten noch. Führen Sie das Update erneut aus oder löschen Sie die Datei storage/.schema-repaired, um die Schemaprüfung zu wiederholen; der Grund steht im Fehlerprotokoll."
 }

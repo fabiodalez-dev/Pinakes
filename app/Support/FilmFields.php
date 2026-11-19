@@ -21,8 +21,10 @@ use mysqli;
  * only for the keys the request carries: the book form always posts them,
  * while imports, the mobile API and plugins do not, so those paths leave
  * the stored values untouched. A column the database does not have yet
- * (files updated, schema check not run) is skipped instead of failing the
- * save.
+ * (files updated, schema check not run, or SchemaRepair's ALTER refused) is
+ * skipped instead of failing the save, but never silently: save() logs it
+ * and returns the columns whose value was lost, so the form can tell the
+ * cataloguer instead of reporting a clean save.
  */
 final class FilmFields
 {
@@ -101,14 +103,22 @@ final class FilmFields
      * Persist the film fields present in a form submission.
      *
      * @param array<string, mixed> $data raw form data
+     * @return list<string> the columns that carried a value but are missing
+     *         from the database, so the value was not stored (empty when
+     *         everything submitted was saved)
      */
-    public static function save(mysqli $db, int $bookId, array $data): void
+    public static function save(mysqli $db, int $bookId, array $data): array
     {
         $set = [];
         $types = '';
         $values = [];
+        $dropped = [];
         foreach (self::normalize($data) as $column => $value) {
             if (!self::hasColumn($db, $column)) {
+                // Clearing a column that does not exist loses nothing.
+                if ($value !== null) {
+                    $dropped[] = $column;
+                }
                 continue;
             }
             if ($value === null) {
@@ -119,8 +129,14 @@ final class FilmFields
             $types .= is_int($value) ? 'i' : 's';
             $values[] = $value;
         }
+        if ($dropped !== []) {
+            SecureLogger::warning('[FilmFields] Film fields not saved: libri lacks the columns (schema not repaired)', [
+                'book_id' => $bookId,
+                'columns' => $dropped,
+            ]);
+        }
         if ($set === []) {
-            return;
+            return $dropped;
         }
 
         $sql = 'UPDATE libri SET ' . implode(', ', $set) . ' WHERE id = ? AND deleted_at IS NULL';
@@ -136,6 +152,21 @@ final class FilmFields
         } finally {
             $stmt->close();
         }
+        return $dropped;
+    }
+
+    /**
+     * The message shown to the cataloguer when save() could not store some
+     * film fields; empty when nothing was lost.
+     *
+     * @param list<string> $dropped what save() returned
+     */
+    public static function droppedMessage(array $dropped): string
+    {
+        if ($dropped === []) {
+            return '';
+        }
+        return __('Il libro è stato salvato, ma i dati del film (durata, interpreti, sottotitoli, classificazione, regione) no: il database non ha ancora le colonne. Ripeti l\'aggiornamento o elimina il file storage/.schema-repaired per rilanciare la verifica dello schema; il motivo è nel log degli errori.');
     }
 
     /** "95 min", translated; empty for an unknown running time. */
