@@ -895,10 +895,13 @@ function upgradeFindDumpBinary(): ?string
     foreach (['/usr/bin', '/usr/local/bin', '/opt/homebrew/bin'] as $dir) {
         foreach (['mysqldump', 'mariadb-dump'] as $name) {
             $binary = $dir . '/' . $name;
-            $process = @proc_open([$binary, '--no-defaults', '--version'], [1 => ['pipe', 'w'], 2 => ['redirect', 1]], $pipes);
+            $process = @proc_open([$binary, '--no-defaults', '--version'], [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
             if (is_resource($process)) {
+                // A one-line banner: read stdout, then stderr, before waiting.
                 stream_get_contents($pipes[1]);
                 fclose($pipes[1]);
+                stream_get_contents($pipes[2]);
+                fclose($pipes[2]);
                 if (proc_close($process) === 0) {
                     return $binary;
                 }
@@ -919,8 +922,9 @@ const UPGRADE_DUMP_DIAGNOSTICS_BYTES = 2000;
  * why a mandatory backup failed (bad credentials, unknown database, no
  * /dev/fd on the host). mysqldump never echoes the password.
  * @param list<string> $arguments
+ * @param-out string $diagnostics
  */
-function upgradeRunDump(string $binary, array $arguments, array $env, string $backupFile, ?string &$diagnostics = null): int
+function upgradeRunDump(string $binary, array $arguments, array $env, string $backupFile, mixed &$diagnostics = null): int
 {
     $diagnostics = '';
     $quote = static fn (string $value): string => '"' . strtr($value, [
