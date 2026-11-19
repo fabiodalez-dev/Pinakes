@@ -568,6 +568,17 @@ if ($sandboxError !== null) {
         }
         [$status, $body] = $errorsCsv($imports['users']);
         $check($status === 404 && !str_contains($body, 'Mario Rossi'), "errors.csv: a patron (users) import report is not served here (HTTP {$status})");
+        // The catalogue history the app lists offers an errors.csv button on
+        // every row: it must not list a row whose report answers 404.
+        $history = new \ReflectionMethod(\App\Plugins\MobileApi\Controllers\StaffImportsController::class, 'history');
+        $controller = new \App\Plugins\MobileApi\Controllers\StaffImportsController($db);
+        foreach ([[$importer, false, 'own'], [0, true, 'admin']] as [$uid, $asAdmin, $who]) {
+            $ids = array_column($history->invoke($controller, $uid, $asAdmin), 'import_id');
+            $check(!in_array($imports['users'], $ids, true), "history ({$who}): the patron import is not listed with the catalogue imports");
+            $check(array_diff([$imports['csv'], $imports['librarything'], $imports['marc']], $ids) === [], "history ({$who}): every catalogue import is listed");
+            $unservable = array_filter($ids, static fn (string $id): bool => in_array($id, $imports, true) && $errorsCsv($id)[0] !== 200);
+            $check($unservable === [], "history ({$who}): every listed row's errors.csv is servable");
+        }
         $_SESSION = [];
     } catch (\Throwable $e) {
         $check(false, 'DB section raised ' . get_class($e) . ': ' . $e->getMessage() . ' @ ' . basename($e->getFile()) . ':' . $e->getLine());

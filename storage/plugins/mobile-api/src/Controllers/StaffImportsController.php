@@ -459,25 +459,34 @@ final class StaffImportsController
     }
 
     /**
-     * Import history (import_logs): own imports, every import for an admin —
-     * the rule of ImportHistoryController.
+     * Catalogue import history (import_logs): own imports, every import for an
+     * admin — the rule of ImportHistoryController. Patron imports ('users')
+     * are left out: they belong to /staff/user-imports and its capability,
+     * and errorsCsv() answers 404 for them, so listing them here offered an
+     * error report that could never be downloaded.
      *
      * @return list<array<string, mixed>>
      */
     private function history(int $userId, bool $isAdmin): array
     {
+        $types = self::CATALOG_IMPORT_TYPES;
         $sql = "SELECT il.import_id, il.import_type, il.file_name, il.user_id, il.total_rows, il.imported, il.updated,
                        il.failed, il.status, il.started_at, il.completed_at, u.nome, u.cognome
-                  FROM import_logs il LEFT JOIN utenti u ON u.id = il.user_id"
-            . ($isAdmin ? '' : ' WHERE il.user_id = ?')
+                  FROM import_logs il LEFT JOIN utenti u ON u.id = il.user_id
+                 WHERE il.import_type IN (" . implode(',', array_fill(0, count($types), '?')) . ')'
+            . ($isAdmin ? '' : ' AND il.user_id = ?')
             . ' ORDER BY il.started_at DESC LIMIT 50';
         $stmt = $this->db->prepare($sql);
         if ($stmt === false) {
             return [];
         }
+        $params = $types;
+        $bind = str_repeat('s', count($types));
         if (!$isAdmin) {
-            $stmt->bind_param('i', $userId);
+            $params[] = $userId;
+            $bind .= 'i';
         }
+        $stmt->bind_param($bind, ...$params);
         $stmt->execute();
         $result = $stmt->get_result();
         $rows = [];
