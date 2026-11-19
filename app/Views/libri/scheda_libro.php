@@ -1640,8 +1640,8 @@ unset($workspaceHeader);
                               <div class="text-left">
                                   <p><strong>${escapeHtml(<?= json_encode(__("Copia"), JSON_HEX_TAG) ?>)}:</strong> ${escapeHtml(props.inventario)}</p>
                                   <p><strong>${escapeHtml(<?= json_encode(__("Stato"), JSON_HEX_TAG) ?>)}:</strong> ${escapeHtml(props.statusLabel)}</p>
-                                  <p><strong>${escapeHtml(<?= json_encode(__("Dal"), JSON_HEX_TAG) ?>)}:</strong> ${formatDateLocale(start)}</p>
-                                  <p><strong>${escapeHtml(<?= json_encode(__("Al"), JSON_HEX_TAG) ?>)}:</strong> ${formatDateLocale(end)}</p>
+                                  <p><strong>${escapeHtml(<?= json_encode(__("Dal"), JSON_HEX_TAG) ?>)}:</strong> ${escapeHtml(formatDateLocale(start))}</p>
+                                  <p><strong>${escapeHtml(<?= json_encode(__("Al"), JSON_HEX_TAG) ?>)}:</strong> ${escapeHtml(formatDateLocale(end))}</p>
                               </div>
                           `,
                           icon: 'info',

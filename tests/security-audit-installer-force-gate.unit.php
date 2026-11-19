@@ -115,6 +115,44 @@ mkdir($broken, 0700);
 file_put_contents($broken . '/storage', 'not a directory');
 $check(!(new Installer($broken))->recordForceLoginAttempt('198.51.100.9', $now), 'an unrecordable attempt is refused (fail closed)');
 
+// Review of PR #536: the prune read a bucket's age and then unlinked it, while a
+// request could record an attempt in the same file in between, and the login got
+// a fresh budget. The prune locks each bucket and reads its age again under the
+// lock; a request that waited for the lock opens the path again.
+$realNow = time();
+$raceIp = '198.51.100.200';
+$check($installer->recordForceLoginAttempt($raceIp, $realNow), 'race: first attempt recorded');
+$bucket = $dir . '/' . hash('sha256', Installer::forceLoginBucket($raceIp)) . '.json';
+touch($bucket, $realNow - 3 * Installer::FORCE_LOGIN_WINDOW);
+$holder = fopen($bucket, 'c+');
+$check($holder !== false && flock($holder, LOCK_EX), 'race: a request holds the stale bucket locked');
+$installer->recordForceLoginAttempt('198.51.100.201', $realNow);
+clearstatcache();
+$check(is_file($bucket), 'race: a locked bucket is in use, the prune leaves it');
+flock($holder, LOCK_UN);
+fclose($holder);
+touch($bucket, $realNow);
+$installer->recordForceLoginAttempt('198.51.100.202', $realNow);
+clearstatcache();
+$check(is_file($bucket), 'race: a bucket refreshed after the scan stays');
+
+$childCode = '$h = fopen($argv[1], "c+"); flock($h, LOCK_EX); echo "READY\n"; fflush(STDOUT);'
+    . 'usleep(400000); unlink($argv[1]); flock($h, LOCK_UN);';
+$proc = proc_open([PHP_BINARY, '-r', $childCode, $bucket], [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
+if (is_resource($proc)) {
+    $check(trim((string) fgets($pipes[1])) === 'READY', 'race: the stand-in for the prune holds the bucket lock');
+    $ok = $installer->recordForceLoginAttempt($raceIp, $realNow);
+    proc_close($proc);
+    clearstatcache();
+    $hits = is_file($bucket) ? json_decode((string) file_get_contents($bucket), true) : null;
+    $check($ok === true, 'race: the attempt that waited out the removal is allowed');
+    $check(is_array($hits) && count($hits) === 1, 'race: it was recorded in a fresh bucket, not on the unlinked file');
+} else {
+    $check(false, 'race: could not start the child process');
+}
+$installerSrc = (string) file_get_contents($ROOT . '/installer/classes/Installer.php');
+$check(str_contains($installerSrc, 'LOCK_EX | LOCK_NB') && str_contains($installerSrc, 'openLockedBucket('), 'race: the prune locks each bucket and the writer reopens a removed one');
+
 // ---------------------------------------------------------------------------
 echo "D. installer/index.php force gate wiring\n";
 // ---------------------------------------------------------------------------
