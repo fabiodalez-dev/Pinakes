@@ -173,6 +173,42 @@ $check($linked->invoke(null, $lnkFd, $twin . '.lnk') === false, 'race (two prune
 fclose($lnkFd);
 unlink($twin . '.lnk');
 unlink($twin);
+// The full interleaving, with a barrier right after the prune opened the bucket:
+// the bucket is stale when opened; another pass removes it and a request records a
+// new attempt at the same path before the first pass takes its lock. The first
+// pass must leave that new bucket alone.
+final class BarrierInstaller extends Installer
+{
+    public ?Closure $afterOpen = null;
+    protected function openBucketForPrune(string $path)
+    {
+        $handle = parent::openBucketForPrune($path);
+        if ($this->afterOpen !== null) {
+            ($this->afterOpen)($path);
+        }
+        return $handle;
+    }
+}
+$barrier = new BarrierInstaller($tmp);
+$twinBucket = $dir . '/' . str_repeat('e', 64) . '.json';
+file_put_contents($twinBucket, '[1]');
+touch($twinBucket, $realNow - 3 * Installer::FORCE_LOGIN_WINDOW);
+$barrierFired = 0;
+$barrier->afterOpen = static function (string $path) use ($realNow, $twinBucket, &$barrierFired): void {
+    if ($path !== $twinBucket || $barrierFired > 0) {
+        return;
+    }
+    $barrierFired++;
+    unlink($path);                          // the other prune pass
+    file_put_contents($path, '[' . $realNow . ']'); // a request records an attempt
+    touch($path, $realNow);
+};
+$barrier->recordForceLoginAttempt('198.51.100.230', $realNow);
+clearstatcache();
+$check($barrierFired === 1, 'race (two prunes, barrier after the open): the barrier ran between the open and the lock');
+$check(is_file($twinBucket) && file_get_contents($twinBucket) === '[' . $realNow . ']',
+    'race (two prunes, barrier after the open): the bucket recreated meanwhile is not deleted on the old one\'s age');
+@unlink($twinBucket);
 $check(preg_match('/private function pruneForceLoginBuckets.*?bucketHandleIsLinked\(\$handle, \$path\).*?@unlink\(\$path\)/s', $installerSrc) === 1,
     'race (two prunes): the prune checks the descriptor is still the file at the path before it unlinks');
 

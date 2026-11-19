@@ -2253,6 +2253,17 @@ HTACCESS;
     }
 
     /**
+     * Open a bucket for the prune pass. A seam of its own, between the open and
+     * the lock that follows it, so a test can run another prune pass and a
+     * request in exactly that window.
+     *
+     * @return resource|false
+     */
+    protected function openBucketForPrune(string $path) {
+        return @fopen($path, 'r');
+    }
+
+    /**
      * True when $handle is the regular file currently linked at $path: same
      * device and inode as an lstat of the path (which does not follow links),
      * read past the stat cache. A handle that waited for a lock may be on a file
@@ -2289,7 +2300,7 @@ HTACCESS;
             if (is_link($path)) {
                 continue;
             }
-            $handle = @fopen($path, 'r');
+            $handle = $this->openBucketForPrune($path);
             if ($handle === false) {
                 continue;
             }
