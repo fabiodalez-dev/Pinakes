@@ -613,11 +613,23 @@ class Repo
      */
     public function joinMember(int $clubId, int $userId, int $roleId, string $status, ?int $invitedBy = null): ?string
     {
-        if (!$this->upsertMember($clubId, $userId, $roleId, $status, $invitedBy)) {
+        // The contract is "null on failure": a driver that raises on a SQL error
+        // (mysqli in exception mode) must not turn it into an exception in the
+        // controllers, which answer a null with their error message and redirect.
+        try {
+            if (!$this->upsertMember($clubId, $userId, $roleId, $status, $invitedBy)) {
+                return null;
+            }
+            $row = $this->memberRow($clubId, $userId);
+            return $row !== null ? (string) $row['status'] : null;
+        } catch (\Throwable $e) {
+            SecureLogger::error('[BookClub] joinMember failed', [
+                'club_id' => $clubId,
+                'user_id' => $userId,
+                'error' => $e->getMessage(),
+            ]);
             return null;
         }
-        $row = $this->memberRow($clubId, $userId);
-        return $row !== null ? (string) $row['status'] : null;
     }
 
     /**
