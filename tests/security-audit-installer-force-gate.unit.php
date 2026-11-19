@@ -153,6 +153,29 @@ if (is_resource($proc)) {
 $installerSrc = (string) file_get_contents($ROOT . '/installer/classes/Installer.php');
 $check(str_contains($installerSrc, 'LOCK_EX | LOCK_NB') && str_contains($installerSrc, 'openLockedBucket('), 'race: the prune locks each bucket and the writer reopens a removed one');
 
+// Two prune passes: the first removes a stale bucket and a request creates it
+// again; the second still holds a descriptor on the OLD file and gets its lock
+// after that. Its descriptor is no longer the file at the path, and the new bucket
+// must not be deleted on the old one's age.
+$linked = new ReflectionMethod(Installer::class, 'bucketHandleIsLinked');
+$linked->setAccessible(true);
+$twin = $dir . '/' . str_repeat('d', 64) . '.json';
+file_put_contents($twin, '[1]');
+$oldFd = fopen($twin, 'c+');
+$check($linked->invoke(null, $oldFd, $twin) === true, 'race (two prunes): a descriptor on the file at the path is accepted');
+unlink($twin);
+file_put_contents($twin, '[2]');
+$check($linked->invoke(null, $oldFd, $twin) === false, 'race (two prunes): after the file was removed and recreated the old descriptor is refused');
+fclose($oldFd);
+symlink($bucket, $twin . '.lnk');
+$lnkFd = fopen($twin, 'c+');
+$check($linked->invoke(null, $lnkFd, $twin . '.lnk') === false, 'race (two prunes): a symlink at the path is never accepted');
+fclose($lnkFd);
+unlink($twin . '.lnk');
+unlink($twin);
+$check(preg_match('/private function pruneForceLoginBuckets.*?bucketHandleIsLinked\(\$handle, \$path\).*?@unlink\(\$path\)/s', $installerSrc) === 1,
+    'race (two prunes): the prune checks the descriptor is still the file at the path before it unlinks');
+
 // ---------------------------------------------------------------------------
 echo "D. installer/index.php force gate wiring\n";
 // ---------------------------------------------------------------------------

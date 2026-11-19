@@ -1412,9 +1412,16 @@ HTACCESS;
      * Delete the binding and the import proof together: the marker, the
      * database nonce and this session's token and proof. Used when the
      * absolute TTL is over and when a ?force=1 reinstall is refused.
+     *
+     * $seen is the marker the caller judged abandoned (see
+     * discardAbandonedBinding()): a claim made since is left alone. This
+     * session's own keys go either way, since the token they hold no longer
+     * is the one on disk.
+     *
+     * @param array{exists: bool, content: ?string, mtime: ?int}|null $seen
      */
-    public function discardInstallOwnership(): void {
-        $this->discardAbandonedBinding();
+    public function discardInstallOwnership(?array $seen = null): void {
+        $this->discardAbandonedBinding($seen);
         unset(
             $_SESSION[self::INSTALL_OWNER_SESSION_KEY],
             $_SESSION[self::INSTALL_POPULATED_SESSION_KEY],
@@ -1666,7 +1673,7 @@ HTACCESS;
             return false;
         }
         if (self::ownerMarkerPastAbsoluteTtl($state)) {
-            $this->discardInstallOwnership();
+            $this->discardInstallOwnership($state);
             return false;
         }
         return true;
@@ -2236,18 +2243,30 @@ HTACCESS;
                 fclose($handle);
                 return false;
             }
-            $opened = @fstat($handle);
-            clearstatcache(true, $file);
-            $atPath = @lstat($file);
-            if ($opened !== false && $atPath !== false
-                && ($atPath['mode'] & 0170000) === 0100000
-                && $opened['dev'] === $atPath['dev'] && $opened['ino'] === $atPath['ino']) {
+            if (self::bucketHandleIsLinked($handle, $file)) {
                 return $handle;
             }
             flock($handle, LOCK_UN);
             fclose($handle);
         }
         return false;
+    }
+
+    /**
+     * True when $handle is the regular file currently linked at $path: same
+     * device and inode as an lstat of the path (which does not follow links),
+     * read past the stat cache. A handle that waited for a lock may be on a file
+     * that was unlinked, or unlinked and recreated, in the meantime.
+     *
+     * @param resource $handle
+     */
+    private static function bucketHandleIsLinked($handle, string $path): bool {
+        $opened = @fstat($handle);
+        clearstatcache(true, $path);
+        $atPath = @lstat($path);
+        return $opened !== false && $atPath !== false
+            && ($atPath['mode'] & 0170000) === 0100000
+            && $opened['dev'] === $atPath['dev'] && $opened['ino'] === $atPath['ino'];
     }
 
     /**
@@ -2276,6 +2295,13 @@ HTACCESS;
             }
             try {
                 if (!flock($handle, LOCK_EX | LOCK_NB)) {
+                    continue;
+                }
+                // Another prune pass may have removed this bucket, and a request
+                // created it again, while this one waited to open and lock it: the
+                // descriptor is then on the old file and the path names the new
+                // one, which must not be deleted on the old one's age.
+                if (!self::bucketHandleIsLinked($handle, $path)) {
                     continue;
                 }
                 $stat = @fstat($handle);
