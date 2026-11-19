@@ -622,13 +622,13 @@ class Repo
 
     /**
      * Change a membership's status. When an ACTIVE member stops being one
-     * (left, suspended, banned, back to pending), the club's calendar token is
-     * rotated: the tokenized iCal URL is shown to active members only and is
-     * the sole proof of membership for the session-less feed (non-public
-     * clubs, video-conference links), so the old URL must stop working for
-     * the person who just lost access. Rejecting a pending request does not
-     * rotate it — a pending requester never saw the URL — so a declined join
-     * request does not break every member's calendar subscription.
+     * (left, suspended, banned, back to pending), the club-wide ics_token is
+     * rotated, retiring the value the old club-wide feed URLs disclosed to
+     * that member. The URLs shown today are per person and are not derived
+     * from ics_token (MeetingController::feedToken()): the feed itself refuses
+     * a member who lost access on the next request, and the rotation leaves
+     * every other member's subscription working. Rejecting a pending request
+     * does not rotate — a pending requester never saw any URL.
      *
      * The previous status is read with SELECT ... FOR UPDATE, and the status
      * change and the token rotation run in ONE transaction: every status
