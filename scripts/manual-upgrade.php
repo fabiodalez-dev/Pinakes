@@ -908,13 +908,21 @@ function upgradeFindDumpBinary(): ?string
     return null;
 }
 
+const UPGRADE_DUMP_DIAGNOSTICS_BYTES = 2000;
+
 /**
  * Pass the client options on an inherited pipe. The dump child reads its own
  * descriptor, so neither deployment ownership nor PHP's open_basedir matters.
+ * $diagnostics receives the tail of the child's stderr on one line (at most
+ * UPGRADE_DUMP_DIAGNOSTICS_BYTES, control characters removed, always valid
+ * UTF-8 so h() cannot blank the whole error): it is the only place that says
+ * why a mandatory backup failed (bad credentials, unknown database, no
+ * /dev/fd on the host). mysqldump never echoes the password.
  * @param list<string> $arguments
  */
-function upgradeRunDump(string $binary, array $arguments, array $env, string $backupFile): int
+function upgradeRunDump(string $binary, array $arguments, array $env, string $backupFile, ?string &$diagnostics = null): int
 {
+    $diagnostics = '';
     $quote = static fn (string $value): string => '"' . strtr($value, [
         '\\' => '\\\\', '"' => '\\"', "\n" => '\n', "\r" => '\r', "\t" => '\t',
     ]) . '"';
@@ -934,13 +942,29 @@ function upgradeRunDump(string $binary, array $arguments, array $env, string $ba
     }
     $sent = fwrite($pipes[3], $options);
     fclose($pipes[3]);
-    // Keep diagnostic output separate from the SQL backup.
-    while (!feof($pipes[2]) && fread($pipes[2], 8192) !== false) {
-        // Drain stderr before waiting for the child.
+    // Keep diagnostic output separate from the SQL backup; drain it fully
+    // before waiting for the child, keeping only a bounded tail.
+    $tail = '';
+    while (!feof($pipes[2])) {
+        $chunk = fread($pipes[2], 8192);
+        if ($chunk === false) {
+            break;
+        }
+        $tail = substr($tail . $chunk, -UPGRADE_DUMP_DIAGNOSTICS_BYTES);
     }
     fclose($pipes[2]);
     $status = proc_close($process);
-    return $sent === strlen($options) ? $status : 1;
+    if (preg_match('//u', $tail) !== 1) {
+        // A cut multibyte sequence or a non-UTF-8 locale: keep the ASCII.
+        $tail = (string) preg_replace('/[\x80-\xFF]/', '?', $tail);
+    }
+    $lines = preg_split('/[\r\n]+/', (string) preg_replace('/[\x00-\x09\x0B\x0C\x0E-\x1F\x7F]+/', ' ', $tail)) ?: [];
+    $diagnostics = implode(' | ', array_filter(array_map('trim', $lines), static fn (string $l): bool => $l !== ''));
+    if ($sent !== strlen($options)) {
+        $diagnostics = trim('opzioni di connessione non consegnate a mysqldump. ' . $diagnostics);
+        return 1;
+    }
+    return $status;
 }
 // END upgrade-dump-credentials
 
@@ -1103,13 +1127,19 @@ if ($authenticated && $requestMethod === 'POST' && isset($_FILES['zipfile'])) {
             $args[] = '--triggers';
             $args[] = $env['DB_NAME'];
 
-            $exitCode = upgradeRunDump($mysqldumpBin, $args, $env, $backupFile);
+            $dumpDiagnostics = '';
+            $exitCode = upgradeRunDump($mysqldumpBin, $args, $env, $backupFile, $dumpDiagnostics);
 
             if ($exitCode === 0 && is_file($backupFile) && filesize($backupFile) > 100) {
                 $log[] = '[OK] Backup DB creato: ' . basename($backupFile) . ' (' . formatBytes(filesize($backupFile)) . ')';
+                if ($dumpDiagnostics !== '') {
+                    $log[] = '[WARN] mysqldump: ' . $dumpDiagnostics;
+                }
             } else {
                 @unlink($backupFile);
-                throw new RuntimeException('Backup DB fallito (mysqldump exit ' . $exitCode . '). Upgrade interrotto per sicurezza.');
+                throw new RuntimeException('Backup DB fallito (mysqldump exit ' . $exitCode . ')'
+                    . ($dumpDiagnostics !== '' ? ': ' . $dumpDiagnostics : '')
+                    . '. Upgrade interrotto per sicurezza.');
             }
         } else {
             throw new RuntimeException('mysqldump non trovato. Upgrade interrotto per sicurezza (backup obbligatorio).');
