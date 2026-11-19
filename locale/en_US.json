@@ -9401,5 +9401,6 @@
   "Interpreti": "Cast",
   "Un nome per riga, oppure separati da virgola": "One name per line, or separated by commas",
   "Lingue audio": "Audio languages",
-  "Cita questo film": "Cite this film"
+  "Cita questo film": "Cite this film",
+  "Il libro è stato salvato, ma i dati del film (durata, interpreti, sottotitoli, classificazione, regione) no: il database non ha ancora le colonne. Ripeti l'aggiornamento o elimina il file storage/.schema-repaired per rilanciare la verifica dello schema; il motivo è nel log degli errori.": "The book was saved, but not its film details (running time, cast, subtitles, age rating, region): the database does not have those columns yet. Run the update again or delete the file storage/.schema-repaired to repeat the schema check; the reason is in the error log."
 }

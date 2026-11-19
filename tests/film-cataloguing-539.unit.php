@@ -193,6 +193,35 @@ foreach ([['215', 'a'], ['215', 'd'], ['323', 'a'], ['333', 'a'], ['700', '4'], 
 }
 $check($download->subfield('676', 'a') === '791.43' && $download->subfieldValues('606', '3') === ['1930'], 'individual export keeps Dewey and authority subjects');
 
+// ── A missing column is reported, never silently dropped ─────────────────
+// SchemaRepair writes its once-per-version marker even when an ALTER fails,
+// so a database without the film columns stays that way until the next
+// update. save() must then say which submitted values were not stored.
+// The column cache is primed to "missing", so no query reaches the handle.
+$cache = new ReflectionProperty(FilmFields::class, 'columnCache');
+$savedCache = $cache->getValue();
+$cache->setValue(null, array_fill_keys(array_keys(FilmFields::COLUMNS), false));
+$noDb = (new ReflectionClass(mysqli::class))->newInstanceWithoutConstructor();
+try {
+    $dropped = FilmFields::save($noDb, 1, ['durata_minuti' => '95', 'interpreti' => "Anna Magnani\nAldo Fabrizi", 'sottotitoli' => '', 'titolo' => 'Roma città aperta']);
+    $check($dropped === ['durata_minuti', 'interpreti'], 'values that could not be stored are returned, in column order');
+    $check(FilmFields::save($noDb, 1, ['sottotitoli' => '', 'codice_regione' => '  ']) === [], 'clearing a missing column loses nothing and reports nothing');
+    $check(FilmFields::save($noDb, 1, ['titolo' => 'Un libro']) === [], 'a submission without film keys reports nothing');
+    $message = FilmFields::droppedMessage($dropped);
+    $check($message !== '' && str_contains($message, 'storage/.schema-repaired'), 'the cataloguer is told the film data was not saved and how to repair it');
+    $check(FilmFields::droppedMessage([]) === '', 'no message when nothing was lost');
+    $msgKey = "Il libro è stato salvato, ma i dati del film (durata, interpreti, sottotitoli, classificazione, regione) no: il database non ha ancora le colonne. Ripeti l'aggiornamento o elimina il file storage/.schema-repaired per rilanciare la verifica dello schema; il motivo è nel log degli errori.";
+    foreach (['it_IT', 'en_US', 'de_DE', 'fr_FR', 'da_DK'] as $locale) {
+        $strings = json_decode((string) file_get_contents($root . "/locale/{$locale}.json"), true);
+        $check(is_array($strings) && is_string($strings[$msgKey] ?? null) && str_contains($strings[$msgKey], 'storage/.schema-repaired'), "the warning is translated in {$locale}");
+    }
+    $controller = (string) file_get_contents($root . '/app/Controllers/LibriController.php');
+    $check(substr_count($controller, '$filmDropped = \\App\\Support\\FilmFields::save(') === 2
+        && substr_count($controller, 'FilmFields::droppedMessage($filmDropped)') === 2, 'both the create and the edit form surface the loss');
+} finally {
+    $cache->setValue(null, $savedCache);
+}
+
 // ── Schema ───────────────────────────────────────────────────────────────
 $schema = (string) file_get_contents($root . '/installer/database/schema.sql');
 foreach (array_keys(FilmFields::COLUMNS) as $column) {
