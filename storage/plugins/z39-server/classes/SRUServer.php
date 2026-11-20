@@ -657,6 +657,8 @@ class SRUServer
         'classificazione_dewey', 'collana', 'numero_serie', 'created_at',
         'updated_at', 'traduttore', 'illustratore', 'curatore', 'colorista',
         'diritti',
+        // Film and video (#539): UNIMARC 323 cast and 333 age rating.
+        'interpreti', 'classificazione_eta',
     ];
 
     /** @var string|null "l.col, l.col, …" for this install's libri columns */
