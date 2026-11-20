@@ -901,7 +901,7 @@ $htmlLang = substr($currentLocale, 0, 2);
       <main id="workspace-content" tabindex="-1">
         <div class="pk-workspace-page" data-workspace-page>
         <!-- Flash Messages -->
-        <?php if (isset($_SESSION['error_message']) || isset($_SESSION['success_message'])): ?>
+        <?php if (!flash_deferred() && (isset($_SESSION['error_message']) || isset($_SESSION['success_message']))): ?>
           <div class="px-4 sm:px-6 lg:px-8 pt-6">
             <?php if (isset($_SESSION['error_message'])): ?>
               <div class="mb-6 p-4 rounded-xl border border-red-200 bg-red-50 text-red-700" role="alert">

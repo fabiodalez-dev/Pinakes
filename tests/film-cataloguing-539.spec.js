@@ -91,6 +91,9 @@ test.describe.serial('Film cataloguing (#539)', () => {
     await page.fill('#classificazione_eta', '15');
     await page.fill('#codice_regione', 'B');
     await h.submitBookForm(page);
+    // The form posts through fetch(), which follows the redirect itself: the
+    // flash message must survive that hidden load and show on the page opened.
+    await expect(page.getByRole('alert').filter({ hasText: 'Libro aggiornato con successo!' })).toBeVisible();
     expect(filmRow()).toEqual({
       durata: '95', interpreti: 'Ana de Armas|Daniel Craig', sottotitoli: 'danese, inglese', eta: '15', regione: 'B', tipo: 'dvd',
     });
@@ -226,5 +229,16 @@ test.describe.serial('Film cataloguing (#539)', () => {
     await page.fill('#durata_minuti', '');
     await h.submitBookForm(page);
     expect(filmRow()).toMatchObject({ durata: 'NULL', eta: 'NULL', regione: 'B', tipo: 'dvd' });
+  });
+
+  test('11. An out-of-range running time is refused before it can clear the stored one', async () => {
+    h.dbQuery(`UPDATE libri SET durata_minuti = 95 WHERE id = ${bookId}`);
+    await page.goto(`${h.BASE}/admin/books/edit/${bookId}`);
+    await page.fill('#durata_minuti', '65536');
+    await page.locator('#bookForm button[type="submit"]').click();
+    await expect(page.locator('.swal2-title')).toHaveText('Durata non valida');
+    await page.locator('.swal2-confirm').click();
+    expect(page.url()).toContain(`/admin/books/edit/${bookId}`);
+    expect(filmRow()).toMatchObject({ durata: '95' });
   });
 });

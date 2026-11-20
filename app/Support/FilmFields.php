@@ -103,9 +103,10 @@ final class FilmFields
      * Persist the film fields present in a form submission.
      *
      * @param array<string, mixed> $data raw form data
-     * @return list<string> the columns that carried a value but are missing
-     *         from the database, so the value was not stored (empty when
-     *         everything submitted was saved)
+     * @return list<string> the columns that carried a value but were not
+     *         stored: missing from the database, or the UPDATE failed (empty
+     *         when everything submitted was saved). The book itself is
+     *         already committed, so a failure here is reported, not thrown.
      */
     public static function save(mysqli $db, int $bookId, array $data): array
     {
@@ -113,6 +114,7 @@ final class FilmFields
         $types = '';
         $values = [];
         $dropped = [];
+        $written = [];
         foreach (self::normalize($data) as $column => $value) {
             if (!self::hasColumn($db, $column)) {
                 // Clearing a column that does not exist loses nothing.
@@ -128,6 +130,7 @@ final class FilmFields
             $set[] = "{$column} = ?";
             $types .= is_int($value) ? 'i' : 's';
             $values[] = $value;
+            $written[] = $column;
         }
         if ($dropped !== []) {
             SecureLogger::warning('[FilmFields] Film fields not saved: libri lacks the columns (schema not repaired)', [
@@ -142,15 +145,28 @@ final class FilmFields
         $sql = 'UPDATE libri SET ' . implode(', ', $set) . ' WHERE id = ? AND deleted_at IS NULL';
         $types .= 'i';
         $values[] = $bookId;
-        $stmt = $db->prepare($sql);
-        if ($stmt === false) {
-            throw new \RuntimeException('Unable to prepare the film fields update');
-        }
         try {
-            $stmt->bind_param($types, ...$values);
-            $stmt->execute();
-        } finally {
-            $stmt->close();
+            $stmt = $db->prepare($sql);
+            if ($stmt === false) {
+                throw new \RuntimeException('Unable to prepare the film fields update: ' . $db->error);
+            }
+            try {
+                $stmt->bind_param($types, ...$values);
+                if (!$stmt->execute()) {
+                    throw new \RuntimeException('Film fields update failed: ' . $stmt->error);
+                }
+            } finally {
+                $stmt->close();
+            }
+        } catch (\Throwable $e) {
+            // The book and its copies are committed: say which film values
+            // were lost instead of failing a save that otherwise succeeded.
+            SecureLogger::error('[FilmFields] Film fields not saved: the update failed', [
+                'book_id' => $bookId,
+                'columns' => $written,
+                'error' => $e->getMessage(),
+            ]);
+            return array_values(array_unique(array_merge($dropped, $written)));
         }
         return $dropped;
     }
@@ -166,7 +182,7 @@ final class FilmFields
         if ($dropped === []) {
             return '';
         }
-        return __('Il libro è stato salvato, ma i dati del film (durata, interpreti, sottotitoli, classificazione, regione) no: il database non ha ancora le colonne. Ripeti l\'aggiornamento o elimina il file storage/.schema-repaired per rilanciare la verifica dello schema; il motivo è nel log degli errori.');
+        return __('Il libro è stato salvato, ma i dati del film (durata, interpreti, sottotitoli, classificazione, regione) no. Se il database non ha ancora le colonne, ripeti l\'aggiornamento o elimina il file storage/.schema-repaired per rilanciare la verifica dello schema; poi reinserisci i dati del film e salva di nuovo la scheda. Il motivo è nel log degli errori.');
     }
 
     /** "95 min", translated; empty for an unknown running time. */

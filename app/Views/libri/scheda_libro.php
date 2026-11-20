@@ -41,7 +41,7 @@ $btnDanger  = 'btn-danger-outline';
 
 <section class="admin-book-detail min-h-screen bg-gray-50 py-6">
   <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-<?php if (isset($_SESSION['success_message'])): ?>
+<?php if (!flash_deferred() && isset($_SESSION['success_message'])): ?>
   <div class="mb-6 p-4 rounded-xl border border-green-200 bg-green-50 text-green-700" role="alert">
     <i class="fas fa-check-circle mr-2"></i>
     <?php echo App\Support\HtmlHelper::e($_SESSION['success_message']); ?>
@@ -585,21 +585,21 @@ unset($workspaceHeader);
               <?php if (($filmRuntime = \App\Support\FilmFields::runtimeLabel($libro['durata_minuti'] ?? null)) !== ''): ?>
               <div>
                 <dt class="text-xs uppercase text-gray-500"><?= __("Durata") ?></dt>
-                <dd class="text-gray-900 font-medium" data-film-field="durata_minuti"><?= App\Support\HtmlHelper::e($filmRuntime) ?></dd>
+                <dd class="text-gray-900 font-medium" data-film-field="durata_minuti"><?= htmlspecialchars((string) $filmRuntime, ENT_QUOTES, 'UTF-8') ?></dd>
               </div>
               <?php endif; ?>
               <?php foreach (['sottotitoli' => __('Sottotitoli'), 'classificazione_eta' => __('Classificazione per età'), 'codice_regione' => __('Codice regione')] as $filmKey => $filmLabel): ?>
                 <?php if (trim((string) ($libro[$filmKey] ?? '')) !== ''): ?>
                 <div>
-                  <dt class="text-xs uppercase text-gray-500"><?= App\Support\HtmlHelper::e($filmLabel) ?></dt>
-                  <dd class="text-gray-900 font-medium" data-film-field="<?= $filmKey ?>"><?= App\Support\HtmlHelper::e((string) $libro[$filmKey]) ?></dd>
+                  <dt class="text-xs uppercase text-gray-500"><?= htmlspecialchars((string) $filmLabel, ENT_QUOTES, 'UTF-8') ?></dt>
+                  <dd class="text-gray-900 font-medium" data-film-field="<?= $filmKey ?>"><?= htmlspecialchars((string) $libro[$filmKey], ENT_QUOTES, 'UTF-8') ?></dd>
                 </div>
                 <?php endif; ?>
               <?php endforeach; ?>
               <?php if (($filmCast = \App\Support\FilmFields::castLine($libro['interpreti'] ?? null)) !== ''): ?>
               <div class="md:col-span-2">
                 <dt class="text-xs uppercase text-gray-500"><?= __("Interpreti") ?></dt>
-                <dd class="text-gray-900 font-medium" data-film-field="interpreti"><?= App\Support\HtmlHelper::e($filmCast) ?></dd>
+                <dd class="text-gray-900 font-medium" data-film-field="interpreti"><?= htmlspecialchars((string) $filmCast, ENT_QUOTES, 'UTF-8') ?></dd>
               </div>
               <?php endif; ?>
             <?php endif; ?>

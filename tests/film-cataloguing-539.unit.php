@@ -143,6 +143,9 @@ $check($m->subfield('521', 'a') === '15' && $m->first('521')?->ind1 === '8', '52
 $check($m->subfield('538', 'a') === 'Region B', '538 region');
 $check($m->subfield('546', 'a') === 'Subtitles: danese', '546 subtitles in words');
 $check($m->subfieldValues('041', 'a') === ['eng'] && $m->subfieldValues('041', 'j') === ['dan'], '041 $a audio, $j subtitles');
+$check($m->first('041')?->ind1 === '1', '041 ind1 1: Danish subtitles on an English soundtrack are a translation');
+$captions = BookMarcBuilder::marc21(['sottotitoli' => 'inglese'] + $row, $directors, [], null);
+$check($captions->first('041')?->ind1 === '0' && $captions->subfieldValues('041', 'j') === ['eng'], '041 ind1 0: same-language subtitles are captions, not a translation');
 $check([$m->subfield('336', 'b'), $m->subfield('337', 'b'), $m->subfield('338', 'b')] === ['tdi', 'v', 'vd'], '336-338 tdi/v/vd');
 $vhs = BookMarcBuilder::marc21(['formato' => 'VHS', 'durata_minuti' => null] + $row, $directors, [], null);
 $check($vhs->subfield('300', 'a') === '1 videocassette' && $vhs->first('306') === null && substr((string) $vhs->controlField('008'), 18, 3) === '---', 'a VHS without running time');
@@ -160,7 +163,7 @@ foreach ([
 $override = BookMarcBuilder::marc21(['rda_carrier_type' => 'cr'] + $row, [], [], null);
 $check($override->subfield('338', 'b') === 'cr' && $override->subfield('300', 'a') === '1 online resource (95 min)', 'explicit RDA carrier override');
 $onlySubs = BookMarcBuilder::marc21(['lingua' => ''] + $row, $directors, [], null);
-$check($onlySubs->subfieldValues('041', 'a') === [] && $onlySubs->subfieldValues('041', 'j') === ['dan'], '041 with subtitles only');
+$check($onlySubs->subfieldValues('041', 'a') === [] && $onlySubs->subfieldValues('041', 'j') === ['dan'] && $onlySubs->first('041')?->ind1 === ' ', '041 with subtitles only, ind1 blank: no soundtrack language to compare');
 $back = (new Marc21LibriMapper())->map(array_values(array_filter(iterator_to_array(Iso2709Reader::fromString(Iso2709Writer::serialize($m)), false), static fn ($r): bool => $r instanceof MarcRecord))[0]);
 $check($back['tipo_media'] === 'dvd' && $back['autori'] === ['Christopher Nolan'], 'export → import: the film and its director come back');
 
@@ -210,7 +213,7 @@ try {
     $message = FilmFields::droppedMessage($dropped);
     $check($message !== '' && str_contains($message, 'storage/.schema-repaired'), 'the cataloguer is told the film data was not saved and how to repair it');
     $check(FilmFields::droppedMessage([]) === '', 'no message when nothing was lost');
-    $msgKey = "Il libro è stato salvato, ma i dati del film (durata, interpreti, sottotitoli, classificazione, regione) no: il database non ha ancora le colonne. Ripeti l'aggiornamento o elimina il file storage/.schema-repaired per rilanciare la verifica dello schema; il motivo è nel log degli errori.";
+    $msgKey = "Il libro è stato salvato, ma i dati del film (durata, interpreti, sottotitoli, classificazione, regione) no. Se il database non ha ancora le colonne, ripeti l'aggiornamento o elimina il file storage/.schema-repaired per rilanciare la verifica dello schema; poi reinserisci i dati del film e salva di nuovo la scheda. Il motivo è nel log degli errori.";
     foreach (['it_IT', 'en_US', 'de_DE', 'fr_FR', 'da_DK'] as $locale) {
         $strings = json_decode((string) file_get_contents($root . "/locale/{$locale}.json"), true);
         $check(is_array($strings) && is_string($strings[$msgKey] ?? null) && str_contains($strings[$msgKey], 'storage/.schema-repaired'), "the warning is translated in {$locale}");

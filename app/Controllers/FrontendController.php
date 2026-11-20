@@ -267,13 +267,16 @@ class FrontendController
                  LEFT JOIN generi g ON g.id = l.genere_id
                  LEFT JOIN generi sg ON sg.id = l.sottogenere_id
                  LEFT JOIN generi parent ON parent.id = g.parent_id
+                 LEFT JOIN generi grandparent ON grandparent.id = parent.parent_id
                  WHERE l.deleted_at IS NULL AND {$visible} AND l.tipo_media = 'dvd'";
         $recent = 'ORDER BY l.created_at DESC, l.id DESC LIMIT 6';
         // The circulation index (libro_id, stato) counts actual loans of each eligible film.
         $loanCount = "(SELECT COUNT(*) FROM prestiti p WHERE p.libro_id = l.id
                        AND p.stato IN ('in_corso','in_ritardo','restituito','perso','danneggiato'))";
         // Genres, subgenres and keywords are cataloguer-supplied in any supported language.
-        $tags = "CONCAT_WS(' ', g.nome, sg.nome, parent.nome, l.parole_chiave)";
+        // The genre's ancestors count too, as far as the catalogue nests genres
+        // (genre, parent, grandparent, as in the record page's breadcrumb).
+        $tags = "CONCAT_WS(' ', g.nome, sg.nome, parent.nome, grandparent.nome, l.parole_chiave)";
         $children = 'bambini|ragazzi|infanzia|children|kids|juvenile|young adult|enfants?|jeunesse|kinder(filme?)?|jugend(filme?)?|børn(efilm)?';
         $drama = 'dramas?|dramma(tic[oi])?|drames?|dramatiques?|filmdramen|dramaer|dramafilme?';
         $queries = [
