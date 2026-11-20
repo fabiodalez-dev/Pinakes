@@ -216,11 +216,15 @@ class MeetingController extends BaseController
 
     /**
      * The calendar token shown to $userId: "u<id>.<mac>", the MAC keyed with
-     * the server-side secret over the club id, the user id and the club's
-     * ics_token. Per person, so the feed can ask on every request whether that
-     * person may still see it (icsFeed()); ics_token is part of the message,
-     * so Repo::setMemberStatus()'s rotation still revokes every URL. Null when
-     * no server key is configured (no members-only feed is offered then).
+     * the server-side secret over the club id and the user id. Per person, so
+     * the feed asks on every request whether that person may still see it
+     * (icsFeed()). The club's
+     * ics_token is deliberately NOT part of the message: Repo::setMemberStatus()
+     * rotates it whenever an active member stops being one, and with it in the
+     * message that rotation silently broke every remaining member's calendar
+     * subscription (404 on a non-public club) to revoke one URL the per-request
+     * check already refuses. Null when no server key is configured (no
+     * members-only feed is offered then).
      */
     public static function feedToken(array $club, int $userId): ?string
     {
@@ -228,7 +232,7 @@ class MeetingController extends BaseController
         if ($secret === null || $userId <= 0) {
             return null;
         }
-        $message = 'bookclub-ics:' . (int) $club['id'] . ':' . $userId . ':' . (string) $club['ics_token'];
+        $message = 'bookclub-ics:' . (int) $club['id'] . ':' . $userId;
         return 'u' . $userId . '.' . substr(hash_hmac('sha256', $message, $secret), 0, 32);
     }
 

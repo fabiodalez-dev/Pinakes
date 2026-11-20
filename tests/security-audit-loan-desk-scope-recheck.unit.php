@@ -224,6 +224,47 @@ try {
     $check(str_contains($location($r), 'error=loan_not_found'), 'renew: answered as not found');
     $check($one('SELECT data_scadenza, renewals FROM prestiti WHERE id = ?', $renewable) === $before, 'renew: the due date and the renewal count are unchanged');
     $check($ownerOf('prestiti', $renewable) === $staff, '(the hand-over really happened in the window, so the checks above are not vacuous)');
+
+    // Review of PR #536: the scope check inside the transaction was a plain SELECT.
+    // Under REPEATABLE READ it answers from the snapshot taken at the transaction's
+    // first read, so a borrower promoted to Staff after that point still looked
+    // like a reader. The in-transaction callers ask with a locking read, which sees
+    // the latest committed row and holds it until commit.
+    echo "A role change that lands after the transaction's snapshot is still seen\n";
+    $actAsOperator();
+    $promoted = $insertUser('standard');
+    $socket = $setting('DB_SOCKET');
+    mysqli_report(MYSQLI_REPORT_OFF);
+    $other = new mysqli();
+    $otherOk = @$other->real_connect($setting('DB_HOST', '127.0.0.1'), $setting('DB_USER'), $setting('DB_PASS'), $setting('DB_NAME'), (int) $setting('DB_PORT', '3306'), $socket !== '' && file_exists($socket) ? $socket : null);
+    mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
+    $check($otherOk === true, 'a second connection for the administrator who promotes the account');
+    $db->query('SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ');
+    $db->begin_transaction();
+    $db->query("SELECT tipo_utente FROM utenti WHERE id = {$promoted}")->fetch_row();
+    $other->query("UPDATE utenti SET tipo_utente = 'staff' WHERE id = {$promoted}");
+    $check(P::mayActOnBorrower($db, $promoted) === true, 'control: a plain read still answers from the snapshot (the hazard)');
+    $check(P::mayActOnBorrower($db, $promoted, true) === false, 'a locking read sees the promotion and refuses');
+    $db->rollback();
+    $other->query("UPDATE utenti SET tipo_utente = 'standard' WHERE id = {$promoted}");
+    $db->begin_transaction();
+    $db->query("SELECT tipo_utente FROM utenti WHERE id = {$promoted}")->fetch_row();
+    $check(P::mayActOnBorrower($db, $promoted, true) === true, 'a locking read still admits an account that is a reader');
+    $db->rollback();
+    $other->close();
+
+    $sources = [
+        'app/Controllers/LoanApprovalController.php' => "mayActOnBorrower(\$db, (int) (\$row['utente_id'] ?? 0), true)",
+        'app/Controllers/PrestitiController.php' => "mayActOnBorrower(\$db, \$utente_id, true)",
+        'app/Controllers/ReservationsAdminController.php' => "mayActOnBorrower(\$db, \$utenteId, true)",
+    ];
+    foreach ($sources as $file => $needle) {
+        $check(str_contains((string) file_get_contents($root . '/' . $file), $needle), basename($file) . ': the check inside the transaction is a locking read');
+    }
+    $prestiti = (string) file_get_contents($root . '/app/Controllers/PrestitiController.php');
+    foreach (["(int) \$locked['utente_id'], true)", "\$newUserId, true)", "(int) \$lockedLoan['utente_id'], true)"] as $needle) {
+        $check(str_contains($prestiti, $needle), 'PrestitiController: locked-row check uses a locking read (' . $needle . ')');
+    }
 } catch (\Throwable $e) {
     $check(false, 'unexpected ' . get_class($e) . ': ' . $e->getMessage() . ' @ ' . basename($e->getFile()) . ':' . $e->getLine());
 } finally {

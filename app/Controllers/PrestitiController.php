@@ -390,7 +390,7 @@ class PrestitiController
             // records loans for reader accounts only, never for an administrator
             // or a Staff account (the app's create delegates here too). Same
             // answer as an account that does not exist.
-            if (!\App\Support\Permissions::mayActOnBorrower($db, $utente_id)) {
+            if (!\App\Support\Permissions::mayActOnBorrower($db, $utente_id, true)) {
                 $db->rollback();
                 return $response->withHeader('Location', url('/admin/loans/create') . '?error=user_not_found')->withStatus(302);
             }
@@ -997,7 +997,7 @@ class PrestitiController
             }
             // The owner may have changed since the scope check above (an administrator can
             // hand the loan to a Staff account in between): ask again about the locked row.
-            if (!\App\Support\Permissions::mayActOnBorrower($db, (int) $locked['utente_id'])) {
+            if (!\App\Support\Permissions::mayActOnBorrower($db, (int) $locked['utente_id'], true)) {
                 $db->rollback();
                 return $response->withHeader('Location', url('/admin/loans') . '?error=loan_not_found')->withStatus(302);
             }
@@ -1088,7 +1088,7 @@ class PrestitiController
                 // The new borrower must be in the operator's borrower scope, as
                 // in store(): a custom role never hands a loan to an
                 // administrator or a Staff account.
-                if (!\App\Support\Permissions::mayActOnBorrower($db, $newUserId)) {
+                if (!\App\Support\Permissions::mayActOnBorrower($db, $newUserId, true)) {
                     $db->rollback();
                     return $response->withHeader('Location', url('/admin/loans') . '?error=user_not_found')->withStatus(302);
                 }
@@ -2466,7 +2466,7 @@ class PrestitiController
                 return $response->withHeader('Location', url($errorUrl . $separator . 'error=loan_not_active'))->withStatus(302);
             }
             // Same for the owner: the scope check above ran before the lock.
-            if (!\App\Support\Permissions::mayActOnBorrower($db, (int) $lockedLoan['utente_id'])) {
+            if (!\App\Support\Permissions::mayActOnBorrower($db, (int) $lockedLoan['utente_id'], true)) {
                 $db->rollback();
                 $errorUrl = $redirectTo ?? url('/admin/loans');
                 $separator = strpos($errorUrl, '?') === false ? '?' : '&';

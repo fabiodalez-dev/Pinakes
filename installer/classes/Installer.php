@@ -1412,9 +1412,16 @@ HTACCESS;
      * Delete the binding and the import proof together: the marker, the
      * database nonce and this session's token and proof. Used when the
      * absolute TTL is over and when a ?force=1 reinstall is refused.
+     *
+     * $seen is the marker the caller judged abandoned (see
+     * discardAbandonedBinding()): a claim made since is left alone. This
+     * session's own keys go either way, since the token they hold no longer
+     * is the one on disk.
+     *
+     * @param array{exists: bool, content: ?string, mtime: ?int}|null $seen
      */
-    public function discardInstallOwnership(): void {
-        $this->discardAbandonedBinding();
+    public function discardInstallOwnership(?array $seen = null): void {
+        $this->discardAbandonedBinding($seen);
         unset(
             $_SESSION[self::INSTALL_OWNER_SESSION_KEY],
             $_SESSION[self::INSTALL_POPULATED_SESSION_KEY],
@@ -1423,9 +1430,68 @@ HTACCESS;
         );
     }
 
-    /** Remove the marker and the database nonce, leaving this session's own keys alone. */
-    private function discardAbandonedBinding(): void {
+    /** True while this object holds storage/.install_in_progress.lock (see withInstallOwnership()). */
+    private bool $ownershipLockHeld = false;
+
+    /**
+     * Remove the marker and the database nonce, leaving this session's own keys alone.
+     *
+     * Runs under the lock the claimers take, so it cannot interleave with a claim.
+     * $seen is the marker the caller judged abandoned: under the lock the marker
+     * is read again, and when it is no longer that one (another session claimed
+     * the install in between and its proof is already in the database) nothing is
+     * removed. Without $seen the removal is unconditional, for the callers that
+     * discard the binding on purpose. When the lock cannot be taken nothing is
+     * removed: leaving a stale marker in place is the safe failure, it expires.
+     *
+     * @param array{exists: bool, content: ?string, mtime: ?int}|null $seen
+     */
+    private function discardAbandonedBinding(?array $seen = null): void {
+        $release = null;
+        if (!$this->ownershipLockHeld) {
+            $marker = $this->installOwnerMarkerPath();
+            $dir = dirname($marker);
+            if (!is_dir($dir)) {
+                // No storage directory: no marker and no lock to take, and no claim
+                // the nonce could belong to.
+                $this->removeBindingIfStillSeen($seen);
+                return;
+            }
+            $lock = @fopen($marker . '.lock', 'c');
+            if ($lock === false) {
+                return;
+            }
+            if (!flock($lock, LOCK_EX)) {
+                fclose($lock);
+                return;
+            }
+            $this->ownershipLockHeld = true;
+            $release = static function () use ($lock): void {
+                flock($lock, LOCK_UN);
+                fclose($lock);
+            };
+        }
+        try {
+            $this->removeBindingIfStillSeen($seen);
+        } finally {
+            if ($release !== null) {
+                $this->ownershipLockHeld = false;
+                $release();
+            }
+        }
+    }
+
+    /**
+     * @param array{exists: bool, content: ?string, mtime: ?int}|null $seen
+     */
+    private function removeBindingIfStillSeen(?array $seen): void {
         $marker = $this->installOwnerMarkerPath();
+        if ($seen !== null) {
+            $now = $this->readOwnerMarker();
+            if ($now['exists'] && $now['content'] !== $seen['content']) {
+                return;
+            }
+        }
         if (is_file($marker)) {
             // nosemgrep: php.lang.security.unlink-use.unlink-use -- fixed internal path under storage/, not user input
             @unlink($marker);
@@ -1482,8 +1548,9 @@ HTACCESS;
         }
         if ($state['content'] !== null && self::ownerMarkerPastAbsoluteTtl($state)) {
             // Abandoned past the absolute limit: binding and proof go together.
-            // A foreign session: its own session keys are not touched.
-            $this->discardAbandonedBinding();
+            // A foreign session: its own session keys are not touched. The state
+            // read above is passed on: a claim made since is not abandoned.
+            $this->discardAbandonedBinding($state);
             return false;
         }
         if ($state['mtime'] !== null && (time() - $state['mtime']) > self::INSTALL_OWNER_TTL) {
@@ -1532,6 +1599,7 @@ HTACCESS;
             if (!flock($lock, LOCK_EX)) {
                 return false;
             }
+            $this->ownershipLockHeld = true;
             // While .env does not exist the binding protects nothing (anyone may
             // install), so a leftover claim does not block a fresh start.
             if ($this->installClaimedByAnotherSession() && file_exists($this->baseDir . '/.env')) {
@@ -1568,6 +1636,7 @@ HTACCESS;
         } catch (\Throwable $e) {
             return false;
         } finally {
+            $this->ownershipLockHeld = false;
             flock($lock, LOCK_UN);
             fclose($lock);
         }
@@ -1604,7 +1673,7 @@ HTACCESS;
             return false;
         }
         if (self::ownerMarkerPastAbsoluteTtl($state)) {
-            $this->discardInstallOwnership();
+            $this->discardInstallOwnership($state);
             return false;
         }
         return true;
@@ -2122,14 +2191,11 @@ HTACCESS;
         }
         $this->pruneForceLoginBuckets($dir, $now);
         $file = $dir . '/' . hash('sha256', self::forceLoginBucket($ip)) . '.json';
-        $handle = @fopen($file, 'c+');
+        $handle = $this->openLockedBucket($file);
         if ($handle === false) {
             return false;
         }
         try {
-            if (!flock($handle, LOCK_EX)) {
-                return false;
-            }
             $raw = stream_get_contents($handle);
             $hits = is_string($raw) && $raw !== '' ? json_decode($raw, true) : [];
             if (!is_array($hits)) {
@@ -2157,8 +2223,69 @@ HTACCESS;
     }
 
     /**
+     * Open a bucket and take its exclusive lock, and make sure the handle still
+     * is the file at the path once the lock is held. The prune pass deletes a
+     * stale bucket while holding that same lock; a request that opened the file
+     * before and only got the lock afterwards would otherwise record its attempt
+     * on a file nobody can see any more. In that case the path is opened again,
+     * which creates a fresh bucket. False when the bucket cannot be opened,
+     * locked, or settled (the caller then refuses the attempt).
+     *
+     * @return resource|false
+     */
+    private function openLockedBucket(string $file) {
+        for ($try = 0; $try < 3; $try++) {
+            $handle = @fopen($file, 'c+');
+            if ($handle === false) {
+                return false;
+            }
+            if (!flock($handle, LOCK_EX)) {
+                fclose($handle);
+                return false;
+            }
+            if (self::bucketHandleIsLinked($handle, $file)) {
+                return $handle;
+            }
+            flock($handle, LOCK_UN);
+            fclose($handle);
+        }
+        return false;
+    }
+
+    /**
+     * Open a bucket for the prune pass. A seam of its own, between the open and
+     * the lock that follows it, so a test can run another prune pass and a
+     * request in exactly that window.
+     *
+     * @return resource|false
+     */
+    protected function openBucketForPrune(string $path) {
+        return @fopen($path, 'r');
+    }
+
+    /**
+     * True when $handle is the regular file currently linked at $path: same
+     * device and inode as an lstat of the path (which does not follow links),
+     * read past the stat cache. A handle that waited for a lock may be on a file
+     * that was unlinked, or unlinked and recreated, in the meantime.
+     *
+     * @param resource $handle
+     */
+    private static function bucketHandleIsLinked($handle, string $path): bool {
+        $opened = @fstat($handle);
+        clearstatcache(true, $path);
+        $atPath = @lstat($path);
+        return $opened !== false && $atPath !== false
+            && ($atPath['mode'] & 0170000) === 0100000
+            && $opened['dev'] === $atPath['dev'] && $opened['ino'] === $atPath['ino'];
+    }
+
+    /**
      * Delete the throttle buckets not written for longer than the window: every
-     * attempt they hold has expired, so dropping them changes no answer.
+     * attempt they hold has expired, so dropping them changes no answer. Each
+     * bucket is locked first and its age read again under the lock: the scan's
+     * reading can be stale, and a request may have recorded an attempt since.
+     * A bucket another request holds locked is in use and stays.
      */
     private function pruneForceLoginBuckets(string $dir, int $now): void {
         $entries = @scandir($dir);
@@ -2170,10 +2297,32 @@ HTACCESS;
                 continue;
             }
             $path = $dir . '/' . $entry;
-            $mtime = @filemtime($path);
-            if ($mtime !== false && $mtime < $now - self::FORCE_LOGIN_WINDOW) {
-                // nosemgrep: php.lang.security.unlink-use.unlink-use -- hash-named bucket under storage/cache, not user input
-                @unlink($path);
+            if (is_link($path)) {
+                continue;
+            }
+            $handle = $this->openBucketForPrune($path);
+            if ($handle === false) {
+                continue;
+            }
+            try {
+                if (!flock($handle, LOCK_EX | LOCK_NB)) {
+                    continue;
+                }
+                // Another prune pass may have removed this bucket, and a request
+                // created it again, while this one waited to open and lock it: the
+                // descriptor is then on the old file and the path names the new
+                // one, which must not be deleted on the old one's age.
+                if (!self::bucketHandleIsLinked($handle, $path)) {
+                    continue;
+                }
+                $stat = @fstat($handle);
+                if ($stat !== false && $stat['mtime'] < $now - self::FORCE_LOGIN_WINDOW) {
+                    // nosemgrep: php.lang.security.unlink-use.unlink-use -- hash-named bucket under storage/cache, not user input
+                    @unlink($path);
+                }
+            } finally {
+                flock($handle, LOCK_UN);
+                fclose($handle);
             }
         }
     }
