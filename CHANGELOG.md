@@ -2,6 +2,12 @@
 
 Full version-by-version history for Pinakes. The README shows only the last three releases; everything older lives here.
 
+## [Unreleased]
+
+### GoodLib
+
+- **Z-Library links now go to `ur.1lib.sk`.** It replaces `z-lib.gd` as the default and among the suggested mirrors. Installs that still have `z-lib.gd` saved switch automatically; a different mirror or custom domain chosen by the operator is kept. GoodLib 1.0.3.
+
 ## [0.9.5]
 
 A patch release for loans and reservations, from an audit of circulation with 120 new browser scenarios ([#533](https://github.com/fabiodalez-dev/Pinakes/pull/533)). No migration: one nullable column, `prenotazioni.prestito_promosso_id`, is added to existing installs by the schema check that runs after every update.

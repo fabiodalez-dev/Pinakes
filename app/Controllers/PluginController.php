@@ -18,7 +18,7 @@ class PluginController
     private PluginManager $pluginManager;
     private const GOODLIB_DEFAULT_DOMAINS = [
         'anna_domain' => 'annas-archive.gd',
-        'zlib_domain' => 'z-lib.gd',
+        'zlib_domain' => 'ur.1lib.sk',
     ];
 
     public function __construct(PluginManager $pluginManager)
