@@ -91,7 +91,7 @@ $check($input['type'] === 'film' && $input['medium'] === 'Blu-ray', 'a film is c
 $check($input['authors'] === ['Nolan, Christopher'] && $input['publisher'] === 'Warner Bros.', 'director and studio');
 $ris = BookCitation::ris($input, $film, 'https://example.org/film/9');
 $check(str_starts_with($ris, "TY  - MPCT\r\n") && str_ends_with($ris, "ER  - \r\n"), 'RIS: TY MPCT ... ER');
-foreach (["AU  - Nolan, Christopher", "TI  - The end of Oak Street", "PY  - 2009", "PB  - Warner Bros.", "M3  - Blu-ray", "SN  - 5051889012345", "KW  - til voksne", "N1  - Cast: Ana de Armas, Daniel Craig", "N1  - Running time: 95 min", "UR  - https://example.org/film/9"] as $line) {
+foreach (["AU  - Nolan, Christopher", "TI  - The end of Oak Street", "PY  - 2009", "PB  - Warner Bros.", "M3  - Blu-ray", "SN  - 5051889012345", "KW  - til voksne", "N1  - Cast: Ana de Armas, Daniel Craig", "N1  - Running time: 95 min", "N1  - Age rating: 15", "N1  - Subtitles: danese", "UR  - https://example.org/film/9"] as $line) {
     $check(str_contains($ris, $line . "\r\n"), "RIS carries \"$line\"");
 }
 foreach ([

@@ -110,6 +110,14 @@ final class BookCitation
             if ($runtime !== null) {
                 $lines[] = ['N1', 'Running time: ' . $runtime . ' min'];
             }
+            // RIS has no audience or subtitle tag: notes, like cast and
+            // running time (bibliotek.dk puts the audience in its record too).
+            foreach (['classificazione_eta' => 'Age rating: ', 'sottotitoli' => 'Subtitles: '] as $column => $label) {
+                $value = $clean($book[$column] ?? '');
+                if ($value !== '') {
+                    $lines[] = ['N1', $label . $value];
+                }
+            }
         }
         foreach (preg_split('/\s*[,;]\s*/u', $clean($book['parole_chiave'] ?? '')) ?: [] as $keyword) {
             if ($keyword !== '') {
