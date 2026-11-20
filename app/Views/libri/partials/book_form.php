@@ -623,7 +623,7 @@ $selectedSeriesType = \App\Support\SeriesLabels::canonical($book['tipo_collana']
           </div>
         </div>
       </div>
-      <script>
+      <script<?= csp_nonce_attr() ?>>
       (function () {
         const media = document.getElementById('tipo_media');
         const card = document.getElementById('film-details');
