@@ -115,6 +115,103 @@ mkdir($broken, 0700);
 file_put_contents($broken . '/storage', 'not a directory');
 $check(!(new Installer($broken))->recordForceLoginAttempt('198.51.100.9', $now), 'an unrecordable attempt is refused (fail closed)');
 
+// Review of PR #536: the prune read a bucket's age and then unlinked it, while a
+// request could record an attempt in the same file in between, and the login got
+// a fresh budget. The prune locks each bucket and reads its age again under the
+// lock; a request that waited for the lock opens the path again.
+$realNow = time();
+$raceIp = '198.51.100.200';
+$check($installer->recordForceLoginAttempt($raceIp, $realNow), 'race: first attempt recorded');
+$bucket = $dir . '/' . hash('sha256', Installer::forceLoginBucket($raceIp)) . '.json';
+touch($bucket, $realNow - 3 * Installer::FORCE_LOGIN_WINDOW);
+$holder = fopen($bucket, 'c+');
+$check($holder !== false && flock($holder, LOCK_EX), 'race: a request holds the stale bucket locked');
+$installer->recordForceLoginAttempt('198.51.100.201', $realNow);
+clearstatcache();
+$check(is_file($bucket), 'race: a locked bucket is in use, the prune leaves it');
+flock($holder, LOCK_UN);
+fclose($holder);
+touch($bucket, $realNow);
+$installer->recordForceLoginAttempt('198.51.100.202', $realNow);
+clearstatcache();
+$check(is_file($bucket), 'race: a bucket refreshed after the scan stays');
+
+$childCode = '$h = fopen($argv[1], "c+"); flock($h, LOCK_EX); echo "READY\n"; fflush(STDOUT);'
+    . 'usleep(400000); unlink($argv[1]); flock($h, LOCK_UN);';
+$proc = proc_open([PHP_BINARY, '-r', $childCode, $bucket], [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
+if (is_resource($proc)) {
+    $check(trim((string) fgets($pipes[1])) === 'READY', 'race: the stand-in for the prune holds the bucket lock');
+    $ok = $installer->recordForceLoginAttempt($raceIp, $realNow);
+    proc_close($proc);
+    clearstatcache();
+    $hits = is_file($bucket) ? json_decode((string) file_get_contents($bucket), true) : null;
+    $check($ok === true, 'race: the attempt that waited out the removal is allowed');
+    $check(is_array($hits) && count($hits) === 1, 'race: it was recorded in a fresh bucket, not on the unlinked file');
+} else {
+    $check(false, 'race: could not start the child process');
+}
+$installerSrc = (string) file_get_contents($ROOT . '/installer/classes/Installer.php');
+$check(str_contains($installerSrc, 'LOCK_EX | LOCK_NB') && str_contains($installerSrc, 'openLockedBucket('), 'race: the prune locks each bucket and the writer reopens a removed one');
+
+// Two prune passes: the first removes a stale bucket and a request creates it
+// again; the second still holds a descriptor on the OLD file and gets its lock
+// after that. Its descriptor is no longer the file at the path, and the new bucket
+// must not be deleted on the old one's age.
+$linked = new ReflectionMethod(Installer::class, 'bucketHandleIsLinked');
+$linked->setAccessible(true);
+$twin = $dir . '/' . str_repeat('d', 64) . '.json';
+file_put_contents($twin, '[1]');
+$oldFd = fopen($twin, 'c+');
+$check($linked->invoke(null, $oldFd, $twin) === true, 'race (two prunes): a descriptor on the file at the path is accepted');
+unlink($twin);
+file_put_contents($twin, '[2]');
+$check($linked->invoke(null, $oldFd, $twin) === false, 'race (two prunes): after the file was removed and recreated the old descriptor is refused');
+fclose($oldFd);
+symlink($bucket, $twin . '.lnk');
+$lnkFd = fopen($twin, 'c+');
+$check($linked->invoke(null, $lnkFd, $twin . '.lnk') === false, 'race (two prunes): a symlink at the path is never accepted');
+fclose($lnkFd);
+unlink($twin . '.lnk');
+unlink($twin);
+// The full interleaving, with a barrier right after the prune opened the bucket:
+// the bucket is stale when opened; another pass removes it and a request records a
+// new attempt at the same path before the first pass takes its lock. The first
+// pass must leave that new bucket alone.
+final class BarrierInstaller extends Installer
+{
+    public ?Closure $afterOpen = null;
+    protected function openBucketForPrune(string $path)
+    {
+        $handle = parent::openBucketForPrune($path);
+        if ($this->afterOpen !== null) {
+            ($this->afterOpen)($path);
+        }
+        return $handle;
+    }
+}
+$barrier = new BarrierInstaller($tmp);
+$twinBucket = $dir . '/' . str_repeat('e', 64) . '.json';
+file_put_contents($twinBucket, '[1]');
+touch($twinBucket, $realNow - 3 * Installer::FORCE_LOGIN_WINDOW);
+$barrierFired = 0;
+$barrier->afterOpen = static function (string $path) use ($realNow, $twinBucket, &$barrierFired): void {
+    if ($path !== $twinBucket || $barrierFired > 0) {
+        return;
+    }
+    $barrierFired++;
+    unlink($path);                          // the other prune pass
+    file_put_contents($path, '[' . $realNow . ']'); // a request records an attempt
+    touch($path, $realNow);
+};
+$barrier->recordForceLoginAttempt('198.51.100.230', $realNow);
+clearstatcache();
+$check($barrierFired === 1, 'race (two prunes, barrier after the open): the barrier ran between the open and the lock');
+$check(is_file($twinBucket) && file_get_contents($twinBucket) === '[' . $realNow . ']',
+    'race (two prunes, barrier after the open): the bucket recreated meanwhile is not deleted on the old one\'s age');
+@unlink($twinBucket);
+$check(preg_match('/private function pruneForceLoginBuckets.*?bucketHandleIsLinked\(\$handle, \$path\).*?@unlink\(\$path\)/s', $installerSrc) === 1,
+    'race (two prunes): the prune checks the descriptor is still the file at the path before it unlinks');
+
 // ---------------------------------------------------------------------------
 echo "D. installer/index.php force gate wiring\n";
 // ---------------------------------------------------------------------------

@@ -370,6 +370,19 @@ try {
         $check(trim($out) === 'ok' && $status === 'active',
             "the join evaluated after the activation committed and kept the member active (got {$status}; child: " . trim($out) . ')');
     }
+    // Review of PR #536: joinMember() is documented to return null on failure, but
+    // with mysqli in exception mode a failed write or read-back raised instead,
+    // and the controllers never reached their error message and redirect.
+    echo "joinMember() answers null, never an exception, when the write fails\n";
+    $joinFailure = null;
+    $joined = 'unset';
+    try {
+        $joined = (new Repo($a))->joinMember(2147483000, 2147483000, 1, 'pending');
+    } catch (\Throwable $e) {
+        $joinFailure = $e;
+    }
+    $check($joinFailure === null, 'no exception reaches the caller' . ($joinFailure ? ' (got ' . $joinFailure->getMessage() . ')' : ''));
+    $check($joined === null, 'the failure is reported as null');
 } catch (\Throwable $e) {
     $fail++;
     echo "  FAIL unexpected " . get_class($e) . ': ' . $e->getMessage() . "\n";

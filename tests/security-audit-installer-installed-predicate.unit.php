@@ -201,6 +201,51 @@ $_SESSION = [$forceKey => true];
 clearstatcache();
 $check($inst->installClaimedByAnotherSession() === false && !is_file($markerPathAbs) && ($_SESSION[$forceKey] ?? null) === true,
     'another session finds an abandoned binding gone, and keeps its own session keys');
+// Review of PR #536: the cleanup of an abandoned binding ran outside the lock the
+// claimers take. A request that read an expired marker and paused could then
+// delete the marker, and the import proof, of a session that claimed the install
+// meanwhile. The discard runs under that lock and only removes the marker it was
+// told was abandoned.
+$discard = new ReflectionMethod(Installer::class, 'discardAbandonedBinding');
+$discard->setAccessible(true);
+$_SESSION = [];
+$staleContent = hash('sha256', 'old-owner') . "\n" . (time() - Installer::INSTALL_OWNER_ABSOLUTE_TTL - 60);
+$freshContent = hash('sha256', 'new-owner') . "\n" . time();
+file_put_contents($markerPathAbs, $freshContent);
+$inst->dbNonce = 'new-owners-proof';
+$discard->invoke($inst, ['exists' => true, 'content' => $staleContent, 'mtime' => time()]);
+clearstatcache();
+$check(is_file($markerPathAbs) && file_get_contents($markerPathAbs) === $freshContent && $inst->dbNonce === 'new-owners-proof',
+    'a marker claimed anew since it was judged abandoned is left alone, with its proof');
+$discard->invoke($inst, ['exists' => true, 'content' => $freshContent, 'mtime' => time()]);
+clearstatcache();
+$check(!is_file($markerPathAbs) && $inst->dbNonce === null, 'the marker that was judged abandoned is removed with its proof');
+// Claiming over an abandoned foreign binding discards it while holding the lock
+// itself: it must not wait on the lock it already holds.
+file_put_contents($site . '/.env', "DB_NAME=live\n");
+file_put_contents($markerPathAbs, $staleContent);
+$_SESSION = [];
+$check($inst->claimInstallOwnership() === true && ($_SESSION[Installer::INSTALL_OWNER_SESSION_KEY] ?? '') !== '',
+    'a claim over an abandoned binding goes through (the discard inside the claim does not deadlock)');
+$instSrc = (string) file_get_contents($ROOT . '/installer/classes/Installer.php');
+$check(str_contains($instSrc, '$this->discardAbandonedBinding($state);'), 'the expiry check hands the marker it read to the discard');
+// The owner's own path (ownsInstallInProgress) detects the expired marker and
+// discards it too: it must hand over what it read as well, or a session that
+// claimed the install in between loses its marker and its import proof.
+$check(str_contains($instSrc, '$this->discardInstallOwnership($state);'), 'the owner path hands the marker it read to discardInstallOwnership()');
+$_SESSION = [];
+$inst->claimInstallOwnership();
+$oldToken = $_SESSION[Installer::INSTALL_OWNER_SESSION_KEY];
+$oldMarker = ['exists' => true, 'content' => hash('sha256', (string) $oldToken) . "\n" . (time() - Installer::INSTALL_OWNER_ABSOLUTE_TTL - 60), 'mtime' => time()];
+$newOwnerMarker = hash('sha256', 'someone-else') . "\n" . time();
+file_put_contents($markerPathAbs, $newOwnerMarker);
+$inst->dbNonce = 'someone-elses-proof';
+$inst->discardInstallOwnership($oldMarker);
+clearstatcache();
+$check(is_file($markerPathAbs) && file_get_contents($markerPathAbs) === $newOwnerMarker && $inst->dbNonce === 'someone-elses-proof',
+    'owner path: a marker claimed anew since is left alone, with its proof');
+$check(!isset($_SESSION[Installer::INSTALL_OWNER_SESSION_KEY]), 'owner path: the old owner still drops its own token');
+
 // A marker written before the claim time existed gets one at the owner's next renewal.
 $_SESSION = $ownerAbs;
 file_put_contents($markerPathAbs, hash('sha256', (string) $ownerAbs[Installer::INSTALL_OWNER_SESSION_KEY]));
