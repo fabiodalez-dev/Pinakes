@@ -65,7 +65,7 @@ test.describe.serial('GoodLib custom domains', () => {
     await page.locator('#goodlib_admin').check();
 
     await expect(page.locator('#goodlib_anna_domain_select option')).toHaveCount(4);
-    await expect(page.locator('#goodlib_zlib_domain_select option')).toHaveCount(7);
+    await expect(page.locator('#goodlib_zlib_domain_select option')).toHaveCount(6);
 
     await page.locator('#goodlib_anna_domain_select').selectOption('__custom__');
     await page.locator('#goodlib_anna_domain_custom').fill(annaCustom);
