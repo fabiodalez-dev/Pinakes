@@ -187,6 +187,19 @@ $freshFile = $stateFile($probe . ':fresh');
 if (!is_file($oldFile) || !is_file($freshFile)) {
     $check(false, 'probe state files were written');
 } else {
+    // The opportunistic sweep must not race the writers either: a stale counter
+    // that a request holds locked is in use and stays (it goes through the same
+    // locked re-check as pruneStateDirectory()).
+    touch($oldFile, time() - 2 * 86400);
+    $writer = fopen($oldFile, 'c+');
+    $check($writer !== false && flock($writer, LOCK_EX), 'a writer holds the stale counter locked');
+    RateLimiter::pruneExpired(null, true);
+    clearstatcache();
+    $check(is_file($oldFile), 'a stale counter locked by a writer is left alone by the sweep');
+    if ($writer !== false) {
+        flock($writer, LOCK_UN);
+        fclose($writer);
+    }
     touch($oldFile, time() - 2 * 86400);
     RateLimiter::pruneExpired(null, true);
     clearstatcache();

@@ -630,7 +630,7 @@ document.addEventListener('DOMContentLoaded', function() {
             {
                 data: 'data_prestito',
                 render: function(data, type, row) {
-                    const dataPrestito = data ? formatDateLocale(data) : escHtml(window.__('N/D'));
+                    const dataPrestito = data ? escHtml(formatDateLocale(data)) : escHtml(window.__('N/D'));
                     return `<div class="text-gray-700">${dataPrestito}</div>`;
                 }
             },
@@ -647,7 +647,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     // the browser or PHP process timezone.
                     const isDueNowOrOverdue = row.due_attention === true;
                     const cls = isDueNowOrOverdue ? 'text-red-600 font-semibold' : 'text-gray-700';
-                    return `<span class="${cls}">${formatDateLocale(data)}</span>`;
+                    return `<span class="${cls}">${escHtml(formatDateLocale(data))}</span>`;
                 }
             },
             {

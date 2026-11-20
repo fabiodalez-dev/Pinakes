@@ -186,7 +186,7 @@ class LoanApprovalController
     private function lockedRowOutOfScope(mysqli $db, Response $response, array $row, string $table): ?Response
     {
         $borrowerId = (int) ($row['utente_id'] ?? 0);
-        if (!\App\Support\Permissions::mayActOnBorrower($db, $borrowerId)) {
+        if (!\App\Support\Permissions::mayActOnBorrower($db, $borrowerId, true)) {
             $db->rollback();
             return $this->scopeNotFound($response, $table);
         }

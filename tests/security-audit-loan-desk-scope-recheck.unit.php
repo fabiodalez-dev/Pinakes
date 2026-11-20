@@ -234,6 +234,69 @@ try {
     $check(str_contains($location($r), 'error=loan_not_found'), 'renew: answered as not found');
     $check($one('SELECT data_scadenza, renewals FROM prestiti WHERE id = ?', $renewable) === $before, 'renew: the due date and the renewal count are unchanged');
     $check($ownerOf('prestiti', $renewable) === $staff, '(the hand-over really happened in the window, so the checks above are not vacuous)');
+
+    // Review of PR #536: the scope check inside the transaction was a plain SELECT.
+    // Under REPEATABLE READ it answers from the snapshot taken at the transaction's
+    // first read, so a borrower promoted to Staff after that point still looked
+    // like a reader. The in-transaction callers ask with a locking read, which sees
+    // the latest committed row and holds it until commit.
+    echo "A role change that lands after the transaction's snapshot is still seen\n";
+    $actAsOperator();
+    $promoted = $insertUser('standard');
+    $socket = $setting('DB_SOCKET');
+    mysqli_report(MYSQLI_REPORT_OFF);
+    $other = new mysqli();
+    $otherOk = @$other->real_connect($setting('DB_HOST', '127.0.0.1'), $setting('DB_USER'), $setting('DB_PASS'), $setting('DB_NAME'), (int) $setting('DB_PORT', '3306'), $socket !== '' && file_exists($socket) ? $socket : null);
+    mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
+    $check($otherOk === true, 'a second connection for the administrator who promotes the account');
+    $db->query('SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ');
+    $db->begin_transaction();
+    $db->query("SELECT tipo_utente FROM utenti WHERE id = {$promoted}")->fetch_row();
+    $other->query("UPDATE utenti SET tipo_utente = 'staff' WHERE id = {$promoted}");
+    $check(P::mayActOnBorrower($db, $promoted) === true, 'control: a plain read still answers from the snapshot (the hazard)');
+    $check(P::mayActOnBorrower($db, $promoted, true) === false, 'a locking read sees the promotion and refuses');
+    $db->rollback();
+    $other->query("UPDATE utenti SET tipo_utente = 'standard' WHERE id = {$promoted}");
+    $db->begin_transaction();
+    $db->query("SELECT tipo_utente FROM utenti WHERE id = {$promoted}")->fetch_row();
+    $check(P::mayActOnBorrower($db, $promoted, true) === true, 'a locking read still admits an account that is a reader');
+    $db->rollback();
+    $other->close();
+
+    // The invariant, not a list of call sites: inside a method, every borrower
+    // scope check that follows begin_transaction() is a locking read. A list of
+    // needles let new checks added later (the overdue-extension waiver, the
+    // return desk's penalty, the bulk extension) slip through as plain reads.
+    $inTransaction = 0;
+    foreach (['LoanApprovalController', 'PrestitiController', 'ReservationsAdminController'] as $controller) {
+        $lines = file($root . '/app/Controllers/' . $controller . '.php') ?: [];
+        $method = '';
+        $txOpen = false;
+        foreach ($lines as $n => $line) {
+            if (preg_match('/^\s*(?:(?:public|private|protected|static|final)\s+)*function\s+(\w+)\s*\(/', $line, $m) === 1) {
+                $method = $m[1];
+                $txOpen = false;
+                continue;
+            }
+            $code = ltrim($line);
+            if (str_starts_with($code, '//') || str_starts_with($code, '*')) {
+                continue;
+            }
+            if (str_contains($line, 'begin_transaction(')) {
+                $txOpen = true;
+            }
+            if ($txOpen && str_contains($line, 'mayActOnBorrower(')) {
+                $inTransaction++;
+                $check(preg_match('/mayActOnBorrower\([^;]*,\s*true\)/', $line) === 1, "{$controller}::{$method}() line " . ($n + 1) . ': the check inside the transaction is a locking read');
+            }
+        }
+    }
+    // Guard against a scan that silently matches nothing (renamed method, moved file).
+    $check($inTransaction >= 9, "the scan found the in-transaction checks ({$inTransaction}, expected at least 9)");
+    // lockedRowOutOfScope() opens no transaction itself: its callers already hold one.
+    $approval = (string) file_get_contents($root . '/app/Controllers/LoanApprovalController.php');
+    $helperBody = preg_match('/function lockedRowOutOfScope\b[^{]*\{(.*?)\n    \}/s', $approval, $hm) === 1 ? $hm[1] : '';
+    $check(str_contains($helperBody, 'mayActOnBorrower(') && preg_match('/mayActOnBorrower\([^;]*,\s*true\)/', $helperBody) === 1, 'LoanApprovalController::lockedRowOutOfScope(): the check under the caller\'s transaction is a locking read');
 } catch (\Throwable $e) {
     $check(false, 'unexpected ' . get_class($e) . ': ' . $e->getMessage() . ' @ ' . basename($e->getFile()) . ':' . $e->getLine());
 } finally {

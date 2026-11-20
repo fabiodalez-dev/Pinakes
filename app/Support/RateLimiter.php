@@ -23,6 +23,16 @@ class RateLimiter
      */
     public static function isLimited(string $identifier, int $maxAttempts = self::MAX_ATTEMPTS, int $window = self::WINDOW, bool $count = true): bool
     {
+        return self::countAttempt($identifier, $maxAttempts, $window, $count, 3);
+    }
+
+    /**
+     * @param bool $count   false for a read-only check that spends no attempt
+     * @param int  $reopens how many times the counter may be opened again when the
+     *                      prune pass removes it while this request waits for its lock
+     */
+    private static function countAttempt(string $identifier, int $maxAttempts, int $window, bool $count, int $reopens): bool
+    {
         // Elapsed-based window measurement: microtime(true) keeps the window a
         // true float duration instead of quantizing the first-attempt marker to
         // whole seconds. Same limits and same file-backed shared state — only
@@ -59,6 +69,18 @@ class RateLimiter
                 // Fail-closed: if we can't lock, deny the request
                 error_log("RateLimiter: failed to acquire lock on: {$file}");
                 return true;
+            }
+
+            // The prune pass unlinks a stale counter while holding this same lock.
+            // A request that opened the file before that and only got the lock now
+            // holds a handle on a file that is gone: what it wrote would be lost.
+            // Open the path again, which creates a fresh counter.
+            if (!self::handleIsPlainFile($handle, $file)) {
+                if ($reopens <= 0) {
+                    error_log("RateLimiter: state file kept disappearing: {$file}");
+                    return true;
+                }
+                return self::countAttempt($identifier, $maxAttempts, $window, $count, $reopens - 1);
             }
 
             // Read current state under lock
@@ -179,7 +201,8 @@ class RateLimiter
         if ($handle === false) {
             return 0;
         }
-        $cutoff = ($now ?? time()) - self::PRUNE_AGE;
+        $now ??= time();
+        $cutoff = $now - self::PRUNE_AGE;
         $removed = 0;
         $seen = 0;
         try {
@@ -189,8 +212,12 @@ class RateLimiter
                 }
                 $seen++;
                 $path = $dir . '/' . $entry;
+                // The scan's age is only a pre-filter: the unlink goes through
+                // pruneIfStale(), which re-reads the age under the writers' lock,
+                // so a counter that took the first attempt of a new window in
+                // between is kept (same race as pruneStateDirectory()).
                 $mtime = @filemtime($path);
-                if ($mtime !== false && $mtime < $cutoff && @unlink($path)) {
+                if ($mtime !== false && $mtime < $cutoff && self::pruneIfStale($path, $now, self::PRUNE_AGE)) {
                     $removed++;
                 }
             }
@@ -623,13 +650,47 @@ class RateLimiter
             if (is_link($path) || !is_file($path)) {
                 continue;
             }
-            $mtime = @filemtime($path);
-            if ($mtime !== false && $now - $mtime > self::PRUNE_AFTER_SECONDS
-                && @unlink($path)) { // nosemgrep: php.lang.security.unlink-use.unlink-use -- hash-named counter in the limiter's own directory
+            if (self::pruneIfStale($path, $now)) {
                 $removed++;
             }
         }
         return $removed;
+    }
+
+    /**
+     * Remove one counter if it is still stale once the writers are shut out.
+     * The age read by the directory scan can be out of date by the time of the
+     * unlink: a request may have recorded the first attempt of a new window in
+     * the same file in between, and deleting it would hand the next caller a
+     * fresh budget. So the file is locked first, exactly as isLimited() locks it
+     * to update it, and its age is read again from the locked handle. A counter
+     * that is locked by a writer is in use, not stale, and is left alone. The
+     * unlink happens while the lock is held; a writer that was waiting on the
+     * lock sees afterwards that its handle no longer is the file at the path,
+     * and opens the path again (see isLimited()).
+     */
+    private static function pruneIfStale(string $path, int $now, int $maxAge = self::PRUNE_AFTER_SECONDS): bool
+    {
+        $handle = @fopen($path, 'r');
+        if ($handle === false) {
+            return false;
+        }
+        try {
+            if (!flock($handle, LOCK_EX | LOCK_NB)) {
+                return false;
+            }
+            if (!self::handleIsPlainFile($handle, $path)) {
+                return false;
+            }
+            $stat = @fstat($handle);
+            if ($stat === false || $now - $stat['mtime'] <= $maxAge) {
+                return false;
+            }
+            return @unlink($path); // nosemgrep: php.lang.security.unlink-use.unlink-use -- hash-named counter in the limiter's own directory
+        } finally {
+            flock($handle, LOCK_UN);
+            fclose($handle);
+        }
     }
 
     /**
@@ -675,6 +736,9 @@ class RateLimiter
     private static function handleIsPlainFile($handle, string $path): bool
     {
         $opened = @fstat($handle);
+        // lstat() answers from PHP's stat cache: after waiting on a lock, the
+        // answer from before the wait would say the file is still there.
+        clearstatcache(true, $path);
         $atPath = @lstat($path);
         if ($opened === false || $atPath === false) {
             return false;

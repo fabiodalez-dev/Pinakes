@@ -8,10 +8,11 @@ declare(strict_types=1);
  * A non-public club's iCal feed (and its members-only video links) is served on
  * the club-wide ics_token alone, and that token was written once at club
  * creation and never changed: a member who left or was suspended/banned kept a
- * working, session-less feed URL. Repo::setMemberStatus() must rotate the token
- * whenever an ACTIVE member stops being one, so the old URL returns 404, while
- * declining a pending join request (the requester never saw the URL) must not
- * break every member's calendar subscription.
+ * working, session-less feed URL. The feed URL is now per person and checked
+ * on every request, so a member who leaves or is suspended/banned gets 404 at
+ * once, while every remaining member's already-subscribed URL keeps working:
+ * Repo::setMemberStatus() still rotates the club-wide token, and that rotation
+ * must not reach the personal URLs.
  *
  * Drives the REAL Repo and MeetingController::icsFeed() against MySQL. The five
  * book-club tables the flow writes (clubs, members, roles, meetings, and the
@@ -207,15 +208,20 @@ try {
     $repo->setMemberStatus($requester, 'left');
     $check($tokenOf() === $t0, 'pending -> left: token unchanged');
 
-    echo "C. An active member leaving revokes the URL they had\n";
+    echo "C. An active member leaving revokes the URL they had, and only that one\n";
     $leaverUrl = $urlOf(501);
+    // Captured BEFORE the change: this is the URL already sitting in the
+    // remaining member's calendar app. Recomputing it after the rotation
+    // would hide a rotation that silently broke every other subscription.
+    $keeperSubscribed = $urlOf(506);
     $repo->setMemberStatus($leaver, 'left');
     $t1 = $tokenOf();
     $check($t1 !== $t0 && preg_match('/^[0-9a-f]{32}$/', $t1) === 1, 'active -> left: new 32-hex token');
     [$code, $body] = $feed($leaverUrl);
     $check($code === 404 && !str_contains($body, 'video.audit.invalid'), 'old URL now 404, no video link');
-    [$code] = $feed($urlOf(506));
-    $check($code === 200, 'current members keep working with the new token');
+    [$code] = $feed($keeperSubscribed);
+    $check($code === 200, 'a remaining member\'s already-subscribed URL keeps working after the rotation');
+    $check($urlOf(506) === $keeperSubscribed, 'the URL shown to a remaining member does not change');
 
     echo "D. Suspension, ban and demotion to pending revoke it too\n";
     foreach ([[$suspendee, 503, 'suspended'], [$bannee, 504, 'banned'], [$demotee, 505, 'pending']] as [$memberId, $userId, $status]) {
@@ -226,6 +232,8 @@ try {
         $check($after !== $before, "active -> {$status}: token rotated");
         [$code] = $feed($theirs);
         $check($code === 404, "active -> {$status}: previous URL 404");
+        [$code] = $feed($keeperSubscribed);
+        $check($code === 200, "active -> {$status}: the remaining member's subscription survives");
     }
 
     echo "E. Re-activating a member does not rotate\n";

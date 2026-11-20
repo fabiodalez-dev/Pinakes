@@ -271,8 +271,27 @@ SH
     $options = file_get_contents($dump);
     $check($result === 0 && str_contains($options, 'password="test\\"#pw"'), 'the child reads quoted option values from its own pipe');
     $check(!str_contains($options, 'child-warning'), 'diagnostics stay out of the SQL dump');
+    $check(upgradeRunDump($reader, ['db'], ['DB_USER' => 'reader', 'DB_PASS' => 'x'], $dump, $diag) === 0 && $diag === 'child-warning',
+        'a successful dump still reports what the client printed on stderr');
     file_put_contents($reader, "#!/bin/sh\ncat <&3 >/dev/null\nexit 3\n");
     $check(upgradeRunDump($reader, [], [], $dump) === 3, 'a failed child aborts the backup');
+
+    echo "H. A failed backup says why (Pullfrog review of PR #537)\n";
+    file_put_contents($reader, "#!/bin/sh\ncat <&3 >/dev/null\n"
+        . "printf 'mysqldump: Got error: 1045: Access denied for user \\047reader\\047@\\047localhost\\047 (using password: YES) when trying to connect\\n' >&2\n"
+        . "exit 2\n");
+    $code = upgradeRunDump($reader, ['db'], ['DB_USER' => 'reader', 'DB_PASS' => 'secret-pw'], $dump, $diag);
+    $check($code === 2 && str_contains($diag, 'Access denied for user') && str_contains($diag, '1045'),
+        'the client error reaches the caller instead of being discarded');
+    $check(!str_contains($diag, 'secret-pw'), 'the diagnostics never carry the password');
+    file_put_contents($reader, "#!/bin/sh\ncat <&3 >/dev/null\n"
+        . "i=0; while [ \$i -lt 500 ]; do echo \"noise line \$i\" >&2; i=\$((i+1)); done\n"
+        . "printf 'bad \\377\\376 bytes\\033[31m\\nlast: unknown database\\n' >&2\nexit 2\n");
+    upgradeRunDump($reader, [], [], $dump, $diag);
+    $check(strlen($diag) <= UPGRADE_DUMP_DIAGNOSTICS_BYTES + 400 && str_ends_with($diag, 'last: unknown database'),
+        'a chatty client is cut to its last lines, which carry the cause');
+    $check(preg_match('//u', $diag) === 1 && !preg_match('/[\x00-\x1F\x7F]/', $diag) && htmlspecialchars($diag, ENT_QUOTES, 'UTF-8') !== '',
+        'non-UTF-8 bytes and control characters cannot blank the escaped error page');
 
 } finally {
     if (is_dir($tmp)) {

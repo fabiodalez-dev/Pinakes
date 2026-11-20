@@ -248,8 +248,15 @@ final class Permissions
      * custom role reaches reader accounts only, never an administrator or a Staff
      * account. Administrators and Staff keep every account. Fails closed when the
      * lookup cannot be made.
+     *
+     * $lockRow is for callers that already hold a transaction open. A plain SELECT
+     * there reads the snapshot taken at the transaction's first read, so an
+     * administrator who promoted the borrower to Staff after that point is not seen:
+     * the account would still look like a reader. A locking read returns the latest
+     * committed row whatever the snapshot, and keeps the row until commit, so the
+     * role cannot change under the write that follows.
      */
-    public static function mayActOnBorrower(\mysqli $db, int $userId): bool
+    public static function mayActOnBorrower(\mysqli $db, int $userId, bool $lockRow = false): bool
     {
         $scope = self::accountScopeSql('u', self::SCOPE_BORROWER);
         if ($scope === '') {
@@ -259,7 +266,7 @@ final class Permissions
             return false;
         }
         try {
-            $stmt = $db->prepare('SELECT 1 FROM utenti u WHERE u.id = ?' . $scope);
+            $stmt = $db->prepare('SELECT 1 FROM utenti u WHERE u.id = ?' . $scope . ($lockRow ? ' FOR UPDATE' : ''));
             if ($stmt === false) {
                 return false;
             }

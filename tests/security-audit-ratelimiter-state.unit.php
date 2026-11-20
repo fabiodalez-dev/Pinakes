@@ -366,6 +366,55 @@ try {
     }
     @rmdir($pruneDir);
 
+    // Review of PR #536: the prune pass read a counter's age, then unlinked it
+    // without excluding the writers. A request that recorded the first attempt of
+    // a new window in between lost it, and with maxAttempts=1 the next request was
+    // let through. The prune now locks each counter and reads its age again under
+    // the lock; a writer that waited on the lock opens the path again.
+    echo "Pruning does not race the writers\n";
+    $racePrune = new ReflectionMethod(RateLimiter::class, 'pruneIfStale');
+    $racePrune->setAccessible(true);
+    $raceFile = $scratch . '/' . str_repeat('c', 64) . '.json';
+    $raceNow = time();
+    file_put_contents($raceFile, '{"attempts":1,"first_attempt":1.0}');
+    touch($raceFile, $raceNow - RateLimiter::PRUNE_AFTER_SECONDS - 60);
+    $holder = fopen($raceFile, 'c+');
+    $check($holder !== false && flock($holder, LOCK_EX), 'a writer holds the counter locked');
+    $check($racePrune->invoke(null, $raceFile, $raceNow) === false && is_file($raceFile), 'a locked counter is in use: the prune pass leaves it, stale or not');
+    flock($holder, LOCK_UN);
+    fclose($holder);
+    touch($raceFile, $raceNow);
+    $check($racePrune->invoke(null, $raceFile, $raceNow) === false && is_file($raceFile), 'a counter refreshed after the scan is not stale under the lock: it stays');
+    touch($raceFile, $raceNow - RateLimiter::PRUNE_AFTER_SECONDS - 60);
+    $check($racePrune->invoke(null, $raceFile, $raceNow) === true && !is_file($raceFile), 'a counter that is still stale under the lock is removed');
+
+    $raceId = $ids[] = "192.0.2.77:{$tag}:prune-race";
+    $check(RateLimiter::isLimited($raceId, 1, 60) === false, 'first attempt is recorded');
+    $liveFile = $stateFile($raceId);
+    $check(is_string($liveFile) && is_file($liveFile), 'the counter exists');
+    if (is_string($liveFile)) {
+        // A child plays the prune pass: it takes the counter's lock, unlinks the
+        // file and lets go, while this process is waiting for the same lock.
+        $childCode = '$h = fopen($argv[1], "c+"); flock($h, LOCK_EX); echo "READY\n"; fflush(STDOUT);'
+            . 'usleep(400000); unlink($argv[1]); flock($h, LOCK_UN);';
+        $proc = proc_open([PHP_BINARY, '-r', $childCode, $liveFile], [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
+        if (is_resource($proc)) {
+            $ready = trim((string) fgets($pipes[1]));
+            $check($ready === 'READY', 'the stand-in for the prune pass holds the lock');
+            $limited = RateLimiter::isLimited($raceId, 1, 60);
+            proc_close($proc);
+            clearstatcache(true, $liveFile);
+            $saved = is_file($liveFile) ? json_decode((string) file_get_contents($liveFile), true) : null;
+            $check($limited === false, 'the attempt that waited out the removal is counted in a new window, not refused');
+            $check(is_array($saved) && ($saved['attempts'] ?? 0) === 1, 'it was recorded in a fresh counter file, not on the unlinked one');
+            $check(RateLimiter::isLimited($raceId, 1, 60) === true, 'so the next request IS limited (it used to be let through)');
+        } else {
+            $check(false, 'could not start the child process');
+        }
+    }
+    $racedSrc = (string) file_get_contents($root . '/app/Support/RateLimiter.php');
+    $check(str_contains($racedSrc, 'LOCK_EX | LOCK_NB') && str_contains($racedSrc, 'countAttempt('), 'the prune takes the counter lock and the writer reopens a counter that was removed');
+
     // Review of PR #536 (F044): without ext-posix the uid fell back to
     // getmyuid(), the script owner, not the process.
     echo "Effective uid without ext-posix\n";
