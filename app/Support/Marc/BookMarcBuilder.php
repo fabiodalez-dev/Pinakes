@@ -102,10 +102,11 @@ final class BookMarcBuilder
             // ind1 1 = the item includes a translation: subtitles in a
             // language the soundtrack is not in (LC 041, $j example).
             // Same-language subtitles (captions) are not a translation.
-            // With no soundtrack language on record it cannot be told: blank
-            // ("no information provided").
-            $translated = array_diff($subtitleCodes, $codes, ['und']) !== [];
-            $ind1 = $codes === [] ? ' ' : ($translated ? '1' : '0');
+            // With no recognised soundtrack language on record (none, or
+            // only "und") it cannot be told: blank ("no information provided").
+            $knownCodes = array_values(array_diff($codes, ['und']));
+            $translated = array_diff($subtitleCodes, $knownCodes, ['und']) !== [];
+            $ind1 = $knownCodes === [] ? ' ' : ($translated ? '1' : '0');
             $record->addDataField('041', $ind1, ' ', array_merge(
                 array_map(static fn (string $c): array => ['a', $c], $codes),
                 array_map(static fn (string $c): array => ['j', $c], $subtitleCodes)

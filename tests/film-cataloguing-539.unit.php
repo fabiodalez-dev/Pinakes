@@ -164,6 +164,10 @@ $override = BookMarcBuilder::marc21(['rda_carrier_type' => 'cr'] + $row, [], [],
 $check($override->subfield('338', 'b') === 'cr' && $override->subfield('300', 'a') === '1 online resource (95 min)', 'explicit RDA carrier override');
 $onlySubs = BookMarcBuilder::marc21(['lingua' => ''] + $row, $directors, [], null);
 $check($onlySubs->subfieldValues('041', 'a') === [] && $onlySubs->subfieldValues('041', 'j') === ['dan'] && $onlySubs->first('041')?->ind1 === ' ', '041 with subtitles only, ind1 blank: no soundtrack language to compare');
+$unknownAudio = BookMarcBuilder::marc21(['lingua' => 'klingon'] + $row, $directors, [], null);
+$check($unknownAudio->subfieldValues('041', 'a') === ['und'] && $unknownAudio->subfieldValues('041', 'j') === ['dan'] && $unknownAudio->first('041')?->ind1 === ' ', '041 with an unrecognised soundtrack language (und), ind1 blank: nothing to compare');
+$mixedAudio = BookMarcBuilder::marc21(['lingua' => 'inglese'] + $row, $directors, [], null);
+$check($mixedAudio->first('041')?->ind1 === '1', '041 ind1 1 still set when the soundtrack language is known');
 $back = (new Marc21LibriMapper())->map(array_values(array_filter(iterator_to_array(Iso2709Reader::fromString(Iso2709Writer::serialize($m)), false), static fn ($r): bool => $r instanceof MarcRecord))[0]);
 $check($back['tipo_media'] === 'dvd' && $back['autori'] === ['Christopher Nolan'], 'export → import: the film and its director come back');
 
@@ -210,6 +214,20 @@ try {
     $check($dropped === ['durata_minuti', 'interpreti'], 'values that could not be stored are returned, in column order');
     $check(FilmFields::save($noDb, 1, ['sottotitoli' => '', 'codice_regione' => '  ']) === [], 'clearing a missing column loses nothing and reports nothing');
     $check(FilmFields::save($noDb, 1, ['titolo' => 'Un libro']) === [], 'a submission without film keys reports nothing');
+
+    // A failed UPDATE reports every column it tried to change, cleared
+    // ones included: the old value stays although the form removed it.
+    // The uninitialised handle makes prepare() throw, as a lost connection
+    // would.
+    $cache->setValue(null, array_fill_keys(array_keys(FilmFields::COLUMNS), true));
+    $check(FilmFields::save($noDb, 1, ['durata_minuti' => '', 'sottotitoli' => '  ']) === ['durata_minuti', 'sottotitoli'], 'a failed UPDATE that only clears values is still reported');
+    $check(FilmFields::save($noDb, 1, ['durata_minuti' => '95', 'interpreti' => '']) === ['durata_minuti', 'interpreti'], 'a failed UPDATE reports written and cleared columns');
+    // A schema check that throws reports every submitted film field and is
+    // not cached as "column missing".
+    $cache->setValue(null, []);
+    $check(FilmFields::save($noDb, 1, ['codice_regione' => 'B', 'classificazione_eta' => '', 'titolo' => 'x']) === ['classificazione_eta', 'codice_regione'], 'a failing schema check reports every submitted film field');
+    $check($cache->getValue() === [], 'a failed schema check is not cached');
+    $cache->setValue(null, array_fill_keys(array_keys(FilmFields::COLUMNS), false));
     $message = FilmFields::droppedMessage($dropped);
     $check($message !== '' && str_contains($message, 'storage/.schema-repaired'), 'the cataloguer is told the film data was not saved and how to repair it');
     $check(FilmFields::droppedMessage([]) === '', 'no message when nothing was lost');

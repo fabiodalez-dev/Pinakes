@@ -103,34 +103,49 @@ final class FilmFields
      * Persist the film fields present in a form submission.
      *
      * @param array<string, mixed> $data raw form data
-     * @return list<string> the columns that carried a value but were not
-     *         stored: missing from the database, or the UPDATE failed (empty
-     *         when everything submitted was saved). The book itself is
+     * @return list<string> the submitted columns whose change was not
+     *         stored: a value for a column missing from the database, or any
+     *         value or clearing when the schema check or the UPDATE failed
+     *         (empty when everything submitted was saved). The book itself is
      *         already committed, so a failure here is reported, not thrown.
      */
     public static function save(mysqli $db, int $bookId, array $data): array
     {
+        $normalized = self::normalize($data);
         $set = [];
         $types = '';
         $values = [];
         $dropped = [];
-        $written = [];
-        foreach (self::normalize($data) as $column => $value) {
-            if (!self::hasColumn($db, $column)) {
-                // Clearing a column that does not exist loses nothing.
-                if ($value !== null) {
-                    $dropped[] = $column;
+        $attempted = [];
+        try {
+            foreach ($normalized as $column => $value) {
+                if (!self::hasColumn($db, $column)) {
+                    // Clearing a column that does not exist loses nothing.
+                    if ($value !== null) {
+                        $dropped[] = $column;
+                    }
+                    continue;
                 }
-                continue;
+                // A cleared column counts too: if the UPDATE fails, the old
+                // value stays in the database although the form removed it.
+                $attempted[] = $column;
+                if ($value === null) {
+                    $set[] = "{$column} = NULL";
+                    continue;
+                }
+                $set[] = "{$column} = ?";
+                $types .= is_int($value) ? 'i' : 's';
+                $values[] = $value;
             }
-            if ($value === null) {
-                $set[] = "{$column} = NULL";
-                continue;
-            }
-            $set[] = "{$column} = ?";
-            $types .= is_int($value) ? 'i' : 's';
-            $values[] = $value;
-            $written[] = $column;
+        } catch (\Throwable $e) {
+            // The schema check itself failed: nothing was written, so every
+            // submitted film field is reported.
+            SecureLogger::error('[FilmFields] Film fields not saved: the schema check failed', [
+                'book_id' => $bookId,
+                'columns' => array_keys($normalized),
+                'error' => $e->getMessage(),
+            ]);
+            return array_keys($normalized);
         }
         if ($dropped !== []) {
             SecureLogger::warning('[FilmFields] Film fields not saved: libri lacks the columns (schema not repaired)', [
@@ -163,10 +178,10 @@ final class FilmFields
             // were lost instead of failing a save that otherwise succeeded.
             SecureLogger::error('[FilmFields] Film fields not saved: the update failed', [
                 'book_id' => $bookId,
-                'columns' => $written,
+                'columns' => $attempted,
                 'error' => $e->getMessage(),
             ]);
-            return array_values(array_unique(array_merge($dropped, $written)));
+            return array_values(array_unique(array_merge($dropped, $attempted)));
         }
         return $dropped;
     }
@@ -261,12 +276,24 @@ final class FilmFields
     private static function hasColumn(mysqli $db, string $column): bool
     {
         if (!array_key_exists($column, self::$columnCache)) {
+            // A failed check throws (and is not cached) rather than reading
+            // as "column missing": save() reports it either way, but the next
+            // request checks again instead of trusting a transient error.
             $stmt = $db->prepare("SELECT COUNT(*) AS c FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'libri' AND COLUMN_NAME = ?");
-            $exists = false;
-            if ($stmt !== false) {
+            if ($stmt === false) {
+                throw new \RuntimeException('Unable to prepare the film column check: ' . $db->error);
+            }
+            try {
                 $stmt->bind_param('s', $column);
-                $stmt->execute();
-                $exists = (int) ($stmt->get_result()->fetch_assoc()['c'] ?? 0) > 0;
+                if (!$stmt->execute()) {
+                    throw new \RuntimeException('Film column check failed: ' . $stmt->error);
+                }
+                $result = $stmt->get_result();
+                if ($result === false) {
+                    throw new \RuntimeException('Film column check returned no result: ' . $stmt->error);
+                }
+                $exists = (int) ($result->fetch_assoc()['c'] ?? 0) > 0;
+            } finally {
                 $stmt->close();
             }
             self::$columnCache[$column] = $exists;
