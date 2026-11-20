@@ -241,4 +241,31 @@ test.describe.serial('Film cataloguing (#539)', () => {
     expect(page.url()).toContain(`/admin/books/edit/${bookId}`);
     expect(filmRow()).toMatchObject({ durata: '95' });
   });
+
+  test('12. A themed shelf includes films filed under its genre at any depth', async () => {
+    // Drammatico → livello 2 → livello 3 → livello 4; the film sits on the
+    // deepest genre and has no keyword naming the theme.
+    const names = [`Drammatico ZZ539 ${STAMP}`, `ZZ539 livello 2 ${STAMP}`, `ZZ539 livello 3 ${STAMP}`, `ZZ539 livello 4 ${STAMP}`];
+    const genreIds = [];
+    let deepFilmId = 0;
+    try {
+      for (const name of names) {
+        const parent = genreIds.length ? String(genreIds[genreIds.length - 1]) : 'NULL';
+        h.dbQuery(`INSERT INTO generi (nome, parent_id) VALUES (${h.sqlString(name)}, ${parent})`);
+        genreIds.push(parseInt(h.dbQuery(`SELECT MAX(id) FROM generi WHERE nome = ${h.sqlString(name)}`), 10));
+      }
+      deepFilmId = h.seedBook({
+        titolo: `ZZ_FILM539_ Profondo ${STAMP}`, tipo_media: 'dvd', formato: 'DVD',
+        genere_id: String(genreIds[3]), copie_totali: '1', copie_disponibili: '1',
+      });
+      await page.goto(`${h.BASE}/film`);
+      await expect(page.locator(`section[aria-labelledby="films-drama"] [data-book-id="${deepFilmId}"]`)).toBeVisible();
+      await expect(page.locator(`section[aria-labelledby="films-children"] [data-book-id="${deepFilmId}"]`)).toHaveCount(0);
+    } finally {
+      h.deleteBooks([deepFilmId]);
+      for (const id of genreIds.reverse()) {
+        try { h.dbQuery(`DELETE FROM generi WHERE id = ${id}`); } catch (_) { /* cleanup */ }
+      }
+    }
+  });
 });

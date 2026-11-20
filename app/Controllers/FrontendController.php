@@ -265,26 +265,44 @@ class FrontendController
         $from = "FROM libri l
                  LEFT JOIN editori e ON e.id = l.editore_id
                  LEFT JOIN generi g ON g.id = l.genere_id
-                 LEFT JOIN generi sg ON sg.id = l.sottogenere_id
-                 LEFT JOIN generi parent ON parent.id = g.parent_id
-                 LEFT JOIN generi grandparent ON grandparent.id = parent.parent_id
                  WHERE l.deleted_at IS NULL AND {$visible} AND l.tipo_media = 'dvd'";
         $recent = 'ORDER BY l.created_at DESC, l.id DESC LIMIT 6';
         // The circulation index (libro_id, stato) counts actual loans of each eligible film.
         $loanCount = "(SELECT COUNT(*) FROM prestiti p WHERE p.libro_id = l.id
                        AND p.stato IN ('in_corso','in_ritardo','restituito','perso','danneggiato'))";
-        // Genres, subgenres and keywords are cataloguer-supplied in any supported language.
-        // The genre's ancestors count too, as far as the catalogue nests genres
-        // (genre, parent, grandparent, as in the record page's breadcrumb).
-        $tags = "CONCAT_WS(' ', g.nome, sg.nome, parent.nome, grandparent.nome, l.parole_chiave)";
+        // Genres and keywords are cataloguer-supplied in any supported language.
         $children = 'bambini|ragazzi|infanzia|children|kids|juvenile|young adult|enfants?|jeunesse|kinder(filme?)?|jugend(filme?)?|børn(efilm)?';
         $drama = 'dramas?|dramma(tic[oi])?|drames?|dramatiques?|filmdramen|dramaer|dramafilme?';
+        // A film belongs to a themed shelf when its genre or subgenre is a
+        // genre named for the theme or any genre below one, at any depth (the
+        // catalogue's genre filter rule, GenreTree), or when a keyword names it.
+        $themed = static function (string $words) use ($db): string {
+            $pattern = "(^|[^[:alnum:]])($words)([^[:alnum:]]|$)";
+            $family = [];
+            $stmt = $db->prepare('SELECT id FROM generi WHERE nome REGEXP ?');
+            if ($stmt !== false) {
+                $stmt->bind_param('s', $pattern);
+                $stmt->execute();
+                foreach ($stmt->get_result()->fetch_all(MYSQLI_ASSOC) as $genre) {
+                    foreach (\App\Support\GenreTree::withDescendants($db, (int) $genre['id']) as $id) {
+                        $family[$id] = $id;
+                    }
+                }
+                $stmt->close();
+            }
+            $byKeyword = "l.parole_chiave REGEXP '$pattern'";
+            if ($family === []) {
+                return $byKeyword;
+            }
+            $ids = implode(',', array_map('intval', $family));
+            return "(l.genere_id IN ($ids) OR l.sottogenere_id IN ($ids) OR $byKeyword)";
+        };
         $queries = [
             'latest' => "$select $from $recent",
             'popular' => "$select, $loanCount AS loans $from HAVING loans > 0
                           ORDER BY loans DESC, l.created_at DESC, l.id DESC LIMIT 6",
-            'children' => "$select $from AND $tags REGEXP '(^|[^[:alnum:]])($children)([^[:alnum:]]|$)' $recent",
-            'drama' => "$select $from AND $tags REGEXP '(^|[^[:alnum:]])($drama)([^[:alnum:]]|$)' $recent",
+            'children' => "$select $from AND {$themed($children)} $recent",
+            'drama' => "$select $from AND {$themed($drama)} $recent",
         ];
         $shelves = [];
         foreach ($queries as $key => $query) {
