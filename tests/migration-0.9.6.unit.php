@@ -366,12 +366,18 @@ try {
     $resetIndexMemo();
     $check(is_array($repo->getByKey($keyA)), 'the key authenticates');
     $check(($indexes()['uniq_key_hash'] ?? '') === '0:key_hash', 'the lookup restores the missing unique index');
-    $db->prepared = [];
-    $db->directQueries = [];
-    $repo->getByKey($keyA);
-    $repo->getByKey($keyA);
-    $statsReads = array_filter($db->prepared, static fn (string $q): bool => str_contains($q, 'STATISTICS'));
-    $check($statsReads === [] && $db->directQueries === [], 'the index check is memoized: later lookups in the request skip it');
+    // Under PHP-FPM a static memo lives for one request, so a per-request
+    // INFORMATION_SCHEMA probe would run on every API call. Each lookup here
+    // stands for a fresh request: the memo (if any) is cleared first.
+    foreach ([1, 2] as $request) {
+        $resetIndexMemo();
+        $db->prepared = [];
+        $db->directQueries = [];
+        $check(is_array($repo->getByKey($keyA)), "request {$request}: the key authenticates");
+        $metadataReads = array_filter($db->prepared, static fn (string $q): bool => stripos($q, 'INFORMATION_SCHEMA') !== false);
+        $check($metadataReads === [] && $db->directQueries === [] && count($db->prepared) === 1,
+            "request {$request}: a converted table costs one statement, no metadata read (" . count($db->prepared) . ' prepared)');
+    }
 
     echo "New keys after the upgrade\n";
     $new = $repo->create('Integration C', null);

@@ -59,7 +59,17 @@ final class DbStatementTimeout
         'admin/books/import-unimarc',
         'admin/books/copy-cataloging/import',
         'api/dewey-editor/(?:import|export|restore)/[^/]+',
+        'admin/periodicals/articles/import',
+        // Mobile staff API: the limit is set on the connection from the mobile
+        // path, so a route that delegates to an exempt web operation (upload,
+        // start, chunk, error report, ICS and copy-cataloging import) is exempt
+        // too, or the same work is cut off from the app and not from a browser.
+        'api/v1/staff/(?:imports|marc/imports|user-imports)',
         'api/v1/staff/(?:imports|marc/imports|user-imports)/[0-9a-f-]{36}/chunk',
+        'api/v1/staff/user-imports/[0-9a-f-]{36}/(?:start|errors\.csv)',
+        'api/v1/staff/imports/history/[A-Za-z0-9_.\-]{1,64}/errors\.csv',
+        'api/v1/staff/calendar/import-ics',
+        'api/v1/staff/copy-cataloging/import',
         // Exports.
         'api/v1/staff/exports/librarything\.tsv',
         'api/v1/staff/marc/export',
@@ -76,6 +86,7 @@ final class DbStatementTimeout
         'admin/archives/export\.(?:xml|ead3)',
         'admin/archives/(?:authorities/)?\d+/export\.xml',
         'admin/periodicals/export/(?:kbart|acnp)',
+        'admin/periodicals/articles/export',
         'admin/books/\d+/export\.unimarc\.xml',
         // Sitemap regeneration (the public /sitemap.xml is raised, see below).
         'admin/settings/advanced/regenerate-sitemap',

@@ -356,6 +356,77 @@ $guard(function () use ($check): void {
         'a path outside the base path is bounded');
 }, 'pure helpers');
 
+$guard(function () use ($check, $ROOT): void {
+    // Every import/export route the app and its plugins register is either
+    // exempt or bounded on purpose, with the reason here. The exempt list is
+    // exact by design, so a new heavy route is capped until someone lists it;
+    // this scan makes that a test failure instead of a partial import in
+    // production (the plugin routes were missed once, review of PR #538).
+    $boundedOnPurpose = [
+        // Open to every logged-in member, one club's data: small, and
+        // exempting them would hand ordinary accounts unbounded queries.
+        '/book-club/club/export.csv' => 'member export of one club',
+        '/book-club/club/export.json' => 'member export of one club',
+        '/book-club/club/quotes/export.csv' => 'member export of one club',
+        '/book-club/club/quotes/export.md' => 'member export of one club',
+        '/book-club/club/surveys/7/export.csv' => 'member export of one survey',
+        // Cheap pages and housekeeping.
+        '/admin/imports-history' => 'paged history page',
+        '/admin/imports/delete-old-logs' => 'deletes old log rows',
+        '/api/v1/staff/imports/10000000-0000-4000-8000-000000000001' => 'job status',
+        '/api/v1/staff/marc/imports/10000000-0000-4000-8000-000000000001' => 'job status',
+        '/api/v1/staff/user-imports/10000000-0000-4000-8000-000000000001' => 'job status / cancel',
+        '/api/v1/staff/imports/example.csv' => 'static template',
+        '/api/v1/staff/user-imports/example.csv' => 'static template',
+    ];
+    $files = [$ROOT . '/app/Routes/web.php'];
+    $it = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($ROOT . '/storage/plugins', FilesystemIterator::SKIP_DOTS));
+    foreach ($it as $f) {
+        $p = $f->getPathname();
+        if (str_ends_with($p, '.php') && preg_match('#/(?:views|Views|tests?)/#', $p) !== 1) {
+            $files[] = $p;
+        }
+    }
+    // Routes built by concatenation (a prefix plus a suffix map) carry no
+    // literal of their own.
+    $found = ['/admin/periodicals/articles/import' => true, '/admin/periodicals/articles/export' => true];
+    foreach ($files as $file) {
+        preg_match_all('#[\'"](/(?:admin|api|staff|book-club)/[^\'"\s]*(?:import|export)[^\'"\s]*)[\'"]#', (string) file_get_contents($file), $m);
+        foreach ($m[1] as $literal) {
+            if (str_ends_with($literal, '/')) {
+                continue; // a prefix, not a route
+            }
+            $path = (string) preg_replace_callback('#\{(\w+)(?::([^{}]*(?:\{[^{}]*\}[^{}]*)*))?\}#', static function (array $x) use ($literal): string {
+                if ($x[1] === 'locale') {
+                    return 'it_IT';
+                }
+                if ($x[1] === 'slug') {
+                    return 'club';
+                }
+                if ($x[1] === 'id' && str_starts_with($literal, '/staff/')) {
+                    return '10000000-0000-4000-8000-000000000001';
+                }
+                return str_contains($x[2] ?? '', 'A-Za-z') ? 'job_1' : '7';
+            }, $literal);
+            if (str_starts_with($path, '/staff/')) {
+                $path = '/api/v1' . $path; // mobile-api group prefix
+            }
+            $found[$path] = true;
+        }
+    }
+    $check(count($found) >= 60, 'the scan found the import/export routes (' . count($found) . ', expected at least 60)');
+    foreach (array_keys($found) as $path) {
+        $exempt = DbStatementTimeout::isExemptPath($path);
+        $bounded = isset($boundedOnPurpose[$path]);
+        $check($exempt !== $bounded, $exempt
+            ? "import/export route is exempt: {$path}"
+            : ($bounded ? "bounded on purpose ({$boundedOnPurpose[$path]}): {$path}" : "import/export route is neither exempt nor listed as bounded on purpose: {$path}"));
+    }
+    foreach (array_keys($boundedOnPurpose) as $path) {
+        $check(isset($found[$path]), "bounded-on-purpose entry is still a route: {$path}");
+    }
+}, 'every import/export route is classified');
+
 $guard(function () use ($check): void {
     // A mysqli that never connects: records queries, optionally throws.
     $makeStub = static function (bool $throw): \mysqli {

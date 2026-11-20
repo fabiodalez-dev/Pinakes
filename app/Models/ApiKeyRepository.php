@@ -152,14 +152,6 @@ class ApiKeyRepository
         return $keys;
     }
 
-    /**
-     * Connections (by spl_object_id) whose api_keys table was already checked
-     * for the uniq_key_hash index in this request: the check runs once.
-     *
-     * @var array<int, true>
-     */
-    private static array $indexChecked = [];
-
     /** Seconds a failed conversion is not retried by the public API path. */
     private const UPGRADE_RETRY_AFTER = 600;
 
@@ -226,11 +218,12 @@ class ApiKeyRepository
         $needsUpgrade = false;
         try {
             $row = $this->lookup($hash);
-            $needsUpgrade = !empty($row['has_plaintext']) || !$this->hashIndexChecked();
+            $needsUpgrade = !empty($row['has_plaintext']);
         } catch (RuntimeException $e) {
             // A database restored from an older backup may still lack the table
-            // or either added column. Other SQL failures must surface normally.
-            if (!in_array($e->getCode(), [1054, 1146], true)) {
+            // (1146), either added column (1054) or the hash index the lookup
+            // forces (1176). Other SQL failures must surface normally.
+            if (!in_array($e->getCode(), [1054, 1146, 1176], true)) {
                 throw $e;
             }
             $row = [];
@@ -244,11 +237,9 @@ class ApiKeyRepository
             }
             try {
                 $this->ensureTable();
-                self::$indexChecked[spl_object_id($this->db)] = true;
                 self::recordUpgradeOutcome(false);
                 $row = $this->lookup($hash);
             } catch (\Throwable $e) {
-                self::$indexChecked[spl_object_id($this->db)] = true;
                 self::recordUpgradeOutcome(true);
                 \App\Support\SecureLogger::error('[ApiKeyRepository] could not convert the api_keys table; using the legacy lookup', [
                     'error' => $e->getMessage(),
@@ -258,38 +249,6 @@ class ApiKeyRepository
         }
         unset($row['has_plaintext']);
         return isset($row['id']) ? $row : null;
-    }
-
-    /**
-     * True once this request has seen the uniq_key_hash index on api_keys.
-     * The first call per connection reads INFORMATION_SCHEMA; a missing
-     * index returns false so the caller runs ensureTable().
-     */
-    private function hashIndexChecked(): bool
-    {
-        $id = spl_object_id($this->db);
-        if (isset(self::$indexChecked[$id])) {
-            return true;
-        }
-        $stmt = $this->db->prepare(
-            "SELECT 1 FROM INFORMATION_SCHEMA.STATISTICS
-              WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'api_keys'
-                AND INDEX_NAME = 'uniq_key_hash' LIMIT 1"
-        );
-        if ($stmt === false) {
-            return true; // cannot tell: do not attempt DDL on every request
-        }
-        try {
-            $stmt->execute();
-            $result = $stmt->get_result();
-            $present = $result instanceof \mysqli_result && $result->num_rows > 0;
-        } finally {
-            $stmt->close();
-        }
-        if ($present) {
-            self::$indexChecked[$id] = true;
-        }
-        return $present;
     }
 
     /**
@@ -366,13 +325,21 @@ class ApiKeyRepository
         }
     }
 
-    /** One indexed lookup and a legacy-row probe in the same statement. */
+    /**
+     * One indexed lookup and a legacy-row probe in the same statement.
+     *
+     * FORCE INDEX doubles as the check that the hash index exists: a table that
+     * lost it fails with 1176 and getByKey() converts it, while a converted
+     * table pays nothing for the check. Reading INFORMATION_SCHEMA instead cost
+     * every API request an extra query, since a static memo only lives for one
+     * PHP-FPM request.
+     */
     private function lookup(string $hash): array
     {
         $stmt = $this->db->prepare('
             SELECT k.id, k.key_prefix, k.name, k.description, k.is_active, k.last_used_at, legacy.has_plaintext
             FROM (SELECT EXISTS(SELECT 1 FROM api_keys WHERE api_key IS NOT NULL) AS has_plaintext) legacy
-            LEFT JOIN api_keys k ON k.key_hash = ? AND k.is_active = 1
+            LEFT JOIN api_keys k FORCE INDEX (uniq_key_hash) ON k.key_hash = ? AND k.is_active = 1
             LIMIT 1
         ');
         if ($stmt === false) {
