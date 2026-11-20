@@ -95,7 +95,7 @@ unset($workspaceHeader);
                     // site: show its replacement, as GoodLibPlugin::RETIRED_DOMAINS does.
                     $goodlibZlibDomain = strtolower(trim((string) ($goodlibSettings['zlib_domain'] ?? '')));
                     if ($goodlibZlibDomain === '' || $goodlibZlibDomain === 'z-lib.gd') {
-                        $goodlibZlibDomain = 'ur.1lib.sk';
+                        $goodlibZlibDomain = '1lib.sk';
                     }
                     $hasGoogleKey = $isOpenLibrary && !empty($openLibrarySettings['google_books_api_key_exists'] ?? false);
                     $hasApiConfig = $isApiBookScraper && !empty($apiBookScraperSettings['api_endpoint'] ?? false) && !empty($apiBookScraperSettings['api_key_exists'] ?? false);
@@ -846,10 +846,9 @@ unset($workspaceHeader);
                     <div class="min-w-0">
                         <label for="goodlib_zlib_domain_select" class="text-sm font-medium text-gray-700 block mb-1"><?= __("Z-Library") ?></label>
                         <select id="goodlib_zlib_domain_select" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-indigo-500 focus:border-indigo-500" onchange="toggleGoodLibCustomDomain('zlib')">
-                            <option value="ur.1lib.sk">ur.1lib.sk</option>
+                            <option value="1lib.sk">1lib.sk</option>
                             <option value="z-lib.gl">z-lib.gl</option>
                             <option value="z-lib.fm">z-lib.fm</option>
-                            <option value="1lib.sk">1lib.sk</option>
                             <option value="z-library.ec">z-library.ec</option>
                             <option value="zliba.ru">zliba.ru</option>
                             <option value="__custom__"><?= __("Dominio personalizzato...") ?></option>
@@ -880,7 +879,7 @@ unset($workspaceHeader);
     const csrfToken = <?= json_encode(\App\Support\Csrf::ensureToken(), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
     const GOODLIB_DOMAIN_PRESETS = {
         anna: ['annas-archive.gd', 'annas-archive.gl', 'annas-archive.pk'],
-        zlib: ['ur.1lib.sk', 'z-lib.gl', 'z-lib.fm', '1lib.sk', 'z-library.ec', 'zliba.ru'],
+        zlib: ['1lib.sk', 'z-lib.gl', 'z-lib.fm', 'z-library.ec', 'zliba.ru'],
     };
 
     /**
@@ -1906,7 +1905,7 @@ unset($workspaceHeader);
         document.getElementById('goodlib_frontend').checked = btn.dataset.goodlibFrontend === '1';
         document.getElementById('goodlib_admin').checked = btn.dataset.goodlibAdmin === '1';
         setGoodLibDomainField('anna', btn.dataset.goodlibAnnaDomain || 'annas-archive.gd');
-        setGoodLibDomainField('zlib', btn.dataset.goodlibZlibDomain || 'ur.1lib.sk');
+        setGoodLibDomainField('zlib', btn.dataset.goodlibZlibDomain || '1lib.sk');
         modal.classList.remove('hidden');
     }
 

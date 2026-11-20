@@ -116,10 +116,9 @@
                spellcheck="false"
                maxlength="253">
         <datalist id="zlib_domain_options">
-          <option value="ur.1lib.sk"></option>
+          <option value="1lib.sk"></option>
           <option value="z-lib.gl"></option>
           <option value="z-lib.fm"></option>
-          <option value="1lib.sk"></option>
           <option value="z-library.ec"></option>
           <option value="zliba.ru"></option>
         </datalist>

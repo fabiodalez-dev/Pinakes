@@ -31,8 +31,8 @@ class GoodLibPlugin
         'zlib' => [
             'icon' => 'fas fa-search',
             'url_pattern' => 'https://%s/s/%s',
-            'default_domain' => 'ur.1lib.sk',
-            'mirrors' => ['ur.1lib.sk', 'z-lib.gl', 'z-lib.fm', '1lib.sk', 'z-library.ec', 'zliba.ru'],
+            'default_domain' => '1lib.sk',
+            'mirrors' => ['1lib.sk', 'z-lib.gl', 'z-lib.fm', 'z-library.ec', 'zliba.ru'],
         ],
         'gutenberg' => [
             'icon' => 'fas fa-feather-alt',
@@ -50,7 +50,7 @@ class GoodLibPlugin
      * @var array<string, array<string, string>>
      */
     public const RETIRED_DOMAINS = [
-        'zlib_domain' => ['z-lib.gd' => 'ur.1lib.sk'],
+        'zlib_domain' => ['z-lib.gd' => '1lib.sk'],
     ];
 
     /**
