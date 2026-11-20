@@ -9402,5 +9402,7 @@
   "Un nome per riga, oppure separati da virgola": "Un nome per riga, oppure separati da virgola",
   "Lingue audio": "Lingue audio",
   "Cita questo film": "Cita questo film",
-  "Il libro è stato salvato, ma i dati del film (durata, interpreti, sottotitoli, classificazione, regione) no: il database non ha ancora le colonne. Ripeti l'aggiornamento o elimina il file storage/.schema-repaired per rilanciare la verifica dello schema; il motivo è nel log degli errori.": "Il libro è stato salvato, ma i dati del film (durata, interpreti, sottotitoli, classificazione, regione) no: il database non ha ancora le colonne. Ripeti l'aggiornamento o elimina il file storage/.schema-repaired per rilanciare la verifica dello schema; il motivo è nel log degli errori."
+  "Il libro è stato salvato, ma i dati del film (durata, interpreti, sottotitoli, classificazione, regione) no. Se il database non ha ancora le colonne, ripeti l'aggiornamento o elimina il file storage/.schema-repaired per rilanciare la verifica dello schema; poi reinserisci i dati del film e salva di nuovo la scheda. Il motivo è nel log degli errori.": "Il libro è stato salvato, ma i dati del film (durata, interpreti, sottotitoli, classificazione, regione) no. Se il database non ha ancora le colonne, ripeti l'aggiornamento o elimina il file storage/.schema-repaired per rilanciare la verifica dello schema; poi reinserisci i dati del film e salva di nuovo la scheda. Il motivo è nel log degli errori.",
+  "Durata non valida": "Durata non valida",
+  "La durata deve essere un numero intero di minuti tra 1 e %d.": "La durata deve essere un numero intero di minuti tra 1 e %d."
 }

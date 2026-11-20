@@ -1147,7 +1147,7 @@ $pkHasDigitalFiles = $pkDigitalPlayer !== '' || str_contains($pkDigitalButtons, 
                 !empty($book['dimensioni']),
                 !empty($book['peso']),
                 !empty($book['numero_inventario']),
-                $isFilm && (!empty($book['durata_minuti']) || !empty($book['interpreti']) || !empty($book['sottotitoli']) || !empty($book['classificazione_eta']) || !empty($book['codice_regione'])),
+                $isFilm && (!empty($book['durata_minuti']) || !empty($book['interpreti']) || !empty($book['sottotitoli']) || !empty($book['classificazione_eta']) || trim((string) ($book['codice_regione'] ?? '')) !== ''),
             ];
             ?>
             <?php if (in_array(true, $detailFields, true)): ?>

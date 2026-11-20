@@ -99,7 +99,14 @@ final class BookMarcBuilder
             if ($codes === [] && !empty($row['lingua'])) {
                 $codes = ['und'];
             }
-            $record->addDataField('041', '0', ' ', array_merge(
+            // ind1 1 = the item includes a translation: subtitles in a
+            // language the soundtrack is not in (LC 041, $j example).
+            // Same-language subtitles (captions) are not a translation.
+            // With no soundtrack language on record it cannot be told: blank
+            // ("no information provided").
+            $translated = array_diff($subtitleCodes, $codes, ['und']) !== [];
+            $ind1 = $codes === [] ? ' ' : ($translated ? '1' : '0');
+            $record->addDataField('041', $ind1, ' ', array_merge(
                 array_map(static fn (string $c): array => ['a', $c], $codes),
                 array_map(static fn (string $c): array => ['j', $c], $subtitleCodes)
             ));
