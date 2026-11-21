@@ -247,16 +247,22 @@ if ($forceRequested && $installer->isInstalled()) {
     // Allow login via POST
     $csrfFailed = false;
     $rateLimited = false;
+    $throttleUnavailable = false;
     if (!$forceAuthenticated && $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['admin_email'], $_POST['admin_password'])) {
         // Validate CSRF token
         $submittedToken = (string) ($_POST['csrf_token'] ?? '');
         $sessionToken = (string) ($_SESSION['installer_csrf_token'] ?? '');
         if ($sessionToken === '' || !hash_equals($sessionToken, $submittedToken)) {
             $csrfFailed = true;
-        } elseif (!$installer->recordForceLoginAttempt(Installer::forceLoginClientIp($_SERVER))) {
+        } elseif (($loginVerdict = $installer->forceLoginAttemptVerdict(Installer::forceLoginClientIp($_SERVER))) !== Installer::FORCE_LOGIN_ALLOWED) {
             // Same budget as the main POST /login (15 attempts / 5 minutes per IP).
-            // Also refused when the attempt cannot be recorded: fail closed.
-            $rateLimited = true;
+            // Also refused when the attempt cannot be recorded: fail closed, but
+            // say why (a storage permission problem is not "too many attempts").
+            if ($loginVerdict === Installer::FORCE_LOGIN_UNAVAILABLE) {
+                $throttleUnavailable = true;
+            } else {
+                $rateLimited = true;
+            }
         } else {
             $email = trim((string) $_POST['admin_email']);
             $password = (string) $_POST['admin_password'];
@@ -331,7 +337,10 @@ if ($forceRequested && $installer->isInstalled()) {
     // If not authenticated, show login form
     if (!$forceAuthenticated) {
         $errorHtml = '';
-        if ($rateLimited) {
+        if ($throttleUnavailable) {
+            http_response_code(503);
+            $errorHtml = '<div class="alert alert-danger">' . htmlspecialchars(__("Impossibile registrare il tentativo di accesso: la cartella storage/cache/installer-login non è scrivibile. Verifica i permessi della cartella storage/ sul server.")) . '</div>';
+        } elseif ($rateLimited) {
             http_response_code(429);
             $errorHtml = '<div class="alert alert-danger">' . htmlspecialchars(__('Troppi tentativi di accesso. Riprova tra qualche minuto.')) . '</div>';
         } elseif ($csrfFailed) {
@@ -392,13 +401,16 @@ if (!$forceRequested && $installer->isInstalled()) {
     $installationStatus['db_verified'] = false;
     $installationStatus['db_error'] = null;
 
-    // Try to verify database
+    // Try to verify database. This page answers anonymous visitors (no ?force,
+    // no force-authenticated session reaches it), so the driver's message, which
+    // can name the database user, host and schema, goes to the server log only.
     try {
         $installer->loadEnvConfig();
         $installer->verifyInstallation();
         $installationStatus['db_verified'] = true;
-    } catch (Exception $e) {
-        $installationStatus['db_error'] = $e->getMessage();
+    } catch (\Throwable $e) {
+        error_log('[Installer] installation check failed: ' . $e->getMessage());
+        $installationStatus['db_error'] = __("Il database configurato non risponde come previsto. Il dettaglio dell'errore è nel log del server.");
     }
 
     // If database verification failed, show detailed error
@@ -428,7 +440,7 @@ if (!$forceRequested && $installer->isInstalled()) {
                             <li>' . __("Database:") . ' ' . ($installationStatus['db_verified'] ? '✓ ' . __("Verificato") : '✗ ' . __("Errore")) . '</li>
                         </ul>
 
-                        ' . (!empty($installationStatus['db_error']) ? '<div class="alert alert-warning mt-3"><strong>' . __("Errore database:") . '</strong><br><code>' . htmlspecialchars($installationStatus['db_error']) . '</code></div>' : '') . '
+                        ' . (!empty($installationStatus['db_error']) ? '<div class="alert alert-warning mt-3"><strong>' . __("Errore database:") . '</strong><br>' . htmlspecialchars($installationStatus['db_error'], ENT_QUOTES, 'UTF-8') . '</div>' : '') . '
 
                         ' . (!$installationStatus['lock_exists'] ? '<div class="alert alert-warning mt-3">' . htmlspecialchars(sprintf(__("Installazione interrotta (manca il file .installed). Il browser che l'ha iniziata può continuarla. Se la sua sessione è andata persa, l'installer si sblocca da solo dopo %d minuti di inattività, ma solo se il database è ancora vuoto. Altrimenti, con accesso al server, elimina il file .env e svuota il database (elimina tutte le sue tabelle), poi riesegui l'installer: il passo 2 accetta solo un database vuoto."), intdiv(Installer::INSTALL_OWNER_TTL, 60)), ENT_QUOTES, 'UTF-8') . '</div>' : '') . '
                         <p class="mt-4">

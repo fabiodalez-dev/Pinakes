@@ -9373,5 +9373,7 @@
   "Prenotazione non trovata o non modificabile con il tuo ruolo.": "Reservation not found, or your role cannot change it.",
   "Prestito non trovato o non modificabile con il tuo ruolo.": "Loan not found, or your role cannot change it.",
   "Questa sessione non può importare lo schema: l'installazione è in corso in un altro browser oppure il database non è vuoto. Riprendi l'installazione dal browser che l'ha iniziata, oppure ricomincia dal passo 2 con un database vuoto.": "This session cannot import the schema: the installation is in progress in another browser, or the database is not empty. Resume the installation from the browser that started it, or start again from step 2 with an empty database.",
-  "Questa iscrizione è già stata modificata da un'altra operazione: la pagina mostra lo stato attuale.": "This membership was already changed by another action: the page shows its current state."
+  "Questa iscrizione è già stata modificata da un'altra operazione: la pagina mostra lo stato attuale.": "This membership was already changed by another action: the page shows its current state.",
+  "Impossibile registrare il tentativo di accesso: la cartella storage/cache/installer-login non è scrivibile. Verifica i permessi della cartella storage/ sul server.": "The login attempt could not be recorded: the storage/cache/installer-login folder is not writable. Check the permissions of the storage/ folder on the server.",
+  "Il database configurato non risponde come previsto. Il dettaglio dell'errore è nel log del server.": "The configured database does not respond as expected. The error details are in the server log."
 }
