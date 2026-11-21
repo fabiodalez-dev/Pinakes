@@ -42,7 +42,7 @@ foreach (['dvd', 'DVD', 'Blu-ray', 'bluray', 'Blu-ray Disc', 'VHS', 'VHS videoca
 }
 $check(MediaLabels::isFilm(null, 'dvd') && !MediaLabels::isFilm(null, 'libro') && !MediaLabels::isFilm(null, 'disco'), 'isFilm follows tipo_media');
 $check(MediaLabels::isFilm('libro', 'dvd') && !MediaLabels::isFilm('DVD', 'libro'), 'an explicit tipo_media wins over the format');
-foreach (['Audiobook CD' => 'audiolibro', 'audio cassette' => 'disco', 'audiocassetta' => 'disco', 'cdrom' => 'libro', 'CD' => 'disco', 'Vinile' => 'disco', 'Cartaceo' => 'libro', 'help' => 'libro', 'video game' => 'libro'] as $format => $expected) {
+foreach (['Audiobook CD' => 'audiolibro', 'audio cassette' => 'disco', 'audiocassetta' => 'disco', 'cdrom' => 'libro', 'CD' => 'disco', 'Vinile' => 'disco', 'Cartaceo' => 'libro', 'help' => 'libro', 'video game' => 'libro', 'CD + DVD' => 'disco', 'cd_dvd' => 'disco', 'LP + DVD' => 'disco', 'Vinile + Blu-ray' => 'disco', 'compact disc + DVD' => 'disco', 'DVD' => 'dvd', 'Blu-ray' => 'dvd', '4K UHD' => 'dvd', 'videocassetta' => 'dvd', 'VHS videocassette' => 'dvd', 'CD-ROM + DVD' => 'dvd'] as $format => $expected) {
     $check(MediaLabels::inferTipoMedia($format) === $expected, "\"$format\" still infers $expected");
 }
 $check(MediaLabels::tipoMediaDisplayName('dvd') === 'Film e video', 'the dvd media type reads "Film e video"');
@@ -150,7 +150,7 @@ $check([$m->subfield('336', 'b'), $m->subfield('337', 'b'), $m->subfield('338', 
 $vhs = BookMarcBuilder::marc21(['formato' => 'VHS', 'durata_minuti' => null] + $row, $directors, [], null);
 $check($vhs->subfield('300', 'a') === '1 videocassette' && $vhs->first('306') === null && substr((string) $vhs->controlField('008'), 18, 3) === '---', 'a VHS without running time');
 foreach ([
-    'DVD' => ['vd', 'v'], 'Blu-ray Disc' => ['vd', 's'], '4K Ultra HD Blu-ray' => ['vd', 't'],
+    'DVD' => ['vd', 'v'], 'Blu-ray Disc' => ['vd', 's'], '4K Ultra HD Blu-ray' => ['vd', 's'], '4K UHD' => ['vd', 's'],
     'VHS videocassette' => ['vf', 'b'], 'videocassetta PAL' => ['vf', 'u'], 'videodisc' => ['vd', 'u'],
 ] as $format => [$carrier, $code]) {
     $legacyRow = ['tipo_media' => null, 'formato' => $format] + $row;
