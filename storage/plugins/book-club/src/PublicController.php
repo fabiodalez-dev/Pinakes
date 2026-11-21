@@ -371,7 +371,9 @@ class PublicController extends BaseController
             return $this->redirect($response, \App\Support\RouteTranslator::route('book_club'));
         }
         $this->repo->markInvitationAccepted((int) $invitation['id']);
-        if (($existing === null || $existing['status'] !== 'active') && function_exists('do_action')) {
+        // Every path here is a new or returning member: an active one already
+        // left above, before the invitation was consumed.
+        if (function_exists('do_action')) {
             do_action('bookclub.member.joined', (int) $club['id'], $userId, 'active');
         }
         $this->flash('success', sprintf(__('Benvenuto nel club "%s"!'), (string) $club['name']));
