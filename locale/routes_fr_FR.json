@@ -13,6 +13,7 @@
   "wishlist": "/liste-de-souhaits",
   "reservations": "/reservations",
   "events": "/evenements",
+  "films": "/films",
   "catalog": "/catalogue",
   "catalog_legacy": "/catalogue.php",
   "book": "/livre",

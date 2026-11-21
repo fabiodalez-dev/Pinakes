@@ -68,7 +68,9 @@ $ncip = $read('storage/plugins/ncip-server/NcipServerPlugin.php');
 $check(str_contains($ncip, 'la2.ruolo IN'), 'NCIP primary author cannot fall through to a contributor');
 $check(str_contains($ncip, "(la2.ruolo = \\'principale\\') DESC"), 'NCIP always selects the principal creator before a co-author');
 $z3950 = $read('storage/plugins/z39-server/Z39ServerPlugin.php');
-$check(str_contains($z3950, "GROUP_CONCAT(a.nome ORDER BY (la.ruolo = 'principale') DESC"), 'Z39.50 creator lists put the principal creator first');
+// The UNIMARC download reads the ordered contributor rows (getBookContributors);
+// the formatters only fall back to a joined `autori` string without them (#539).
+$check(str_contains($z3950, "ORDER BY (la.ruolo = 'principale') DESC"), 'Z39.50 creator lists put the principal creator first');
 
 require_once $root . '/storage/plugins/z39-server/classes/UnimarcLibriParser.php';
 $check(\Z39Server\UnimarcLibriParser::relatorForRole('traduttore') === '730', 'UNIMARC translator relator is 730');
@@ -126,7 +128,15 @@ $check(str_contains($marcBuilder, 'public static function primaryCreatorIndex')
 $check(substr_count($oai, "CASE la.ruolo WHEN 'principale' THEN 0 WHEN 'co-autore' THEN 1 ELSE 2 END") >= 1
     && substr_count($oai, "CASE la.ruolo WHEN \\'principale\\' THEN 0 WHEN \\'co-autore\\' THEN 1 ELSE 2 END") >= 1,
     'OAI batch and single-record fetches sort principal creators first');
-$check(str_contains($marcBuilder, "'traduttore'   => '730'") && str_contains($marcBuilder, "'illustratore' => '440'") && str_contains($marcBuilder, "'colorista'    => '410'"), 'OAI UNIMARC mappings use the standard relator codes');
+// The UNIMARC $4 codes live in UnimarcLibriParser::relatorForRole(), shared
+// by the builder and the parser so export and import agree (#539).
+$relator = [\App\Support\Marc\UnimarcLibriParser::class, 'relatorForRole'];
+$check(str_contains($marcBuilder, 'UnimarcLibriParser::relatorForRole(')
+    && $relator('principale') === '070' && $relator('co-autore') === '070'
+    && $relator('traduttore') === '730' && $relator('curatore') === '340'
+    && $relator('illustratore') === '440' && $relator('colorista') === '410'
+    && $relator('principale', true) === '300' && $relator('traduttore', true) === '730',
+    'OAI UNIMARC mappings use the standard relator codes');
 require_once $root . '/storage/plugins/oai-pmh-server/OaiPmhServerPlugin.php';
 $oaiReflection = new ReflectionClass(\App\Plugins\OaiPmhServer\OaiPmhServerPlugin::class);
 $oaiInstance = $oaiReflection->newInstanceWithoutConstructor();

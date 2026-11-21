@@ -120,6 +120,9 @@ ob_start();
                 <p class="catalog-subtitle pk-lead"><?= htmlspecialchars($catalogHeader['subtitle'], ENT_QUOTES, 'UTF-8') ?></p>
                 <?php endif; ?>
             </div>
+            <?php if (in_array('dvd', array_column($facetMediaTypes, 'value'), true)): ?>
+            <a class="pk-btn pk-btn--ghost" href="<?= htmlspecialchars(route_path('films'), ENT_QUOTES, 'UTF-8') ?>"><i class="fas fa-film" aria-hidden="true"></i> <?= htmlspecialchars(__('Esplora i film'), ENT_QUOTES, 'UTF-8') ?></a>
+            <?php endif; ?>
         </div>
     </div>
 </section>

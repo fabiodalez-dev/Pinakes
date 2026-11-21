@@ -1713,17 +1713,7 @@ class Z39ServerPlugin
     private function buildUnimarcRecord(int $id): ?array
     {
         $stmt = $this->db->prepare(
-            "SELECT l.id, l.titolo, l.sottotitolo, l.anno_pubblicazione, l.lingua, l.edizione,
-                    l.numero_pagine, l.isbn13, l.isbn10, l.collana, l.numero_serie,
-                    l.descrizione_plain, l.parole_chiave, l.classificazione_dewey,
-                    e.nome AS editore,
-                    (SELECT GROUP_CONCAT(a.nome ORDER BY (la.ruolo = 'principale') DESC,
-                                                            la.ordine_credito IS NULL,
-                                                            la.ordine_credito,
-                                                            la.autore_id SEPARATOR '; ')
-                       FROM libri_autori la JOIN autori a ON a.id = la.autore_id
-                      WHERE la.libro_id = l.id
-                        AND la.ruolo IN ('principale', 'co-autore')) AS autori
+            "SELECT l.*, e.nome AS editore
              FROM libri l
              LEFT JOIN editori e ON e.id = l.editore_id
              WHERE l.id = ? AND l.deleted_at IS NULL
@@ -1739,27 +1729,9 @@ class Z39ServerPlugin
         if (!is_array($row)) {
             return null;
         }
-        $contributors = $this->getBookContributors($id);
-
-        return [
-            'id'                  => (int) $row['id'],
-            'titolo'              => (string) ($row['titolo'] ?? ''),
-            'sottotitolo'         => (string) ($row['sottotitolo'] ?? ''),
-            'anno_pubblicazione'  => (string) ($row['anno_pubblicazione'] ?? ''),
-            'lingua'              => (string) ($row['lingua'] ?? ''),
-            'edizione'            => (string) ($row['edizione'] ?? ''),
-            'numero_pagine'       => (string) ($row['numero_pagine'] ?? ''),
-            'isbn13'              => (string) ($row['isbn13'] ?? ''),
-            'isbn10'              => (string) ($row['isbn10'] ?? ''),
-            'collana'             => (string) ($row['collana'] ?? ''),
-            'numero_serie'        => (string) ($row['numero_serie'] ?? ''),
-            'descrizione'         => (string) ($row['descrizione_plain'] ?? ''),
-            'parole_chiave'       => (string) ($row['parole_chiave'] ?? ''),
-            'classificazione_dewey' => (string) ($row['classificazione_dewey'] ?? ''),
-            'editore'             => (string) ($row['editore'] ?? ''),
-            'autori'              => (string) ($row['autori'] ?? ''),
-            'contributors'        => $contributors,
-        ];
+        $row['contributors'] = $this->getBookContributors($id);
+        $row['descrizione'] = $row['descrizione_plain'] ?? '';
+        return $row;
     }
 
     /**

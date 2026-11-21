@@ -19,6 +19,7 @@ $seriesTypeLabels = \App\Support\SeriesLabels::types();
 // Resolve tipo_media once for badge display and dynamic labels
 $resolvedTipoMedia = \App\Support\MediaLabels::resolveTipoMedia($libro['formato'] ?? null, $libro['tipo_media'] ?? null);
 $isMusic = $resolvedTipoMedia === 'disco';
+$isFilm = $resolvedTipoMedia === 'dvd';
 
 $status = strtolower((string)($libro['stato'] ?? ''));
 $statusClasses = [
@@ -40,7 +41,7 @@ $btnDanger  = 'btn-danger-outline';
 
 <section class="admin-book-detail min-h-screen bg-gray-50 py-6">
   <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-<?php if (isset($_SESSION['success_message'])): ?>
+<?php if (!flash_deferred() && isset($_SESSION['success_message'])): ?>
   <div class="mb-6 p-4 rounded-xl border border-green-200 bg-green-50 text-green-700" role="alert">
     <i class="fas fa-check-circle mr-2"></i>
     <?php echo App\Support\HtmlHelper::e($_SESSION['success_message']); ?>
@@ -448,7 +449,7 @@ unset($workspaceHeader);
         <div class="card-header">
           <h2 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
             <i class="fas fa-info-circle text-gray-900"></i>
-            <?= __("Dettagli Libro") ?>
+            <?= $isFilm ? __("Dettagli film") : __("Dettagli Libro") ?>
           </h2>
         </div>
         <div class="card-body">
@@ -556,7 +557,7 @@ unset($workspaceHeader);
               </dd>
             </div>
             <?php endif; ?>
-            <?php if (!empty($libro['numero_pagine'])): ?>
+            <?php if (!$isFilm && !empty($libro['numero_pagine'])): ?>
             <div>
               <dt class="text-xs uppercase text-gray-500"><?= \App\Support\MediaLabels::label('numero_pagine', $libro['formato'] ?? null, $libro['tipo_media'] ?? null) ?></dt>
               <dd class="text-gray-900 font-medium"><?php echo (int)$libro['numero_pagine']; ?></dd>
@@ -576,9 +577,31 @@ unset($workspaceHeader);
             <?php endif; ?>
             <?php if (!empty($libro['lingua'])): ?>
             <div>
-              <dt class="text-xs uppercase text-gray-500"><?= __("Lingua") ?></dt>
+              <dt class="text-xs uppercase text-gray-500"><?= $isFilm ? __("Lingue audio") : __("Lingua") ?></dt>
               <dd class="text-gray-900 font-medium"><?php echo App\Support\HtmlHelper::e($libro['lingua']); ?></dd>
             </div>
+            <?php endif; ?>
+            <?php if ($isFilm): // Film and video (#539) ?>
+              <?php if (($filmRuntime = \App\Support\FilmFields::runtimeLabel($libro['durata_minuti'] ?? null)) !== ''): ?>
+              <div>
+                <dt class="text-xs uppercase text-gray-500"><?= __("Durata") ?></dt>
+                <dd class="text-gray-900 font-medium" data-film-field="durata_minuti"><?= htmlspecialchars((string) $filmRuntime, ENT_QUOTES, 'UTF-8') ?></dd>
+              </div>
+              <?php endif; ?>
+              <?php foreach (['sottotitoli' => __('Sottotitoli'), 'classificazione_eta' => __('Classificazione per età'), 'codice_regione' => __('Codice regione')] as $filmKey => $filmLabel): ?>
+                <?php if (trim((string) ($libro[$filmKey] ?? '')) !== ''): ?>
+                <div>
+                  <dt class="text-xs uppercase text-gray-500"><?= htmlspecialchars((string) $filmLabel, ENT_QUOTES, 'UTF-8') ?></dt>
+                  <dd class="text-gray-900 font-medium" data-film-field="<?= $filmKey ?>"><?= htmlspecialchars((string) $libro[$filmKey], ENT_QUOTES, 'UTF-8') ?></dd>
+                </div>
+                <?php endif; ?>
+              <?php endforeach; ?>
+              <?php if (($filmCast = \App\Support\FilmFields::castLine($libro['interpreti'] ?? null)) !== ''): ?>
+              <div class="md:col-span-2">
+                <dt class="text-xs uppercase text-gray-500"><?= __("Interpreti") ?></dt>
+                <dd class="text-gray-900 font-medium" data-film-field="interpreti"><?= htmlspecialchars((string) $filmCast, ENT_QUOTES, 'UTF-8') ?></dd>
+              </div>
+              <?php endif; ?>
             <?php endif; ?>
             <?php if (!empty($libro['peso'])): ?>
             <div>

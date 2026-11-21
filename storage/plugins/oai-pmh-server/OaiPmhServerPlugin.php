@@ -55,6 +55,15 @@ class OaiPmhServerPlugin
     /** Cached result of the archival_units table existence check. */
     private ?bool $archivalUnitsTableExists = null;
 
+    /**
+     * libri columns BookMarcBuilder reads that ListRecords selects only when
+     * the database has them: the RDA overrides (0.9.0) and the film fields
+     * (#539), which the schema check adds after an update. Null until read.
+     *
+     * @var list<string>|null
+     */
+    private ?array $optionalMarcColumns = null;
+
     /** Cached result of the emeroteca_testate table existence check. */
     private ?bool $periodicalsTableCache = null;
 
@@ -74,6 +83,29 @@ class OaiPmhServerPlugin
      * instance is constructed per request.
      */
     private ?bool $ricExposedCache = null;
+
+    /**
+     * ", l.col, ..." for the optional MARC columns present in libri, so a
+     * book harvested with ListRecords carries the same MARC as with
+     * GetRecord (SELECT l.*). Empty when none exists or the lookup fails.
+     */
+    private function optionalMarcColumnsSql(): string
+    {
+        if ($this->optionalMarcColumns === null) {
+            $wanted = ['rda_content_type', 'rda_media_type', 'rda_carrier_type',
+                'durata_minuti', 'interpreti', 'sottotitoli', 'classificazione_eta', 'codice_regione'];
+            $present = [];
+            $res = $this->db->query("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'libri'");
+            if ($res instanceof \mysqli_result) {
+                while ($row = $res->fetch_row()) {
+                    $present[strtolower((string) $row[0])] = true;
+                }
+                $res->free();
+            }
+            $this->optionalMarcColumns = array_values(array_filter($wanted, static fn (string $c): bool => isset($present[$c])));
+        }
+        return implode('', array_map(static fn (string $c): string => ', l.' . $c, $this->optionalMarcColumns));
+    }
 
     /** Page size for ListRecords / ListIdentifiers */
     private const PAGE_SIZE = 100;
@@ -3228,7 +3260,7 @@ class OaiPmhServerPlugin
                            l.traduttore, l.illustratore, l.curatore, l.collana,
                            l.numero_serie, l.classificazione_dewey, l.file_url,
                            l.edizione, l.luogo_pubblicazione, l.dimensioni,
-                           l.created_at, l.updated_at
+                           l.created_at, l.updated_at" . $this->optionalMarcColumnsSql() . "
                       FROM libri l WHERE l.deleted_at IS NULL AND " . \App\Support\BookVisibility::catalogue($this->db, 'l') . " AND l.id IN ($ph)";
             $stmt = $this->db->prepare($sql);
             if ($stmt !== false) {

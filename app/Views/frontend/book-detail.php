@@ -36,6 +36,7 @@ if ($edgeCacheEnabled) {
 // Resolve tipo_media once for badge, labels, and Schema.org
 $resolvedTipoMedia = \App\Support\MediaLabels::resolveTipoMedia($book['formato'] ?? null, $book['tipo_media'] ?? null);
 $isMusic = $resolvedTipoMedia === 'disco';
+$isFilm = $resolvedTipoMedia === 'dvd';
 
 // SEO ottimizzato
 $bookTitle = html_entity_decode($book['titolo'] ?? '', ENT_QUOTES, 'UTF-8');
@@ -338,6 +339,17 @@ if ($schemaType === 'MusicAlbum') {
     if ($bookPublisher) {
         $bookSchema["productionCompany"] = ["@type" => "Organization", "name" => $bookPublisher];
     }
+    // Film fields (#539)
+    if (($filmDuration = \App\Support\FilmFields::iso8601($book['durata_minuti'] ?? null)) !== null) {
+        $bookSchema["duration"] = $filmDuration;
+    }
+    $filmActors = \App\Support\FilmFields::castList($book['interpreti'] ?? null);
+    if ($filmActors !== []) {
+        $bookSchema["actor"] = array_map(static fn (string $name): array => ["@type" => "Person", "name" => $name], $filmActors);
+    }
+    if (trim((string) ($book['classificazione_eta'] ?? '')) !== '') {
+        $bookSchema["contentRating"] = trim((string) $book['classificazione_eta']);
+    }
     if (!empty($book['ean'])) {
         $bookSchema["identifier"] = [
             "@type" => "PropertyValue",
@@ -482,7 +494,9 @@ $pkAvailable = (int) ($book['copie_disponibili'] ?? 0);
 $pkIsBook = $resolvedTipoMedia === 'libro';
 $pkQuick = array_values(array_filter([
     [$pkIsBook ? __('Anno') : \App\Support\MediaLabels::label('anno_pubblicazione', $book['formato'] ?? null, $book['tipo_media'] ?? null), $pkYear],
-    [$pkIsBook ? __('Pagine') : \App\Support\MediaLabels::label('numero_pagine', $book['formato'] ?? null, $book['tipo_media'] ?? null), trim((string) ($book['numero_pagine'] ?? ''))],
+    $isFilm
+        ? [__('Durata'), \App\Support\FilmFields::runtimeLabel($book['durata_minuti'] ?? null)]
+        : [$pkIsBook ? __('Pagine') : \App\Support\MediaLabels::label('numero_pagine', $book['formato'] ?? null, $book['tipo_media'] ?? null), trim((string) ($book['numero_pagine'] ?? ''))],
     [__('Formato'), !empty($book['formato']) ? \App\Support\MediaLabels::formatDisplayName((string) $book['formato']) : ''],
     ['ISBN', trim((string) ($book['isbn13'] ?? '')) !== '' ? (string) $book['isbn13'] : trim((string) ($book['isbn10'] ?? ''))],
 ], static fn (array $f): bool => $f[1] !== ''));
@@ -776,7 +790,7 @@ $pkHasDigitalFiles = $pkDigitalPlayer !== '' || str_contains($pkDigitalButtons, 
                 <!-- Description / Tracklist Section -->
                 <div class="book-description-section" id="book-description-section">
                     <h2 class="section-title">
-                        <i class="fas <?= $isMusic ? 'fa-music' : 'fa-info-circle' ?>"></i>
+                        <i class="fas <?= $isMusic ? 'fa-music' : ($isFilm ? 'fa-film' : 'fa-info-circle') ?>"></i>
                         <?= \App\Support\MediaLabels::label('descrizione', $book['formato'] ?? null, $book['tipo_media'] ?? null) ?>
                     </h2>
                     <div class="description-content">
@@ -1132,25 +1146,26 @@ $pkHasDigitalFiles = $pkDigitalPlayer !== '' || str_contains($pkDigitalButtons, 
                 !empty($book['formato']),
                 !empty($book['dimensioni']),
                 !empty($book['peso']),
-                !empty($book['numero_inventario'])
+                !empty($book['numero_inventario']),
+                $isFilm && (!empty($book['durata_minuti']) || !empty($book['interpreti']) || !empty($book['sottotitoli']) || !empty($book['classificazione_eta']) || trim((string) ($book['codice_regione'] ?? '')) !== ''),
             ];
             ?>
             <?php if (in_array(true, $detailFields, true)): ?>
             <div class="book-details-section" id="book-details-section">
                 <h2 class="section-title">
                     <i class="fas fa-list"></i>
-                    <?= __("Dettagli Libro") ?>
+                    <?= $isFilm ? __("Dettagli film") : __("Dettagli Libro") ?>
                 </h2>
                 <div class="details-grid">
                     <div class="details-column">
-                        <?php if (!empty($book['isbn13']) && !($isMusic && !empty($book['ean']))): ?>
+                        <?php if (!empty($book['isbn13']) && !(($isMusic || $isFilm) && !empty($book['ean']))): ?>
                         <div class="meta-item">
                             <div class="meta-label"><?= \App\Support\MediaLabels::label('isbn13', $book['formato'] ?? null, $book['tipo_media'] ?? null) ?></div>
                             <div class="meta-value"><?= htmlspecialchars($book['isbn13'], ENT_QUOTES, 'UTF-8') ?></div>
                         </div>
                         <?php endif; ?>
 
-                        <?php if (!$isMusic && !empty($book['isbn10'])): ?>
+                        <?php if (!$isMusic && !$isFilm && !empty($book['isbn10'])): ?>
                         <div class="meta-item">
                             <div class="meta-label">ISBN-10</div>
                             <div class="meta-value"><?= htmlspecialchars($book['isbn10'], ENT_QUOTES, 'UTF-8') ?></div>
@@ -1159,7 +1174,7 @@ $pkHasDigitalFiles = $pkDigitalPlayer !== '' || str_contains($pkDigitalButtons, 
 
                         <?php if (!empty($book['ean'])): ?>
                         <div class="meta-item">
-                            <div class="meta-label"><?= $isMusic ? __('Barcode') : 'EAN' ?></div>
+                            <div class="meta-label"><?= ($isMusic || $isFilm) ? __('Barcode') : 'EAN' ?></div>
                             <div class="meta-value"><?= htmlspecialchars($book['ean'], ENT_QUOTES, 'UTF-8') ?></div>
                         </div>
                         <?php endif; ?>
@@ -1180,7 +1195,7 @@ $pkHasDigitalFiles = $pkDigitalPlayer !== '' || str_contains($pkDigitalButtons, 
 
                         <?php if (!empty($book['lingua'])): ?>
                         <div class="meta-item">
-                            <div class="meta-label"><?= __("Lingua") ?></div>
+                            <div class="meta-label"><?= $isFilm ? __("Lingue audio") : __("Lingua") ?></div>
                             <div class="meta-value"><?= htmlspecialchars($book['lingua'], ENT_QUOTES, 'UTF-8') ?></div>
                         </div>
                         <?php endif; ?>
@@ -1207,7 +1222,7 @@ $pkHasDigitalFiles = $pkDigitalPlayer !== '' || str_contains($pkDigitalButtons, 
                         </div>
                         <?php endif; ?>
 
-                        <?php if (!empty($book['numero_pagine'])): ?>
+                        <?php if (!$isFilm && !empty($book['numero_pagine'])): ?>
                         <div class="meta-item">
                             <div class="meta-label"><?= \App\Support\MediaLabels::label('numero_pagine', $book['formato'] ?? null, $book['tipo_media'] ?? null) ?></div>
                             <div class="meta-value"><?= htmlspecialchars($book['numero_pagine'], ENT_QUOTES, 'UTF-8') ?></div>
@@ -1219,6 +1234,29 @@ $pkHasDigitalFiles = $pkDigitalPlayer !== '' || str_contains($pkDigitalButtons, 
                             <div class="meta-label"><?= __("Formato") ?></div>
                             <div class="meta-value"><?= htmlspecialchars(\App\Support\MediaLabels::formatDisplayName($book['formato']), ENT_QUOTES, 'UTF-8') ?></div>
                         </div>
+                        <?php endif; ?>
+
+                        <?php if ($isFilm): // Film and video (#539) ?>
+                            <?php if (($filmRuntime = \App\Support\FilmFields::runtimeLabel($book['durata_minuti'] ?? null)) !== ''): ?>
+                            <div class="meta-item">
+                                <div class="meta-label"><?= __("Durata") ?></div>
+                                <div class="meta-value" data-film-field="durata_minuti"><?= htmlspecialchars($filmRuntime, ENT_QUOTES, 'UTF-8') ?></div>
+                            </div>
+                            <?php endif; ?>
+                            <?php foreach (['sottotitoli' => __('Sottotitoli'), 'classificazione_eta' => __('Classificazione per età'), 'codice_regione' => __('Codice regione')] as $filmKey => $filmLabel): ?>
+                                <?php if (trim((string) ($book[$filmKey] ?? '')) !== ''): ?>
+                                <div class="meta-item">
+                                    <div class="meta-label"><?= htmlspecialchars($filmLabel, ENT_QUOTES, 'UTF-8') ?></div>
+                                    <div class="meta-value" data-film-field="<?= $filmKey ?>"><?= htmlspecialchars((string) $book[$filmKey], ENT_QUOTES, 'UTF-8') ?></div>
+                                </div>
+                                <?php endif; ?>
+                            <?php endforeach; ?>
+                            <?php if (($filmCast = \App\Support\FilmFields::castLine($book['interpreti'] ?? null)) !== ''): ?>
+                            <div class="meta-item">
+                                <div class="meta-label"><?= __("Interpreti") ?></div>
+                                <div class="meta-value" data-film-field="interpreti"><?= htmlspecialchars($filmCast, ENT_QUOTES, 'UTF-8') ?></div>
+                            </div>
+                            <?php endif; ?>
                         <?php endif; ?>
 
                         <?php if (!empty($book['dimensioni'])): ?>
@@ -1282,15 +1320,28 @@ $pkHasDigitalFiles = $pkDigitalPlayer !== '' || str_contains($pkDigitalButtons, 
                 $citeDownloads = [
                     ['label' => __('Scarica la citazione in formato RIS (EndNote, Mendeley, Zotero)'), 'url' => url('/books/' . (int) $book['id'] . '/citation.ris')],
                 ];
+                $citeExports = [];
+                if ($isFilm) {
+                    $citeExports[__('Scarica RIS')] = $citeDownloads[0]['url'];
+                    if ((string) \App\Support\ConfigStore::get('advanced.private_mode', '0') !== '1') {
+                        $risUrl = absoluteUrl($citeDownloads[0]['url']);
+                        $citeExports['RefWorks'] = 'https://api.refworks.proquest.com/api-ipa/express?' . http_build_query([
+                            'vendor' => 'Pinakes', 'filter' => 'RIS Format', 'encoding' => '65001', 'url' => $risUrl,
+                        ], '', '&', PHP_QUERY_RFC3986);
+                        $citeExports['EndNote Web'] = 'https://www.myendnoteweb.com/?' . http_build_query([
+                            'func' => 'directExport', 'partnerName' => 'Pinakes', 'dataIdentifier' => '1', 'dataRequestUrl' => $risUrl,
+                        ], '', '&', PHP_QUERY_RFC3986);
+                    }
+                }
                 ?>
                 <div class="card" id="book-cite-card">
                   <div class="card-header">
-                    <h6 class="mb-0"><i class="fas fa-quote-left mr-2"></i><?= htmlspecialchars(__('Cita questo libro'), ENT_QUOTES, 'UTF-8') ?></h6>
+                    <h6 class="mb-0"><i class="fas fa-quote-left mr-2"></i><?= htmlspecialchars($isFilm ? __('Cita questo film') : __('Cita questo libro'), ENT_QUOTES, 'UTF-8') ?></h6>
                   </div>
                   <div class="card-body py-2 px-3">
                     <?php
                     // The RIS file is already the inline "Download RIS" button: the
-                    // dialog keeps its styles and copy buttons, not a second link.
+                    // film dialog groups all three export choices together.
                     // Its "Cite" button joins the inline actions row (cite-inline.php).
                     $citeDownloadsInline = $citeDownloads;
                     $citeDownloads = [];
