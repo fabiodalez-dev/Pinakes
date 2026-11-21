@@ -631,8 +631,15 @@ jobs:
           if [ "$BASELINE_SKIPPED" = "true" ] || [ "$EXPECT_096" = "yes" ]; then
             check_col api_keys key_hash
             check_col api_keys key_prefix
+            # v0.9.6 — film/video cataloguing (#539): migrate_0.9.6.sql adds
+            # them (the Updater's SchemaRepair would too, from schema.sql).
+            check_col libri durata_minuti
+            check_col libri interpreti
+            check_col libri sottotitoli
+            check_col libri classificazione_eta
+            check_col libri codice_regione
           else
-            echo "  ↳ api_keys.key_hash not expected before 0.9.6"
+            echo "  ↳ api_keys.key_hash and the film columns not expected before 0.9.6"
           fi
 
           [ "$FAILED" -eq 0 ] || exit 1

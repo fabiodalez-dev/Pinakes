@@ -118,19 +118,31 @@ $oldTable = "CREATE TABLE `api_keys` (
 
 $keyA = bin2hex(random_bytes(32));          // a generated (lowercase hex) key
 $keyB = bin2hex(random_bytes(32));          // an inactive one
-$seed = static function () use ($db, $oldTable, $keyA, $keyB): void {
+// The 0.9.6 file also carries the film columns of libri (#539): the sandbox
+// gets the 0.9.5 libri (schema.sql without them) so the whole real file runs.
+// tests/migration-0.9.6-film.unit.php asserts on that block.
+$schemaSql = (string) file_get_contents($ROOT . '/installer/database/schema.sql');
+if (preg_match('/CREATE TABLE `libri` \(.*?\) ENGINE=InnoDB[^;]*;/s', $schemaSql, $libriMatch) !== 1) {
+    fwrite(STDERR, "libri not found in schema.sql\n");
+    exit(1);
+}
+$oldLibri = (string) preg_replace('/^\s*`(durata_minuti|interpreti|sottotitoli|classificazione_eta|codice_regione)` [^\n]*\n/m', '', $libriMatch[0]);
+$seed = static function () use ($db, $oldTable, $oldLibri, $keyA, $keyB): void {
+    $db->query('SET FOREIGN_KEY_CHECKS = 0');
+    $db->query('DROP TABLE IF EXISTS libri');
+    $db->query($oldLibri);
     $db->query('DROP TABLE IF EXISTS api_keys');
     $db->query($oldTable);
     $db->query("INSERT INTO api_keys (id, api_key, name, is_active) VALUES (1, '{$keyA}', 'Integration A', 1), (2, '{$keyB}', 'Integration B', 0)");
 };
 
-// Split the real file exactly as Updater::runMigrations() does.
-// Until the 0.9.6 version bump the file waits in migrations/pending/ (the
-// Updater and the "migration <= version.json" gate only scan migrations/);
-// the release commit moves it next to the others.
+// Split the real file exactly as Updater::runMigrations() does. Only
+// migrations/ is read: a file left in migrations/pending/ is never run by
+// the Updater, so the test must not find it there either.
 $file = $ROOT . '/installer/database/migrations/migrate_0.9.6.sql';
 if (!is_file($file)) {
-    $file = $ROOT . '/installer/database/migrations/pending/migrate_0.9.6.sql';
+    fwrite(STDERR, "migrate_0.9.6.sql is not in installer/database/migrations/: the Updater would never run it\n");
+    exit(1);
 }
 $source = (string) file_get_contents($file);
 $updRef = new ReflectionClass(\App\Support\Updater::class);

@@ -2,7 +2,44 @@
 
 Full version-by-version history for Pinakes. The README shows only the last three releases; everything older lives here.
 
-## [Unreleased]
+## [0.9.6]
+
+A security release and film cataloguing. I ran a full security audit of 0.9.5 and this release fixes everything it confirmed, plus the hardening it flagged; every fix carries a regression test that fails on the old code ([#536](https://github.com/fabiodalez-dev/Pinakes/pull/536), [#537](https://github.com/fabiodalez-dev/Pinakes/pull/537), [#538](https://github.com/fabiodalez-dev/Pinakes/pull/538)). One migration, `migrate_0.9.6.sql`, prepares `api_keys` for hashed keys and adds the five film columns of `libri`; both blocks are guarded, so a second run or a table the schema check already repaired is left as it is.
+
+### Upgrade notes
+
+- **Existing public API keys keep working**, but they are now stored as a SHA-256 hash plus an 8-character prefix: the full key of an existing integration can no longer be displayed, and a new key is shown once at creation. The table is converted on the first API call or when the API settings page opens; going back to 0.9.5 after that needs the pre-upgrade database backup.
+- **HSTS is opt-in** (Settings → Advanced: one year, no subdomains, HTTPS only). HTTPS installs no longer send it unless the setting is on.
+- **`UPGRADE_PASSWORD` for `scripts/manual-upgrade.php` needs at least 10 characters**, and five wrong attempts lock the web form for a while.
+- **The rate limiter keeps its counters in `storage/cache/ratelimit`**, which the updater already requires to be writable.
+- **A root-docroot install that is already installed shows the "already installed" page** instead of the wizard; an admin whose session has no bound sign-in row uses the installer's own login form for `?force=1`.
+- **The book-club stats panel needs the `stats.view` permission.**
+- **Public API (`/api/public/books/*`)**: book objects no longer include `note_varie`, and review objects no longer include the reviewer's `utente.id`. An integration that read either field must stop relying on it.
+- **The manual upgrade's mandatory database backup needs the PHP function `proc_open`**: the credentials now reach `mysqldump` through a pipe, never a file. A host that disables `proc_open` gets a clear error and the upgrade stops before touching anything; use the admin updater there.
+- **Mobile API**: the staff loan write answers (edit, renew, approve, reject, pickup, create) now carry `late_fine` like the loan detail. Extending an overdue loan with a fine accruing needs `waive_reason` (422 `validation_error` on `waive_reason` without it), and a bulk extension that includes such a loan answers 409 `bulk_extend_fine_accruing`. The Pinakes app sends the reason from 1.15.0.
+- **Cron and maintenance scripts wait while an installation is in progress** (the installer's ownership marker in `storage/`), so a scheduled run can no longer create a table in the empty database the wizard is about to import into.
+
+### Security fixes
+
+- **The installer's reinstall door (`?force=1`) re-checks the account on every request**: admin, active, verified, with its sign-in row still bound. A demoted, suspended or deleted admin, or a revoked session, can no longer reach the step that rewrites `.env`. The installer login is rate limited, and "installed" also honours `.env`, so a failed finalisation no longer leaves the wizard open.
+- **Translation overrides are admin-only and filtered**, on upload and when loaded: staff could plant script in a translation that an admin page echoed. Every `__()` echo inside a script or an attribute is escaped for its context.
+- **Staff act only on reader accounts**: activation, approval, card renewal, and at the loan desk loans, returns with waivers or penalties, and reservations. Staff and custom-role operators can no longer approve, lend, return, renew, extend, reserve or record payments on their own account; admins are exempt. Moving an overdue loan with a fine accruing needs a reason and records the waived fine.
+- **A password set from the user editor revokes every session and token of that account**; changing your own there asks for the current one.
+- **Custom-role permissions are checked on the decoded path**, so `/%61dmin/…` and encoded separators no longer skip them.
+- **Rate-limit and manual-upgrade throttle state moved out of the host-shared temp directory** into private, per-install files that refuse symlinks. Basic-auth throttling on NCIP, OAI-PMH, ResourceSync and VIAF counts every spelling of one account together and caps failed attempts per IP.
+- **SSRF and redirects**: redirect hops are pinned to their port (80/443 only), shared, benchmarking, multicast and the remaining IPv6 special ranges are refused, and the language switch, login return URL and loan redirects share one local-path check.
+- **Private mode** no longer publishes the static sitemap or calendar file, and fails closed when its setting cannot be read.
+- **Strict Content Security Policy**: only the templates' own scripts carry the nonce, all inline event handlers moved to `data-pk-*` attributes, and the policy sends `script-src-attr 'none'`.
+- **Web requests get a database statement time limit** (`DB_STATEMENT_TIMEOUT`, 0 disables): never for the CLI, updates, backups, imports or exports, raised for the harvesting protocols.
+- **Smaller fixes**: anchored root `.htaccess` exemptions and a `scripts/.htaccess`, admin-only updater maintenance actions, encrypted settings bound to their key, capped search terms, LibraryThing staging with a hash check, an authenticated and capped image proxy, per-install cache keys, registration and activation links built from the canonical URL, and book-club fixes (pending members, ICS token rotation, approvals, rejoining after suspension).
+
+### Fixes
+
+- **A custom holiday typed with a leading zero** ("01") was refused as a date that does not exist.
+- **Two operators reassigning loans between the same two readers at once** could deadlock; the reader rows are now locked in a fixed order.
+- **The "Clear filters" button of the home page's empty grid did nothing**; it is now a link to the catalogue.
+- **The book-club AI daily limit** used a lock shared by every installation on the same MySQL server; it is now scoped to the database.
+- **The stocktake reports downloaded from the app** were cut by the database time limit that the same report in the browser is exempt from.
 
 ### Films and video ([#539](https://github.com/fabiodalez-dev/Pinakes/issues/539))
 
