@@ -614,6 +614,49 @@ foreach (['RecordFormatter', 'DublinCoreFormatter', 'MARCXMLFormatter', 'MODSFor
     preg_match_all("/\\\$record\\[['\"]([a-z_0-9]+)['\"]\\]/", $src('storage/plugins/z39-server/classes/' . $fmt . '.php'), $m);
     foreach ($m[1] as $k) { $formatterKeys[$k] = true; }
 }
+// The formatters also hand the row to shared helpers (BookMarcBuilder::filmExtent()
+// reads the runtime, MarcMediaType::rdaCodes() the RDA overrides): the keys those
+// helpers read count too. Derived from the helpers the formatters actually call,
+// so a helper that starts reading a new column fails this check.
+$helperSources = [
+    'BookMarcBuilder' => $src('app/Support/Marc/BookMarcBuilder.php'),
+    'MarcMediaType' => $src('app/Support/Marc/MarcMediaType.php'),
+];
+$functionBody = static function (string $source, string $name): string {
+    if (preg_match('/function\s+' . preg_quote($name, '/') . '\s*\(/', $source, $fm, PREG_OFFSET_CAPTURE) !== 1) {
+        return '';
+    }
+    $open = strpos($source, '{', $fm[0][1]);
+    for ($depth = 0, $i = (int) $open, $n = strlen($source); $i < $n; $i++) {
+        $depth += $source[$i] === '{' ? 1 : ($source[$i] === '}' ? -1 : 0);
+        if ($depth === 0) {
+            return substr($source, (int) $open, $i - (int) $open + 1);
+        }
+    }
+    return '';
+};
+$helperKeys = [];
+$queue = [];
+foreach (['RecordFormatter', 'DublinCoreFormatter', 'MARCXMLFormatter', 'MODSFormatter', 'UNIMARCXMLFormatter'] as $fmt) {
+    preg_match_all('/(BookMarcBuilder|MarcMediaType)::([a-zA-Z0-9_]+)\(\$record\b/', $src('storage/plugins/z39-server/classes/' . $fmt . '.php'), $hm, PREG_SET_ORDER);
+    foreach ($hm as $h) { $queue[] = [$h[1], $h[2]]; }
+}
+$seen = [];
+while ($queue !== []) {
+    [$class, $fn] = array_shift($queue);
+    if (isset($seen[$class . '::' . $fn])) { continue; }
+    $seen[$class . '::' . $fn] = true;
+    $body = $functionBody($helperSources[$class], $fn);
+    preg_match_all("/\\\$row\\[['\"]([a-z_0-9]+)['\"]\\]|\\\$own\\(['\"]([a-z_0-9]+)['\"]\\)/", $body, $km, PREG_SET_ORDER);
+    foreach ($km as $k) { $helperKeys[$k[1] !== '' ? $k[1] : $k[2]] = true; }
+    // Helpers called on the same row, in the same two classes.
+    preg_match_all('/(?:self|static|(BookMarcBuilder|MarcMediaType))::([a-zA-Z0-9_]+)\(\$row\b/', $body, $cm, PREG_SET_ORDER);
+    foreach ($cm as $c) { $queue[] = [$c[1] !== '' ? $c[1] : $class, $c[2]]; }
+}
+$check(isset($seen['BookMarcBuilder::filmExtent'], $helperKeys['durata_minuti'], $helperKeys['rda_carrier_type']),
+    'the helper scan reaches filmExtent() and rdaCodes() (' . implode(', ', array_keys($seen)) . ')');
+$helperMissing = array_values(array_diff(array_keys($helperKeys), $cols));
+$check($helperMissing === [], 'every field a formatter helper reads is selected' . ($helperMissing !== [] ? ' — missing: ' . implode(', ', $helperMissing) : ''));
 $computed = ['autori', 'contributors', 'publishers', 'copies', 'editore', 'genere', 'scaffale', 'mensola',
     // serial (Emeroteca masthead) records are built separately:
     '_record_type', 'public_url', 'e_issn', 'issn_l', 'periodicita', 'tipo_periodico', 'anno_fine', 'numerazione'];

@@ -657,8 +657,10 @@ class SRUServer
         'classificazione_dewey', 'collana', 'numero_serie', 'created_at',
         'updated_at', 'traduttore', 'illustratore', 'curatore', 'colorista',
         'diritti',
-        // Film and video (#539): UNIMARC 323 cast and 333 age rating.
-        'interpreti', 'classificazione_eta',
+        // Film and video (#539): UNIMARC 215 runtime, 323 cast and 333 age rating;
+        // the RDA overrides feed 215 through MarcMediaType::rdaCodes().
+        'durata_minuti', 'interpreti', 'classificazione_eta',
+        'rda_content_type', 'rda_media_type', 'rda_carrier_type',
     ];
 
     /** @var string|null "l.col, l.col, …" for this install's libri columns */
