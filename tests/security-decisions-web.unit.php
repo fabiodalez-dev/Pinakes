@@ -428,6 +428,34 @@ $guard(function () use ($check, $ROOT): void {
 }, 'every import/export route is classified');
 
 $guard(function () use ($check): void {
+    // A mobile staff route that delegates to a web operation runs the same
+    // statements on the same connection, so it gets the same treatment: exempt
+    // when the web route is exempt, bounded when the web route is bounded.
+    // The stocktake reports were missed once (review of PR #538).
+    $mobileToWeb = [
+        '/api/v1/staff/stocktake/sessions/7/report.csv' => '/admin/inventory/7/report.csv',
+        '/api/v1/staff/stocktake/sessions/7/report.pdf' => '/admin/inventory/7/report.pdf',
+        '/api/v1/staff/exports/librarything.tsv' => '/admin/books/export/librarything',
+        '/api/v1/staff/attendance/export.csv' => '/admin/attendance/export.csv',
+        '/api/v1/staff/calendar/import-ics' => '/admin/calendar/import-ics',
+        '/api/v1/staff/copy-cataloging/import' => '/admin/books/copy-cataloging/import',
+        '/api/v1/staff/books/catalogue-cards.pdf' => '/admin/books/catalogue-cards',
+        '/api/v1/staff/books/7/catalogue-card.pdf' => '/admin/books/7/catalogue-card',
+        '/api/v1/staff/users/cards.pdf' => '/admin/users/cards-pdf',
+        '/api/v1/staff/users/7/card.pdf' => '/admin/users/7/card-pdf',
+        '/api/v1/staff/statistics/fines.csv' => '/admin/statistics/fines.csv',
+    ];
+    foreach ($mobileToWeb as $mobile => $web) {
+        $webExempt = DbStatementTimeout::isExemptPath($web);
+        $check(DbStatementTimeout::isExemptPath($mobile) === $webExempt,
+            "mobile route {$mobile} is " . ($webExempt ? 'exempt' : 'bounded') . " like the web route it delegates to ({$web})");
+    }
+    $check(!DbStatementTimeout::isExemptPath('/api/v1/staff/stocktake/sessions/7/report')
+        && !DbStatementTimeout::isExemptPath('/api/v1/staff/stocktake/sessions/7/scans'),
+        'the interactive stocktake routes stay bounded');
+}, 'mobile delegations follow the web route');
+
+$guard(function () use ($check): void {
     // A mysqli that never connects: records queries, optionally throws.
     $makeStub = static function (bool $throw): \mysqli {
         return new class ($throw) extends \mysqli {

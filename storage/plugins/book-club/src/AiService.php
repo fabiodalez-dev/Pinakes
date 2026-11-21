@@ -311,10 +311,34 @@ class AiService
      * status, unparsable answer) leaves it empty, so a billed-but-unusable
      * call still counts. listOutputs() hides the empty rows.
      */
+    /**
+     * Name of the per-club lock reserveAttempt() holds. GET_LOCK is
+     * server-wide, not per database, so the name carries the schema: two
+     * installations on one MySQL server with the same club id do not wait on
+     * each other. Hashed in PHP, like Repo::scopedPublisherLockName(), so it
+     * stays within MySQL's 64-character limit for any database name:
+     * 'pinakes-bc-ai:' + 32 hex = 46 characters.
+     */
+    public static function clubLockName(string $schema, int $clubId): string
+    {
+        return 'pinakes-bc-ai:' . md5($schema . ':' . $clubId);
+    }
+
+    private function currentSchema(): string
+    {
+        $schema = '';
+        $res = $this->db->query('SELECT DATABASE()');
+        if ($res instanceof \mysqli_result) {
+            $schema = (string) ($res->fetch_row()[0] ?? '');
+            $res->free();
+        }
+        return $schema;
+    }
+
     public function reserveAttempt(int $clubId, string $kind, int $entityId, ?int $createdBy): ?int
     {
         $this->refusedByCap = false;
-        $lockName = 'pinakes_bookclub_ai_' . $clubId;
+        $lockName = self::clubLockName($this->currentSchema(), $clubId);
         $lock = $this->db->prepare('SELECT GET_LOCK(?, 5) AS l');
         if ($lock === false) {
             SecureLogger::error('[BookClub:ai] reserveAttempt lock prepare failed: ' . $this->db->error);

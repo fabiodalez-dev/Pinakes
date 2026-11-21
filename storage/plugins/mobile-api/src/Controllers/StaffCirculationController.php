@@ -181,7 +181,11 @@ final class StaffCirculationController
 
                     return $loanId;
                 },
-                static fn (int $id): ?array => $reader->loan($id)
+                function (int $id) use ($reader): ?array {
+                    $loan = $reader->loan($id);
+
+                    return $loan === null ? null : $this->withLateFine($loan);
+                }
             );
         } catch (\Throwable $e) {
             return $this->fail($response, 'loan create', $e);
@@ -303,7 +307,7 @@ final class StaffCirculationController
                 return $this->notFound($response);
             }
 
-            return ResponseEnvelope::success($response, $loan, $message !== '' ? ['message' => $message] : []);
+            return ResponseEnvelope::success($response, $this->withLateFine($loan), $message !== '' ? ['message' => $message] : []);
         } catch (\Throwable $e) {
             return $this->fail($response, 'loan ' . $method, $e);
         }
@@ -763,11 +767,16 @@ final class StaffCirculationController
         return $found;
     }
 
+    /**
+     * The loan after a write, in the same shape as detail() (late_fine
+     * included): the app replaces its loan state with this answer, so a
+     * missing late_fine would drop the fine preview and the waive_reason hint.
+     */
     private function loanOr404(ResponseInterface $response, int $id): ResponseInterface
     {
         $loan = $this->reader->loan($id);
 
-        return $loan === null ? $this->notFound($response) : ResponseEnvelope::success($response, $loan);
+        return $loan === null ? $this->notFound($response) : ResponseEnvelope::success($response, $this->withLateFine($loan));
     }
 
     private function notFound(ResponseInterface $response, ?string $message = null): ResponseInterface

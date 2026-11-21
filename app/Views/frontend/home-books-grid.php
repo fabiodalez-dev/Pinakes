@@ -20,9 +20,10 @@
         <i class="fas fa-search empty-state-icon"></i>
         <h4 class="empty-state-title"><?= __("Nessun libro trovato") ?></h4>
         <p class="empty-state-text"><?= __("Prova a modificare i filtri o la tua ricerca") ?></p>
-        <button type="button" class="btn-cta btn-cta-sm" data-pk-action="catalog-clear">
-            <i class="fas fa-redo mr-2"></i>
-            <?= __("Pulisci filtri") ?>
-        </button>
+        <?php // The home grid has no filters to clear (catalog-clear is registered only by catalog.php): send the reader to the catalogue instead. ?>
+        <a href="<?= htmlspecialchars(route_path('catalog'), ENT_QUOTES, 'UTF-8') ?>" class="btn-cta btn-cta-sm">
+            <i class="fas fa-th-large mr-2" aria-hidden="true"></i>
+            <?= __("Esplora il catalogo") ?>
+        </a>
     </div>
 <?php endif; ?>

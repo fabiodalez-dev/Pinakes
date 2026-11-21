@@ -62,8 +62,9 @@ final class DbStatementTimeout
         'admin/periodicals/articles/import',
         // Mobile staff API: the limit is set on the connection from the mobile
         // path, so a route that delegates to an exempt web operation (upload,
-        // start, chunk, error report, ICS and copy-cataloging import) is exempt
-        // too, or the same work is cut off from the app and not from a browser.
+        // start, chunk, error report, ICS and copy-cataloging import, and the
+        // exports below, stocktake reports included) is exempt too, or the same
+        // work is cut off from the app and not from a browser.
         'api/v1/staff/(?:imports|marc/imports|user-imports)',
         'api/v1/staff/(?:imports|marc/imports|user-imports)/[0-9a-f-]{36}/chunk',
         'api/v1/staff/user-imports/[0-9a-f-]{36}/(?:start|errors\.csv)',
@@ -74,6 +75,7 @@ final class DbStatementTimeout
         'api/v1/staff/exports/librarything\.tsv',
         'api/v1/staff/marc/export',
         'api/v1/staff/attendance/export\.csv',
+        'api/v1/staff/stocktake/sessions/\d+/report\.(?:csv|pdf)',
         'admin/books/export/(?:csv|marc|librarything)',
         'admin/users/export/csv',
         'admin/users/export-pdf',

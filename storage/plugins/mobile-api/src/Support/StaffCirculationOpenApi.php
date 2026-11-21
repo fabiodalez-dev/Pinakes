@@ -65,7 +65,7 @@ final class StaffCirculationOpenApi
     {
         $t = 'staff-circulation';
         $loanId = ['parameters' => [O::path('id', 'Loan id')]];
-        $loan = O::ok('The loan as it is now.', O::ref('StaffLoan'));
+        $loan = O::ok('The loan as it is now, with late_fine as GET /staff/loans/{id} returns it.', ['allOf' => [O::ref('StaffLoan'), O::ref('StaffLoanLateFine')]]);
         $approvalErrors = O::notFound() + O::conflict('`conflict` (state changed, no copy, deadline passed — `message` is the server text) or `not_eligible` (user not eligible).');
         $returnBody = ['outcome' => ['type' => 'string', 'enum' => CirculationOutcome::RETURN_OUTCOMES, 'default' => 'restituito'],
             'notes' => ['type' => 'string'], 'penalty' => ['type' => 'number', 'minimum' => 0, 'maximum' => 999999.99, 'description' => 'Only for perso / danneggiato. Capped at the patron ledger maximum (999,999.99).'],
@@ -99,7 +99,7 @@ final class StaffCirculationOpenApi
                     O::query('to', 'string', 'data_prestito <= (Y-m-d).'),
                 ], O::paging())]),
                 'post' => O::op($t, 'staffCreateLoan', 'Create a loan through the admin loan form', [
-                    '201' => O::ok('Created.', O::ref('StaffLoan')),
+                    '201' => O::ok('Created, with late_fine as GET /staff/loans/{id} returns it.', ['allOf' => [O::ref('StaffLoan'), O::ref('StaffLoanLateFine')]]),
                 ] + $idemResponses + O::notFound() + O::conflict('`duplicate`, `not_eligible` (meta.reason), `max_loans_reached`, `not_available` (meta.reason), `concurrent_retry`.'), [
                     'parameters'  => [$idemHeader],
                     'requestBody' => O::body('LoanCreate'),

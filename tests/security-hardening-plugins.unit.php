@@ -510,7 +510,21 @@ if ($sandboxError !== null) {
         // booked (the check-then-insert cannot interleave).
         $db->query("DELETE FROM bookclub_ai_outputs WHERE club_id = {$aiClub}");
         $other = hardeningSandboxConnect($sandbox['name']);
+        // GET_LOCK is server-wide: another installation on the same MySQL
+        // server, with a club of the same id, must not hold this club up
+        // (review of PR #538). The unscoped name every installation took
+        // before is held elsewhere here, and this club still books.
         $other->query("SELECT GET_LOCK('pinakes_bookclub_ai_{$aiClub}', 0)");
+        $check(is_int($ai->reserveAttempt($aiClub, 'questions', 1, null)), 'AI: a same-id club of another installation holding its lock does not block this one');
+        $db->query("DELETE FROM bookclub_ai_outputs WHERE club_id = {$aiClub}");
+        $aiLock = \App\Plugins\BookClub\AiService::clubLockName($sandbox['name'], $aiClub);
+        $check(strlen($aiLock) <= 64 && strlen(\App\Plugins\BookClub\AiService::clubLockName(str_repeat('x', 64), PHP_INT_MAX)) <= 64,
+            'AI: the club lock name fits MySQL\'s 64-character limit for any schema and club id');
+        $check($aiLock !== \App\Plugins\BookClub\AiService::clubLockName($sandbox['name'] . '_other', $aiClub)
+            && $aiLock !== \App\Plugins\BookClub\AiService::clubLockName($sandbox['name'], $aiClub + 1),
+            'AI: the club lock name differs per schema and per club');
+        $other->query('SELECT RELEASE_ALL_LOCKS()');
+        $other->query("SELECT GET_LOCK('" . $other->real_escape_string($aiLock) . "', 0)");
         $check($ai->reserveAttempt($aiClub, 'questions', 1, null) === null
             && $scalar("SELECT COUNT(*) FROM bookclub_ai_outputs WHERE club_id = {$aiClub}") === 0, 'AI: no booking while another request holds the club lock');
         $check($ai->reserveRefusedByCap() === false, 'AI: a lock timeout is not reported as the daily cap');
@@ -522,7 +536,7 @@ if ($sandboxError !== null) {
         $flash = $_SESSION['bookclub_flash'] ?? [];
         $check(($flash['type'] ?? '') === 'error' && !str_contains((string) ($flash['message'] ?? ''), (string) $cap) && $fake->calls === [],
             'AI: a lock timeout below the cap is an error, not "daily limit reached", and calls no provider');
-        $other->query("SELECT RELEASE_LOCK('pinakes_bookclub_ai_{$aiClub}')");
+        $other->query("SELECT RELEASE_LOCK('" . $other->real_escape_string($aiLock) . "')");
         $other->close();
         $check(is_int($ai->reserveAttempt($aiClub, 'questions', 1, null)), 'AI: once the lock is free an attempt is booked');
         $_SESSION = [];

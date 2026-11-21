@@ -205,7 +205,9 @@ borrower's).
 Up to 0.9.5 each entry of `recensioni` looked like
 `"utente": { "id": 42, "nome": "...", "cognome": "..." }`; it is now
 `"utente": { "nome": "...", "cognome": "..." }`. Integrations that keyed reviews
-by reviewer must use the review's own `id` instead.
+by reviewer must use the review's own `id` instead. Book objects no longer carry
+`note_varie` either (up to 0.9.5 it held the internal notes of the record);
+there is no replacement field, the notes stay on the admin book page.
 
 **Status Codes**:
 - `200 OK`: success
