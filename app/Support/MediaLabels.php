@@ -10,6 +10,9 @@ namespace App\Support;
  */
 class MediaLabels
 {
+    /** Audio-carrier tokens matched as substrings of a collapsed format string. */
+    private const MUSIC_TOKENS = ['cdaudio', 'compactdisc', 'vinile', 'vinyl', 'cassetta', 'cassette', 'audiocassetta'];
+
     /**
      * Build normalized lookup candidates for format/media values.
      *
@@ -271,6 +274,23 @@ class MediaLabels
     }
 
     /**
+     * Whether a format string names an audio carrier (CD, LP, vinyl, audio
+     * cassette). A videocassette is not one, and neither is a CD-ROM.
+     */
+    private static function namesAudioCarrier(string $formato): bool
+    {
+        $label = strtolower($formato);
+        $collapsed = str_replace('videocassett', '', preg_replace('/[\s\-_]+/u', '', $label) ?? $label);
+        foreach (self::MUSIC_TOKENS as $musicToken) {
+            if (str_contains($collapsed, $musicToken)) {
+                return true;
+            }
+        }
+        // Short tokens only as whole words ('cd' must not match 'cdrom', 'lp' 'help').
+        return preg_match('/(?<![a-z0-9])(?:cd(?![\s_-]?rom)|lp)(?![a-z0-9])/', $label) === 1;
+    }
+
+    /**
      * Infer tipo_media from formato field (for backward compat / migration).
      */
     public static function inferTipoMedia(?string $formato): string
@@ -290,12 +310,14 @@ class MediaLabels
                 return 'audiolibro';
             }
 
+            // A video carrier makes a film, unless an audio carrier is named
+            // with it: "CD + DVD" is a music edition with a bonus disc.
             if (self::videoFormat($candidate) !== null) {
-                return 'dvd';
+                return self::namesAudioCarrier($formato) ? 'disco' : 'dvd';
             }
 
             // Long tokens: safe for substring match (unique enough)
-            foreach (['cdaudio', 'compactdisc', 'vinile', 'vinyl', 'cassetta', 'cassette', 'audiocassetta'] as $musicToken) {
+            foreach (self::MUSIC_TOKENS as $musicToken) {
                 if (str_contains($candidate, $musicToken)) {
                     return 'disco';
                 }
