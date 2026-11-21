@@ -164,19 +164,43 @@ class SitemapGenerator
         return $driver->output();
     }
 
+    /** Why the last saveTo() did not publish, or null when it did. */
+    private ?string $lastSkipReason = null;
+
+    /** saveTo() did not publish: private mode is on. */
+    public const SKIP_PRIVATE_MODE = 'private_mode';
+    /** saveTo() did not publish: the public URLs changed during generation. */
+    public const SKIP_REVISION_CHANGED = 'revision_changed';
+    /** saveTo() did not publish: the change counter or the lock cannot be used. */
+    public const SKIP_STATE_UNAVAILABLE = 'state_unavailable';
+
     /**
-     * Save sitemap to file.
+     * Publish the sitemap to a file.
+     *
+     * The document is written to a temporary file next to the target and moved
+     * into place with rename(), which is atomic on one filesystem, only after
+     * three checks made while holding SitemapCache's publish lock:
+     *
+     *   - private mode, read fresh. The settings save that enables it writes
+     *     the flag and withdraws the published file under the same lock, so
+     *     the target can never hold a sitemap once the flag is set: either
+     *     this rename happened first and the save withdraws it, or this check
+     *     sees the flag.
+     *   - the revision counter, compared with the value read before generate():
+     *     a plugin activated or removed meanwhile changed the set of public
+     *     URLs, and this document describes the world before that change.
+     *   - that the counter and the lock can be used at all. A counter that
+     *     cannot be read, or bumped, would hide such a change, so the answer
+     *     is then "changed": nothing is published (fail closed).
+     *
+     * Not publishing is not an error: /sitemap.xml keeps answering from the
+     * route, and getLastSkipReason() says why. An I/O failure throws.
+     *
+     * @return bool true when the file was published
      */
-    public function saveTo(string $filePath): void
+    public function saveTo(string $filePath): bool
     {
-        // generate() reads the plugin state, the catalogue and the CMS pages;
-        // on a large collection that takes long enough for a plugin to be
-        // activated or removed in the meantime. Without this the publisher
-        // would then write a document describing the world as it was before
-        // that change — over a file the invalidation had just deleted
-        // precisely because it no longer described the world. Capturing the
-        // revision first and re-reading it after the write turns that race
-        // into a no-op instead of a stale publication.
+        $this->lastSkipReason = null;
         $revisionBefore = SitemapCache::revision();
 
         $xml = $this->generate();
@@ -188,25 +212,65 @@ class SitemapGenerator
             }
         }
 
-        if (file_put_contents($filePath, $xml) === false) {
-            throw new RuntimeException("Impossibile scrivere la sitemap in {$filePath}");
-        }
+        // Same directory as the target, so rename() is atomic; a random name,
+        // so a copy left behind by a process that died here cannot be found.
+        $temporary = $directory . '/.' . basename($filePath) . '.' . bin2hex(random_bytes(8)) . '.tmp';
+        $locked = false;
+        try {
+            if (file_put_contents($temporary, $xml) === false) {
+                throw new RuntimeException("Impossibile scrivere la sitemap in {$filePath}");
+            }
+            @chmod($temporary, 0644);
 
-        // Withdraw rather than refuse to publish: the caller asked for a file
-        // and gets the same outcome an invalidation would have produced on its
-        // own — no stale file, and /sitemap.xml serving the current document on
-        // the next request. Refusing earlier would have been worse, because the
-        // work is already done by the time we can detect the change, and a
-        // caller told "failed" over a correct state would only retry into it.
-        if (SitemapCache::revision() !== $revisionBefore) {
-            // Withdraw the file THIS call wrote, not the published one: saveTo()
-            // takes an arbitrary path and the suites use a temporary file, so
-            // defaulting to publishedPath() would leave the stale document
-            // behind and delete an unrelated file instead.
-            SitemapCache::invalidate(
-                'plugin state changed while the sitemap was being generated',
-                $filePath
-            );
+            $locked = SitemapCache::acquirePublishLock();
+            $revisionNow = $locked ? SitemapCache::revision() : null;
+            if (!$locked || $revisionBefore === null || $revisionNow === null) {
+                $this->lastSkipReason = self::SKIP_STATE_UNAVAILABLE;
+            } elseif ($revisionNow !== $revisionBefore) {
+                $this->lastSkipReason = self::SKIP_REVISION_CHANGED;
+            } elseif ($this->privateModeEnabledNow()) {
+                $this->lastSkipReason = self::SKIP_PRIVATE_MODE;
+            }
+
+            if ($this->lastSkipReason !== null) {
+                SecureLogger::warning('SitemapGenerator: sitemap not published (' . $this->lastSkipReason . ')');
+                return false;
+            }
+            if (!rename($temporary, $filePath)) {
+                throw new RuntimeException("Impossibile pubblicare la sitemap in {$filePath}");
+            }
+            return true;
+        } finally {
+            if (is_file($temporary)) {
+                @unlink($temporary); // nosemgrep: php.lang.security.unlink-use.unlink-use -- random name created above
+            }
+            if ($locked) {
+                SitemapCache::releasePublishLock();
+            }
+        }
+    }
+
+    /** Why the last saveTo() did not publish (a SKIP_* constant), or null. */
+    public function getLastSkipReason(): ?string
+    {
+        return $this->lastSkipReason;
+    }
+
+    /**
+     * Private mode as stored right now: the database row the settings save
+     * writes, not a cache loaded earlier in this process. Unreadable counts as
+     * on, so a failure to check never publishes.
+     */
+    protected function privateModeEnabledNow(): bool
+    {
+        try {
+            if ((new \App\Models\SettingsRepository($this->db))->get('advanced', 'private_mode', '0') === '1') {
+                return true;
+            }
+            return (string) ConfigStore::get('advanced.private_mode', '0') === '1';
+        } catch (\Throwable $exception) {
+            SecureLogger::error('SitemapGenerator: private mode could not be read, sitemap not published: ' . $exception->getMessage());
+            return true;
         }
     }
 

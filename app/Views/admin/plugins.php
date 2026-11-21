@@ -1135,30 +1135,33 @@ unset($workspaceHeader);
         // Search indexes beyond ISBN (title, author, any: copy cataloguing)
         // have no input of their own: they ride on the row and are saved back.
         row.dataset.indexes = JSON.stringify(server.indexes && typeof server.indexes === 'object' ? server.indexes : {});
+        // Translations enter this template literal as JSON strings passed through
+        // escapeHtml(): raw PHP here would let a translated backtick or placeholder
+        // opener run as script, and an unescaped quote would close the attribute.
         row.innerHTML = `
         <div class="grid grid-cols-1 md:grid-cols-12 gap-4">
             <div class="md:col-span-3">
-                <label class="block text-xs font-medium text-gray-500 mb-1"><?= __("Nome Server") ?></label>
-                <input type="text" name="server_name[]" value="${safeName}" placeholder="<?= htmlspecialchars(__('es. SBN Nazionale'), ENT_QUOTES, 'UTF-8') ?>" class="w-full rounded-lg border-gray-300 text-sm focus:ring-indigo-500 focus:border-indigo-500">
+                <label class="block text-xs font-medium text-gray-500 mb-1">${escapeHtml(<?= json_encode(__("Nome Server"), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>)}</label>
+                <input type="text" name="server_name[]" value="${safeName}" placeholder="${escapeHtml(<?= json_encode(__('es. SBN Nazionale'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>)}" class="w-full rounded-lg border-gray-300 text-sm focus:ring-indigo-500 focus:border-indigo-500">
             </div>
             <div class="md:col-span-3">
-                <label class="block text-xs font-medium text-gray-500 mb-1"><?= __("URL Endpoint SRU") ?></label>
+                <label class="block text-xs font-medium text-gray-500 mb-1">${escapeHtml(<?= json_encode(__("URL Endpoint SRU"), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>)}</label>
                 <input type="url" name="server_url[]" value="${safeUrl}" placeholder="http://opac.sbn.it/sru" class="w-full rounded-lg border-gray-300 text-sm focus:ring-indigo-500 focus:border-indigo-500 font-mono">
             </div>
             <div class="md:col-span-1">
-                <label class="block text-xs font-medium text-gray-500 mb-1"><?= __("Database") ?></label>
+                <label class="block text-xs font-medium text-gray-500 mb-1">${escapeHtml(<?= json_encode(__("Database"), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>)}</label>
                 <input type="text" name="server_db[]" value="${safeDb}" placeholder="nopac" class="w-full rounded-lg border-gray-300 text-sm focus:ring-indigo-500 focus:border-indigo-500">
             </div>
             <div class="md:col-span-1">
-                <label class="block text-xs font-medium text-gray-500 mb-1"><?= __("Versione SRU") ?></label>
+                <label class="block text-xs font-medium text-gray-500 mb-1">${escapeHtml(<?= json_encode(__("Versione SRU"), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>)}</label>
                 <input type="text" name="server_version[]" value="${safeVersion}" placeholder="1.1" class="w-full rounded-lg border-gray-300 text-sm focus:ring-indigo-500 focus:border-indigo-500 font-mono">
             </div>
             <div class="md:col-span-2">
-                <label class="block text-xs font-medium text-gray-500 mb-1"><?= __("Indice ISBN") ?></label>
-                <input type="text" name="server_isbn_index[]" value="${safeIsbnIndex}" placeholder="<?= htmlspecialchars(__('es. bath.isbn'), ENT_QUOTES, 'UTF-8') ?>" class="w-full rounded-lg border-gray-300 text-sm focus:ring-indigo-500 focus:border-indigo-500 font-mono">
+                <label class="block text-xs font-medium text-gray-500 mb-1">${escapeHtml(<?= json_encode(__("Indice ISBN"), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>)}</label>
+                <input type="text" name="server_isbn_index[]" value="${safeIsbnIndex}" placeholder="${escapeHtml(<?= json_encode(__('es. bath.isbn'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>)}" class="w-full rounded-lg border-gray-300 text-sm focus:ring-indigo-500 focus:border-indigo-500 font-mono">
             </div>
             <div class="md:col-span-2">
-                <label class="block text-xs font-medium text-gray-500 mb-1"><?= __("Sintassi") ?></label>
+                <label class="block text-xs font-medium text-gray-500 mb-1">${escapeHtml(<?= json_encode(__("Sintassi"), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>)}</label>
                 <select name="server_syntax[]" class="w-full rounded-lg border-gray-300 text-sm focus:ring-indigo-500 focus:border-indigo-500">
                     <option value="marcxml" ${safeSyntax === 'marcxml' ? 'selected' : ''}>MARCXML</option>
                     <option value="unimarcxchange" ${safeSyntax === 'unimarcxchange' ? 'selected' : ''}>UNIMARC/MARCXchange</option>
@@ -1173,11 +1176,11 @@ unset($workspaceHeader);
         <div class="mt-2 flex items-center gap-2">
             <label class="text-xs text-gray-500 flex items-center gap-2">
                 <input type="checkbox" name="server_quote_terms[]" value="1" ${quoteTerms} class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
-                <?= __("Racchiudi il termine di ricerca tra virgolette CQL (es. BnF)") ?>
+                ${escapeHtml(<?= json_encode(__("Racchiudi il termine di ricerca tra virgolette CQL (es. BnF)"), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>)}
             </label>
         </div>
         <div class="absolute top-2 right-2 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-            <button type="button" aria-label="<?= htmlspecialchars(__('Elimina server'), ENT_QUOTES, 'UTF-8') ?>" onclick="this.closest('.z39-server-row').remove(); checkEmptyServers();" class="btn-icon btn-danger-outline text-red-500 hover:text-red-700 p-2">
+            <button type="button" aria-label="${escapeHtml(<?= json_encode(__('Elimina server'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>)}" onclick="this.closest('.z39-server-row').remove(); checkEmptyServers();" class="btn-icon btn-danger-outline text-red-500 hover:text-red-700 p-2">
                 <i class="fas fa-trash"></i>
             </button>
         </div>
@@ -1406,7 +1409,7 @@ unset($workspaceHeader);
         formData.append('plugin_file', selectedFile.data);
 
         this.disabled = true;
-        this.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>' + <?= json_encode(__("Installazione in corso..."), JSON_HEX_TAG) ?>;
+        this.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>' + <?= json_encode(htmlspecialchars(__("Installazione in corso..."), ENT_QUOTES, 'UTF-8'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
 
         try {
             const response = await fetch(window.BASE_PATH + '/admin/plugins/upload', {
@@ -1442,7 +1445,7 @@ unset($workspaceHeader);
             });
         } finally {
             this.disabled = false;
-            this.innerHTML = '<i class="fas fa-upload mr-2"></i>' + <?= json_encode(__("Installa Plugin"), JSON_HEX_TAG) ?>;
+            this.innerHTML = '<i class="fas fa-upload mr-2"></i>' + <?= json_encode(htmlspecialchars(__("Installa Plugin"), ENT_QUOTES, 'UTF-8'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
         }
     });
 
@@ -1736,9 +1739,9 @@ unset($workspaceHeader);
         const apiKeyHelper = document.getElementById('apiKeyHelper');
         if (apiKeyHelper) {
             if (hasConfig) {
-                apiKeyHelper.innerHTML = '<i class="fas fa-info-circle mr-1"></i>' + <?= json_encode(__("Lascia vuoto per mantenere la chiave esistente. Inserisci un nuovo valore per aggiornarla."), JSON_HEX_TAG) ?>;
+                apiKeyHelper.innerHTML = '<i class="fas fa-info-circle mr-1"></i>' + <?= json_encode(htmlspecialchars(__("Lascia vuoto per mantenere la chiave esistente. Inserisci un nuovo valore per aggiornarla."), ENT_QUOTES, 'UTF-8'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
             } else {
-                apiKeyHelper.innerHTML = '<i class="fas fa-shield-alt mr-1"></i>' + <?= json_encode(__("L'API key viene criptata con AES-256-GCM prima di essere salvata."), JSON_HEX_TAG) ?>;
+                apiKeyHelper.innerHTML = '<i class="fas fa-shield-alt mr-1"></i>' + <?= json_encode(htmlspecialchars(__("L'API key viene criptata con AES-256-GCM prima di essere salvata."), ENT_QUOTES, 'UTF-8'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
             }
         }
 

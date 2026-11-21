@@ -864,8 +864,10 @@ class ReservationReassignmentService
             'libro_isbn' => $isbn,
             'data_inizio' => $data['data_prestito'] ? $this->notificationService->formatEmailDate((string) $data['data_prestito'], false, $recipientLocale) : '',
             'data_fine' => $data['data_scadenza'] ? $this->notificationService->formatEmailDate(\App\Support\LibraryCalendar::dueDate($this->db, (string) $data['data_scadenza'], $data['copia_id'] !== null ? (int) $data['copia_id'] : null), false, $recipientLocale) : '',
-            'book_url' => absoluteUrl($bookLink),
-            'profile_url' => absoluteUrl(RouteTranslator::route('profile'))
+            // Emailed links: TrustedLink, never the request Host; null
+            // becomes a plain-text pointer (EmailService).
+            'book_url' => \App\Support\TrustedLink::fromAppUrl($bookLink),
+            'profile_url' => \App\Support\TrustedLink::build(RouteTranslator::route('profile'))
         ];
 
         $sent = $this->notificationService->sendReservationBookAvailable($data['email'], $variables);

@@ -54,13 +54,16 @@ $h1 = (string) @file_get_contents("$d/.htaccess");
 $check(strpos($h1, 'RewriteRule ^(.*)$ public/$1') !== false,
     'no file: writes "RewriteRule ^(.*)\$ public/\$1"');
 
-// 2. installer/scripts are excluded from the rewrite (served directly).
-$check(strpos($h1, '(^|/)installer(/|$)') !== false,
-    'no file: keeps installer exclusion');
+// 2. installer/scripts are excluded from the rewrite (served directly), with an
+//    anchored per-directory rule that PATH_INFO cannot satisfy (security audit 2026-11).
+$check(strpos($h1, 'RewriteRule ^installer(/|$) - [NC,L]') !== false
+    && strpos($h1, '%{REQUEST_URI} (^|/)installer') === false,
+    'no file: keeps an anchored installer exclusion');
 
-// 3. calendar .ics files are served directly.
-$check(strpos($h1, '/storage/calendar/') !== false && strpos($h1, '.ics') !== false,
-    'no file: keeps .ics calendar exclusion');
+// 3. calendar .ics files are NOT served directly: the app answers the legacy URL
+//    so private mode applies to it (security audit 2026-11).
+$check(preg_match('/RewriteCond[^\n]*storage\/calendar/', $h1) !== 1,
+    'no file: no static .ics calendar exclusion');
 
 // 4. sensitive root files are blocked.
 $check(strpos($h1, '<FilesMatch') !== false && strpos($h1, '.env') !== false,

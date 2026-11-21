@@ -391,10 +391,13 @@ document.addEventListener('DOMContentLoaded', function() {
     return;
   }
 
-  // i18n constants for JS template literals (avoid raw PHP in template strings)
-  const i18nViewDetails = <?= json_encode(__("Visualizza dettagli"), JSON_HEX_TAG) ?>;
-  const i18nEdit = <?= json_encode(__("Modifica"), JSON_HEX_TAG) ?>;
-  const i18nDelete = <?= json_encode(__("Elimina"), JSON_HEX_TAG) ?>;
+  // i18n constants for JS template literals (avoid raw PHP in template strings).
+  // These three land in title="…"/aria-label="…" of HTML assigned via innerHTML,
+  // so they are HTML-escaped here: json_encode() alone guards only the JS string,
+  // and a quote in a translation would close the attribute.
+  const i18nViewDetails = <?= json_encode(htmlspecialchars(__("Visualizza dettagli"), ENT_QUOTES, 'UTF-8'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+  const i18nEdit = <?= json_encode(htmlspecialchars(__("Modifica"), ENT_QUOTES, 'UTF-8'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+  const i18nDelete = <?= json_encode(htmlspecialchars(__("Elimina"), ENT_QUOTES, 'UTF-8'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
   // Only administrators may delete accounts (UsersController::delete refuses everyone else).
   const canDeleteUsers = <?= json_encode(($_SESSION['user']['tipo_utente'] ?? '') === 'admin') ?>;
   const i18nSelect = <?= json_encode(__("Seleziona"), JSON_HEX_TAG) ?>;

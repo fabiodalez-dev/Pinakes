@@ -63,6 +63,24 @@ class EmailService {
         'calendar_links' => 'sezione_calendario',
     ];
 
+    /**
+     * Link placeholders whose URL is built with TrustedLink, and the plain-text
+     * pointer (Italian source string, translated in the recipient's locale)
+     * that replaces the button when the caller passes null for it because no
+     * host the operator configured is available. A link in an email must never
+     * take its host from the request.
+     */
+    public const LINK_FALLBACK_POINTERS = [
+        'admin_users_url' => "Per gestire la richiesta apri l'area di amministrazione e vai su Utenti.",
+        'approve_url' => "Per gestire la richiesta apri l'area di amministrazione e vai su Prestiti.",
+        'link_approvazione' => "Per moderarla apri l'area di amministrazione e vai su Recensioni.",
+        'login_url' => "Per accedere apri il sito della biblioteca e scegli Accedi.",
+        'book_url' => 'Trovi il libro nel catalogo sul sito della biblioteca.',
+        'wishlist_url' => 'La tua lista dei desideri è nel tuo profilo sul sito della biblioteca.',
+        'profile_url' => 'Le tue prenotazioni sono nel tuo profilo sul sito della biblioteca.',
+        'dashboard_url' => "Dopo aver impostato la password apri l'area di amministrazione dal sito della biblioteca.",
+    ];
+
     private PHPMailer $mailer;
     private mysqli $db;
 
@@ -180,13 +198,110 @@ class EmailService {
             // Il subject è un header MIME, non HTML: niente escaping HTML
             // (verrebbe mostrato letteralmente, es. "L&#039;isola"), ma le
             // variabili vanno sanificate contro header injection (CR/LF).
+            $body = self::dropUnavailableLinks((string) $template['body'], $variables, $locale);
             $subject = $this->replaceVariables($template['subject'], $variables, false);
-            $body = $this->replaceVariables($template['body'], $variables);
+            $body = $this->replaceVariables($body, $variables);
 
             return $this->sendEmail($to, $subject, $body, '', $locale, $attachments);
 
         } catch (\Throwable $e) {
-            error_log("Failed to send template email '{$templateName}' to {$to}: " . $e->getMessage());
+            SecureLogger::error("Failed to send template email '{$templateName}': " . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * For every link placeholder of LINK_FALLBACK_POINTERS whose variable is
+     * null (no trusted host to build it from), replace its button in the raw
+     * template body with the plain-text pointer, translated in $locale, and set
+     * the variable to ''. Runs before substitution, so it sees placeholders,
+     * never user data. A null survives the email outbox (JSON), so a retried
+     * email is rendered the same way.
+     *
+     * @param array<string, mixed> $variables
+     */
+    public static function dropUnavailableLinks(string $body, array &$variables, ?string $locale): string
+    {
+        foreach ($variables as $key => $value) {
+            if ($value !== null) {
+                continue;
+            }
+            $variables[$key] = '';
+            $name = self::PLACEHOLDER_ALIASES[$key] ?? (string) $key;
+            if (!isset(self::LINK_FALLBACK_POINTERS[$name])) {
+                continue;
+            }
+            $names = [$name];
+            $alias = array_search($name, self::PLACEHOLDER_ALIASES, true);
+            if (is_string($alias)) {
+                $names[] = $alias;
+            }
+            $current = I18n::getLocale();
+            try {
+                if ($locale !== null && $locale !== '') {
+                    I18n::setLocale($locale);
+                }
+                $pointer = __(self::LINK_FALLBACK_POINTERS[$name]);
+            } finally {
+                I18n::setLocale($current);
+            }
+            $body = self::replaceLinkPlaceholder($body, $names, $pointer);
+        }
+        return $body;
+    }
+
+    /**
+     * Replace the link(s) whose href carries one of the $names placeholders
+     * with the plain-text $pointer (escaped) — once, at the first link; later
+     * links to the same placeholder are dropped. A stray placeholder elsewhere
+     * is emptied; a template without such a link gets the pointer appended.
+     *
+     * @param list<string> $names
+     */
+    public static function replaceLinkPlaceholder(string $templateBody, array $names, string $pointer): string
+    {
+        $text = htmlspecialchars($pointer, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $quoted = implode('|', array_map(static fn (string $n): string => preg_quote($n, '#'), $names));
+        $placeholder = '(?:\{\{|%7B%7B)\s*(?:' . $quoted . ')\s*(?:\}\}|%7D%7D)';
+        $count = 0;
+        $body = preg_replace_callback(
+            '#<a\b[^>]*\bhref\s*=\s*["\']?[^"\'>]*' . $placeholder . '[^>]*>.*?</a>#is',
+            static function () use (&$count, $text): string {
+                return $count++ === 0 ? $text : '';
+            },
+            $templateBody
+        );
+        if (!is_string($body)) {
+            $body = $templateBody;
+            $count = 0;
+        }
+        $body = (string) preg_replace('#' . $placeholder . '#i', '', $body);
+        if ($count === 0 && $text !== '') {
+            $body .= '<p>' . $text . '</p>';
+        }
+        return $body;
+    }
+
+    /**
+     * sendTemplate() with $bodyFilter applied to the template body BEFORE the
+     * variables are substituted, so the filter sees the placeholders (e.g. to
+     * drop a link whose URL cannot be built) and never user data.
+     *
+     * @param callable(string): string $bodyFilter
+     */
+    public function sendTemplateWithBodyFilter(string $to, string $templateName, array $variables, ?string $locale, callable $bodyFilter): bool {
+        try {
+            $template = $this->getEmailTemplate($templateName, $locale);
+            if (!$template) {
+                throw new Exception("Template '{$templateName}' not found");
+            }
+            $body = self::dropUnavailableLinks($bodyFilter((string) $template['body']), $variables, $locale);
+            $subject = $this->replaceVariables($template['subject'], $variables, false);
+            $body = $this->replaceVariables($body, $variables);
+
+            return $this->sendEmail($to, $subject, $body, '', $locale);
+        } catch (\Throwable $e) {
+            SecureLogger::error("Failed to send template email '{$templateName}': " . $e->getMessage());
             return false;
         }
     }

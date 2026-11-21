@@ -102,6 +102,16 @@ $display = static function (?string $value, string $placeholder = '—'): string
     </div>
   <?php endif; ?>
 
+  <?php if ($error === 'no_trusted_host'): ?>
+    <div class="bg-amber-50 border border-amber-200 rounded-lg p-4 flex items-start gap-3" role="alert">
+      <i class="fas fa-info-circle text-amber-600 mt-0.5"></i>
+      <div>
+        <p class="font-medium text-amber-900"><?= __("Email di attivazione non inviata") ?></p>
+        <p class="text-sm text-amber-700 mt-1"><?= __("L'indirizzo del sito non è configurato (APP_CANONICAL_URL o APP_TRUSTED_HOSTS), quindi il link di verifica non può essere inviato. L'utente è ancora sospeso: attivalo con \"Attiva utente\", oppure imposta APP_CANONICAL_URL.") ?></p>
+      </div>
+    </div>
+  <?php endif; ?>
+
   <?php if ($error === 'db_error'): ?>
     <div class="bg-red-50 border border-red-200 rounded-lg p-4 flex items-start gap-3" role="alert">
       <i class="fas fa-exclamation-triangle text-red-600 mt-0.5"></i>
@@ -353,7 +363,9 @@ unset($workspaceHeader);
   </section>
   <?php endif; ?>
 
-  <?php if ($stato === 'sospeso'): ?>
+  <?php // Staff and user managers approve reader accounts only; an operator account in
+        // 'sospeso' is an administrator's lockout (UsersController::canChangeAccountState). ?>
+  <?php if ($stato === 'sospeso' && !empty($canChangeAccountState)): ?>
   <!-- Approval Actions -->
   <section class="bg-amber-50 border border-amber-200 rounded-lg p-6">
     <div class="flex items-center gap-2 mb-4">

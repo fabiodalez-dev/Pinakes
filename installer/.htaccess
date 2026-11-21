@@ -4,11 +4,12 @@
     RewriteEngine On
     RewriteBase /installer/
 
-    # Block access if .installed file exists (allow ?force parameter for reinstall)
-    RewriteCond %{DOCUMENT_ROOT}/.installed -f
-    RewriteCond %{REQUEST_URI} !force [NC]
-    RewriteCond %{QUERY_STRING} !force [NC]
-    RewriteRule ^(.*)$ / [L,R=302]
+    # No redirect on .installed here. installer/index.php answers an installed
+    # site itself ("already installed" page, ?force=1 behind an active admin,
+    # every request re-authenticated), on every layout. This rule only ever
+    # fired where the document root is the project root, and there it sent a
+    # ?force=1 reinstall's later requests (index.php?step=N, which carry no
+    # "force") back to /, so the reinstall broke at its first form.
 
     # Allow access to assets (CSS, JS, images)
     RewriteCond %{REQUEST_FILENAME} !-f

@@ -98,12 +98,68 @@ class LibraryThingImportController
      */
     private function safeUnlinkImportTmp(string $path): void
     {
-        $allowed = realpath(sys_get_temp_dir() . '/librarything_imports');
+        $allowed = realpath(self::stagingDirectory());
         $real = realpath($path);
         if ($allowed !== false && $real !== false && str_starts_with($real, $allowed . DIRECTORY_SEPARATOR)) {
             // $real is realpath-confined to the import scratch dir above; path is server-generated (uniqid).
             @unlink($real); // nosemgrep
         }
+    }
+
+    /**
+     * Where uploaded LibraryThing files wait between the prepare request and the
+     * last chunk. It is inside the install (storage/tmp), never the host-shared
+     * sys_get_temp_dir(): there a co-tenant could read the upload, or swap it
+     * between two chunk requests and rewrite existing catalogue records.
+     */
+    public static function stagingDirectory(): string
+    {
+        return dirname(__DIR__, 2) . '/storage/tmp/librarything_imports';
+    }
+
+    /**
+     * Create (0700) or verify the staging directory. Returns its path, or null
+     * when it is a symlink, not a directory, or owned by another OS user.
+     */
+    private static function ensureStagingDirectory(): ?string
+    {
+        $dir = self::stagingDirectory();
+        if (!is_dir($dir) && !is_link($dir)) {
+            @mkdir($dir, 0700, true);
+        }
+        if (is_link($dir) || !is_dir($dir)) {
+            return null;
+        }
+        if (function_exists('posix_geteuid')) {
+            $owner = @fileowner($dir);
+            if ($owner === false || $owner !== posix_geteuid()) {
+                return null;
+            }
+        }
+        $perms = @fileperms($dir);
+        if ($perms !== false && ($perms & 0077) !== 0) {
+            @chmod($dir, 0700);
+        }
+        return $dir;
+    }
+
+    /**
+     * True when $path is still the exact file prepareImport() staged: a regular
+     * file (not a link) inside the staging directory whose SHA-256 matches the
+     * digest recorded in the session at upload time.
+     */
+    public static function stagedFileIsIntact(string $path, string $expectedSha256): bool
+    {
+        if ($path === '' || $expectedSha256 === '' || is_link($path) || !is_file($path)) {
+            return false;
+        }
+        $dir = realpath(self::stagingDirectory());
+        $real = realpath($path);
+        if ($dir === false || $real === false || !str_starts_with($real, $dir . DIRECTORY_SEPARATOR)) {
+            return false;
+        }
+        $actual = @hash_file('sha256', $real);
+        return is_string($actual) && hash_equals($expectedSha256, $actual);
     }
 
     /**
@@ -221,15 +277,21 @@ class LibraryThingImportController
             return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
         }
 
-        // Save to temporary location
-        $tmpDir = sys_get_temp_dir() . '/librarything_imports';
-        if (!is_dir($tmpDir)) {
-            mkdir($tmpDir, 0755, true);
+        // Save to the install-owned staging directory (0700, files 0600)
+        $tmpDir = self::ensureStagingDirectory();
+        if ($tmpDir === null) {
+            \App\Support\SecureLogger::error('[LT][prepare] staging directory missing, a symlink or not owned by the PHP user', ['dir' => self::stagingDirectory()]);
+            $response->getBody()->write(json_encode([
+                'success' => false,
+                'error' => __('Impossibile preparare il file LibraryThing')
+            ], JSON_THROW_ON_ERROR));
+            return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
         }
 
         $importId = uniqid('lt_', true);
         $savedPath = $tmpDir . '/' . $importId . '.tsv';
         $uploadedFile->moveTo($savedPath);
+        @chmod($savedPath, 0600);
 
         // Validate format and count rows
         try {
@@ -249,10 +311,18 @@ class LibraryThingImportController
             // Count rows (header excluded; trailing empty line is not counted)
             $totalRows = max(0, count($reader) - 1);
 
+            // Bind the staged file to this session: every chunk re-checks the
+            // digest, so a file replaced between requests is never imported.
+            $fileSha256 = hash_file('sha256', $savedPath);
+            if (!is_string($fileSha256)) {
+                throw new \RuntimeException('Cannot hash the staged LibraryThing file');
+            }
+
             // Initialize session data
             $_SESSION['librarything_import'] = [
                 'import_id' => $importId,
                 'file_path' => $savedPath,
+                'file_sha256' => $fileSha256,
                 'original_filename' => $filename,
                 'total_rows' => $totalRows,
                 'enable_scraping' => !empty($data['enable_scraping']),
@@ -343,8 +413,20 @@ class LibraryThingImportController
         }
 
         $importData = &$_SESSION['librarything_import'];
-        $filePath = $importData['file_path'];
+        $filePath = (string) ($importData['file_path'] ?? '');
         $enableScraping = $importData['enable_scraping'];
+
+        // The staged file must be the one uploaded in prepareImport(): same
+        // place, not a symlink, same SHA-256. Anything else is refused before a
+        // single row reaches the catalogue.
+        if (!self::stagedFileIsIntact($filePath, (string) ($importData['file_sha256'] ?? ''))) {
+            \App\Support\SecureLogger::warning('[LT][processChunk] staged file failed the integrity check', ['import_id' => $importId]);
+            $response->getBody()->write(json_encode([
+                'success' => false,
+                'error' => __('Il file da importare è stato modificato o non è più disponibile. Caricalo di nuovo.')
+            ], JSON_THROW_ON_ERROR));
+            return $response->withHeader('Content-Type', 'application/json')->withStatus(409);
+        }
 
         // Scraping is slow (one external lookup per row): force a single row per
         // chunk so the request stays well under the fetch/server timeout.

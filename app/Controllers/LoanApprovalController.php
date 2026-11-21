@@ -148,6 +148,57 @@ class LoanApprovalController
         return $response;
     }
 
+    /**
+     * Borrower scope on the approval desk's writes (Permissions::mayActOnBorrower):
+     * a custom role acts only on loans and reservations of accounts in its scope.
+     * Null when the row is in scope or does not exist (the handler's own lookup
+     * answers that); otherwise the JSON "not found" response, as if absent.
+     */
+    private function outOfBorrowerScope(mysqli $db, Response $response, string $table, int $id): ?Response
+    {
+        $sql = $table === 'prenotazioni'
+            ? 'SELECT utente_id FROM prenotazioni WHERE id = ?'
+            : 'SELECT utente_id FROM prestiti WHERE id = ?';
+        try {
+            $stmt = $db->prepare($sql);
+            $stmt->bind_param('i', $id);
+            $stmt->execute();
+            $row = $stmt->get_result()->fetch_assoc();
+            $stmt->close();
+        } catch (\Throwable $e) {
+            $row = ['utente_id' => 0]; // cannot check: fail closed below
+        }
+        if (!is_array($row) || \App\Support\Permissions::mayActOnBorrower($db, (int) $row['utente_id'])) {
+            return null;
+        }
+        return $this->scopeNotFound($response, $table);
+    }
+
+    /**
+     * outOfBorrowerScope() reads the owner before the transaction, and a loan can
+     * be handed to another account between that read and the row lock. The writes
+     * that lock the row ask again about the account it holds NOW; out of scope,
+     * the transaction is rolled back and the answer is "not found", as above.
+     * Null when it is in scope.
+     *
+     * @param array<string, mixed> $row the row read FOR UPDATE, with its utente_id
+     */
+    private function lockedRowOutOfScope(mysqli $db, Response $response, array $row, string $table): ?Response
+    {
+        if (\App\Support\Permissions::mayActOnBorrower($db, (int) ($row['utente_id'] ?? 0), true)) {
+            return null;
+        }
+        $db->rollback();
+        return $this->scopeNotFound($response, $table);
+    }
+
+    private function scopeNotFound(Response $response, string $table): Response
+    {
+        $message = $table === 'prenotazioni' ? __('Prenotazione non trovata.') : __('Prestito non trovato');
+        $response->getBody()->write(json_encode(['success' => false, 'message' => $message]));
+        return $response->withHeader('Content-Type', 'application/json')->withStatus(404);
+    }
+
     public function approveLoan(Request $request, Response $response, mysqli $db): Response
     {
         $data = $request->getParsedBody();
@@ -167,6 +218,10 @@ class LoanApprovalController
         if ($loanId <= 0) {
             $response->getBody()->write(json_encode(['success' => false, 'message' => __('ID prestito non valido')]));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+        }
+        // (An automatic approval is the system acting on the requester's own loan.)
+        if (!$automaticApproval && ($scopeDenied = $this->outOfBorrowerScope($db, $response, 'prestiti', $loanId))) {
+            return $scopeDenied;
         }
 
         try {
@@ -244,6 +299,11 @@ class LoanApprovalController
 
             $loan = $result->fetch_assoc();
             $stmt->close();
+
+            // The owner may have changed since the scope check above: ask again about the locked row.
+            if (!$automaticApproval && ($scopeDenied = $this->lockedRowOutOfScope($db, $response, $loan, 'prestiti'))) {
+                return $scopeDenied;
+            }
 
             // Snapshot AFTER the FOR UPDATE lock: taken earlier it could
             // capture a concurrent transition and misattribute the diff.
@@ -741,6 +801,9 @@ class LoanApprovalController
             $response->getBody()->write(json_encode(['success' => false, 'message' => __('ID prestito non valido')]));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
         }
+        if ($scopeDenied = $this->outOfBorrowerScope($db, $response, 'prestiti', $loanId)) {
+            return $scopeDenied;
+        }
 
         // Canonical lock order: resolve the book without locking, lock `libri`
         // first, then lock the pending loan. DataIntegrity locks the same book
@@ -811,6 +874,11 @@ class LoanApprovalController
                     'message' => __('Prestito non trovato o già processato')
                 ]));
                 return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+            }
+
+            // The owner may have changed since the scope check above: ask again about the locked row.
+            if ($scopeDenied = $this->lockedRowOutOfScope($db, $response, $loan, 'prestiti')) {
+                return $scopeDenied;
             }
 
             if ((int) $loan['libro_id'] !== $bookId) {
@@ -939,6 +1007,9 @@ class LoanApprovalController
             $response->getBody()->write(json_encode(['success' => false, 'message' => __('ID prestito non valido')]));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
         }
+        if ($scopeDenied = $this->outOfBorrowerScope($db, $response, 'prestiti', $loanId)) {
+            return $scopeDenied;
+        }
 
         try {
             $db->begin_transaction();
@@ -995,6 +1066,11 @@ class LoanApprovalController
                     'message' => __('Prestito non trovato o non pronto per il ritiro')
                 ]));
                 return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+            }
+
+            // The owner may have changed since the scope check above: ask again about the locked row.
+            if ($scopeDenied = $this->lockedRowOutOfScope($db, $response, $loan, 'prestiti')) {
+                return $scopeDenied;
             }
 
             // Re-verifica TOCTOU: la lettura iniziale era non bloccante per preservare
@@ -1218,6 +1294,9 @@ class LoanApprovalController
             $response->getBody()->write(json_encode(['success' => false, 'message' => __('ID prestito non valido')]));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
         }
+        if ($scopeDenied = $this->outOfBorrowerScope($db, $response, 'prestiti', $loanId)) {
+            return $scopeDenied;
+        }
 
         try {
             $today = DateHelper::today();
@@ -1279,6 +1358,11 @@ class LoanApprovalController
                     'message' => __('Prestito non trovato o non cancellabile')
                 ]));
                 return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+            }
+
+            // The owner may have changed since the scope check above: ask again about the locked row.
+            if ($scopeDenied = $this->lockedRowOutOfScope($db, $response, $loan, 'prestiti')) {
+                return $scopeDenied;
             }
 
             // Re-verifica TOCTOU: se libro_id è cambiato tra la lettura non bloccante e
@@ -1687,6 +1771,9 @@ class LoanApprovalController
             $response->getBody()->write(json_encode(['success' => false, 'message' => __('ID prenotazione non valido')]));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
         }
+        if ($scopeDenied = $this->outOfBorrowerScope($db, $response, 'prenotazioni', $reservationId)) {
+            return $scopeDenied;
+        }
 
         try {
             $db->begin_transaction();
@@ -1723,7 +1810,7 @@ class LoanApprovalController
             // rejectLoan; niente filtro deleted_at sul libro (vedi sopra).
             // CI-SOFT-DELETE-EXEMPT: cancellation notification needs the deleted book title for the affected user.
             $stmt = $db->prepare("
-                SELECT r.libro_id, l.titolo as libro_titolo,
+                SELECT r.libro_id, r.utente_id, l.titolo as libro_titolo,
                        CONCAT(u.nome, ' ', u.cognome) as utente_nome, u.email as utente_email
                 FROM prenotazioni r
                 JOIN libri l ON r.libro_id = l.id
@@ -1744,6 +1831,11 @@ class LoanApprovalController
                     'message' => __('Prenotazione non trovata o già annullata')
                 ]));
                 return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+            }
+
+            // The owner may have changed since the scope check above: ask again about the locked row.
+            if ($scopeDenied = $this->lockedRowOutOfScope($db, $response, $reservation, 'prenotazioni')) {
+                return $scopeDenied;
             }
 
             // Snapshot AFTER the FOR UPDATE lock: taken earlier it could
