@@ -9373,5 +9373,7 @@
   "Prenotazione non trovata o non modificabile con il tuo ruolo.": "Réservation introuvable, ou votre rôle ne permet pas de la modifier.",
   "Prestito non trovato o non modificabile con il tuo ruolo.": "Prêt introuvable, ou votre rôle ne permet pas de le modifier.",
   "Questa sessione non può importare lo schema: l'installazione è in corso in un altro browser oppure il database non è vuoto. Riprendi l'installazione dal browser che l'ha iniziata, oppure ricomincia dal passo 2 con un database vuoto.": "Cette session ne peut pas importer le schéma : l'installation est en cours dans un autre navigateur, ou la base de données n'est pas vide. Reprenez l'installation depuis le navigateur qui l'a commencée, ou recommencez à l'étape 2 avec une base de données vide.",
-  "Questa iscrizione è già stata modificata da un'altra operazione: la pagina mostra lo stato attuale.": "Cette adhésion a déjà été modifiée par une autre opération : la page affiche son état actuel."
+  "Questa iscrizione è già stata modificata da un'altra operazione: la pagina mostra lo stato attuale.": "Cette adhésion a déjà été modifiée par une autre opération : la page affiche son état actuel.",
+  "Impossibile registrare il tentativo di accesso: la cartella storage/cache/installer-login non è scrivibile. Verifica i permessi della cartella storage/ sul server.": "Impossible d'enregistrer la tentative de connexion : le dossier storage/cache/installer-login n'est pas accessible en écriture. Vérifiez les permissions du dossier storage/ sur le serveur.",
+  "Il database configurato non risponde come previsto. Il dettaglio dell'errore è nel log del server.": "La base de données configurée ne répond pas comme prévu. Le détail de l'erreur se trouve dans le journal du serveur."
 }
