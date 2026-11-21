@@ -197,6 +197,17 @@ try {
         'a directory that cannot be created keeps the writable-storage message');
     $check(str_contains(substr($source, $start, $end - $start), "if (\$euid === null) {"),
         'an unknown process user (no posix, no probe) fails closed instead of skipping the owner check');
+    echo "D3. Without posix the process user is probed inside the install\n";
+    $me = function_exists('posix_geteuid') ? posix_geteuid() : getmyuid();
+    $probeRoot = $mkRoot('siteProbe');
+    mkdir($probeRoot . '/storage/cache', 0500);
+    $owner = upgradeProbeFileOwner([$tmp . '/no/such/dir', $probeRoot . '/storage/cache', $probeRoot . '/storage']);
+    $check($owner === $me, 'an unusable directory is skipped and the next one inside the install answers (open_basedir-safe)');
+    $check(glob($probeRoot . '/storage/.pinakes_uid_*') === [] && glob($probeRoot . '/storage/cache/.pinakes_uid_*') === [], 'and the probe file is removed');
+    chmod($probeRoot . '/storage/cache', 0700);
+    $check(upgradeProbeFileOwner([$tmp . '/no/such/dir']) === null, 'no usable directory: the user stays unknown');
+    $msg = upgradeAuthUnavailableMessage('uid_unknown', $probeRoot);
+    $check(str_contains($msg, 'posix') && !str_contains($msg, $probeRoot), 'an unknown user gets its own message, naming the posix extension');
     $rootRoot = $mkRoot('siteRoot');
     $problem = null;
     $check(upgradeAuthStateDir($rootRoot, $problem, 0) === null && !file_exists($rootRoot . '/storage/cache'),

@@ -616,20 +616,51 @@ function copyTree(string $src, string $dst, string $rootDst, array $skipRelative
 /**
  * The user this PHP process runs as, or null when it cannot be told. Without
  * the posix extension (not among the documented requirements) it is read from
- * the owner of a file this process creates.
+ * the owner of a file this process creates: first inside the install
+ * (storage/cache, then storage), which open_basedir always allows, and only
+ * then in the system temp dir.
  */
-function upgradeEffectiveUid(): ?int
+function upgradeEffectiveUid(?string $rootPath = null): ?int
 {
     if (function_exists('posix_geteuid')) {
         return posix_geteuid();
     }
-    $probe = @tempnam(sys_get_temp_dir(), 'pinakes_uid_');
-    if ($probe === false) {
-        return null;
+    $dirs = [];
+    if ($rootPath !== null) {
+        $base = rtrim(str_replace('\\', '/', $rootPath), '/');
+        $dirs[] = $base . '/storage/cache';
+        $dirs[] = $base . '/storage';
     }
-    $owner = @fileowner($probe);
-    @unlink($probe);
-    return $owner === false ? null : $owner;
+    $dirs[] = sys_get_temp_dir();
+    return upgradeProbeFileOwner($dirs);
+}
+
+/**
+ * Owner of a file created in the first of $dirs that accepts one (the file is
+ * removed again), or null when none does. Exclusive create: never a planted
+ * file or link.
+ *
+ * @param list<string> $dirs
+ */
+function upgradeProbeFileOwner(array $dirs): ?int
+{
+    foreach ($dirs as $dir) {
+        if (!is_dir($dir) || is_link($dir)) {
+            continue;
+        }
+        $probe = $dir . '/.pinakes_uid_' . bin2hex(random_bytes(8));
+        $handle = @fopen($probe, 'x');
+        if ($handle === false) {
+            continue;
+        }
+        $stat = @fstat($handle);
+        fclose($handle);
+        @unlink($probe);
+        if ($stat !== false) {
+            return (int) $stat['uid'];
+        }
+    }
+    return null;
 }
 
 /**
@@ -642,11 +673,11 @@ function upgradeAuthStateDir(string $rootPath, ?string &$problem = null, ?int $e
 {
     $problem = null;
     $dir = upgradeAuthStateDirPath($rootPath);
-    $euid ??= upgradeEffectiveUid();
+    $euid ??= upgradeEffectiveUid($rootPath);
     if ($euid === null) {
         // Ownership cannot be checked, so the directory cannot be trusted:
         // another account could own it and reset the counter.
-        $problem = 'unavailable';
+        $problem = 'uid_unknown';
         return null;
     }
     if (!is_dir($dir) && !is_link($dir)) {
@@ -711,6 +742,11 @@ function upgradeAuthUnavailableMessage(?string $problem, string $rootPath): stri
         return 'Protezione dai tentativi non disponibile: la cartella storage/cache/upgrade-auth'
             . ' appartiene a un altro utente (di solito perché lo script è stato eseguito come root).'
             . ' Eliminala, oppure assegnala all\'utente del web server con chown, poi riprova.';
+    }
+    if ($problem === 'uid_unknown') {
+        return 'Protezione dai tentativi non disponibile: non riesco a determinare l\'utente del web server'
+            . ' (manca l\'estensione PHP posix e non posso creare file di prova in storage/).'
+            . ' Abilita l\'estensione posix oppure rendi scrivibile storage/cache/ per l\'utente del web server, oppure esegui l\'aggiornamento da riga di comando.';
     }
     return 'Protezione dai tentativi non disponibile: rendi scrivibile storage/cache/ per l\'utente del web server, oppure esegui l\'aggiornamento da riga di comando.';
 }
