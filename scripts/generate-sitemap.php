@@ -2,6 +2,14 @@
 <?php
 declare(strict_types=1);
 
+// CLI only. Under a web SAPI any anonymous visitor could run this tool (the
+// unanchored installer exemption of the root .htaccess once let
+// /scripts/<file>.php/installer through). scripts/.htaccess denies it as well.
+if (PHP_SAPI !== 'cli') {
+    http_response_code(404);
+    exit;
+}
+
 use App\Controllers\SeoController;
 use App\Models\SettingsRepository;
 use App\Support\ConfigStore;
@@ -74,6 +82,31 @@ if ($mysqli->connect_error) {
 
 $mysqli->set_charset($charset);
 
+// Private mode puts the catalogue behind the login wall, but public/sitemap.xml
+// is served by the web server without running PHP (PrivateModeMiddleware never
+// sees it). Do not publish it while private mode is on, and withdraw any copy
+// published earlier, so /sitemap.xml keeps going through the gated route.
+// This early check only spares the generation; the guarantee is saveTo(), which
+// re-reads the flag under the publish lock before moving the file into public/.
+try {
+    $privateMode = (new SettingsRepository($mysqli))->get('advanced', 'private_mode', '0') === '1'
+        || (string) ConfigStore::get('advanced.private_mode', '0') === '1';
+} catch (Throwable $exception) {
+    fwrite(STDERR, 'Impossibile leggere la modalità privata: ' . $exception->getMessage() . "\n");
+    $mysqli->close();
+    exit(1);
+}
+if ($privateMode) {
+    if (!\App\Support\SitemapCache::withdraw('private mode is on (scripts/generate-sitemap.php)')) {
+        fwrite(STDERR, "Modalità privata attiva, ma public/sitemap.xml non può essere rimosso e resta accessibile: verificare i permessi di public/.\n");
+        $mysqli->close();
+        exit(1);
+    }
+    fwrite(STDOUT, "Modalità privata attiva: sitemap non pubblicata.\n");
+    $mysqli->close();
+    exit(0);
+}
+
 // Boot the plugin system the way public/index.php does. SitemapGenerator lets
 // active plugins add their own pages through the `sitemap.entries` filter, and
 // without a HookManager behind the Hooks facade — and the plugins loaded onto
@@ -97,7 +130,20 @@ try {
     $generator = new SitemapGenerator($mysqli, $baseUrl);
     $targetPath = \App\Support\SitemapCache::publishedPath();
 
-    $generator->saveTo($targetPath);
+    if (!$generator->saveTo($targetPath)) {
+        $skipReason = $generator->getLastSkipReason();
+        if ($skipReason === SitemapGenerator::SKIP_PRIVATE_MODE) {
+            fwrite(STDOUT, "Modalità privata attivata durante la generazione: sitemap non pubblicata.\n");
+        } elseif ($skipReason === SitemapGenerator::SKIP_REVISION_CHANGED) {
+            fwrite(STDOUT, "Impostazioni cambiate durante la generazione: sitemap non pubblicata. Rieseguire lo script.\n");
+        } else {
+            fwrite(STDERR, "Sitemap non pubblicata: storage/cache/ non è leggibile o scrivibile (contatore delle modifiche o lock). Verificare i permessi.\n");
+            $mysqli->close();
+            exit(1);
+        }
+        $mysqli->close();
+        exit(0);
+    }
     $stats = $generator->getStats();
 
     $repository = new SettingsRepository($mysqli);

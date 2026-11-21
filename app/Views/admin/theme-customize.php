@@ -345,16 +345,18 @@ function checkContrast() {
         const warning = document.getElementById('contrast-warning');
         const info = document.getElementById('contrast-info');
 
-        let html = `<p><strong><?= __("Contrasto") ?>:</strong> ${ratio}:1</p>`;
+        // Translations are emitted as HTML-escaped JS strings: raw PHP inside these
+        // literals would let a translated quote or backtick end the string and run.
+        let html = `<p><strong>${<?= json_encode(htmlspecialchars(__("Contrasto"), ENT_QUOTES, 'UTF-8'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>}:</strong> ${ratio}:1</p>`;
 
         if (passAA) {
-            html += '<p class="text-green-700 font-medium"><i class="fas fa-check-circle mr-1"></i> <?= __("WCAG AA Conforme") ?></p>';
+            html += '<p class="text-green-700 font-medium"><i class="fas fa-check-circle mr-1"></i> ' + <?= json_encode(htmlspecialchars(__("WCAG AA Conforme"), ENT_QUOTES, 'UTF-8'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?> + '</p>';
             warning.className = 'bg-green-50 border border-green-200 rounded-lg p-4';
         } else if (ratio >= 3.0) {
-            html += '<p class="text-yellow-700 font-medium"><?= __("AA Testo Grande") ?></p>';
+            html += '<p class="text-yellow-700 font-medium">' + <?= json_encode(htmlspecialchars(__("AA Testo Grande"), ENT_QUOTES, 'UTF-8'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?> + '</p>';
             warning.className = 'bg-yellow-50 border border-yellow-200 rounded-lg p-4';
         } else {
-            html += '<p class="text-red-700 font-medium"><i class="fas fa-times-circle mr-1"></i> <?= __("Insufficiente") ?></p>';
+            html += '<p class="text-red-700 font-medium"><i class="fas fa-times-circle mr-1"></i> ' + <?= json_encode(htmlspecialchars(__("Insufficiente"), ENT_QUOTES, 'UTF-8'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?> + '</p>';
             warning.className = 'bg-red-50 border border-red-200 rounded-lg p-4';
         }
 

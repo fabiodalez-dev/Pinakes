@@ -289,6 +289,8 @@ final class ImportJobStore
         }
         $allowed = array_filter([
             realpath(dirname(__DIR__, 5) . '/writable/uploads'),
+            realpath(\App\Controllers\LibraryThingImportController::stagingDirectory()),
+            // Jobs staged before the move to storage/tmp may still point here.
             realpath(sys_get_temp_dir() . '/librarything_imports'),
         ]);
         foreach ($allowed as $dir) {

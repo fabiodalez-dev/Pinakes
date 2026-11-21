@@ -1,6 +1,14 @@
 <?php
 declare(strict_types=1);
 
+// CLI only. Under a web SAPI any anonymous visitor could run this tool (the
+// unanchored installer exemption of the root .htaccess once let
+// /scripts/<file>.php/installer through). scripts/.htaccess denies it as well.
+if (PHP_SAPI !== 'cli') {
+    http_response_code(404);
+    exit;
+}
+
 // ============================================================
 // PROCESS LOCK - Prevent concurrent cron executions
 // ============================================================
@@ -60,6 +68,14 @@ if (file_exists($envFile)) {
 }
 
 require_once __DIR__ . '/../vendor/autoload.php';
+
+// A web install or reinstall is between its .env write (step 2) and the end
+// of the wizard: the configured database is the new, empty one, and anything
+// this run created in it would break the schema import of step 3.
+if (\App\Support\InstallInProgress::active(dirname(__DIR__))) {
+    fwrite(STDERR, "INFO: the installer is running (storage/.install_in_progress). Skipping this run.\n");
+    exit(0);
+}
 
 use App\Controllers\ReservationManager;
 use App\Support\DataIntegrity;

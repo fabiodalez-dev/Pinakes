@@ -386,6 +386,15 @@ class PrestitiController
             $userLockStmt->get_result();
             $userLockStmt->close();
 
+            // Borrower scope on the write, not only on the picker: a custom role
+            // records loans for reader accounts only, never for an administrator
+            // or a Staff account (the app's create delegates here too). Same
+            // answer as an account that does not exist.
+            if (!\App\Support\Permissions::mayActOnBorrower($db, $utente_id, true)) {
+                $db->rollback();
+                return $response->withHeader('Location', url('/admin/loans/create') . '?error=user_not_found')->withStatus(302);
+            }
+
             // Idoneità utente (M7): esistenza + stato attivo + tessera in corso di
             // validità, verificati sotto il lock della riga utente. Il codice
             // restituito (user_not_found/user_suspended/card_expired) diventa il
@@ -895,6 +904,11 @@ class PrestitiController
         if (!$current) {
             return $response->withHeader('Location', url('/admin/loans'))->withStatus(302);
         }
+        // Borrower scope on the write (Permissions::mayActOnBorrower): a custom
+        // role edits (dates, extension) only loans of accounts in its scope.
+        if (!\App\Support\Permissions::mayActOnBorrower($db, (int) $current['utente_id'])) {
+            return $response->withHeader('Location', url('/admin/loans') . '?error=loan_not_found')->withStatus(302);
+        }
         // Rifiuta la modifica di un prestito CHIUSO: editarlo non deve riattivarlo
         // (I1/I2 — BUG1). Un prestito è chiuso se attivo=0 o data_restituzione valorizzata.
         // (Ri-verificato più sotto, sotto lock.)
@@ -981,6 +995,35 @@ class PrestitiController
                 $db->rollback();
                 return $response->withHeader('Location', url('/admin/loans') . '?error=loan_closed')->withStatus(302);
             }
+            // A reassignment locks two utenti rows: the current borrower's (the scope
+            // re-check below) and the new borrower's (eligibility + max-loans). Taken
+            // old-then-new, two reassignments in opposite directions (A->B and B->A
+            // on different books) each held one row and waited for the other: an
+            // AB/BA deadlock. Both rows are locked here in ascending id order, so the
+            // locking reads that follow only re-enter locks this transaction holds.
+            $lockedOwnerId = (int) $locked['utente_id'];
+            $targetUserId = isset($updateData['utente_id']) ? (int) $updateData['utente_id'] : $lockedOwnerId;
+            if ($targetUserId !== $lockedOwnerId) {
+                $userRowsToLock = array_values(array_unique(array_filter(
+                    [$lockedOwnerId, $targetUserId],
+                    static fn (int $uid): bool => $uid > 0
+                )));
+                sort($userRowsToLock);
+                $orderedUserLock = $db->prepare('SELECT id FROM utenti WHERE id = ? FOR UPDATE');
+                foreach ($userRowsToLock as $userRowId) {
+                    $orderedUserLock->bind_param('i', $userRowId);
+                    $orderedUserLock->execute();
+                    $orderedUserLock->get_result();
+                }
+                $orderedUserLock->close();
+            }
+
+            // The owner may have changed since the scope check above (an administrator can
+            // hand the loan to a Staff account in between): ask again about the locked row.
+            if (!\App\Support\Permissions::mayActOnBorrower($db, $lockedOwnerId, true)) {
+                $db->rollback();
+                return $response->withHeader('Location', url('/admin/loans') . '?error=loan_not_found')->withStatus(302);
+            }
             if ((int) $locked['libro_id'] !== $libroId) {
                 $db->rollback();
                 return $response->withHeader('Location', url('/admin/loans') . '?error=loan_update_failed')->withStatus(302);
@@ -1059,11 +1102,20 @@ class PrestitiController
                 // Lock the target user's row before the eligibility + max-loans checks, so two
                 // concurrent reassignments to the same user can't both pass the COUNT and
                 // overshoot max_active_loans_per_user (store() takes the same lock — #12).
+                // Already held since the ordered lock above; kept as the explicit guard.
                 $newUserLock = $db->prepare("SELECT id FROM utenti WHERE id = ? FOR UPDATE");
                 $newUserLock->bind_param('i', $newUserId);
                 $newUserLock->execute();
                 $newUserLock->get_result();
                 $newUserLock->close();
+
+                // The new borrower must be in the operator's borrower scope, as
+                // in store(): a custom role never hands a loan to an
+                // administrator or a Staff account.
+                if (!\App\Support\Permissions::mayActOnBorrower($db, $newUserId, true)) {
+                    $db->rollback();
+                    return $response->withHeader('Location', url('/admin/loans') . '?error=user_not_found')->withStatus(302);
+                }
 
                 $eligibilityError = \App\Support\LoanEligibility::checkUser($db, $newUserId);
                 if ($eligibilityError !== null) {
@@ -1430,6 +1482,9 @@ class PrestitiController
         }
         $prestito = $result->fetch_assoc();
         $stmt->close();
+        // A plain return of any loan stays possible (the copy has to come back),
+        // but an out-of-scope borrower's contact details stay out of reach.
+        $this->redactOutOfScopeContact($db, $prestito);
 
         // Plan §7: the late fine a return today would charge, shown before the
         // operator confirms (with the option to waive it on the spot).
@@ -1477,7 +1532,11 @@ class PrestitiController
         } elseif ($penaltyRaw === '') {
             $penaltyRaw = '0';
         }
-        if (preg_match('/^(?:0|[1-9]\d{0,7})(?:\.\d{1,2})?$/D', $penaltyRaw) !== 1) {
+        // The amount is mirrored into the patron ledger (chargeLossPenalty), whose
+        // entries are bounded by PatronLedger::MAX_AMOUNT_CENTS: refuse anything
+        // above it here rather than record a penalty the ledger cannot hold.
+        if (preg_match('/^(?:0|[1-9]\d{0,7})(?:\.\d{1,2})?$/D', $penaltyRaw) !== 1
+            || (int) round((float) $penaltyRaw * 100) > \App\Services\PatronLedger::MAX_AMOUNT_CENTS) {
             return $response->withHeader('Location', url('/admin/loans/returned/' . $id) . '?error=invalid_penalty')->withStatus(302);
         }
         $sanzione = number_format((float) $penaltyRaw, 2, '.', '');
@@ -1554,6 +1613,17 @@ class PrestitiController
             if (!$loan) {
                 $db->rollback();
                 return $response->withHeader('Location', url('/admin/loans/returned/' . $id) . '?error=not_returnable')->withStatus(302);
+            }
+
+            // A loss/damage penalty or a fine waiver writes to the borrower's
+            // ledger: it needs the same borrower scope as the ledger page
+            // (PatronLedgerController), so a custom role cannot charge or waive
+            // on an administrator's or a Staff account. A plain return of such a
+            // loan still goes through: the copy has to come back.
+            if (($waiveFine || $sanzione !== '0.00')
+                && !\App\Support\Permissions::mayActOnBorrower($db, (int) $loan['utente_id'])) {
+                $db->rollback();
+                return $response->withHeader('Location', url('/admin/loans/returned/' . $id) . '?error=user_not_found')->withStatus(302);
             }
 
             // Re-verifica TOCTOU: la lettura iniziale era non bloccante per
@@ -1885,6 +1955,7 @@ class PrestitiController
         }
         $prestito = $result->fetch_assoc();
         $stmt->close();
+        $this->redactOutOfScopeContact($db, $prestito);
 
         $prestito += \App\Support\LibraryCalendar::loanDates($db, $prestito);
         // Plan §7: fine accruing on an open overdue loan (shown, written only at
@@ -1920,10 +1991,13 @@ class PrestitiController
         if ($guard = $this->guardStaffAccess($response)) {
             return $guard;
         }
-
         try {
+            $loan = (new \App\Models\LoanRepository($db))->getById($id, scopeToBorrower: true);
+            if ($loan === null) {
+                return $response->withHeader('Location', url('/admin/loans') . '?error=loan_not_found')->withStatus(302);
+            }
             $generator = new \App\Support\LoanPdfGenerator($db);
-            $pdfContent = $generator->generate($id);
+            $pdfContent = $generator->generateFromLoan($loan);
 
             $filename = 'prestito_' . $id . '_' . date('Ymd') . '.pdf';
 
@@ -2094,6 +2168,12 @@ class PrestitiController
                 // bulk). Salta SOLO questo prestito, il resto del lotto procede:
                 // l'inidoneità di un utente non è un conflitto di capacità.
                 if (\App\Support\LoanEligibility::checkUser($db, (int) $loan['utente_id']) !== null) {
+                    continue;
+                }
+                // Borrower scope on the write: a custom role extends only loans
+                // of accounts in its scope; the others are skipped like an
+                // ineligible borrower.
+                if (!\App\Support\Permissions::mayActOnBorrower($db, (int) $loan['utente_id'])) {
                     continue;
                 }
                 // null == a capacity/copy conflict: roll the WHOLE batch back so
@@ -2279,6 +2359,13 @@ class PrestitiController
         $loan = $result->fetch_assoc();
         $stmt->close();
 
+        // Borrower scope on the write: answer as for a missing loan.
+        if (!\App\Support\Permissions::mayActOnBorrower($db, (int) $loan['utente_id'])) {
+            $errorUrl = $redirectTo ?? url('/admin/loans');
+            $separator = strpos($errorUrl, '?') === false ? '?' : '&';
+            return $response->withHeader('Location', url($errorUrl . $separator . 'error=loan_not_found'))->withStatus(302);
+        }
+
         // Check if loan is active
         if ((int) $loan['attivo'] !== 1) {
             $errorUrl = $redirectTo ?? url('/admin/loans');
@@ -2387,7 +2474,7 @@ class PrestitiController
 
             // Lock the loan row to prevent concurrent renewals and re-validate under lock
             $lockLoanStmt = $db->prepare("
-                SELECT id, attivo, stato, renewals, data_scadenza, libro_id, copia_id
+                SELECT id, attivo, stato, renewals, data_scadenza, libro_id, copia_id, utente_id
                 FROM prestiti WHERE id = ? FOR UPDATE
             ");
             $lockLoanStmt->bind_param('i', $id);
@@ -2401,6 +2488,13 @@ class PrestitiController
                 $errorUrl = $redirectTo ?? url('/admin/loans');
                 $separator = strpos($errorUrl, '?') === false ? '?' : '&';
                 return $response->withHeader('Location', url($errorUrl . $separator . 'error=loan_not_active'))->withStatus(302);
+            }
+            // Same for the owner: the scope check above ran before the lock.
+            if (!\App\Support\Permissions::mayActOnBorrower($db, (int) $lockedLoan['utente_id'], true)) {
+                $db->rollback();
+                $errorUrl = $redirectTo ?? url('/admin/loans');
+                $separator = strpos($errorUrl, '?') === false ? '?' : '&';
+                return $response->withHeader('Location', url($errorUrl . $separator . 'error=loan_not_found'))->withStatus(302);
             }
             if (in_array($lockedLoan['stato'], ['in_corso', 'in_ritardo'], true)
                 && \App\Support\LibraryCalendar::isPastDue($db, (string) $lockedLoan['data_scadenza'], isset($lockedLoan['copia_id']) ? (int) $lockedLoan['copia_id'] : null, $todayApp)) {
@@ -2567,29 +2661,16 @@ class PrestitiController
 
     private function sanitizeRedirect(?string $path): ?string
     {
-        if ($path === null || $path === '') {
-            return null;
-        }
-
-        $trimmed = str_replace(["\r", "\n"], '', $path);
-        if (strpos($trimmed, '://') !== false) {
-            return null; // avoid absolute URLs or protocols
-        }
-
-        if (!str_starts_with($trimmed, '/')) {
-            return null;
-        }
-
-        // Reject protocol-relative (`//host`) and backslash-authority (`/\host`,
-        // which browsers normalise to `//host`) targets — a second char of `/`
-        // or `\` after the leading slash is an open-redirect vector. Aligned
-        // with AuthController/LanguageController sanitizers (findings F4/F10).
-        if (preg_match('#^/[\\\\/]#', $trimmed)) {
-            return null;
+        // Shared same-origin validator (AuthController/LanguageController use
+        // it too): refuses '//host', '/\host' and control characters such as
+        // '/<TAB>/host', which browsers strip and resolve to '//host'.
+        $local = \App\Support\SafeRedirect::localPath($path);
+        if ($local === null || str_contains($local, '://')) {
+            return null; // avoid absolute URLs or protocols anywhere in the value
         }
 
         // Collapse multiple slashes to avoid traversal quirks
-        $normalized = preg_replace('#/+#', '/', $trimmed);
+        $normalized = preg_replace('#/+#', '/', $local);
         return $normalized ?: null;
     }
 
@@ -2871,6 +2952,26 @@ class PrestitiController
             'message' => (string) $result['message'],
         ]));
         return $response->withHeader('Content-Type', 'application/json');
+    }
+
+    /**
+     * Blank the borrower's contact fields of a loan row when the borrower is
+     * outside the operator's loan-desk scope (Permissions::mayActOnBorrower):
+     * a custom role sees an administrator's or Staff account's loan to return
+     * the copy, never that account's email or phone.
+     *
+     * @param array<string, mixed> $row
+     */
+    private function redactOutOfScopeContact(mysqli $db, array &$row): void
+    {
+        if (\App\Support\Permissions::mayActOnBorrower($db, (int) ($row['utente_id'] ?? 0))) {
+            return;
+        }
+        foreach (['utente_email', 'utente_telefono', 'utente_indirizzo'] as $field) {
+            if (array_key_exists($field, $row)) {
+                $row[$field] = '';
+            }
+        }
     }
 
     private function guardStaffAccess(Response $response): ?Response

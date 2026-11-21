@@ -2482,6 +2482,10 @@ class Updater
             $this->debugLog('INFO', 'Copia file aggiornamento');
             $this->copyDirectory($sourcePath, $this->rootPath);
 
+            // Shipped files that live under a preserved directory and must
+            // still follow the release (copyDirectory() keeps the old copy).
+            $this->healPreservedPackagedFiles($sourcePath);
+
             // Update bundled plugins (copyDirectory skips storage/plugins via preservePaths)
             $this->debugLog('INFO', 'Aggiornamento plugin bundled');
             $this->updateBundledPlugins($sourcePath);
@@ -3713,6 +3717,48 @@ class Updater
         $paths = array_keys($failures);
         sort($paths);
         return $paths;
+    }
+
+    /**
+     * Files the package ships inside a preserved directory (see $preservePaths)
+     * that are code, not data, and so must follow the release: copyDirectory()
+     * keeps an existing copy, so a changed version would never reach upgraded
+     * installs. storage/calendar/.htaccess stopped granting every .ics file
+     * (the private calendar included) after 0.9.5.
+     *
+     * @var list<string>
+     */
+    private const PACKAGED_FILES_UNDER_PRESERVED_PATHS = [
+        'storage/calendar/.htaccess',
+    ];
+
+    /**
+     * Write the packaged content of PACKAGED_FILES_UNDER_PRESERVED_PATHS over
+     * an installed file that is missing or differs, as public/.htaccess is
+     * healed after the copy. A symlink in its place is replaced, never written
+     * through. Non-fatal: a failure is logged and the update goes on.
+     */
+    private function healPreservedPackagedFiles(string $sourcePath): void
+    {
+        foreach (self::PACKAGED_FILES_UNDER_PRESERVED_PATHS as $relative) {
+            $packaged = rtrim($sourcePath, '/\\') . '/' . $relative;
+            if (!is_file($packaged) || is_link($packaged)) {
+                continue;
+            }
+            $content = @file_get_contents($packaged);
+            if ($content === false) {
+                $this->debugLog('WARNING', 'Packaged file unreadable, not healed', ['file' => $relative]);
+                continue;
+            }
+            $status = PackagedFileHeal::write($this->rootPath . '/' . $relative, $content);
+            match ($status) {
+                PackagedFileHeal::UNCHANGED => null,
+                PackagedFileHeal::WRITTEN => $this->debugLog('INFO', 'Packaged file healed', ['file' => $relative]),
+                PackagedFileHeal::DIR_MISSING => $this->debugLog('WARNING', 'Packaged file not healed: directory missing', ['file' => $relative]),
+                PackagedFileHeal::SYMLINK => $this->debugLog('WARNING', 'Packaged file not healed: cannot replace a symlink', ['file' => $relative]),
+                default => $this->debugLog('WARNING', 'Packaged file not healed: write failed, restore it from the release by hand', ['file' => $relative]),
+            };
+        }
     }
 
     /**

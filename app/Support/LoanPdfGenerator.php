@@ -39,6 +39,12 @@ class LoanPdfGenerator
             throw new \Exception(__('Prestito non trovato'));
         }
 
+        return $this->generateFromLoan($loan);
+    }
+
+    /** Render the same loan snapshot used for authorization or email delivery. */
+    public function generateFromLoan(array $loan): string
+    {
         // 2. Get library settings
         $appName = ConfigStore::get('app.name', 'Biblioteca');
         $logoPath = $this->resolveLogoPath();

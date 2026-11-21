@@ -33,7 +33,7 @@ class LoanRepository
         return $rows;
     }
 
-    public function getById(int $id): ?array
+    public function getById(int $id, bool $scopeToBorrower = false): ?array
     {
         $sql = "SELECT p.*, l.titolo AS libro, l.sottotitolo AS libro_sottotitolo, l.isbn13, l.isbn10,
                        c.numero_inventario AS copia_inventario,
@@ -50,7 +50,7 @@ class LoanRepository
                 LEFT JOIN libri l ON p.libro_id = l.id AND l.deleted_at IS NULL
                 LEFT JOIN copie c ON p.copia_id = c.id
                 LEFT JOIN utenti u ON p.utente_id = u.id
-                WHERE p.id=? LIMIT 1";
+                WHERE p.id=?" . ($scopeToBorrower ? \App\Support\Permissions::accountScopeSql('u', \App\Support\Permissions::SCOPE_BORROWER) : '') . " LIMIT 1";
         $stmt = $this->db->prepare($sql);
         $stmt->bind_param('i', $id);
         $stmt->execute();

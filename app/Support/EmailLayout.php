@@ -48,8 +48,10 @@ final class EmailLayout
         I18n::setLocale($previousLocale);
 
         $logo = Branding::logo();
-        if ($logo !== '') {
-            $logoUrl = htmlspecialchars(absoluteUrl($logo), ENT_QUOTES, 'UTF-8');
+        // Branding accepts operator-configured HTTP(S) assets, including CDN logos.
+        $logoAbsolute = preg_match('~^https?://~i', $logo) === 1 ? $logo : TrustedLink::fromAppUrl($logo);
+        if ($logoAbsolute !== null) {
+            $logoUrl = htmlspecialchars($logoAbsolute, ENT_QUOTES, 'UTF-8');
             $brand = '<img src="' . $logoUrl . '" height="40" alt="' . $safeAppName . '" '
                 . 'style="display:block;max-width:180px;max-height:40px;width:auto;height:auto;border:0;outline:none;text-decoration:none;">';
         } else {

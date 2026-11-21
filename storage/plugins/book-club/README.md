@@ -45,7 +45,8 @@ Opzionali (opt-in per club): **seasons** (stagioni con archivio storico),
   limitati, **RSVP** (sì/forse/no) e **promemoria email 24h prima**.
 - **Feed iCal per club** (`/book-club/{slug}/calendar.ics`), sottoscrivibile da
   Google Calendar / Apple Calendar / Outlook; per i club non pubblici il feed è
-  protetto dal token `ics_token`.
+  protetto da un token personale per iscritto, verificato a ogni richiesta
+  (chi lascia il club o viene sospeso perde l'accesso subito, gli altri no).
 - **Dashboard personale** `/my/book-clubs`: lettura corrente, prossimo
   incontro, votazioni aperte per ogni club.
 - **i18n completa** (it, en, de, fr).

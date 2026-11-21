@@ -79,6 +79,9 @@ class LanguagesController
      */
     public function store(Request $request, Response $response, \mysqli $db, array $args): Response
     {
+        if ($denied = $this->denyUnlessAdmin($response)) {
+            return $denied;
+        }
         // CSRF validated by CsrfMiddleware
 
         $data = $request->getParsedBody() ?? [];
@@ -199,6 +202,9 @@ class LanguagesController
      */
     public function update(Request $request, Response $response, \mysqli $db, array $args): Response
     {
+        if ($denied = $this->denyUnlessAdmin($response)) {
+            return $denied;
+        }
         // CSRF validated by CsrfMiddleware
 
         $code = $this->normalizeRouteLocale($args['code'] ?? null);
@@ -279,6 +285,9 @@ class LanguagesController
      */
     public function delete(Request $request, Response $response, \mysqli $db, array $args): Response
     {
+        if ($denied = $this->denyUnlessAdmin($response)) {
+            return $denied;
+        }
         // CSRF validated by CsrfMiddleware
 
         $code = $this->normalizeRouteLocale($args['code'] ?? null);
@@ -332,6 +341,9 @@ class LanguagesController
      */
     public function toggleActive(Request $request, Response $response, \mysqli $db, array $args): Response
     {
+        if ($denied = $this->denyUnlessAdmin($response)) {
+            return $denied;
+        }
         // CSRF validated by CsrfMiddleware
 
         $code = $this->normalizeRouteLocale($args['code'] ?? null);
@@ -365,6 +377,9 @@ class LanguagesController
      */
     public function setDefault(Request $request, Response $response, \mysqli $db, array $args): Response
     {
+        if ($denied = $this->denyUnlessAdmin($response)) {
+            return $denied;
+        }
         // CSRF validated by CsrfMiddleware
 
         $code = $this->normalizeRouteLocale($args['code'] ?? null);
@@ -406,6 +421,9 @@ class LanguagesController
      */
     public function refreshStats(Request $request, Response $response, \mysqli $db, array $args): Response
     {
+        if ($denied = $this->denyUnlessAdmin($response)) {
+            return $denied;
+        }
         // CSRF validated by CsrfMiddleware
 
         $languageModel = new Language($db);
@@ -516,6 +534,27 @@ class LanguagesController
         return $response;
     }
 
+    /**
+     * Language management writes are admin-only.
+     *
+     * Translation strings are rendered into every page, administrators' pages
+     * included, in HTML attributes and inline scripts. Whoever writes them can
+     * therefore change what runs in an administrator's browser — the authority
+     * custom JS already reserves to administrators (SettingsController).
+     * AdminAuthMiddleware also admits staff on every /admin path, so the role
+     * is re-checked here.
+     */
+    private function denyUnlessAdmin(Response $response): ?Response
+    {
+        if (($_SESSION['user']['tipo_utente'] ?? '') === 'admin') {
+            return null;
+        }
+        $_SESSION['flash_error'] = __('Operazione riservata agli amministratori');
+        return $response
+            ->withHeader('Location', url('/admin/languages'))
+            ->withStatus(302);
+    }
+
     /** @return array<string, string> */
     private function loadCanonicalTranslations(): array
     {
@@ -596,20 +635,7 @@ class LanguagesController
 
     private function sanitizeTranslations(array $translations): array
     {
-        $sanitized = [];
-
-        foreach ($translations as $key => $value) {
-            if (!is_string($key)) {
-                continue;
-            }
-
-            $scalarValue = is_scalar($value) ? (string) $value : '';
-            $scalarValue = trim($scalarValue);
-            $scalarValue = strip_tags($scalarValue);
-            $sanitized[$key] = $scalarValue;
-        }
-
-        return $sanitized;
+        return \App\Support\TranslationSanitizer::sanitize($translations);
     }
 
     private function processTranslationUpload(array $uploadedFile, string $code, bool $backupExisting = false): array
@@ -808,6 +834,9 @@ class LanguagesController
      */
     public function updateRoutes(Request $request, Response $response, \mysqli $db, array $args): Response
     {
+        if ($denied = $this->denyUnlessAdmin($response)) {
+            return $denied;
+        }
         // CSRF validated by CsrfMiddleware
 
         $code = $this->normalizeRouteLocale($args['code'] ?? null);
