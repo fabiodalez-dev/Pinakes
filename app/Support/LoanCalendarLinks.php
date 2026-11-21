@@ -53,10 +53,15 @@ final class LoanCalendarLinks
         return 'https://calendar.google.com/calendar/render?' . http_build_query($params, '', '&', PHP_QUERY_RFC3986);
     }
 
-    /** Absolute tokenized URL of the per-loan .ics download. */
-    public function icsUrl(int $loanId): string
+    /**
+     * Absolute tokenized URL of the per-loan .ics download, or null when no
+     * operator-configured host exists. The link carries a token and is mailed,
+     * so its host comes from TrustedLink (APP_CANONICAL_URL / APP_TRUSTED_HOSTS),
+     * never from the Host header of the request that triggered the send.
+     */
+    public function icsUrl(int $loanId): ?string
     {
-        return absoluteUrl('/calendar/loan/' . $loanId . '.ics?token=' . urlencode($this->token($loanId)));
+        return TrustedLink::build('/calendar/loan/' . $loanId . '.ics?token=' . urlencode($this->token($loanId)));
     }
 
     public function token(int $loanId): string
@@ -153,11 +158,14 @@ final class LoanCalendarLinks
         $eventTitle = '📖 ' . __('Prestito') . ': ' . $bookTitle;
         $details = __('Libro') . ': ' . $bookTitle . "\n" . $appName;
         $googleUrl = self::googleCalendarUrl($eventTitle, $startDate, $endDate, $details);
-        // The .ics link carries the loan's token and goes out by email: its
-        // host must be one the operator configured (TrustedLink), never the
-        // request's (and from cron there is no request). With none, only the
-        // Google Calendar button is offered.
-        $icsUrl = TrustedLink::build('/calendar/loan/' . $loanId . '.ics?token=' . urlencode($this->token($loanId)));
+        $icsUrl = $this->icsUrl($loanId);
+        if ($icsUrl === null) {
+            // No trusted host: send the Google Calendar button only rather than
+            // a tokenized link pointing at whatever host the request named.
+            SecureLogger::warning('[LoanCalendarLinks] .ics link left out of the loan email: neither APP_CANONICAL_URL nor APP_TRUSTED_HOSTS is configured', [
+                'loan_id' => $loanId,
+            ]);
+        }
 
         $esc = static fn (string $v): string => htmlspecialchars($v, ENT_QUOTES | ENT_HTML5, 'UTF-8');
 

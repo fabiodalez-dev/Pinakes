@@ -1057,7 +1057,7 @@ $htmlLang = substr($currentLocale, 0, 2);
           }
 
           // Show loading state
-          resultsDiv.innerHTML = `<div class="p-4 text-center"><i class="fas fa-spinner fa-spin text-gray-400"></i> <span class="ml-2 text-sm text-gray-500">${window.__('Ricerca in corso...')}</span></div>`;
+          resultsDiv.innerHTML = `<div class="p-4 text-center"><i class="fas fa-spinner fa-spin text-gray-400"></i> <span class="ml-2 text-sm text-gray-500">${escapeHtml(window.__('Ricerca in corso...'))}</span></div>`;
           resultsDiv.classList.remove('hidden');
 
           searchTimeout = setTimeout(async () => {
@@ -1147,14 +1147,14 @@ $htmlLang = substr($currentLocale, 0, 2);
                 });
               } else {
                 const label = window.__('Nessun risultato trovato per');
-                html = `<div class="p-4 text-center"><i class="fas fa-search text-gray-300 text-2xl mb-2"></i><div class="text-sm text-gray-500 dark:text-gray-400">${label} "<span class="font-medium">${escapeHtml(query)}</span>"</div></div>`;
+                html = `<div class="p-4 text-center"><i class="fas fa-search text-gray-300 text-2xl mb-2"></i><div class="text-sm text-gray-500 dark:text-gray-400">${escapeHtml(label)} "<span class="font-medium">${escapeHtml(query)}</span>"</div></div>`;
               }
 
               resultsDiv.innerHTML = html;
               resultsDiv.classList.remove('hidden');
             } catch (error) {
               console.error('Search error:', error);
-              resultsDiv.innerHTML = `<div class="p-4 text-center text-red-500"><i class="fas fa-exclamation-triangle mr-2"></i>${window.__('Errore durante la ricerca')}</div>`;
+              resultsDiv.innerHTML = `<div class="p-4 text-center text-red-500"><i class="fas fa-exclamation-triangle mr-2"></i>${escapeHtml(window.__('Errore durante la ricerca'))}</div>`;
             }
           }, 300);
         });
@@ -1374,7 +1374,7 @@ $htmlLang = substr($currentLocale, 0, 2);
           }
 
           // Show loading state
-          mobileSearchResults.innerHTML = `<div class="p-4 text-center"><i class="fas fa-spinner fa-spin text-gray-400"></i> <span class="ml-2 text-sm text-gray-500">${window.__('Ricerca in corso...')}</span></div>`;
+          mobileSearchResults.innerHTML = `<div class="p-4 text-center"><i class="fas fa-spinner fa-spin text-gray-400"></i> <span class="ml-2 text-sm text-gray-500">${escapeHtml(window.__('Ricerca in corso...'))}</span></div>`;
           mobileSearchResults.classList.remove('hidden');
 
           mobileSearchTimeout = setTimeout(async () => {
@@ -1460,13 +1460,13 @@ $htmlLang = substr($currentLocale, 0, 2);
                     </a>`;
                 });
               } else {
-                html = `<div class="p-4 text-center text-sm text-gray-500">${window.__('Nessun risultato trovato')}</div>`;
+                html = `<div class="p-4 text-center text-sm text-gray-500">${escapeHtml(window.__('Nessun risultato trovato'))}</div>`;
               }
 
               mobileSearchResults.innerHTML = html;
             } catch (error) {
               console.error('Search error:', error);
-              mobileSearchResults.innerHTML = `<div class="p-4 text-center text-sm text-red-500">${window.__('Errore durante la ricerca')}</div>`;
+              mobileSearchResults.innerHTML = `<div class="p-4 text-center text-sm text-red-500">${escapeHtml(window.__('Errore durante la ricerca'))}</div>`;
             }
           }, 300);
         });
@@ -1560,7 +1560,7 @@ $htmlLang = substr($currentLocale, 0, 2);
                     <i class="${iconClass}"></i>
                   </div>
                   <div class="flex-1 min-w-0">
-                    <div class="text-xs text-gray-500 font-medium uppercase tracking-wide mb-2">${notif.relative_time || formatNotificationTime(notif.created_at)}</div>
+                    <div class="text-xs text-gray-500 font-medium uppercase tracking-wide mb-2">${escapeHtml(notif.relative_time || formatNotificationTime(notif.created_at))}</div>
                     <p class="text-sm font-semibold text-gray-900 group-hover:text-gray-800 transition-colors">
                       ${escapeHtml(notif.title || '')}
                       ${isUnread ? '<span class="ml-1 inline-block w-2 h-2 bg-blue-500 rounded-full"></span>' : ''}

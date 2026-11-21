@@ -256,7 +256,7 @@ document.querySelector('form').addEventListener('submit', function(e) {
         return false;
     }
     submitBtn.disabled = true;
-    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>' + <?= json_encode(__('Accesso in corso...'), JSON_HEX_TAG) ?>;
+    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>' + <?= json_encode(htmlspecialchars(__('Accesso in corso...'), ENT_QUOTES, 'UTF-8'), JSON_HEX_TAG) ?>;
 });
 </script>
 

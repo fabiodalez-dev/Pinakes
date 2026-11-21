@@ -151,6 +151,17 @@ $adminNotices = static function () use (&$lastDb): array {
     return array_values(array_filter($lastDb->stmts ?? [], static fn(RecordingStmt $s): bool => str_contains($s->sql, 'INSERT INTO admin_notifications')));
 };
 
+/** The admin-triggered activation mail: same invariant. @return array{sent: list<array>, result: bool} */
+$activate = static function () use ($token): array {
+    $service = (new ReflectionClass(NotificationService::class))->newInstanceWithoutConstructor();
+    $mailer = new RecordingEmailService();
+    $user = ['nome' => 'Audit', 'cognome' => 'Victim', 'email' => 'audit-a1-victim@example.test', 'codice_tessera' => 'AUDA1'];
+    (new ReflectionProperty(NotificationService::class, 'db'))->setValue($service, new SecurityAuditFakeDb([$user, ['locale' => 'it_IT']], 2));
+    (new ReflectionProperty(NotificationService::class, 'emailService'))->setValue($service, $mailer);
+    $result = $service->sendUserActivationWithVerification(77, $token);
+    return ['sent' => $mailer->sent, 'result' => $result];
+};
+
 $saved = [];
 foreach (['APP_CANONICAL_URL', 'APP_TRUSTED_HOSTS'] as $name) {
     $saved[$name] = getenv($name) === false ? null : (string) getenv($name);
@@ -225,6 +236,21 @@ try {
     $act = substr($users, (int) strpos($users, 'public function activateDirectly('), 3000);
     $check(str_contains($act, "if (\$user['stato'] !== 'sospeso')") && str_contains($act, "email_verificata = 1"),
         'activateDirectly() accepts a sospeso account and marks the email verified (no link needed)');
+
+    echo "Admin activation mail\n";
+    $setEnv('APP_CANONICAL_URL', null);
+    $setEnv('APP_TRUSTED_HOSTS', null);
+    $out = $activate();
+    $check($out['sent'] === [] && $out['result'] === false, 'no trusted host: nothing is sent and the caller is told (false)');
+    $setEnv('APP_CANONICAL_URL', 'https://library.example');
+    $out = $activate();
+    $url = (string) ($out['sent'][0]['variables']['verification_url'] ?? '');
+    $check($out['result'] === true && count($out['sent']) === 1, 'with a canonical host the activation mail is sent');
+    $check(str_starts_with($url, 'https://library.example/') && str_contains($url, $token) && !str_contains($url, 'attacker.example'),
+        'its link uses the canonical host, carries the token and never the request Host');
+    $ctl = (string) file_get_contents(dirname(__DIR__) . '/app/Controllers/UsersController.php');
+    $check(str_contains($ctl, 'success=approved_email_sent') && str_contains($ctl, 'error=approval_email_failed') && str_contains($ctl, 'success=approved_email_not_sent'),
+        'approval tells the admin when the email could not be sent (behaviour: tests/security-audit-approval-email-failure.unit.php)');
 } finally {
     foreach ($saved as $name => $value) {
         $setEnv($name, $value);

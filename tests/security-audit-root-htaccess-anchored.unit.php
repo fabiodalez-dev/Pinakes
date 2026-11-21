@@ -216,5 +216,24 @@ if ($cgi === '') {
     echo "  SKIP php-cgi not available: web-SAPI refusal checked statically only\n";
 }
 
+// An upgrade replaces the root .htaccess (and scripts/.htaccess) with the packaged,
+// anchored versions: neither is on the Updater's preserve list, so an install
+// that still carries an earlier release's exemptions (the installer-written
+// block or the old packaged lines) is healed by every update. The Updater's
+// copy skips a path only when one of those entries is a prefix of it.
+require_once $ROOT . '/vendor/autoload.php';
+$preserve = (array) ((new ReflectionClass(\App\Support\Updater::class))->getDefaultProperties()['preservePaths'] ?? []);
+$shadowed = [];
+foreach (['.htaccess', 'scripts/.htaccess', 'scripts/manual-upgrade.php', 'storage/calendar/.htaccess'] as $path) {
+    foreach ($preserve as $entry) {
+        if ($entry !== '' && strpos($path, (string) $entry) === 0) {
+            $shadowed[] = "$path (by '$entry')";
+        }
+    }
+}
+$check($preserve !== [] && !in_array('.htaccess', $preserve, true), 'the Updater preserve list is read and does not list the root .htaccess');
+$check(array_filter($shadowed, static fn (string $s): bool => !str_starts_with($s, 'storage/calendar/')) === [],
+    'no preserved prefix covers the root .htaccess, scripts/.htaccess or manual-upgrade.php, so an update replaces them' . ($shadowed ? ' — ' . implode(', ', $shadowed) : ''));
+
 echo "\n" . ($failed === 0 ? "ALL {$passed} PASS\n" : "{$passed} PASS, {$failed} FAIL\n");
 exit($failed === 0 ? 0 : 1);

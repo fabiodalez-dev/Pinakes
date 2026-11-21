@@ -990,8 +990,9 @@ class UsersController
         }
 
         if (!self::canChangeAccountState($user)) { return $response->withStatus(403); }
+        $detailsUrl = url("/admin/users/details/{$userId}");
         if ($user['stato'] !== 'sospeso') {
-            return $response->withHeader('Location', url("/admin/users/details/{$userId}?error=not_suspended"))->withStatus(302);
+            return $response->withHeader('Location', $detailsUrl . '?error=not_suspended')->withStatus(302);
         }
 
         // The activation email carries a token link, which may only be built on
@@ -1009,35 +1010,89 @@ class UsersController
         $db->query("SET SESSION time_zone = '+00:00'");
         $tokenExpiry = gmdate('Y-m-d H:i:s', time() + (7 * 24 * 60 * 60)); // 7 giorni
 
-        // Aggiorna utente: stato = attivo, nuovo token verifica
+        $previousToken = $user['token_verifica_email'];
+        $previousExpiry = $user['data_token_verifica'];
+        $previousVerified = $user['email_verificata'];
+        $previousRole = $user['tipo_utente'];
+        // canChangeAccountState() also decided on ruolo_id and accesso_digitale.
+        $previousStaffRole = $user['ruolo_id'] === null ? null : (int) $user['ruolo_id'];
+        $previousDigital = (int) ($user['accesso_digitale'] ?? 0);
+        // Claim this approval only while the account still matches what was read.
         $stmt = $db->prepare("
             UPDATE utenti
             SET stato = 'attivo',
                 token_verifica_email = ?,
                 data_token_verifica = ?,
                 updated_at = NOW()
-            WHERE id = ?
+            WHERE id = ? AND stato = 'sospeso' AND tipo_utente <=> ?
+                AND ruolo_id <=> ? AND accesso_digitale = ?
+                AND email_verificata <=> ? AND token_verifica_email <=> ? AND data_token_verifica <=> ?
         ");
-        $stmt->bind_param('ssi', $token, $tokenExpiry, $userId);
+        $stmt->bind_param('ssisiiiss', $token, $tokenExpiry, $userId, $previousRole, $previousStaffRole, $previousDigital, $previousVerified, $previousToken, $previousExpiry);
 
-        if (!$stmt->execute()) {
-            $stmt->close();
-            return $response->withHeader('Location', url("/admin/users/details/{$userId}?error=db_error"))->withStatus(302);
-        }
+        $saved = $stmt->execute();
+        $claimed = $stmt->affected_rows === 1;
         $stmt->close();
-
-        // Card validity from the patron type, when it sets one.
-        \App\Support\PatronTypeAssignment::applyCardDurationOnApproval($db, $userId);
+        if (!$saved || !$claimed) {
+            // The row was read as suspended a moment ago; a claim that matches
+            // nothing means another request changed it in between.
+            return $response->withHeader('Location', $detailsUrl . ($saved ? '?error=state_changed' : '?error=db_error'))->withStatus(302);
+        }
 
         // Invia email di attivazione con link di verifica
         $notifier = new NotificationService($db);
-        $notifier->sendUserActivationWithVerification($userId, $token);
+        $emailSent = $notifier->sendUserActivationWithVerification($userId, $token);
 
-        // Redirect con messaggio di successo
-        return $response->withHeader(
-            'Location',
-            url("/admin/users/details/{$userId}?success=approved_email_sent")
-        )->withStatus(302);
+        if (!$emailSent) {
+            // Restore any earlier verification link. Only undo the change
+            // while this attempt still owns the token and verification state.
+            $rollbackState = (int) $previousVerified === 0 ? 'sospeso' : 'attivo';
+            try {
+                $revert = $db->prepare("
+                    UPDATE utenti
+                    SET stato = ?,
+                        token_verifica_email = ?,
+                        data_token_verifica = ?,
+                        updated_at = NOW()
+                    WHERE id = ? AND stato = 'attivo' AND email_verificata <=> ?
+                        AND token_verifica_email = ?
+                ");
+                $revert->bind_param('sssiis', $rollbackState, $previousToken, $previousExpiry, $userId, $previousVerified, $token);
+                $restored = $revert->execute();
+                $stillOwned = $revert->affected_rows === 1;
+                $revert->close();
+            } catch (\Throwable $e) {
+                \App\Support\SecureLogger::error('[Users] could not restore the previous activation state', [
+                    'user_id' => $userId,
+                    'error' => $e->getMessage(),
+                ]);
+                $restored = false;
+                $stillOwned = false;
+            }
+            if (!$restored && $rollbackState === 'sospeso') {
+                // The undo itself failed: the account is left active with an
+                // unverified address and a link that was never mailed. Neither
+                // approval action can be retried from here (both require
+                // 'sospeso'), so the admin must be told exactly that.
+                \App\Support\SecureLogger::error('[Users] approval left active and unverified: the verification email failed and the approval could not be undone', [
+                    'user_id' => $userId,
+                ]);
+                return $response->withHeader('Location', $detailsUrl . '?error=approval_rollback_failed')->withStatus(302);
+            }
+            if (!$restored || !$stillOwned) {
+                // Zero rows matched: another request changed the account while
+                // the email was being sent. It is neither "not suspended" nor an
+                // approval of ours, so card validity is left alone too.
+                return $response->withHeader('Location', $detailsUrl . ($restored ? '?error=state_changed' : '?error=db_error'))->withStatus(302);
+            }
+            if ($rollbackState === 'sospeso') {
+                return $response->withHeader('Location', $detailsUrl . '?error=approval_email_failed')->withStatus(302);
+            }
+        }
+
+        // Only a completed approval changes the patron's card validity.
+        \App\Support\PatronTypeAssignment::applyCardDurationOnApproval($db, $userId);
+        return $response->withHeader('Location', $detailsUrl . ($emailSent ? '?success=approved_email_sent' : '?success=approved_email_not_sent'))->withStatus(302);
     }
 
     /**
@@ -1064,11 +1119,18 @@ class UsersController
         }
 
         if (!self::canChangeAccountState($user)) { return $response->withStatus(403); }
+        $detailsUrl = url("/admin/users/details/{$userId}");
         if ($user['stato'] !== 'sospeso') {
-            return $response->withHeader('Location', url("/admin/users/details/{$userId}?error=not_suspended"))->withStatus(302);
+            return $response->withHeader('Location', $detailsUrl . '?error=not_suspended')->withStatus(302);
         }
 
-        // Attiva direttamente: stato = attivo, email_verificata = 1, rimuovi token
+        // Attiva direttamente: stato = attivo, email_verificata = 1, rimuovi token.
+        // Only while the account is still the suspended one read above (same
+        // compare-and-set as approveAndSendActivation): a concurrent approval or
+        // role change in between must not be overwritten.
+        $previousRole = $user['tipo_utente'];
+        $previousStaffRole = $user['ruolo_id'] === null ? null : (int) $user['ruolo_id'];
+        $previousDigital = (int) ($user['accesso_digitale'] ?? 0);
         $stmt = $db->prepare("
             UPDATE utenti
             SET stato = 'attivo',
@@ -1076,15 +1138,17 @@ class UsersController
                 token_verifica_email = NULL,
                 data_token_verifica = NULL,
                 updated_at = NOW()
-            WHERE id = ?
+            WHERE id = ? AND stato = 'sospeso' AND tipo_utente <=> ?
+                AND ruolo_id <=> ? AND accesso_digitale = ?
         ");
-        $stmt->bind_param('i', $userId);
+        $stmt->bind_param('isii', $userId, $previousRole, $previousStaffRole, $previousDigital);
 
-        if (!$stmt->execute()) {
-            $stmt->close();
-            return $response->withHeader('Location', url("/admin/users/details/{$userId}?error=db_error"))->withStatus(302);
-        }
+        $saved = $stmt->execute();
+        $claimed = $stmt->affected_rows === 1;
         $stmt->close();
+        if (!$saved || !$claimed) {
+            return $response->withHeader('Location', $detailsUrl . ($saved ? '?error=state_changed' : '?error=db_error'))->withStatus(302);
+        }
 
         // Card validity from the patron type, when it sets one.
         \App\Support\PatronTypeAssignment::applyCardDurationOnApproval($db, $userId);
@@ -1094,10 +1158,7 @@ class UsersController
         $notifier->sendUserAccountApproved($userId);
 
         // Redirect con messaggio di successo
-        return $response->withHeader(
-            'Location',
-            url("/admin/users/details/{$userId}?success=activated_directly")
-        )->withStatus(302);
+        return $response->withHeader('Location', $detailsUrl . '?success=activated_directly')->withStatus(302);
     }
 
     /**
