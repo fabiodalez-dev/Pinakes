@@ -45,7 +45,7 @@ $modeHelp = [
     'weighted'    => __('come il voto singolo/multiplo, ma i voti del fondatore e dei moderatori valgono di più (pesi configurabili per votazione, predefiniti 2,0 e 1,5).'),
 ];
 ?>
-<style>
+<style<?= csp_nonce_attr() ?>>
   .bc-card{background:var(--white);border:1px solid var(--border-color);border-radius:2px;box-shadow:none;padding:clamp(1.5rem,3vw,2rem);margin-bottom:1.5rem}
   .bc-section-header{display:flex;align-items:center;gap:.75rem;margin-bottom:1.25rem}
   .bc-section-header i{color:var(--primary-text, var(--primary-color));font-size:1.15rem}

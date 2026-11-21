@@ -730,8 +730,12 @@ class ScrapeController
         $authors = [];
         if (!empty($data['authors']) && is_array($data['authors'])) {
             foreach ($data['authors'] as $author) {
-                if (!empty($author['key'])) {
-                    $authorJson = $this->safeHttpGet('https://openlibrary.org' . $author['key'] . '.json', 5);
+                // The key comes from the provider's response: accept only the
+                // canonical OpenLibrary author path, so it cannot steer the
+                // fetch to another path or host ("@evil", "/../", "?q=").
+                $authorKey = is_array($author) ? ($author['key'] ?? null) : null;
+                if (self::isOpenLibraryAuthorKey($authorKey)) {
+                    $authorJson = $this->safeHttpGet('https://openlibrary.org' . $authorKey . '.json', 5, true);
                     if ($authorJson) {
                         $a = json_decode($authorJson, true);
                         if (!empty($a['name'])) {
@@ -789,17 +793,28 @@ class ScrapeController
     }
 
     /**
+     * True for a canonical OpenLibrary author key ("/authors/OL123A").
+     */
+    public static function isOpenLibraryAuthorKey(mixed $key): bool
+    {
+        return is_string($key) && preg_match('#^/authors/OL\d+A$#D', $key) === 1;
+    }
+
+    /**
      * Safe HTTP GET with timeout and basic validation.
      */
-    private function safeHttpGet(string $url, int $timeout = 5): ?string
+    private function safeHttpGet(string $url, int $timeout = 5, bool $ssrfGuard = false): ?string
     {
         // Routed through the shared HttpClient (Guzzle): same timeouts, SSL
         // verification, User-Agent and http/https-only redirect policy as the
         // previous curl call. Returns null on transport failure or HTTP >= 400.
+        // $ssrfGuard pins the vetted public IP and refuses cross-host
+        // redirects, for URLs built from provider-supplied data.
         $res = HttpClient::get($url, [], [
             'connect_timeout' => max(1, $timeout),
             'timeout' => max(2, $timeout + 2),
             'max_redirects' => 3,
+            'ssrf_guard' => $ssrfGuard,
         ]);
 
         if (!$res['ok'] || $res['status'] >= 400) {

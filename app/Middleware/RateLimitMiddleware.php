@@ -45,7 +45,8 @@ class RateLimitMiddleware implements MiddlewareInterface
         $ip = $this->getClientIP($request);
         // Use action-based key if provided (prevents bypass via localized URLs)
         $endpoint = $this->actionKey ?? $request->getUri()->getPath();
-        $identifier = $ip . ':' . $endpoint;
+        // IPv6 clients share one bucket per /64 (RateLimiter::clientKey).
+        $identifier = RateLimiter::clientKey($ip) . ':' . $endpoint;
 
         if (RateLimiter::isLimited($identifier, $this->maxAttempts, $this->window)) {
             $response = new \Slim\Psr7\Response();

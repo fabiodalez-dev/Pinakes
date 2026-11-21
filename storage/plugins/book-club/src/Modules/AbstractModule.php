@@ -156,6 +156,8 @@ abstract class AbstractModule implements ModuleInterface
      */
     protected function addColumnIfMissing(string $table, string $column, string $definition): void
     {
+        self::assertIdentifier($table);
+        self::assertIdentifier($column);
         if ($this->columnExists($table, $column)) {
             return;
         }
@@ -165,6 +167,19 @@ abstract class AbstractModule implements ModuleInterface
             }
         } catch (\Throwable $e) {
             SecureLogger::warning('[BookClub:' . $this->slug() . "] ADD COLUMN {$table}.{$column} failed: " . $e->getMessage());
+        }
+    }
+
+    /**
+     * The schema helpers interpolate names into ALTER TABLE (identifiers
+     * cannot be bound). Every caller passes a literal today; this keeps a
+     * future caller from turning a helper into an injection sink. The
+     * column DEFINITION is DDL and stays the caller's responsibility.
+     */
+    public static function assertIdentifier(string $name): void
+    {
+        if (preg_match('/^[a-z_][a-z0-9_]*$/', $name) !== 1) {
+            throw new \InvalidArgumentException('Invalid SQL identifier: ' . substr($name, 0, 64));
         }
     }
 
@@ -196,6 +211,11 @@ abstract class AbstractModule implements ModuleInterface
      */
     protected function addUniqueIndexIfMissing(string $table, string $index, string $columns): void
     {
+        self::assertIdentifier($table);
+        self::assertIdentifier($index);
+        foreach (explode(',', $columns) as $col) {
+            self::assertIdentifier(trim($col));
+        }
         if ($this->indexExists($table, $index)) {
             return;
         }

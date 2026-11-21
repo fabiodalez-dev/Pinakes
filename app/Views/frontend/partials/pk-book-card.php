@@ -55,7 +55,7 @@ $pkTipoMedia = \App\Support\MediaLabels::resolveTipoMedia(
                      src="<?= $pkE(absoluteUrl($pkCover)) ?>"
                      alt="<?= $pkE($pkTitle) ?>"
                      loading="lazy" decoding="async"
-                     onerror="this.onerror=null;this.classList.add('is-missing')">
+                     data-pk-fallback-class="is-missing">
                 <?php endif; ?>
                 <div class="pk-book__spine"></div>
                 <div class="pk-book__gloss"></div>

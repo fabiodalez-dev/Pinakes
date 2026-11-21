@@ -464,7 +464,7 @@ test.describe.serial('G2 — Restore', () => {
 
     // Set the file input to the real zip and click the upload button.
     await page.setInputFiles('#restoreFileInput', realZip);
-    await page.click('button[onclick="uploadRestoreFile()"]');
+    await page.click('button[data-pk-action="updates-upload-restore"]');
 
     await page.waitForSelector('.swal2-popup', { state: 'visible', timeout: 10000 });
     const popupText = await page.locator('.swal2-popup').textContent();

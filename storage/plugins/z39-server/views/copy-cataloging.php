@@ -183,7 +183,7 @@ unset($workspaceHeader);
     </div>
 </div>
 
-<script>
+<script<?= csp_nonce_attr() ?>>
 document.addEventListener('DOMContentLoaded', function() {
     const BASE_PATH = window.BASE_PATH || '';
     const T = <?= json_encode([

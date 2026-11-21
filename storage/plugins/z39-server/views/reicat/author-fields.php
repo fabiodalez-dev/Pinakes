@@ -74,7 +74,7 @@ use App\Support\HtmlHelper;
     </div>
 </div>
 
-<script>
+<script<?= csp_nonce_attr() ?>>
 (function () {
     const panel = document.getElementById('reicat-authority-panel');
     if (!panel || panel.dataset.reicatInit === '1') { return; }

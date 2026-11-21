@@ -275,6 +275,8 @@ Puoi aggiungere codice personalizzato senza modificare i file di sistema:
 
 **Attenzione**: Attiva HSTS solo se sei sicuro che HTTPS funziona correttamente!
 
+**Aggiornamento da 0.9.5 o precedenti**: fino alla 0.9.5 l'header `Strict-Transport-Security` veniva inviato automaticamente su ogni risposta HTTPS. Ora è opt-in e spento per impostazione predefinita: dopo l'aggiornamento un sito in HTTPS smette di inviarlo finché un amministratore non attiva **Abilita HSTS** in Impostazioni → Avanzate. L'aggiornamento non lo riattiva da solo.
+
 #### **Notifiche Scadenza Prestiti**
 
 **Giorni preavviso scadenza** (`days_before_expiry_warning`): Quanti giorni prima della scadenza mandare l'email di promemoria.

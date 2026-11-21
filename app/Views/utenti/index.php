@@ -352,7 +352,7 @@ unset($workspaceHeader);
 </div>
 
 <!-- Modern DataTables with Advanced Features -->
-<script>
+<script<?= csp_nonce_attr() ?>>
 // i18n translations for JavaScript
 const i18nTranslations = <?= json_encode([
     'utenti' => __("utenti"),
@@ -547,7 +547,7 @@ document.addEventListener('DOMContentLoaded', function() {
                  title="${i18nEdit}" aria-label="${i18nEdit}">
                 <i class="fas fa-edit text-sm"></i>
               </a>
-              ${canDeleteUsers ? `<button onclick="deleteUser(${Number(data)})"
+              ${canDeleteUsers ? `<button type="button" data-pk-action="users-delete" data-user-id="${Number(data)}"
                       class="btn-icon btn-danger-outline p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors duration-200"
                       title="${i18nDelete}" aria-label="${i18nDelete}">
                 <i class="fas fa-trash text-sm"></i>
@@ -710,6 +710,7 @@ document.addEventListener('DOMContentLoaded', function() {
   // Delete user function — SwalApp.confirmDelete has its own native
   // fallback, so this single branch covers both the Swal-loaded and
   // the Swal-missing cases.
+  window.PinakesActions.register('users-delete', (el) => window.deleteUser(Number(el.dataset.userId)));
   window.deleteUser = function(userId) {
     window.SwalApp.confirmDelete({
       title: __('Sei sicuro?'),
@@ -849,7 +850,7 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 
 <!-- Custom Styles for Enhanced UI -->
-<style>
+<style<?= csp_nonce_attr() ?>>
 .fade-in {
   animation: fadeIn 0.5s ease-in-out;
 }

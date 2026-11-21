@@ -988,11 +988,30 @@ class LibraryThingImportController
         return $normalized === [] ? null : implode('; ', $normalized);
     }
 
+    /**
+     * Reverse the formula-injection escaping both LibraryThing exports apply:
+     * a cell starting with = + - @, a tab or a CR is written with a leading
+     * "'" so spreadsheets do not evaluate it. Without this, an export->import
+     * round-trip stores that apostrophe in the title, author, notes...
+     * Same rule as CsvImportController::unescapeCsvFormula().
+     */
+    private static function unescapeFormula(string $value): string
+    {
+        if (strlen($value) >= 2
+            && $value[0] === "'"
+            && in_array($value[1], ['=', '+', '-', '@', "\t", "\r"], true)
+        ) {
+            return substr($value, 1);
+        }
+        return $value;
+    }
+
     private function parseLibraryThingRow(array $data): array
     {
-        // Fix UTF-8 encoding issues in all string values
+        // Fix UTF-8 encoding issues in all string values, then undo the
+        // export-side formula escaping (the exported file stays escaped).
         $data = array_map(function ($value) {
-            return is_string($value) ? $this->fixUtf8Encoding($value) : $value;
+            return is_string($value) ? self::unescapeFormula($this->fixUtf8Encoding($value)) : $value;
         }, $data);
 
         $result = [];

@@ -6,52 +6,87 @@ namespace App\Support;
 /**
  * AES-256-GCM encryption for sensitive settings (SMTP passwords, API keys, etc.)
  *
- * Uses the same encryption scheme as PluginManager: ENC: prefix + base64(iv + tag + ciphertext).
+ * Two stored formats, both starting with the ENC: prefix (so a caller's
+ * `str_starts_with($v, SettingsEncryption::PREFIX)` test keeps recognising
+ * either one as ciphertext):
+ *
+ *  - v2 (written since 0.9.6): "ENC:v2:" + base64(iv[12] | tag[16] | ciphertext),
+ *    with the owning setting (category + key) bound as GCM additional
+ *    authenticated data. A ciphertext copied into another setting's row fails
+ *    the tag check instead of decrypting there, so someone with DB write access
+ *    cannot move e.g. an SMTP password into a field that is echoed back.
+ *  - legacy: "ENC:" + base64(iv[12] | tag[16] | ciphertext), no AAD. Still
+ *    accepted on read so stored values keep working; it is replaced by the v2
+ *    form the next time the setting is written (no bulk migration). The
+ *    legacy base64 payload never contains ':', so the two cannot be confused.
+ *
  * Key is derived from PLUGIN_ENCRYPTION_KEY or APP_KEY environment variable.
+ * Callers MUST pass the category and key of the value they read or write.
  */
 final class SettingsEncryption
 {
     public const PREFIX = 'ENC:';
+    public const PREFIX_V2 = 'ENC:v2:';
+
+    private const AAD_DOMAIN = 'pinakes-settings-v2';
 
     private static ?string $cachedKey = null;
     private static bool $keyResolved = false;
 
-    public static function encrypt(string $value): string
+    /**
+     * Encrypt $value for the setting identified by $category / $key (v2 format).
+     */
+    public static function encrypt(string $value, string $category, string $key): string
     {
-        $key = self::getEncryptionKey();
+        $encKey = self::getEncryptionKey();
 
         if ($value === '') {
             return '';
         }
 
-        if ($key === null) {
+        if ($encKey === null) {
             throw new \RuntimeException('SettingsEncryption: encryption key not configured');
         }
 
         $iv = random_bytes(12);
         $tag = '';
-        $ciphertext = openssl_encrypt($value, 'aes-256-gcm', $key, OPENSSL_RAW_DATA, $iv, $tag);
+        $ciphertext = openssl_encrypt($value, 'aes-256-gcm', $encKey, OPENSSL_RAW_DATA, $iv, $tag, self::aad($category, $key));
 
         if ($ciphertext === false) {
             throw new \RuntimeException('SettingsEncryption: openssl_encrypt failed');
         }
 
-        return self::PREFIX . base64_encode($iv . $tag . $ciphertext);
+        return self::PREFIX_V2 . base64_encode($iv . $tag . $ciphertext);
     }
 
-    public static function decrypt(?string $value): ?string
+    /**
+     * Decrypt a value stored for the setting $category / $key.
+     *
+     * Non-ciphertext input is returned unchanged (legacy plaintext rows);
+     * null means the value looked encrypted but could not be decrypted (no
+     * key, tampered payload, or a v2 ciphertext that belongs to another setting).
+     */
+    public static function decrypt(?string $value, string $category, string $key): ?string
     {
         if ($value === null || $value === '' || !str_starts_with($value, self::PREFIX)) {
             return $value;
         }
 
-        $key = self::getEncryptionKey();
-        if ($key === null) {
+        $encKey = self::getEncryptionKey();
+        if ($encKey === null) {
             SecureLogger::error('SettingsEncryption: encryption key missing — cannot decrypt');
             return null;
         }
 
-        $payload = base64_decode(substr($value, strlen(self::PREFIX)), true);
+        if (str_starts_with($value, self::PREFIX_V2)) {
+            $encoded = substr($value, strlen(self::PREFIX_V2));
+            $aad = self::aad($category, $key);
+        } else {
+            $encoded = substr($value, strlen(self::PREFIX));
+            $aad = '';
+        }
+
+        $payload = base64_decode($encoded, true);
         if ($payload === false || strlen($payload) <= 28) {
             SecureLogger::error('SettingsEncryption: invalid encrypted payload');
             return null;
@@ -62,7 +97,7 @@ final class SettingsEncryption
         $ciphertext = substr($payload, 28);
 
         try {
-            $plaintext = openssl_decrypt($ciphertext, 'aes-256-gcm', $key, OPENSSL_RAW_DATA, $iv, $tag);
+            $plaintext = openssl_decrypt($ciphertext, 'aes-256-gcm', $encKey, OPENSSL_RAW_DATA, $iv, $tag, $aad);
             if ($plaintext === false) {
                 SecureLogger::error('SettingsEncryption: decryption failed');
                 return null;
@@ -81,6 +116,15 @@ final class SettingsEncryption
     {
         self::$cachedKey = null;
         self::$keyResolved = false;
+    }
+
+    /**
+     * Associated data binding a ciphertext to its setting. NUL separators keep
+     * ("a.b", "c") and ("a", "b.c") distinct.
+     */
+    private static function aad(string $category, string $key): string
+    {
+        return self::AAD_DOMAIN . "\0" . $category . "\0" . $key;
     }
 
     private static function getEncryptionKey(): ?string

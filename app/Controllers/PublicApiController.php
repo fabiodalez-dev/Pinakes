@@ -134,7 +134,6 @@ class PublicApiController
                 l.copie_disponibili,
                 l.numero_inventario,
                 l.classificazione_dewey,
-                l.note_varie,
                 l.file_url,
                 l.audio_url,
                 l.collocazione,
@@ -214,7 +213,8 @@ class PublicApiController
                 'copie_disponibili' => (int)$row['copie_disponibili'],
                 'numero_inventario' => $row['numero_inventario'],
                 'classificazione_dewey' => $row['classificazione_dewey'],
-                'note_varie' => $row['note_varie'],
+                // note_varie is deliberately absent: internal notes are shown only on
+                // the admin book page, never to an API-key holder.
                 // Only files anyone may open (issue #480): the API key names no reader. A link
                 // to another site follows its attachment's visibility on this record.
                 'file_url' => \App\Support\DigitalAccess::anonymousUrl($row['file_url'], $db, $bookId, true),
@@ -360,7 +360,6 @@ class PublicApiController
                 r.titolo AS titolo_recensione,
                 r.descrizione,
                 r.created_at,
-                u.id AS utente_id,
                 u.nome AS utente_nome,
                 u.cognome AS utente_cognome
             FROM recensioni r
@@ -388,8 +387,10 @@ class PublicApiController
                 'descrizione' => $row['descrizione'] ?? '',
                 'testo' => $row['descrizione'] ?? '',
                 'created_at' => $row['created_at'],
+                // The reviewer's display name is public on the book page; the
+                // internal account id is not, so it is not handed to API-key
+                // holders either.
                 'utente' => [
-                    'id' => (int)$row['utente_id'],
                     'nome' => $row['utente_nome'],
                     'cognome' => $row['utente_cognome']
                 ]

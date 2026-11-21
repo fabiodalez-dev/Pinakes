@@ -135,7 +135,7 @@ final class IssueLabelRenderer
             . "<meta charset=\"utf-8\">\n"
             . "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n"
             . '<title>' . $title . "</title>\n"
-            . "<style>\n"
+            . "<style" . csp_nonce_attr() . ">\n"
             . "@page { size: A4; margin: " . self::num(self::SHEET_MARGIN) . "mm; }\n"
             . "body { margin: 0; padding: " . self::num(self::SHEET_MARGIN) . "mm; font-family: DejaVu Sans, Helvetica, Arial, sans-serif; color: #111; background: #fff; }\n"
             . ".emeroteca-labels { display: flex; flex-wrap: wrap; gap: " . self::num(self::CELL_GAP) . "mm; align-content: flex-start; }\n"

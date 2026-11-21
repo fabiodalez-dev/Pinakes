@@ -38,7 +38,7 @@ try {
 }
 $authColor = static fn (string $key): string => htmlspecialchars((string) $authPalette[$key], ENT_QUOTES, 'UTF-8');
 ?>
-    <style>
+    <style<?= csp_nonce_attr() ?>>
         :root {
             --primary-color: <?= $authColor('primary') ?>;
             --primary-dark: <?= $authColor('primary_dark') ?>;

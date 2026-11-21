@@ -69,7 +69,7 @@ $encodedTitle = rawurlencode($shareTitle);
   </div>
 </div>
 
-<style>
+<style<?= csp_nonce_attr() ?>>
 .social-share-btn {
   display: inline-flex;
   align-items: center;
@@ -96,7 +96,7 @@ $encodedTitle = rawurlencode($shareTitle);
 }
 </style>
 
-<script>
+<script<?= csp_nonce_attr() ?>>
 (function() {
   function fallbackCopy(url, btn) {
     var ta = document.createElement('textarea');

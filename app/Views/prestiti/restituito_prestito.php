@@ -68,6 +68,7 @@ unset($workspaceHeader);
                 'waiver_reason_required' => __('Per condonare la multa serve una motivazione.'),
                 'update_failed'    => __('Si è verificato un errore durante l\'aggiornamento del prestito.'),
                 'concurrent_retry' => __('Un\'altra operazione stava aggiornando lo stesso libro: nessuna modifica salvata, riprova ora.'),
+                \App\Support\SelfDealingGuard::ERROR => \App\Support\SelfDealingGuard::message(),
                 default            => __('Impossibile completare l\'operazione. Riprova più tardi.')
             };
             ?>
@@ -258,7 +259,7 @@ unset($workspaceHeader);
 </section>
 </div>
 </div>
-<script>
+<script<?= csp_nonce_attr() ?>>
 document.addEventListener('DOMContentLoaded', function () {
     const status = document.getElementById('stato');
     const field = document.getElementById('sanzione-field');

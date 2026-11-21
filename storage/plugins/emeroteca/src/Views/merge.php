@@ -156,7 +156,7 @@ unset($workspaceHeader);
     </div>
 
     <form method="POST" action="<?= $e(url('/admin/periodicals/merge')) ?>" class="space-y-8"
-          onsubmit="return confirm(<?= $e(json_encode(__('Unire le due testate? La testata di origine verrà eliminata.'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT)) ?>);">
+          data-pk-confirm="<?= $e(__('Unire le due testate? La testata di origine verrà eliminata.')) ?>">
       <input type="hidden" name="csrf_token" value="<?= $csrf ?>">
       <div class="card">
         <div class="card-header">
@@ -230,7 +230,7 @@ unset($workspaceHeader);
   </div>
 </div>
 
-<style>
+<style<?= csp_nonce_attr() ?>>
 /* Table chrome of the core book list (app/Views/libri/index.php). */
 .merge-table { border: 1px solid #e5e7eb; width: 100%; }
 .merge-table thead th {

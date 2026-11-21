@@ -39,9 +39,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // SQLi elsewhere) cannot recover the plaintext credential. The
             // installer has no composer autoloader, so the scheme is inlined
             // here; SettingsEncryption::decrypt() reads it back transparently
-            // (prefix "ENC:", key = sha256(PLUGIN_ENCRYPTION_KEY, raw), payload =
-            // iv[12] | tag[16] | ciphertext). If no key is available we ABORT
-            // rather than silently persist the password in cleartext.
+            // (v2 format: prefix "ENC:v2:", key = sha256(PLUGIN_ENCRYPTION_KEY, raw),
+            // payload = iv[12] | tag[16] | ciphertext, GCM AAD binding the value
+            // to the email.smtp_password setting). If no key is available we
+            // ABORT rather than silently persist the password in cleartext.
             $smtpPasswordStored = $smtpPassword;
             if ($smtpPassword !== '') {
                 $encKeyRaw = $_ENV['PLUGIN_ENCRYPTION_KEY'] ?? getenv('PLUGIN_ENCRYPTION_KEY') ?: '';
@@ -54,11 +55,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $encKey = hash('sha256', (string)$encKeyRaw, true);
                 $iv = random_bytes(12);
                 $tag = '';
-                $cipher = openssl_encrypt($smtpPassword, 'aes-256-gcm', $encKey, OPENSSL_RAW_DATA, $iv, $tag);
+                // Must match SettingsEncryption::aad('email', 'smtp_password').
+                $aad = "pinakes-settings-v2\0email\0smtp_password";
+                $cipher = openssl_encrypt($smtpPassword, 'aes-256-gcm', $encKey, OPENSSL_RAW_DATA, $iv, $tag, $aad);
                 if ($cipher === false) {
                     throw new Exception(__("Cifratura della password SMTP fallita."));
                 }
-                $smtpPasswordStored = 'ENC:' . base64_encode($iv . $tag . $cipher);
+                $smtpPasswordStored = 'ENC:v2:' . base64_encode($iv . $tag . $cipher);
             }
 
             // CRITICAL FIX: Save email settings directly to database

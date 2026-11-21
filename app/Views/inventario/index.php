@@ -56,7 +56,7 @@ unset($workspaceHeader);
         <div class="flex-1">
           <p class="text-green-800 font-medium"><?php echo htmlspecialchars($_SESSION['success_message']); unset($_SESSION['success_message']); ?></p>
         </div>
-        <button onclick="this.parentElement.remove()" class="btn-icon btn-secondary text-green-600 hover:text-green-800" aria-label="<?= htmlspecialchars(__('Chiudi'), ENT_QUOTES, 'UTF-8') ?>">
+        <button type="button" data-pk-action="dismiss" data-pk-target="parent" class="btn-icon btn-secondary text-green-600 hover:text-green-800" aria-label="<?= htmlspecialchars(__('Chiudi'), ENT_QUOTES, 'UTF-8') ?>">
           <i class="fas fa-times"></i>
         </button>
       </div>
@@ -68,7 +68,7 @@ unset($workspaceHeader);
         <div class="flex-1">
           <p class="text-red-800 font-medium"><?php echo htmlspecialchars($_SESSION['error_message']); unset($_SESSION['error_message']); ?></p>
         </div>
-        <button onclick="this.parentElement.remove()" class="btn-icon btn-secondary text-red-600 hover:text-red-800" aria-label="<?= htmlspecialchars(__('Chiudi'), ENT_QUOTES, 'UTF-8') ?>">
+        <button type="button" data-pk-action="dismiss" data-pk-target="parent" class="btn-icon btn-secondary text-red-600 hover:text-red-800" aria-label="<?= htmlspecialchars(__('Chiudi'), ENT_QUOTES, 'UTF-8') ?>">
           <i class="fas fa-times"></i>
         </button>
       </div>
@@ -222,7 +222,7 @@ unset($workspaceHeader);
     </div>
   </div>
 </div>
-<script>
+<script<?= csp_nonce_attr() ?>>
 (function () {
   // Narrow the shelf-level list to the chosen bookcase, as the placement page does.
   var shelf = document.getElementById('inventory-shelf');

@@ -79,6 +79,14 @@ class SettingsController
         $eventsHeaderTexts = \App\Support\CatalogHeader::stored($repository, 'events');
         $eventsHeaderDefaults = \App\Support\CatalogHeader::defaultsFor(array_map('strval', array_keys($catalogHeaderLocales)), 'events');
         $advancedSettings = $this->resolveAdvancedSettings($repository);
+        // HTTPS seen only through untrusted forwarded headers: HSTS would
+        // silently never be sent, so the advanced tab says why.
+        $canonicalUrl = getenv('APP_CANONICAL_URL') ?: ($_ENV['APP_CANONICAL_URL'] ?? '');
+        $hstsProxyNotice = \App\Support\Hsts::untrustedForwardedHttps(
+            $_SERVER,
+            \App\Support\HtmlHelper::isRemoteAddrTrustedProxy(),
+            is_string($canonicalUrl) ? $canonicalUrl : ''
+        );
         $loansSettings = $this->resolveLoansSettings($repository);
         // Patron types and rules matrix (Settings → Circulation): reserved to
         // administrators like every CirculationSettingsController action, so
@@ -111,6 +119,16 @@ class SettingsController
         // may see those values; the partials gate secret output on $isAdmin.
         $isAdmin = (($_SESSION['user']['tipo_utente'] ?? '') === 'admin');
 
+        // A just-created API key is shown exactly once: only its hash is
+        // stored, so this session copy is the last place the full key exists.
+        $newApiKey = null;
+        if (isset($_SESSION['new_api_key'])) {
+            if ($isAdmin && is_string($_SESSION['new_api_key']) && $_SESSION['new_api_key'] !== '') {
+                $newApiKey = $_SESSION['new_api_key'];
+            }
+            unset($_SESSION['new_api_key']);
+        }
+
         ob_start();
         $data = compact(
             'appSettings',
@@ -129,6 +147,7 @@ class SettingsController
             'eventsHeaderTexts',
             'eventsHeaderDefaults',
             'advancedSettings',
+            'hstsProxyNotice',
             'loansSettings',
             'circulationData',
             'moduleSettings',
@@ -138,7 +157,8 @@ class SettingsController
             'activeTab',
             'db',
             'cookieBannerTexts',
-            'isAdmin'
+            'isAdmin',
+            'newApiKey'
         );
         require __DIR__ . '/../Views/settings/index.php';
         $content = ob_get_clean();
@@ -148,6 +168,11 @@ class SettingsController
         $html = ob_get_clean();
 
         $response->getBody()->write($html);
+        if ($newApiKey !== null) {
+            // The page carries a secret that is never shown again: keep it out
+            // of the browser and proxy caches (back button, shared machines).
+            return $response->withHeader('Cache-Control', 'no-store, private');
+        }
         return $response;
     }
 
@@ -170,8 +195,8 @@ class SettingsController
         $removeLogo = (string) ($data['remove_logo'] ?? '') === '1';
         if ($removeLogo) {
             if ($logoPath !== '') {
-                $absoluteLogoPath = dirname(__DIR__, 2) . '/public' . $logoPath;
-                if (is_file($absoluteLogoPath)) {
+                $absoluteLogoPath = self::removableLogoFile(dirname(__DIR__, 2) . '/public', $logoPath);
+                if ($absoluteLogoPath !== null) {
                     @unlink($absoluteLogoPath);
                 }
             }
@@ -315,7 +340,7 @@ class SettingsController
         // Resolve SMTP password first: encrypt if non-empty, clear if empty
         try {
             $encryptedSmtpPass = $smtpPass !== ''
-                ? SettingsEncryption::encrypt($smtpPass)
+                ? SettingsEncryption::encrypt($smtpPass, 'email', 'smtp_password')
                 : '';
         } catch (\Throwable $e) {
             SecureLogger::error('SettingsController::updateEmailSettings encryption failed: ' . $e->getMessage());
@@ -665,7 +690,7 @@ class SettingsController
         // Decrypt SMTP password for form display (only when actually encrypted)
         if (isset($settings['smtp_password']) && is_string($settings['smtp_password'])
             && str_starts_with($settings['smtp_password'], SettingsEncryption::PREFIX)) {
-            $decrypted = SettingsEncryption::decrypt($settings['smtp_password']);
+            $decrypted = SettingsEncryption::decrypt($settings['smtp_password'], 'email', 'smtp_password');
             if ($decrypted !== null) {
                 $settings['smtp_password'] = $decrypted;
             } else {
@@ -731,6 +756,32 @@ class SettingsController
         // forcing the installation locale — otherwise an en_US admin on an
         // it_IT install would open the editor on the Italian templates.
         return \App\Support\I18n::resolveUserLocale(\App\Support\I18n::getLocale());
+    }
+
+    /**
+     * The file a stored logo path may delete, or null. Only the two places a
+     * logo is ever written qualify: anything under public/uploads/settings
+     * (this controller's upload handler) and a logo_* image directly in
+     * public/assets (the installer's step 5), resolved with realpath() so a
+     * '..' segment or a symlink cannot point the unlink at another file.
+     */
+    public static function removableLogoFile(string $publicDir, string $logoPath): ?string
+    {
+        $real = realpath($publicDir . '/' . ltrim($logoPath, '/'));
+        if ($real === false || !is_file($real)) {
+            return null;
+        }
+        $settingsDir = realpath($publicDir . '/uploads/settings');
+        if ($settingsDir !== false && str_starts_with($real, $settingsDir . DIRECTORY_SEPARATOR)) {
+            return $real;
+        }
+        $assetsDir = realpath($publicDir . '/assets');
+        if ($assetsDir !== false
+            && dirname($real) === $assetsDir
+            && preg_match('/^logo[\w.-]*\.(?:png|jpe?g|webp|gif|svg)$/i', basename($real)) === 1) {
+            return $real;
+        }
+        return null;
     }
 
     /**
@@ -1451,7 +1502,9 @@ class SettingsController
             $newKey = $apiKeyRepo->create($name, $description !== '' ? $description : null);
 
             $_SESSION['success_message'] = __('API key creata con successo.');
-            $_SESSION['new_api_key'] = $newKey['api_key']; // Store for one-time display
+            // One-time display: SettingsController::index() shows it once and
+            // drops it; only the key's hash is stored in the database.
+            $_SESSION['new_api_key'] = $newKey['api_key'];
         } catch (\Throwable $e) {
             SecureLogger::error('SettingsController::createApiKey error: ' . $e->getMessage());
             $_SESSION['error_message'] = __('Errore nella creazione dell\'API key.');

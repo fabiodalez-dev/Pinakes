@@ -22,7 +22,7 @@ $customCss = ConfigStore::get('advanced.custom_header_css', '');
 $customCss = is_string($customCss) ? ContentSanitizer::sanitizeCustomCss($customCss) : '';
 if ($customCss !== ''):
     ?>
-    <style>
+    <style<?= csp_nonce_attr() ?>>
         <?= $customCss ?>
     </style>
 <?php endif; ?>

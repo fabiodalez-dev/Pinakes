@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Plugins\BookClub\Modules;
 
+use App\Plugins\BookClub\Permissions;
 use App\Plugins\BookClub\StatsController;
 use App\Plugins\BookClub\StatsRepo;
 use App\Support\SecureLogger;
@@ -114,13 +115,15 @@ class StatsModule extends AbstractModule
         }
         $isMember = !empty($ctx['isMember']);
         $canManage = !empty($ctx['canManage']);
-        // The panel (like the stats page) is members/managers-only.
-        if (!$isMember && !$canManage) {
+        $userId = isset($ctx['userId']) ? (int) $ctx['userId'] : null;
+        // The panel follows the stats page: `stats.view` (system member role,
+        // managers, custom roles granted it). Guests and custom roles without
+        // it see neither.
+        if (!$canManage && (!$isMember || !Permissions::can($this->db, $club, $userId, 'stats.view'))) {
             return '';
         }
         $clubId = (int) $club['id'];
         $states = is_array($ctx['states'] ?? null) ? $ctx['states'] : [];
-        $userId = isset($ctx['userId']) ? (int) $ctx['userId'] : null;
 
         try {
             $stats = new StatsRepo($this->db);

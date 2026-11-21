@@ -227,7 +227,10 @@ class SprintController extends BaseController
         }
         [$club, $sprint] = $context;
         $userId = $this->userId();
-        $isCreator = $userId !== null && (int) ($sprint['created_by'] ?? 0) === $userId;
+        // The creator's right lasts only while they are an active member: a
+        // creator who left, or was suspended or banned, can no longer cancel.
+        $isCreator = $userId !== null && (int) ($sprint['created_by'] ?? 0) === $userId
+            && $this->isActiveMember($club);
         if (!$isCreator && !$this->canManage($club)) {
             return $this->notFound($response);
         }

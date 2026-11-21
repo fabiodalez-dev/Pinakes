@@ -148,6 +148,8 @@
 - /vendor/phpstan/
 - /vendor/bin/
 - /vendor/**/vendor/
+# PHPMailer's standalone OAuth token helper is a web-runnable script, not library code
+- /vendor/phpmailer/phpmailer/get_oauth_token.php
 
 # Testing (root level only — don't strip vendor test utilities)
 - .phpunit.result.cache

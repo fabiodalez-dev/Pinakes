@@ -87,6 +87,8 @@ class SruClient
      */
     public const NOT_RETRYABLE = 1001;
 
+    private const MAX_QUEUE_WAIT_MICROS = 10_000_000;
+
     /** Largest SRU response body read, in bytes (16 MiB). */
     public const MAX_RESPONSE_BYTES = 16 * 1024 * 1024;
 
@@ -440,9 +442,9 @@ class SruClient
     public static function reserveApcuSlot(string $key, int $intervalMicros, ?int $now = null): ?int
     {
         for ($attempt = 0; $attempt < 50; $attempt++) {
-            $at = $now ?? (int) (microtime(true) * 1_000_000);
             $found = false;
             $previous = apcu_fetch($key, $found);
+            $at = $now ?? (int) (microtime(true) * 1_000_000);
             if (!$found) {
                 // No TTL: one integer per server, and an old value only means
                 // the next slot is now.
@@ -455,7 +457,13 @@ class SruClient
                 apcu_delete($key);
                 continue;
             }
-            $slot = max($at, $previous + $intervalMicros);
+            // This schedule never reserves beyond the horizon. Recover a stale
+            // or invalid timestamp by CAS, without doing arithmetic on it first.
+            $limit = $at + self::MAX_QUEUE_WAIT_MICROS;
+            $slot = $previous > $limit ? $at : max($at, $previous + $intervalMicros);
+            if ($slot > $limit) {
+                throw new \RuntimeException('SRU request queue is full', self::NOT_RETRYABLE);
+            }
             if (apcu_cas($key, $previous, $slot)) {
                 return $slot;
             }
@@ -474,7 +482,7 @@ class SruClient
         if (function_exists('apcu_enabled') && apcu_enabled() && function_exists('apcu_cas')) {
             $slot = self::reserveApcuSlot('sru_rate_' . md5($serverKey), (int) ($minIntervalSeconds * 1_000_000));
             if ($slot !== null) {
-                $wait = $slot - (int) (microtime(true) * 1_000_000);
+                $wait = min($slot - (int) (microtime(true) * 1_000_000), self::MAX_QUEUE_WAIT_MICROS);
                 if ($wait > 0) {
                     usleep($wait);
                 }
@@ -483,7 +491,11 @@ class SruClient
         }
 
         // Tier 2: file lock shared across workers on the same machine
-        $lockDir = sys_get_temp_dir();
+        // Install-owned directory first; the host-shared temp dir only as fallback.
+        $lockDir = dirname(__DIR__, 4) . DIRECTORY_SEPARATOR . 'storage' . DIRECTORY_SEPARATOR . 'cache';
+        if (!is_dir($lockDir) || !is_writable($lockDir)) {
+            $lockDir = sys_get_temp_dir();
+        }
         if ($lockDir !== '' && is_writable($lockDir)) {
             $lockPath = $lockDir . DIRECTORY_SEPARATOR . 'pinakes_sru_rate_' . md5($serverKey) . '.lock';
             $fh = @fopen($lockPath, 'c+');
@@ -494,6 +506,8 @@ class SruClient
                         $contents = stream_get_contents($fh);
                         $previous = is_string($contents) && is_numeric(trim($contents)) ? (float)trim($contents) : 0.0;
                         $elapsed = microtime(true) - $previous;
+                        // A timestamp in the future (pre-created file) counts as "just now".
+                        $elapsed = max(0.0, $elapsed);
                         if ($previous > 0 && $elapsed < $minIntervalSeconds) {
                             usleep((int)(($minIntervalSeconds - $elapsed) * 1_000_000));
                         }

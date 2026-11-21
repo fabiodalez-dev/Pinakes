@@ -37,17 +37,6 @@ $relationTargetLabels = [
     'archive_place'    => __('Luogo'),
 ];
 
-/**
- * Safely serialise a PHP value as a JS literal for use INSIDE an HTML
- * attribute delimited with double quotes (e.g. `onclick="..."`).
- * Matches the helper used in storage/plugins/archives/views/show.php.
- */
-$jsAttr = static fn (mixed $x): string =>
-    htmlspecialchars(
-        (string) json_encode($x, JSON_UNESCAPED_UNICODE),
-        ENT_QUOTES,
-        'UTF-8'
-    );
 
 // Dynamic confirm message: include linked-unit count when relevant so the
 // user sees the side-effect of deletion (orphaned RiC relations) BEFORE
@@ -109,7 +98,7 @@ ob_start();
                       class="inline">
                     <input type="hidden" name="csrf_token" value="<?= $e($csrfToken) ?>">
                     <button type="button"
-                            onclick="archivesSwalConfirm(<?= $jsAttr($archivesDeleteActivityId) ?>, <?= $jsAttr($archivesDeleteMsg) ?>, <?= $jsAttr(__('Elimina')) ?>)"
+                            data-pk-action="archives-confirm" data-archives-form="<?= $e($archivesDeleteActivityId) ?>" data-archives-message="<?= $e($archivesDeleteMsg) ?>" data-archives-label="<?= $e(__('Elimina')) ?>"
                             class="btn-danger">
                         <?= __('Elimina') ?>
                     </button>
@@ -217,7 +206,7 @@ unset($workspaceHeader);
                             <input type="hidden" name="csrf_token" value="<?= $e($csrfToken) ?>">
                             <input type="hidden" name="_return_to" value="<?= $e('/admin/archives/activities/' . $id) ?>">
                             <button type="button"
-                                    onclick="archivesSwalConfirm(<?= $jsAttr($relDetachId) ?>, <?= $jsAttr(__('Scollegare questa relazione?')) ?>, <?= $jsAttr(__('scollega')) ?>)"
+                                    data-pk-action="archives-confirm" data-archives-form="<?= $e($relDetachId) ?>" data-archives-message="<?= $e(__('Scollegare questa relazione?')) ?>" data-archives-label="<?= $e(__('scollega')) ?>"
                                     class="text-red-600 text-xs hover:underline">
                                 <?= __('scollega') ?>
                             </button>
@@ -280,7 +269,7 @@ unset($workspaceHeader);
 <?php /* Relation-attach typeahead — fetches /api/archives/entities?type=&q=
          and populates the visible/hidden input pair. Pattern mirrors
          storage/plugins/archives/views/show.php (data-typeahead-*). */ ?>
-<script>
+<script<?= csp_nonce_attr() ?>>
 (function () {
     var form = document.querySelector('form[data-archives-relation-attach]');
     if (!form) return;
@@ -467,7 +456,7 @@ unset($workspaceHeader);
 <?php /* SweetAlert2 confirm helper — matches the pattern used in
           storage/plugins/archives/views/show.php. Idempotency guard so
           multiple views on the same page can load it without redefining. */ ?>
-<script>
+<script<?= csp_nonce_attr() ?>>
 if (typeof window.archivesSwalConfirm !== 'function') {
     window.archivesSwalConfirm = function (formId, message, confirmLabel) {
         var form = document.getElementById(formId);
@@ -489,5 +478,13 @@ if (typeof window.archivesSwalConfirm !== 'function') {
             if (r && r.isConfirmed) form.submit();
         });
     };
+}
+// Buttons carry data-pk-action="archives-confirm" with the form id, the
+// message and the button label in data-archives-* (no inline handlers: the
+// CSP sends script-src-attr 'none').
+if (window.PinakesActions && !window.PinakesActions.has('archives-confirm')) {
+    window.PinakesActions.register('archives-confirm', function (el) {
+        window.archivesSwalConfirm(el.dataset.archivesForm, el.dataset.archivesMessage, el.dataset.archivesLabel);
+    });
 }
 </script>

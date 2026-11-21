@@ -592,7 +592,7 @@ class StatsRepo
     public function exportStateLog(int $clubId): array
     {
         return $this->rows(
-            "SELECT l.titolo, sl.from_state, sl.to_state, sl.changed_at,
+            "SELECT l.titolo, sl.from_state, sl.to_state, sl.changed_at, cb.state AS current_state,
                     TRIM(CONCAT(COALESCE(u.nome, ''), ' ', COALESCE(u.cognome, ''))) AS changed_by_name
                FROM bookclub_book_state_log sl
                JOIN bookclub_books cb ON cb.id = sl.club_book_id

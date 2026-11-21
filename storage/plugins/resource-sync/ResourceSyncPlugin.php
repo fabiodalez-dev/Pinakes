@@ -216,37 +216,43 @@ class ResourceSyncPlugin
         }
 
         // Session-based admin/staff access
+        // Fails CLOSED on a stale role: the role is read from the database on
+        // this request, not taken from the login-time session snapshot.
         if (
             isset($_SESSION['user']) &&
-            in_array($_SESSION['user']['tipo_utente'] ?? '', ['admin', 'staff'], true)
+            \App\Support\SessionRoleRevalidator::holdsActiveRole(['admin', 'staff'], $this->db)
         ) {
             return true;
         }
 
         $auth = $request->getHeaderLine('Authorization');
         if ($auth !== '' && str_starts_with($auth, 'Basic ')) {
-            // Throttle credential guessing per client IP. This is the only
-            // brute-force control on the Basic Auth gate, so every attempt must
-            // count toward the limit (mirrors the core login throttle:
-            // RateLimitMiddleware(15, 300, 'login') and mobile_login 10/300).
-            $ip   = (string) ($request->getServerParams()['REMOTE_ADDR'] ?? 'unknown');
-            $rlId = 'resourcesync_basic:' . $ip;
-            if (RateLimiter::isLimited($rlId, 10, 300)) {
+            // Throttle credential guessing per client IP AND account. This is
+            // the only brute-force control on the Basic Auth gate, so every
+            // attempt must count toward the limit (mirrors the core login
+            // throttle: RateLimitMiddleware(15, 300, 'login') and mobile_login
+            // 10/300). A success clears only that account's counter, so a
+            // valid staff login cannot reset the guesses at another account
+            // made from the same IP (same key shape as NCIP).
+            $ip      = (string) ($request->getServerParams()['REMOTE_ADDR'] ?? 'unknown');
+            $decoded = base64_decode(substr($auth, 6), true);
+            $parts   = $decoded !== false ? explode(':', $decoded, 2) : [];
+            // Plus a failures-only bucket per IP that no success clears, so
+            // spraying many accounts (or spellings of one) is capped too.
+            $rlId    = 'resourcesync_basic:' . RateLimiter::clientKey($ip) . ':' . RateLimiter::accountKey($parts[0] ?? '');
+            $rlIpId  = 'resourcesync_basic_fail:' . RateLimiter::clientKey($ip);
+            if (RateLimiter::isLimited($rlIpId, 30, 300, false) || RateLimiter::isLimited($rlId, 10, 300)) {
                 $out = $response
                     ->withStatus(429)
                     ->withHeader('Retry-After', '300');
                 return false;
             }
 
-            $decoded = base64_decode(substr($auth, 6), true);
-            if ($decoded !== false) {
-                $parts = explode(':', $decoded, 2);
-                if (count($parts) === 2 && $this->authenticateBasic($parts[0], $parts[1])) {
-                    // Successful auth clears the throttle for this IP.
-                    RateLimiter::reset($rlId);
-                    return true;
-                }
+            if (count($parts) === 2 && $this->authenticateBasic($parts[0], $parts[1], $request)) {
+                RateLimiter::reset($rlId);
+                return true;
             }
+            RateLimiter::isLimited($rlIpId, 30, 300); // count this failure for the IP
         }
 
         // Missing, malformed or wrong credentials: RFC 7235 §3.1 — a 401 with
@@ -258,12 +264,15 @@ class ResourceSyncPlugin
     }
 
     /**
-     * FIX F077: validate admin/staff credentials against the `utenti` table.
+     * FIX F077: validate admin/staff credentials against the `utenti` table,
+     * with the same gates as the interactive login and NCIP: a verified
+     * email and the plugin 'login.validate' hook, on the 'resourcesync'
+     * channel, so a verification plugin cannot be bypassed here.
      */
-    private function authenticateBasic(string $email, string $pass): bool
+    private function authenticateBasic(string $email, string $pass, ServerRequestInterface $request): bool
     {
         $stmt = $this->db->prepare(
-            "SELECT password FROM utenti
+            "SELECT password, email_verificata FROM utenti
              WHERE email = ? AND stato = 'attivo'
                AND tipo_utente IN ('admin','staff')
              LIMIT 1"
@@ -278,10 +287,14 @@ class ResourceSyncPlugin
             // Constant-time dummy verify: avoids an account-enumeration timing
             // side channel between "no such admin/staff email" and "wrong
             // password" by always spending one bcrypt verification.
-            password_verify($pass, '$2y$12$FYWkjQ0krgMEuFnovQ3C6.vL6MZP/pdGGrLm.Q1PBhX29YNNu.Bfe');
+            \App\Support\PasswordTiming::equalize($pass);
             return false;
         }
-        return password_verify($pass, (string) $row['password']);
+        if (!password_verify($pass, (string) $row['password'])) {
+            return false;
+        }
+        return (int) ($row['email_verificata'] ?? 0) === 1
+            && (bool) \App\Support\Hooks::apply('login.validate', true, [$email, $request, 'resourcesync']);
     }
 
     /**

@@ -209,7 +209,7 @@ unset($workspaceHeader);
         <form method="GET" action="<?= htmlspecialchars(url('/admin/calendar'), ENT_QUOTES, 'UTF-8') ?>" id="holiday-filter" class="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
             <label for="holiday_country" class="form-label"><i class="fas fa-globe mr-1"></i><?= __("Paese") ?></label>
-            <select id="holiday_country" name="holiday_country" class="form-input" onchange="if (this.form.holiday_region) { this.form.holiday_region.value = ''; } this.form.submit()">
+            <select id="holiday_country" name="holiday_country" class="form-input" data-pk-action="calendar-holiday-country">
               <?php foreach ($holidays['countries'] as $code => $countryName): ?>
                 <option value="<?= $e($code) ?>" <?= $code === $holidays['country'] ? 'selected' : '' ?>><?= $e($countryName) ?></option>
               <?php endforeach; ?>
@@ -218,7 +218,7 @@ unset($workspaceHeader);
           <?php if ($holidays['regions'] !== []): ?>
             <div>
               <label for="holiday_region" class="form-label"><i class="fas fa-map-marker-alt mr-1"></i><?= __("Regione") ?></label>
-              <select id="holiday_region" name="holiday_region" class="form-input" onchange="this.form.submit()">
+              <select id="holiday_region" name="holiday_region" class="form-input" data-pk-action="submit-form">
                 <?php if (empty(\App\Support\Holidays\HolidayCalculator::country($holidays['country'])['region_required'])): ?>
                   <option value=""><?= __("Solo festività nazionali") ?></option>
                 <?php endif; ?>
@@ -230,7 +230,7 @@ unset($workspaceHeader);
           <?php endif; ?>
           <div>
             <label for="holiday_year" class="form-label"><i class="fas fa-calendar-alt mr-1"></i><?= __("Anno di anteprima") ?></label>
-            <input type="number" id="holiday_year" name="holiday_year" class="form-input" min="<?= (int) $holidays['years']['min'] ?>" max="<?= (int) $holidays['years']['max'] ?>" step="1" value="<?= (int) $holidays['year'] ?>" onchange="if (this.checkValidity()) this.form.submit()">
+            <input type="number" id="holiday_year" name="holiday_year" class="form-input" min="<?= (int) $holidays['years']['min'] ?>" max="<?= (int) $holidays['years']['max'] ?>" step="1" value="<?= (int) $holidays['year'] ?>" data-pk-action="submit-form" data-pk-require-valid>
           </div>
           <noscript>
             <button type="submit" class="inline-flex items-center px-3 py-1.5 text-sm bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg transition-colors duration-200"><?= __("Aggiorna anteprima") ?></button>
@@ -627,7 +627,7 @@ unset($workspaceHeader);
           <?php if ($branches !== []): ?>
             <form method="GET" action="<?= htmlspecialchars(url('/admin/calendar'), ENT_QUOTES, 'UTF-8') ?>">
               <input type="hidden" name="month" value="<?= $e($month) ?>">
-              <select name="sede" class="form-input" onchange="this.form.submit()" aria-label="<?= htmlspecialchars(__('Sede'), ENT_QUOTES, 'UTF-8') ?>">
+              <select name="sede" class="form-input" data-pk-action="submit-form" aria-label="<?= htmlspecialchars(__('Sede'), ENT_QUOTES, 'UTF-8') ?>">
                 <option value=""><?= __("Tutte le sedi") ?></option>
                 <?php foreach ($branches as $branchId => $branchName): ?>
                   <option value="<?= (int) $branchId ?>" <?= $previewSede === (int) $branchId ? 'selected' : '' ?>><?= $e($branchName) ?></option>
@@ -770,7 +770,7 @@ unset($workspaceHeader);
     </div>
   </div>
 </div>
-<script>
+<script<?= csp_nonce_attr() ?>>
 (function () {
   // Custom holidays: show the fields of the chosen kind and calendar only.
   var kind = document.querySelector('[data-custom-kind-select]');
@@ -796,5 +796,12 @@ document.querySelectorAll('[data-holiday-select]').forEach(function (button) {
     var on = button.getAttribute('data-holiday-select') === 'all';
     document.querySelectorAll('input[data-holiday-rule]').forEach(function (box) { box.checked = on; });
   });
+});
+// Changing the country resets the region (it belongs to the old country).
+PinakesActions.register('calendar-holiday-country', function (el) {
+  var form = el.form;
+  if (!form) return;
+  if (form.holiday_region) { form.holiday_region.value = ''; }
+  form.submit();
 });
 </script>

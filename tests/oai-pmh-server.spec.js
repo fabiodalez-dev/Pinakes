@@ -116,7 +116,9 @@ test.describe.serial('OAI-PMH Server plugin — v0.7.0 (24 tests)', () => {
         if (isActive !== '1') {
             await page.goto(`${BASE}/admin/plugins`);
             await page.waitForLoadState('domcontentloaded');
-            const btn = page.locator('button[onclick*="oai-pmh-server"]').first();
+            // The activate button is a data-pk-action button keyed by the plugin's id.
+            const pluginId = dbQuery("SELECT id FROM plugins WHERE name = 'oai-pmh-server'");
+            const btn = page.locator(`button[data-pk-action="plugins-activate"][data-plugin-id="${pluginId}"]`);
             if (await btn.isVisible({ timeout: 3000 }).catch(() => false)) {
                 await btn.click();
                 const confirm = page.locator('.swal2-confirm').first();

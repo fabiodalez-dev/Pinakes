@@ -271,7 +271,7 @@ unset($workspaceHeader);
   </div>
 </div>
 
-<script>
+<script<?= csp_nonce_attr() ?>>
 (function() {
   // Patron photo: webcam (getUserMedia → canvas → JPEG) or picked file, both
   // sent to the same protected endpoint; deleting removes file and reference.

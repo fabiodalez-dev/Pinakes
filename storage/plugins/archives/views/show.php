@@ -13,22 +13,6 @@ declare(strict_types=1);
 $e = static fn(mixed $v): string => htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8');
 $v = static fn(string $k): string => $e((string) ($row[$k] ?? ''));
 
-/**
- * Safely serialise a PHP value as a JS literal for use INSIDE an HTML
- * attribute delimited with double quotes (e.g. `onclick="..."`).
- *
- * JSON_HEX_QUOT would escape the delimiter quotes of the JS string itself,
- * producing invalid JS like `archivesSwalConfirm(\u0022foo\u0022, …)`.
- * The right escape here is htmlspecialchars: `"` becomes `&quot;`, which
- * the HTML parser decodes back to `"` before handing the attribute value
- * to the JS engine — so the JS parser sees valid `"foo"` literals.
- */
-$jsAttr = static fn(mixed $x): string =>
-    htmlspecialchars(
-        (string) json_encode($x, JSON_UNESCAPED_UNICODE),
-        ENT_QUOTES,
-        'UTF-8'
-    );
 
 $dateRange = '';
 if ($row['date_start'] !== null) {
@@ -98,9 +82,9 @@ ob_start();
             <?php
             // Aligned with the rest of Pinakes: destructive confirmations
             // go through SweetAlert2 (loaded globally in app/Views/layout.php).
-            // json_encode serialises the localised message + button labels as
-            // JS literals so apostrophes/quotes in any locale survive the
-            // HTML-attribute → JS parse round-trip.
+            // The localised message and button label travel as plain,
+            // HTML-escaped data-archives-* attributes read by the
+            // registered "archives-confirm" verb — never as inline code.
             $archivesDeleteUnitId = 'archivesDeleteUnit_' . $id;
             ?>
             <form id="<?= $e($archivesDeleteUnitId) ?>"
@@ -109,7 +93,7 @@ ob_start();
                 <input type="hidden" name="csrf_token" value="<?= $e(\App\Support\Csrf::ensureToken()) ?>">
                 <button type="button"
                         class="btn-danger"
-                        onclick="archivesSwalConfirm(<?= $jsAttr($archivesDeleteUnitId) ?>, <?= $jsAttr(__("Eliminare questo record? L'operazione è reversibile (soft-delete) ma rimuoverà l'unità dalle viste.")) ?>, <?= $jsAttr(__("Elimina")) ?>)">
+                        data-pk-action="archives-confirm" data-archives-form="<?= $e($archivesDeleteUnitId) ?>" data-archives-message="<?= $e(__("Eliminare questo record? L'operazione è reversibile (soft-delete) ma rimuoverà l'unità dalle viste.")) ?>" data-archives-label="<?= $e(__("Elimina")) ?>">
                     <?= __("Elimina") ?>
                 </button>
             </form>
@@ -450,7 +434,7 @@ unset($workspaceHeader);
                               class="inline">
                             <input type="hidden" name="csrf_token" value="<?= $e(\App\Support\Csrf::ensureToken()) ?>">
                             <button type="button" class="text-xs text-red-600 hover:underline"
-                                    onclick="archivesSwalConfirm(<?= $jsAttr($detachId) ?>, <?= $jsAttr(__('Rimuovere questo collegamento?')) ?>, <?= $jsAttr(__('scollega')) ?>)"><?= __("scollega") ?></button>
+                                    data-pk-action="archives-confirm" data-archives-form="<?= $e($detachId) ?>" data-archives-message="<?= $e(__('Rimuovere questo collegamento?')) ?>" data-archives-label="<?= $e(__('scollega')) ?>"><?= __("scollega") ?></button>
                         </form>
                     </li>
                 <?php endforeach; ?>
@@ -508,7 +492,7 @@ unset($workspaceHeader);
             $searchUrl = url('/admin/archives/api/authorities/search');
             $msgNoResults = __("Nessun risultato");
             ?>
-            <script>
+            <script<?= csp_nonce_attr() ?>>
             (function () {
                 var form = document.querySelector('form[data-archives-attach]');
                 if (!form) return;
@@ -695,7 +679,7 @@ unset($workspaceHeader);
 <?php /* SweetAlert2 confirm helper — matches the pattern used elsewhere
           in Pinakes. Defined with an idempotency guard so multiple views
           can load it without redefining. */ ?>
-<script>
+<script<?= csp_nonce_attr() ?>>
 if (typeof window.archivesSwalConfirm !== 'function') {
     window.archivesSwalConfirm = function (formId, message, confirmLabel) {
         var form = document.getElementById(formId);
@@ -717,5 +701,13 @@ if (typeof window.archivesSwalConfirm !== 'function') {
             if (r && r.isConfirmed) form.submit();
         });
     };
+}
+// Buttons carry data-pk-action="archives-confirm" with the form id, the
+// message and the button label in data-archives-* (no inline handlers: the
+// CSP sends script-src-attr 'none').
+if (window.PinakesActions && !window.PinakesActions.has('archives-confirm')) {
+    window.PinakesActions.register('archives-confirm', function (el) {
+        window.archivesSwalConfirm(el.dataset.archivesForm, el.dataset.archivesMessage, el.dataset.archivesLabel);
+    });
 }
 </script>

@@ -230,9 +230,9 @@ class PublicController
                ) ann ON ann.testata_id = t.id
                {$w}
               ORDER BY t.titolo ASC, t.id ASC
-              LIMIT " . self::PER_PAGE . " OFFSET {$offset}",
-            $t,
-            $b
+              LIMIT ? OFFSET ?",
+            $t . 'ii',
+            array_merge($b, [self::PER_PAGE, (int) $offset])
         );
 
         if ($hasEditori) {

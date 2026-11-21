@@ -111,7 +111,7 @@ renderHeader(5, __('Impostazioni Applicazione'));
     <div class="form-group" style="margin-top: 20px;">
         <div style="background: linear-gradient(135deg, #e0f2fe 0%, #bae6fd 100%); border: 1px solid #0ea5e9; border-radius: 12px; padding: 20px;">
             <label style="display: flex; align-items: flex-start; gap: 12px; cursor: pointer;">
-                <input type="checkbox" name="force_https" value="1" style="width: 20px; height: 20px; margin-top: 2px; accent-color: #0369a1;">
+                <input type="checkbox" name="force_https" value="1"<?= Installer::isInstallRequestHttps() ? ' checked' : '' ?> style="width: 20px; height: 20px; margin-top: 2px; accent-color: #0369a1;">
                 <div>
                     <span style="font-weight: 600; color: #0369a1; display: block;"><?= __("Forza HTTPS") ?></span>
                     <small style="color: #075985; display: block; margin-top: 4px;">
@@ -120,6 +120,12 @@ renderHeader(5, __('Impostazioni Applicazione'));
                 </div>
             </label>
         </div>
+        <?php if (Installer::untrustedForwardedHttps()): ?>
+        <div class="alert alert-info" style="margin-top: 12px; padding: 12px; font-size: 13px;" data-testid="install-proxy-https-note">
+            <i class="fas fa-info-circle"></i>
+            <?= htmlspecialchars(__("Questa richiesta arriva in HTTPS tramite un proxy che l'installer non può verificare (X-Forwarded-Proto), quindi «Forza HTTPS» non è preselezionato. Se il sito è servito in HTTPS, attivalo e, dopo l'installazione, imposta TRUSTED_PROXIES nel file .env con l'indirizzo del proxy."), ENT_QUOTES, 'UTF-8') ?>
+        </div>
+        <?php endif; ?>
         <div class="alert alert-warning" style="margin-top: 12px; padding: 12px; font-size: 13px;">
             <i class="fas fa-exclamation-triangle"></i>
             <strong><?= __("Attenzione:") ?></strong> <?= __("Attiva questa opzione solo se il tuo server supporta HTTPS. Se il tuo hosting forza già HTTPS automaticamente, non è necessario abilitarla (potrebbe causare redirect loop).") ?>

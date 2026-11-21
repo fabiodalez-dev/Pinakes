@@ -8,7 +8,9 @@ const path = require('node:path');
 // surfaces unrelated to submission are stubbed; requests resolve under our control.
 function harness(initialToken = '') {
   const source = fs.readFileSync(path.join(__dirname, '../storage/plugins/desiderata/views/partials/offer-assets.php'), 'utf8');
-  const script = source.split('<script>')[1].split('</script>')[0].replace(/<\?=[\s\S]*?\?>/g, '""');
+  const inlineScript = source.match(/^<script(?:<\?=[^\r\n]*?\?>)?>\r?\n([\s\S]*?)^<\/script>/m);
+  assert.ok(inlineScript, 'expected the inline Desiderata script');
+  const script = inlineScript[1].replace(/<\?=[\s\S]*?\?>/g, '""');
   const calls = [];
   let submit, posted;
   const form = {

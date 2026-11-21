@@ -309,7 +309,29 @@ if (function_exists('apcu_enabled') && apcu_enabled()) {
     $slots = [SruClient::reserveApcuSlot($slotKey, 1_000_000, $t0), SruClient::reserveApcuSlot($slotKey, 1_000_000, $t0), SruClient::reserveApcuSlot($slotKey, 1_000_000, $t0)];
     $check($slots === [$t0, $t0 + 1_000_000, $t0 + 2_000_000], '20b requests at the same moment reserve distinct slots one second apart');
     $check(SruClient::reserveApcuSlot($slotKey, 1_000_000, $t0 + 10_000_000) === $t0 + 10_000_000, '20c a request after the last slot goes at once');
+    apcu_store($slotKey, PHP_INT_MAX);
+    $check(SruClient::reserveApcuSlot($slotKey, 1_000_000, $t0) === $t0, 'an invalid future timestamp is repaired atomically');
+    apcu_store($slotKey, $t0 + 10_000_000);
+    try {
+        SruClient::reserveApcuSlot($slotKey, 1_000_000, $t0);
+        $check(false, 'a full queue refuses an extra request');
+    } catch (RuntimeException $e) {
+        $check($e->getCode() === SruClient::NOT_RETRYABLE && apcu_fetch($slotKey) === $t0 + 10_000_000,
+            'a full queue refuses an extra request and preserves the last reservation');
+    }
     apcu_delete($slotKey);
+
+    $serverKey = 'catalogue-' . bin2hex(random_bytes(8));
+    $key = 'sru_rate_' . md5($serverKey);
+    $prior = (int) (microtime(true) * 1_000_000) + 500_000;
+    apcu_store($key, $prior);
+    try {
+        $last = [];
+        (new ReflectionMethod(SruClient::class, 'enforceRateLimit'))->invokeArgs($danIsbn, [$serverKey, &$last]);
+        $check((int) (microtime(true) * 1_000_000) >= $prior + 1_000_000, 'the worker waits until its actual reserved slot');
+    } finally {
+        apcu_delete($key);
+    }
 } else {
     echo "  SKIP 20b-20c APCu is not enabled for the CLI (php -d apc.enable_cli=1)\n";
 }

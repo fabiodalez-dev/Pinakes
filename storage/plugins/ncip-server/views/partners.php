@@ -206,7 +206,7 @@ unset($workspaceHeader);
                           data-partner-isil="<?= htmlspecialchars((string) ($p['isil'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
                           data-partner-endpoint="<?= htmlspecialchars((string) ($p['endpoint_url'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
                           data-form-id="ncip-partner-delete-form-<?= (int) $p['id'] ?>"
-                          onclick="ncipPartnerConfirmDelete(this)"
+                          data-pk-action="ncip-partner-delete"
                           class="inline-flex items-center px-3 py-1.5 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800 text-xs font-medium rounded-lg hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors">
                     <i class="fas fa-trash-alt mr-1.5"></i>
                     <?= __("Elimina") ?>
@@ -224,7 +224,7 @@ unset($workspaceHeader);
   </div>
 </div>
 
-<script>
+<script<?= csp_nonce_attr() ?>>
 (function () {
   var I18N = {
     title: <?= json_encode(__('Eliminare partner?'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>,
@@ -280,5 +280,11 @@ unset($workspaceHeader);
       }
     });
   };
+
+  if (window.PinakesActions) {
+    window.PinakesActions.register('ncip-partner-delete', function (btn) {
+      window.ncipPartnerConfirmDelete(btn);
+    });
+  }
 })();
 </script>

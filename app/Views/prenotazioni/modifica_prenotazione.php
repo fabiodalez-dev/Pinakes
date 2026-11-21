@@ -40,6 +40,7 @@ unset($workspaceHeader);
               'invalid_date' => __('Data non valida: modifica non salvata.'),
               'promoted_loan_active' => __('Questa prenotazione è già stata convertita in un prestito ancora aperto: gestisci il prestito dalla pagina Prestiti invece di modificare la prenotazione.'),
               'user_not_found', 'user_suspended', 'card_expired', 'debt_block' => \App\Support\LoanEligibility::errorMessage($errorKey),
+              \App\Support\SelfDealingGuard::ERROR => \App\Support\SelfDealingGuard::message(),
               default => __('Impossibile completare l\'operazione. Riprova più tardi.')
           };
           ?>

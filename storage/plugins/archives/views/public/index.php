@@ -153,7 +153,7 @@ include $corePartials . '/catalog-hero.php';
                                     <?php if ($cover !== ''): ?>
                                         <?php // A cover file gone from disk falls back to the level icon, as a unit without a cover shows. ?>
                                         <img class="book-image" src="<?= $e($cover) ?>" alt="" loading="lazy" decoding="async"
-                                             onerror="this.onerror=null;this.nextElementSibling.style.display='';this.remove()">
+                                             data-pk-fallback-hide>
                                         <i class="fas <?= $e($levelIcon[$lvl] ?? 'fa-archive') ?> book-image-icon" aria-hidden="true" style="display:none"></i>
                                     <?php else: ?>
                                         <i class="fas <?= $e($levelIcon[$lvl] ?? 'fa-archive') ?> book-image-icon" aria-hidden="true"></i>
@@ -181,3 +181,18 @@ include $corePartials . '/catalog-hero.php';
         </div>
     </div>
 </div>
+<script<?= csp_nonce_attr() ?>>
+(function () {
+    // A cover file gone from disk: pk-actions.js hides the image; this swaps in
+    // the level icon next to it, as a unit without a cover shows.
+    document.querySelectorAll('.archive-unit-card-media img.book-image[data-pk-fallback-hide]').forEach(function (img) {
+        var swap = function () {
+            var icon = img.nextElementSibling;
+            if (icon) icon.style.display = '';
+            img.remove();
+        };
+        if (img.dataset.pkFallbackDone === '1' || (img.complete && img.naturalWidth === 0 && img.getAttribute('src'))) { swap(); return; }
+        img.addEventListener('error', swap, { once: true });
+    });
+})();
+</script>

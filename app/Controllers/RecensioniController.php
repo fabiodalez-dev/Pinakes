@@ -72,11 +72,23 @@ class RecensioniController
 
         // CSRF validated by CsrfMiddleware
 
+        // A JSON scalar body or an array-valued field (titolo[]=x) must be a
+        // 400, not a TypeError from trim() surfacing as a 500.
+        if (!is_array($body)) {
+            $body = [];
+        }
+        foreach (['libro_id', 'stelle', 'titolo', 'descrizione'] as $field) {
+            if (isset($body[$field]) && !is_scalar($body[$field])) {
+                $response->getBody()->write(json_encode(['success' => false, 'message' => __('Richiesta non valida')]));
+                return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+            }
+        }
+
         // Validazione input
         $libroId = (int) ($body['libro_id'] ?? 0);
         $stelle = (int) ($body['stelle'] ?? 0);
-        $titolo = trim($body['titolo'] ?? '');
-        $descrizione = trim($body['descrizione'] ?? '');
+        $titolo = trim((string) ($body['titolo'] ?? ''));
+        $descrizione = trim((string) ($body['descrizione'] ?? ''));
 
         if ($libroId <= 0) {
             $response->getBody()->write(json_encode(['success' => false, 'message' => __('ID libro non valido')]));

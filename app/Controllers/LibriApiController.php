@@ -170,7 +170,7 @@ class LibriApiController
         // Parse DataTables sorting parameters (with robust null checks to avoid notices)
         $order = $q['order'][0] ?? null;
         $orderColumn = isset($order['column']) ? (int) $order['column'] : 4; // Default to Info column (title)
-        $orderDir = (isset($order['dir']) && strtoupper(trim($order['dir'])) === 'DESC') ? 'DESC' : 'ASC';
+        $orderDir = (is_array($order) && isset($order['dir']) && is_string($order['dir']) && strtoupper(trim($order['dir'])) === 'DESC') ? 'DESC' : 'ASC';
 
         // Map column indices to database fields
         // Columns: 0=checkbox, 1=status, 2=media, 3=cover, 4=info(title), 5=genre, 6=position, 7=year, 8=actions
@@ -343,6 +343,20 @@ class LibriApiController
         return $response->withHeader('Content-Type', 'application/json');
     }
 
+    /**
+     * Readers (standard/premium) browse the catalogue proper, exactly like the
+     * other reader-facing browse paths: wanted titles stay out. Staff keep the
+     * full list they already see in the admin.
+     */
+    private function readerBrowsePredicate(mysqli $db): string
+    {
+        $role = (string) ($_SESSION['user']['tipo_utente'] ?? '');
+        if (in_array($role, ['admin', 'staff'], true)) {
+            return '1=1';
+        }
+        return \App\Support\BookVisibility::catalogue($db, 'l');
+    }
+
     public function getByAuthor(Request $request, Response $response, mysqli $db, int $authorId): Response
     {
         $sql = "SELECT l.id, l.titolo, l.isbn10, l.isbn13, l.data_acquisizione, l.stato,
@@ -357,6 +371,7 @@ class LibriApiController
                 LEFT JOIN editori e ON l.editore_id = e.id
                 INNER JOIN libri_autori la ON l.id = la.libro_id
                 WHERE la.autore_id = ? AND l.deleted_at IS NULL
+                  AND " . $this->readerBrowsePredicate($db) . "
                 GROUP BY l.id
                 ORDER BY l.titolo ASC";
         $stmt = $db->prepare($sql);
@@ -394,6 +409,7 @@ class LibriApiController
                 INNER JOIN autori a ON la.autore_id = a.id
                 WHERE (l.editore_id = ?{$exists})
                       AND l.deleted_at IS NULL
+                      AND " . $this->readerBrowsePredicate($db) . "
                 GROUP BY l.id, l.titolo, l.isbn10, l.isbn13, l.data_acquisizione, l.stato
                 ORDER BY l.titolo ASC";
         $stmt = $db->prepare($sql);

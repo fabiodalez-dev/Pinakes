@@ -527,7 +527,7 @@ $selectedSeriesType = \App\Support\SeriesLabels::canonical($book['tipo_collana']
               <?php endforeach; ?>
             </div>
           </div>
-          <script>
+          <script<?= csp_nonce_attr() ?>>
           (function () {
             const derived = <?= json_encode($rdaDerivedByMedia, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
             const prefix = <?= json_encode(__('Automatico: %s'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
@@ -731,12 +731,12 @@ $selectedSeriesType = \App\Support\SeriesLabels::canonical($book['tipo_collana']
                 <?php // A cover whose file is gone shows no empty frame, but keeps "Rimuovi": it is the only way to clear the dead path. ?>
                 <div class="inline-flex flex-col items-start space-y-2" data-current-cover>
                   <div class="relative group">
-                    <img src="<?php echo htmlspecialchars(url($currentCover), ENT_QUOTES, 'UTF-8'); ?>" alt="Copertina attuale" class="max-h-48 object-contain border border-gray-200 rounded-lg shadow-sm" onerror="this.dataset.error='true'; this.style.display='none'; var box = this.closest('[data-current-cover]'); box.querySelector('[data-cover-caption]').hidden = true; box.querySelector('[data-cover-missing]').hidden = false;" />
+                    <img src="<?php echo htmlspecialchars(url($currentCover), ENT_QUOTES, 'UTF-8'); ?>" alt="Copertina attuale" class="max-h-48 object-contain border border-gray-200 rounded-lg shadow-sm" data-current-cover-img />
                   </div>
                   <div class="flex items-center gap-2">
                     <span class="text-xs text-gray-500" data-cover-caption><?= __("Copertina attuale") ?></span>
                     <span class="text-xs text-gray-500" data-cover-missing hidden><?= __("File della copertina non trovato") ?></span>
-                    <button type="button" onclick="removeCoverImage()" class="text-xs text-red-600 hover:text-red-800 hover:underline flex items-center gap-1">
+                    <button type="button" data-pk-action="book-cover-remove" class="text-xs text-red-600 hover:text-red-800 hover:underline flex items-center gap-1">
                       <i class="fas fa-trash"></i>
                       <?= __('Rimuovi') ?>
                     </button>
@@ -744,6 +744,31 @@ $selectedSeriesType = \App\Support\SeriesLabels::canonical($book['tipo_collana']
                 </div>
               <?php endif; ?>
             </div>
+            <?php if (!empty($currentCover)): ?>
+            <script<?= csp_nonce_attr() ?>>
+              // Missing cover file: hide the image and swap the caption for the
+              // "not found" note (was an inline onerror, forbidden by the CSP).
+              (function () {
+                var img = document.querySelector('img[data-current-cover-img]');
+                if (!img) return;
+                var done = false;
+                var markMissing = function () {
+                  if (done) return;
+                  done = true;
+                  img.dataset.error = 'true';
+                  img.style.display = 'none';
+                  var box = img.closest('[data-current-cover]');
+                  if (!box) return;
+                  var caption = box.querySelector('[data-cover-caption]');
+                  var missing = box.querySelector('[data-cover-missing]');
+                  if (caption) caption.hidden = true;
+                  if (missing) missing.hidden = false;
+                };
+                img.addEventListener('error', markMissing);
+                if (img.complete && img.naturalWidth === 0 && img.getAttribute('src')) markMissing();
+              })();
+            </script>
+            <?php endif; ?>
           </div>
         </div>
       </div>
@@ -825,7 +850,7 @@ $selectedSeriesType = \App\Support\SeriesLabels::canonical($book['tipo_collana']
         <button type="button"
                 class="w-full card-header flex items-center justify-between cursor-pointer hover:bg-gray-50 transition-colors text-left border-0 bg-transparent"
                 style="display: flex; width: 100%;"
-                onclick="toggleLibraryThingAccordion()"
+                data-pk-action="book-lt-accordion"
                 aria-expanded="false"
                 aria-controls="librarything-accordion-content">
           <div>
@@ -1117,7 +1142,7 @@ $selectedSeriesType = \App\Support\SeriesLabels::canonical($book['tipo_collana']
   via the body class, so no other page is affected. Degrades to the old
   behaviour where IntersectionObserver is unavailable.
 -->
-<style>
+<style<?= csp_nonce_attr() ?>>
   body.book-actions-visible #scroll-to-top {
     opacity: 0 !important;
     pointer-events: none !important;
@@ -1126,7 +1151,7 @@ $selectedSeriesType = \App\Support\SeriesLabels::canonical($book['tipo_collana']
     visibility: hidden !important;
   }
 </style>
-<script>
+<script<?= csp_nonce_attr() ?>>
 (function() {
   var actions = document.getElementById('bookFormActions');
   if (!actions || typeof IntersectionObserver === 'undefined') {
@@ -1140,9 +1165,9 @@ $selectedSeriesType = \App\Support\SeriesLabels::canonical($book['tipo_collana']
 </script>
 <!-- CSS and JavaScript Libraries - partial-specific assets only (vendor.css/vendor.bundle.js loaded by layout) -->
 <link rel="stylesheet" href="<?= htmlspecialchars(assetUrl('star-rating/dist/star-rating.min.css'), ENT_QUOTES, 'UTF-8') ?>">
-<script src="<?= htmlspecialchars(assetUrl('star-rating/dist/star-rating.min.js'), ENT_QUOTES, 'UTF-8') ?>"></script>
+<script<?= csp_nonce_attr() ?> src="<?= htmlspecialchars(assetUrl('star-rating/dist/star-rating.min.js'), ENT_QUOTES, 'UTF-8') ?>"></script>
 
-<script>
+<script<?= csp_nonce_attr() ?>>
 const FORM_MODE = <?php echo json_encode($mode, JSON_HEX_TAG); ?>;
 const INITIAL_BOOK = <?php echo $initialDataJsonRaw; ?>;
 const CSRF_TOKEN = <?php echo json_encode($csrfToken, JSON_HEX_TAG); ?>;
@@ -1192,6 +1217,10 @@ const i18nTranslations = Object.assign({}, window.i18nTranslations || {}, <?= js
     'Codice mancante' => __("Codice mancante"),
     'Inserisci un codice ISBN o EAN per continuare.' => __("Inserisci un codice ISBN o EAN per continuare.")
 ], JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) ?>);
+
+// Delegated actions (the CSP forbids inline on* attributes).
+window.PinakesActions.register('book-cover-remove', () => removeCoverImage());
+window.PinakesActions.register('book-lt-accordion', () => toggleLibraryThingAccordion());
 
 // LibraryThing accordion toggle
 function toggleLibraryThingAccordion() {
@@ -1419,7 +1448,7 @@ function displayImagePreview(file) {
                         <i class="fas fa-check-circle text-green-500"></i>
                         <span>${escapeHtml(file.name)} (${(file.size / 1024).toFixed(1)} KB)</span>
                     </div>
-                    <button type="button" onclick="removeCoverImage()" class="text-xs text-red-600 hover:text-red-800 hover:underline flex items-center gap-1">
+                    <button type="button" data-pk-action="book-cover-remove" class="text-xs text-red-600 hover:text-red-800 hover:underline flex items-center gap-1">
                         <i class="fas fa-trash"></i>
                         ${escapeHtml(<?= json_encode(__('Rimuovi'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) ?>)}
                     </button>
@@ -4369,7 +4398,7 @@ function displayScrapedCover(imageUrl) {
                     <i class="fas fa-globe text-gray-600"></i>
                     <span>${escapeHtml(<?= json_encode(__("Copertina recuperata automaticamente"), JSON_HEX_TAG) ?>)}</span>
                 </div>
-                <button type="button" onclick="removeCoverImage()" class="text-xs text-red-600 hover:text-red-800 hover:underline flex items-center gap-1">
+                <button type="button" data-pk-action="book-cover-remove" class="text-xs text-red-600 hover:text-red-800 hover:underline flex items-center gap-1">
                     <i class="fas fa-trash"></i>
                     ${escapeHtml(<?= json_encode(__('Rimuovi'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) ?>)}
                 </button>
@@ -4418,7 +4447,7 @@ function convertItalianDateToISO(italianDate) {
 </script>
 
 <!-- Static style block: the response middleware attaches the CSP nonce. -->
-<style>
+<style<?= csp_nonce_attr() ?>>
     .fade-in {
         animation: fadeIn 0.5s ease-in-out;
     }
@@ -4493,7 +4522,7 @@ function convertItalianDateToISO(italianDate) {
 </style>
 
 <!-- TinyMCE is loaded by layout.php; only initialize here -->
-<script>
+<script<?= csp_nonce_attr() ?>>
 // Initialize TinyMCE for book description (iframe editor with toolbar)
 let tinyMceInitAttempts = 0;
 const TINYMCE_MAX_RETRIES = 8;
@@ -4501,12 +4530,18 @@ if (typeof window.TINYMCE_BASE === 'undefined') {
     window.TINYMCE_BASE = <?= json_encode(assetUrl("tinymce"), JSON_HEX_TAG | JSON_HEX_AMP) ?>;
 }
 const TINYMCE_BASE = window.TINYMCE_BASE;
+// Captured while this nonced block runs: the fallback loader below is created
+// later, when document.currentScript is already null.
+const BOOK_FORM_CSP_NONCE = (document.currentScript && document.currentScript.nonce) || '';
 
 function initBookTinyMCE() {
     if (!window.tinymce) {
         if (!document.getElementById('tinymce-fallback-loader')) {
             const s = document.createElement('script');
             s.id = 'tinymce-fallback-loader';
+            if (BOOK_FORM_CSP_NONCE) {
+                s.nonce = BOOK_FORM_CSP_NONCE;
+            }
             s.src = `${TINYMCE_BASE}/tinymce.min.js`;
             document.head.appendChild(s);
         }

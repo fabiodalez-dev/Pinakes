@@ -14,7 +14,7 @@ $contactRoute = route_path('contact');
 ob_start();
 ?>
 
-<style>
+<style<?= csp_nonce_attr() ?>>
 .error-500-container {
     min-height: calc(100vh - 400px);
     display: flex;
@@ -237,7 +237,7 @@ ob_start();
         </div>
 
         <div class="error-500-actions">
-            <button onclick="location.reload()" class="error-500-btn error-500-btn-secondary">
+            <button type="button" data-pk-action="reload" class="error-500-btn error-500-btn-secondary">
                 <i class="fas fa-sync-alt"></i>
                 <?= __('Ricarica Pagina') ?>
             </button>

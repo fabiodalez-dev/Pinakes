@@ -192,9 +192,14 @@ final class ContributionController extends AbstractAdminController
                 if ($file->getError() !== UPLOAD_ERR_OK || !$file->getSize() || $file->getSize() > 25 * 1024 * 1024) {
                     throw new \InvalidArgumentException(__('PDF non valido o superiore a 25 MB.'));
                 }
-                $head = $file->getStream()->read(1024);
+                // The content is checked on the upload's temp stream BEFORE the
+                // move (as DigitalLibraryPlugin does), so a rejected file never
+                // reaches the storage folder.
+                $head = $file->getStream()->read(65536);
                 $file->getStream()->rewind();
-                if (!str_starts_with($head, '%PDF-') || strtolower(pathinfo($file->getClientFilename() ?? '', PATHINFO_EXTENSION)) !== 'pdf') {
+                if (!str_starts_with($head, '%PDF-')
+                    || (new \finfo(FILEINFO_MIME_TYPE))->buffer($head) !== 'application/pdf'
+                    || strtolower(pathinfo($file->getClientFilename() ?? '', PATHINFO_EXTENSION)) !== 'pdf') {
                     throw new \InvalidArgumentException(__('Carica un documento PDF.'));
                 }
                 $dir = self::pdfDir();
@@ -204,9 +209,6 @@ final class ContributionController extends AbstractAdminController
                 $name = bin2hex(random_bytes(20)).'.pdf';
                 $newPath = $dir.'/'.$name;
                 $file->moveTo($newPath);
-                if ((new \finfo(FILEINFO_MIME_TYPE))->file($newPath) !== 'application/pdf') {
-                    throw new \InvalidArgumentException(__('Carica un documento PDF.'));
-                }
                 $files += ['pdf_path' => $name,'pdf_nome_originale' => mb_substr(basename($file->getClientFilename() ?? 'articolo.pdf'), 0, 255),'pdf_dimensione' => filesize($newPath)];
             } elseif (!empty($body['remove_pdf'])) {
                 $files += ['pdf_path' => null,'pdf_nome_originale' => null,'pdf_dimensione' => null];

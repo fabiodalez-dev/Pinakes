@@ -202,7 +202,7 @@ class QuotesModule extends AbstractModule
             return '';
         }
         try {
-            $quotes = (new QuoteRepo($this->db))->publicQuotesForBook($libroId, 5);
+            $quotes = (new QuoteRepo($this->db))->publicQuotesForBook($libroId, 5, $this);
         } catch (\Throwable $e) {
             SecureLogger::error('[BookClub:quotes] book detail section failed: ' . $e->getMessage());
             return '';

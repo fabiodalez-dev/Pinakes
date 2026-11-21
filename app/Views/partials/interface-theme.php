@@ -20,7 +20,7 @@ $interfaceProperties = [
     'button_text' => 'button-text-color', 'button_hover' => 'button-hover',
 ];
 ?>
-<style>:root {
+<style<?= csp_nonce_attr() ?>>:root {
 <?php foreach ($interfaceProperties as $interfaceKey => $interfaceProperty):
     $interfaceValue = $interfacePalette[$interfaceKey] ?? null;
     // Only colour values belong in this inline stylesheet.

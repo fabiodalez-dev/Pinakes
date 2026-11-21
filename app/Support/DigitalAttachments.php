@@ -26,6 +26,24 @@ final class DigitalAttachments
     /** Size of libri.file_url / libri.audio_url: a longer edition or track could not be mirrored there. */
     private const LEGACY_COLUMN_LENGTH = 255;
 
+    /**
+     * rawurldecode() repeated until the value stops changing (bounded), i.e.
+     * what the path would become under any number of decoding passes.
+     */
+    private static function decodeFully(string $value): string
+    {
+        for ($i = 0; $i < 8; $i++) {
+            $next = rawurldecode($value);
+            if ($next === $value) {
+                break;
+            }
+            $value = $next;
+        }
+        // Still encoded after the bound: nothing legitimate nests that deep, so
+        // hand back a value the caller's '..' check rejects.
+        return rawurldecode($value) === $value ? $value : '..';
+    }
+
     /** @return list<array{url:string,label:string,kind:string,visibility:string}> */
     public static function normalize(mixed $rows): array
     {
@@ -47,8 +65,11 @@ final class DigitalAttachments
             // root-relative path a record held before the list existed, which the old
             // single-file field stored and showed as is); never executable schemes,
             // protocol-relative URLs, backslashes or traversal paths.
-            $local = str_starts_with($url, '/') && !str_starts_with($url, '//') && !str_contains(rawurldecode($url), '..')
-                && !str_contains(rawurldecode($url), '\\') && !str_contains(rawurldecode($url), '//');
+            // Decoded to a fixed point, so '%252e%252e' cannot slip a '..' past
+            // this check for a server path that decodes more than once.
+            $decoded = self::decodeFully($url);
+            $local = str_starts_with($url, '/') && !str_starts_with($url, '//') && !str_contains($decoded, '..')
+                && !str_contains($decoded, '\\') && !str_contains($decoded, '//');
             if ((!$local && HtmlHelper::sanitizePublicHttpUrl($url) === '')
                 || preg_match('/[\x00-\x20\x7f]/', $url) || strlen($url) > 2048
                 || !in_array($kind, ['ebook', 'supplement', 'audio'], true)) {

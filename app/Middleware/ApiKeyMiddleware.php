@@ -31,18 +31,22 @@ class ApiKeyMiddleware implements MiddlewareInterface
             return $this->jsonError('API is disabled', 403);
         }
 
-        // Get API key from header or query parameter
+        // Get API key from a request header.
         $apiKey = $this->extractApiKey($request);
 
         if ($apiKey === null) {
             return $this->jsonError('API key is required. Provide it via the X-API-Key header or an Authorization: Bearer token', 401);
         }
 
-        // Validate API key
+        // Validate API key (looked up by its SHA-256; the key itself is not stored)
         $apiKeyRepo = new ApiKeyRepository($this->db);
-        $apiKeyRepo->ensureTable();
-
-        $keyData = $apiKeyRepo->getByKey($apiKey);
+        try {
+            $keyData = $apiKeyRepo->getByKey($apiKey);
+        } catch (\Throwable $e) {
+            // Never a 500 from authentication: the key could not be checked.
+            SecureLogger::error('[ApiKeyMiddleware] API key lookup failed', ['exception' => $e->getMessage()]);
+            return $this->jsonError('API temporarily unavailable', 503);
+        }
 
         if ($keyData === null) {
             return $this->jsonError('Invalid or inactive API key', 401);
@@ -50,7 +54,7 @@ class ApiKeyMiddleware implements MiddlewareInterface
 
         // Update last used timestamp (async, non-blocking)
         try {
-            $apiKeyRepo->updateLastUsed($apiKey);
+            $apiKeyRepo->updateLastUsed((int) $keyData['id']);
         } catch (\Throwable $e) {
             // Log error but don't block the request
             SecureLogger::warning('[ApiKeyMiddleware] Failed to update API key last used timestamp', ['exception' => $e->getMessage()]);

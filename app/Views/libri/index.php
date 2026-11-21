@@ -439,8 +439,22 @@ unset($workspaceHeader);
   </div>
 </div>
 
-<script>
+<script<?= csp_nonce_attr() ?>>
 window.i18nLocale = <?= json_encode(\App\Support\I18n::getLocale(), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+
+// Placeholder cover, already HTML-escaped for use inside an attribute of the
+// markup built below (fallbacks are data-* attributes: the CSP forbids onerror).
+const BOOKS_COVER_PLACEHOLDER_ATTR = <?= json_encode(htmlspecialchars(url('/uploads/copertine/placeholder.jpg'), ENT_QUOTES, 'UTF-8'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+
+// Table thumbnails: on a broken cover show the placeholder, padded and fitted
+// ('error' does not bubble, hence the capture phase).
+document.addEventListener('error', function(e) {
+  const img = e.target;
+  if (!(img instanceof HTMLImageElement) || !img.hasAttribute('data-books-thumb') || img.dataset.booksThumbFailed === '1') return;
+  img.dataset.booksThumbFailed = '1';
+  img.src = (window.BASE_PATH || '') + '/uploads/copertine/placeholder.jpg';
+  img.classList.add('p-2', 'object-contain');
+}, true);
 
 document.addEventListener('DOMContentLoaded', function() {
   // Dropdown menus for import/export
@@ -796,7 +810,7 @@ document.addEventListener('DOMContentLoaded', function() {
           const imageUrl = escapeHtml(/^(https?:)?\/\//.test(rawUrl) ? rawUrl : window.BASE_PATH + rawUrl);
           const payload = encodeURIComponent(JSON.stringify(row));
           return `<div class="w-12 h-16 mx-auto bg-gray-100 rounded shadow-sm overflow-hidden cursor-pointer hover:opacity-80 transition-opacity js-cover-modal" data-book="${payload}">
-            <img src="${imageUrl}" alt="" class="w-full h-full object-cover" onerror="this.onerror=null; this.src=(window.BASE_PATH||'')+'/uploads/copertine/placeholder.jpg'; this.classList.add('p-2', 'object-contain');">
+            <img src="${imageUrl}" alt="" class="w-full h-full object-cover" data-books-thumb>
           </div>`;
         }
       },
@@ -893,7 +907,7 @@ document.addEventListener('DOMContentLoaded', function() {
             <a href="${window.BASE_PATH}/admin/books/edit/${safeActionId}" class="btn-icon btn-secondary w-7 h-7 inline-flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded transition-all" title="${<?= json_encode(htmlspecialchars(__('Modifica'), ENT_QUOTES, 'UTF-8'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT) ?>}" aria-label="${<?= json_encode(htmlspecialchars(__('Modifica'), ENT_QUOTES, 'UTF-8'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT) ?>}">
               <i class="fas fa-edit text-xs"></i>
             </a>
-            <button onclick="deleteBook(${safeActionId})" class="btn-icon btn-danger-outline w-7 h-7 inline-flex items-center justify-center text-gray-500 hover:text-red-500 hover:bg-red-50 rounded transition-all" title="${<?= json_encode(htmlspecialchars(__('Elimina'), ENT_QUOTES, 'UTF-8'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT) ?>}" aria-label="${<?= json_encode(htmlspecialchars(__('Elimina'), ENT_QUOTES, 'UTF-8'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT) ?>}">
+            <button type="button" data-pk-action="books-delete" data-book-id="${safeActionId}" class="btn-icon btn-danger-outline w-7 h-7 inline-flex items-center justify-center text-gray-500 hover:text-red-500 hover:bg-red-50 rounded transition-all" title="${<?= json_encode(htmlspecialchars(__('Elimina'), ENT_QUOTES, 'UTF-8'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT) ?>}" aria-label="${<?= json_encode(htmlspecialchars(__('Elimina'), ENT_QUOTES, 'UTF-8'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT) ?>}">
               <i class="fas fa-trash text-xs"></i>
             </button>
           </div>`;
@@ -1638,7 +1652,7 @@ document.addEventListener('DOMContentLoaded', function() {
         <div class="group relative bg-white rounded-lg border border-gray-200 overflow-hidden hover:shadow-md transition-shadow h-full flex flex-col">
           <a href="${bookHref}" class="flex flex-col h-full">
             <div class="aspect-[2/3] bg-gray-100 relative shrink-0">
-              <img src="${img}" alt="" class="w-full h-full object-cover" onerror="this.onerror=null;this.src=(window.BASE_PATH||'')+'/uploads/copertine/placeholder.jpg'">
+              <img src="${img}" alt="" class="w-full h-full object-cover" data-pk-fallback-src="${BOOKS_COVER_PLACEHOLDER_ATTR}">
               <span class="absolute top-2 right-2 w-3 h-3 rounded-full ${statusClass} ring-2 ring-white"></span>
             </div>
             <div class="p-3 mt-auto">
@@ -1680,7 +1694,8 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   });
 
-  // Delete book
+  // Delete book (button markup carries data-pk-action="books-delete")
+  window.PinakesActions.register('books-delete', (el) => window.deleteBook(parseInt(el.dataset.bookId, 10)));
   window.deleteBook = function(bookId) {
     const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
     if (window.Swal) {
@@ -1718,7 +1733,7 @@ document.addEventListener('DOMContentLoaded', function() {
       Swal.fire({
         html: `
           <div class="text-left">
-            <img src="${img}" class="w-full max-h-96 object-contain rounded-lg mb-4" onerror="this.onerror=null;this.src=(window.BASE_PATH||'')+'/uploads/copertine/placeholder.jpg'">
+            <img src="${img}" class="w-full max-h-96 object-contain rounded-lg mb-4" data-pk-fallback-src="${BOOKS_COVER_PLACEHOLDER_ATTR}">
             <h3 class="font-semibold text-lg">${titolo}</h3>
             ${autori ? `<p class="text-sm text-gray-600 mt-1">${autori}</p>` : ''}
             ${editore ? `<p class="text-sm text-gray-500">${editore}</p>` : ''}
@@ -1737,7 +1752,7 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 
-<style>
+<style<?= csp_nonce_attr() ?>>
 .books-list-card {
   padding: 0;
   overflow: visible;

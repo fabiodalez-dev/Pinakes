@@ -4,14 +4,21 @@ declare(strict_types=1);
 namespace App\Support;
 
 /**
- * Builds the application CSP and attaches its per-response nonce to inline
- * script/style elements.  Attribute-level inline CSS and legacy event
- * handlers remain isolated in their dedicated CSP directives; they no longer
- * make arbitrary inline <script> or <style> elements executable.
+ * Builds the application CSP and owns its per-request nonce.
+ *
+ * The nonce is never stamped on the response as a whole: only the
+ * application's own templates carry it, through the csp_nonce_attr() /
+ * csp_nonce() view helpers. A <script> or <style> smuggled in through stored
+ * content (a description, a CMS page, a translation) is emitted without the
+ * nonce and the browser refuses to run it. Attribute-level inline CSS and the
+ * legacy event handlers remain isolated in their dedicated CSP directives.
  */
 final class ContentSecurityPolicy
 {
     private const NONCE_PATTERN = '/^(?:[a-f0-9]{8}-){3}[a-f0-9]{8}$/D';
+
+    /** The nonce of the request being served; see beginRequest(). */
+    private static ?string $requestNonce = null;
 
     /**
      * Generate a 128-bit per-response nonce without long decimal runs.
@@ -26,6 +33,44 @@ final class ContentSecurityPolicy
     public static function createNonce(): string
     {
         return implode('-', str_split(bin2hex(random_bytes(16)), 8));
+    }
+
+    /**
+     * Start a request: generate the nonce the CSP header will announce and the
+     * templates will stamp on their own script/style elements.
+     */
+    public static function beginRequest(): string
+    {
+        self::$requestNonce = self::createNonce();
+        return self::$requestNonce;
+    }
+
+    /**
+     * The nonce of the current request. Created on first use so a view
+     * rendered outside the HTTP front controller (CLI, tests) still gets a
+     * well-formed value; such output simply has no CSP header to match.
+     */
+    public static function requestNonce(): string
+    {
+        return self::$requestNonce ??= self::createNonce();
+    }
+
+    /** ` nonce="…"`, ready to be placed inside a <script>/<style> start tag. */
+    public static function nonceAttribute(): string
+    {
+        return ' nonce="' . htmlspecialchars(self::requestNonce(), ENT_QUOTES, 'UTF-8') . '"';
+    }
+
+    /**
+     * Read the nonce back from a CSP header produced by header(); null when
+     * the header carries none (a hand-built or foreign policy).
+     */
+    public static function nonceFromHeader(string $csp): ?string
+    {
+        if (preg_match("/'nonce-((?:[a-f0-9]{8}-){3}[a-f0-9]{8})'/", $csp, $m) === 1) {
+            return $m[1];
+        }
+        return null;
     }
 
     /**
@@ -55,7 +100,7 @@ final class ContentSecurityPolicy
         $directives = [
             "default-src 'self'",
             "script-src 'self' 'nonce-{$nonce}' 'wasm-unsafe-eval' https://cdnjs.cloudflare.com https://www.google.com https://www.gstatic.com",
-            "script-src-attr 'unsafe-inline'",
+            "script-src-attr 'none'",
             "style-src 'self' 'nonce-{$nonce}' https://fonts.googleapis.com https://cdnjs.cloudflare.com",
             "style-src-attr 'unsafe-inline'",
             // Covers, author photos and plugin logos may be stored as remote
@@ -84,24 +129,6 @@ final class ContentSecurityPolicy
         return implode('; ', $directives);
     }
 
-    public static function addNonceAttributes(string $html, string $nonce): string
-    {
-        if (!preg_match(self::NONCE_PATTERN, $nonce)) {
-            throw new \InvalidArgumentException('Invalid CSP nonce');
-        }
-
-        return preg_replace_callback(
-            '/<(script|style)\b(?![^>]*\bnonce\s*=)([^>]*)>/i',
-            static fn(array $match): string => sprintf(
-                '<%s nonce="%s"%s>',
-                $match[1],
-                $nonce,
-                $match[2]
-            ),
-            $html
-        ) ?? $html;
-    }
-
     /** Strip request-random nonces before a response is stored by shared cache. */
     public static function removeNonceAttributes(string $html): string
     {
@@ -109,18 +136,28 @@ final class ContentSecurityPolicy
     }
 
     /**
-     * Build a stable hash-based CSP for the exact cached HTML payload. This
-     * avoids reusing a response nonce across cache hits while preserving the
-     * same external-source policy as header().
+     * Build a stable hash-based CSP for a page stored by the shared cache.
+     * Reusing a response nonce across cache hits would hand it to every
+     * visitor, so the cached copy whitelists its inline blocks by hash
+     * instead, with the same external-source policy as header().
+     *
+     * $html is the response as rendered, BEFORE removeNonceAttributes():
+     * only the inline blocks that carry $nonce (the templates' own, stamped
+     * through csp_nonce_attr()) are hashed. A block injected by stored content
+     * carries no nonce, was blocked on the live response, and must stay
+     * blocked on the cached copy too.
      */
-    public static function headerForCachedHtml(string $html, bool $upgradeInsecureRequests = false): string
+    public static function headerForCachedHtml(string $html, string $nonce, bool $upgradeInsecureRequests = false): string
     {
-        $scriptHashes = self::inlineHashes($html, 'script');
-        $styleHashes = self::inlineHashes($html, 'style');
+        if (!preg_match(self::NONCE_PATTERN, $nonce)) {
+            throw new \InvalidArgumentException('Invalid CSP nonce');
+        }
+        $scriptHashes = self::inlineHashes($html, 'script', $nonce);
+        $styleHashes = self::inlineHashes($html, 'style', $nonce);
         $directives = [
             "default-src 'self'",
             "script-src 'self' " . implode(' ', $scriptHashes) . " 'wasm-unsafe-eval' https://cdnjs.cloudflare.com https://www.google.com https://www.gstatic.com",
-            "script-src-attr 'unsafe-inline'",
+            "script-src-attr 'none'",
             "style-src 'self' " . implode(' ', $styleHashes) . " https://fonts.googleapis.com https://cdnjs.cloudflare.com",
             "style-src-attr 'unsafe-inline'",
             "img-src 'self' data: blob: https:",
@@ -142,17 +179,32 @@ final class ContentSecurityPolicy
         return implode('; ', $directives);
     }
 
-    /** @return string[] */
-    private static function inlineHashes(string $html, string $tag): array
+    /**
+     * Hashes of the inline <$tag> blocks whose start tag carries $nonce.
+     *
+     * @return string[]
+     */
+    private static function inlineHashes(string $html, string $tag, string $nonce): array
     {
-        preg_match_all('/<' . $tag . '\\b[^>]*>(.*?)<\/' . $tag . '>/is', $html, $matches);
+        preg_match_all('/<' . $tag . '\\b([^>]*)>(.*?)<\/' . $tag . '>/is', $html, $matches, PREG_SET_ORDER);
         $hashes = [];
-        foreach ($matches[1] ?? [] as $body) {
-            if ($body !== '') {
-                $hashes["'sha256-" . base64_encode(hash('sha256', $body, true)) . "'"] = true;
+        foreach ($matches as $match) {
+            $body = $match[2];
+            if ($body === '' || !self::attributesCarryNonce($match[1], $nonce)) {
+                continue;
             }
+            $hashes["'sha256-" . base64_encode(hash('sha256', $body, true)) . "'"] = true;
         }
         return array_keys($hashes);
+    }
+
+    private static function attributesCarryNonce(string $attributes, string $nonce): bool
+    {
+        if (preg_match('/(?:^|\s)nonce\s*=\s*(?:"(?<dq>[^"]*)"|\'(?<sq>[^\']*)\'|(?<bare>[^\s"\'>]+))/i', $attributes, $m, PREG_UNMATCHED_AS_NULL) !== 1) {
+            return false;
+        }
+        $value = $m['dq'] ?? $m['sq'] ?? $m['bare'] ?? '';
+        return hash_equals($nonce, $value);
     }
 
     public static function isHtmlResponse(string $contentType, string $body): bool

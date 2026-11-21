@@ -88,6 +88,11 @@ class PatronLedgerController
         $base = \App\Support\Permissions::can('users.manage')
             ? url('/admin/users/details/' . $userId)
             : null;
+        // Separation of duties: an operator who is not an administrator never
+        // records a payment, a charge or a waiver on their own account.
+        if (\App\Support\SelfDealingGuard::blocks($userId)) {
+            return $this->back($response, $base, ['ledger_error' => \App\Support\SelfDealingGuard::ERROR]);
+        }
         // Every desk form carries its request_key: without it a resent
         // request could not be recognised and would move money twice.
         if (self::requestKey($data) === null) {
@@ -172,6 +177,7 @@ class PatronLedgerController
             'duplicate_request' => __('Richiesta già registrata: ricarica la pagina e riprova.'),
             'missing_request_key' => __('Errore di sicurezza. Ricarica la pagina e riprova.'),
             'user_not_found' => __('Utente non trovato'),
+            \App\Support\SelfDealingGuard::ERROR => \App\Support\SelfDealingGuard::message(),
             default => __('Operazione non riuscita. Riprova.'),
         };
     }

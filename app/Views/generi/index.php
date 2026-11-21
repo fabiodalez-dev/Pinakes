@@ -133,7 +133,7 @@ unset($workspaceHeader);
   </div>
 </div>
 
-<style>
+<style<?= csp_nonce_attr() ?>>
 .genre-quick-form { display:grid; grid-template-columns:minmax(0, 1fr) minmax(14rem, .6fr) auto; align-items:end; gap:1rem; }
 .genre-tree { display:grid; gap:1rem; }
 .genre-group { border:1px solid #e5e7eb; border-radius:.5rem; overflow:hidden; }

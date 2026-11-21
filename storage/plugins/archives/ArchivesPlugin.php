@@ -3661,12 +3661,11 @@ class ArchivesPlugin
             $offset = $startRecord - 1;
             $dataSql = 'SELECT * FROM archival_units WHERE deleted_at IS NULL AND published = 1 AND (' . $where['sql'] . ')'
                 . " ORDER BY FIELD(level,'fonds','series','file','item'), reference_code"
-                . ' LIMIT ' . $maximumRecords . ' OFFSET ' . $offset;
+                . ' LIMIT ? OFFSET ?';
             $dataStmt = $this->db->prepare($dataSql);
             if ($dataStmt !== false) {
-                if ($where['types'] !== '') {
-                    $dataStmt->bind_param($where['types'], ...$where['params']);
-                }
+                $dataParams = array_merge($where['params'], [(int) $maximumRecords, (int) $offset]);
+                $dataStmt->bind_param($where['types'] . 'ii', ...$dataParams);
                 $dataStmt->execute();
                 $r = $dataStmt->get_result();
                 if ($r instanceof \mysqli_result) {
@@ -10803,9 +10802,8 @@ class ArchivesPlugin
             $bindVals[] = $untilSql;
         }
         $whereClause = implode(' AND ', $where);
-        $limitSql    = 'LIMIT ' . $pageSize . ' OFFSET ' . $cursor;
         $countSql    = "SELECT COUNT(*) AS cnt FROM archival_units WHERE $whereClause";
-        $dataSql     = "SELECT * FROM archival_units WHERE $whereClause ORDER BY id $limitSql";
+        $dataSql     = "SELECT * FROM archival_units WHERE $whereClause ORDER BY id LIMIT ? OFFSET ?";
 
         $totalCount = 0;
         if (!empty($bindVals)) {
@@ -10836,24 +10834,18 @@ class ArchivesPlugin
         }
 
         $rows = [];
-        if (!empty($bindVals)) {
-            $dataStmt = $this->db->prepare($dataSql);
-            if ($dataStmt !== false) {
-                $dataStmt->bind_param($bindTypes, ...$bindVals);
-                $dataStmt->execute();
-                $dr = $dataStmt->get_result();
-                if ($dr instanceof \mysqli_result) {
-                    while ($r = $dr->fetch_assoc()) { $rows[] = $r; }
-                    $dr->free();
-                }
-                $dataStmt->close();
-            }
-        } else {
-            $dr = $this->db->query($dataSql);
+        // LIMIT/OFFSET are bound too, so the data query is always prepared.
+        $dataStmt = $this->db->prepare($dataSql);
+        if ($dataStmt !== false) {
+            $dataVals = array_merge($bindVals, [(int) $pageSize, (int) $cursor]);
+            $dataStmt->bind_param($bindTypes . 'ii', ...$dataVals);
+            $dataStmt->execute();
+            $dr = $dataStmt->get_result();
             if ($dr instanceof \mysqli_result) {
                 while ($r = $dr->fetch_assoc()) { $rows[] = $r; }
                 $dr->free();
             }
+            $dataStmt->close();
         }
 
         $verbElement = $identifiersOnly ? 'ListIdentifiers' : 'ListRecords';

@@ -228,16 +228,26 @@ final class StaffCoverStore
             return;
         }
         $file = $this->resolveLocal($relativePath);
-        if ($file === null) {
+        if ($file === null || basename($file) === 'placeholder.jpg') {
             return;
         }
+        // The shared-reference check must look at the file that is about to
+        // be deleted, not at the stored spelling: '/uploads/copertine/./x.jpg'
+        // resolves to the same file as another title's '/uploads/copertine/x.jpg'.
+        $canonical = self::canonicalCoverPath($file, (string) realpath($this->coversDir()));
+        if ($canonical === null) {
+            return;
+        }
+        // Any stored value ending in the same file name counts as a use
+        // (absolute URLs, odd spellings): keeping a file is the safe direction.
+        $suffix = '%/' . addcslashes(basename($file), '\\%_');
         // Another title (live or soft-deleted, which may be restored) still uses it.
         // CI-SOFT-DELETE-EXEMPT: a soft-deleted title can be restored, so its cover must survive too.
-        $stmt = $this->db->prepare('SELECT 1 FROM libri WHERE copertina_url = ? AND id <> ? LIMIT 1');
+        $stmt = $this->db->prepare('SELECT 1 FROM libri WHERE (copertina_url = ? OR copertina_url LIKE ?) AND id <> ? LIMIT 1');
         if ($stmt === false) {
             return;
         }
-        $stmt->bind_param('si', $relativePath, $bookId);
+        $stmt->bind_param('ssi', $canonical, $suffix, $bookId);
         $stmt->execute();
         $result = $stmt->get_result();
         $shared = $result !== false && $result->fetch_row() !== null;
@@ -246,6 +256,20 @@ final class StaffCoverStore
             // nosemgrep: php.lang.security.unlink-use.unlink-use -- path confined to the covers directory by resolveLocal()'s realpath containment check
             @unlink($file);
         }
+    }
+
+    /**
+     * The canonical stored path (/uploads/copertine/<relative>) of a file
+     * resolved under $base, or null when it is not under it.
+     */
+    public static function canonicalCoverPath(string $resolvedFile, string $base): ?string
+    {
+        if ($base === '' || !str_starts_with($resolvedFile, $base . DIRECTORY_SEPARATOR)) {
+            return null;
+        }
+        $relative = str_replace(DIRECTORY_SEPARATOR, '/', substr($resolvedFile, strlen($base) + 1));
+
+        return self::URL_PREFIX . $relative;
     }
 
     private function discard(string $relativePath): void

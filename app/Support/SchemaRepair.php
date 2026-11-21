@@ -47,6 +47,12 @@ final class SchemaRepair
         if (@file_get_contents($marker) === $version) {
             return;
         }
+        // A fresh install in progress (.env already written, schema import
+        // still running) owns the schema: an anonymous request must not race
+        // its CREATE TABLE steps.
+        if (self::installInProgress($root)) {
+            return;
+        }
         // Only an installed application is repaired: during installation
         // the installer owns the schema. utenti exists in every install,
         // also in the oldest ones that predate the migrations table.
@@ -59,6 +65,9 @@ final class SchemaRepair
         if (($row[0] ?? '0') !== '1') {
             return; // another request is repairing
         }
+        // The repair runs DDL on the first request after an upgrade; on
+        // MariaDB the web statement time limit would also cut those short.
+        DbStatementTimeout::lift($db);
         try {
             self::repair($db, $root);
             @file_put_contents($marker, $version, LOCK_EX);
@@ -241,6 +250,32 @@ final class SchemaRepair
             }
         }
         return $out;
+    }
+
+    /**
+     * Lifetime of the installer's binding: the same value as
+     * Installer::INSTALL_OWNER_TTL (2 h, sliding), which the application does
+     * not load. A longer value kept repairs off for hours after the installer
+     * itself had already released an abandoned claim.
+     * tests/security-hardening-web-core.unit.php pins the two equal.
+     */
+    public const INSTALL_CLAIM_TTL = 7200;
+
+    /**
+     * True while the web installer holds a live install-in-progress claim
+     * (storage/.install_in_progress, written with .env and removed at the
+     * last step). Fails closed like the installer: a claim whose age cannot
+     * be read counts as live.
+     */
+    public static function installInProgress(string $root): bool
+    {
+        $claim = $root . '/storage/.install_in_progress';
+        clearstatcache(true, $claim);
+        if (!is_file($claim)) {
+            return false;
+        }
+        $mtime = @filemtime($claim);
+        return $mtime === false || (time() - $mtime) <= self::INSTALL_CLAIM_TTL;
     }
 
     private static function installedVersion(string $root): string

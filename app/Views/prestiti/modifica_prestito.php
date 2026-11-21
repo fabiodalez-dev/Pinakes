@@ -113,6 +113,27 @@ unset($workspaceHeader);
             </label>
         </div>
 
+        <?php if (!empty($extensionFine['enabled']) && (int) ($extensionFine['cents'] ?? 0) > 0): ?>
+        <!-- Overdue loan: moving the due date forward waives the fine accrued so far -->
+        <div id="extension-fine" class="mt-8 rounded-lg border border-yellow-300 bg-yellow-50 p-6 shadow-sm" data-fine-cents="<?= (int) $extensionFine['cents'] ?>">
+            <h3 class="text-lg font-bold text-gray-900 mb-2 flex items-center gap-2">
+                <i class="fas fa-coins text-gray-600"></i><?= __("Multa per ritardo") ?></h3>
+            <p class="text-sm text-yellow-900">
+                <?= htmlspecialchars(sprintf(
+                    __('Il prestito è in ritardo di %1$d giorni, con una multa maturata di %2$s. Spostando in avanti la scadenza, la multa viene registrata e condonata: indica la motivazione.'),
+                    (int) $extensionFine['days'],
+                    \App\Services\FineParameters::format((int) $extensionFine['cents'])
+                ), ENT_QUOTES, 'UTF-8'); ?>
+            </p>
+            <label class="mt-3 flex flex-col gap-2">
+                <span class="text-sm font-bold text-gray-900"><?= __("Motivazione del condono") ?></span>
+                <input id="waive_reason" name="waive_reason" type="text" maxlength="255"
+                       class="w-full rounded-lg border-2 border-gray-300 bg-white px-4 py-3 text-gray-900 focus:border-gray-900 focus:outline-none">
+                <span class="text-xs text-gray-500"><?= __("Obbligatoria solo se sposti in avanti la scadenza.") ?></span>
+            </label>
+        </div>
+        <?php endif; ?>
+
         <div class="pk-form-actions mt-8 flex flex-wrap gap-3">
             <button type="submit" class="inline-flex items-center gap-2 rounded-lg bg-gray-900 px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-gray-800">
                 <i class="fas fa-save"></i><?= __("Salva modifiche") ?></button>

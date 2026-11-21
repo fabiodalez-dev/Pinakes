@@ -151,11 +151,28 @@ unset($workspaceHeader);
           <?php if ($fotoUrl !== ''): ?>
             <img src="<?php echo htmlspecialchars($fotoUrl, ENT_QUOTES, 'UTF-8'); ?>"
                  alt="<?= htmlspecialchars(__('Foto autore'), ENT_QUOTES, 'UTF-8') ?>" loading="lazy"
-                 onerror="this.style.display='none';this.nextElementSibling.style.display='flex';"
+                 data-author-photo
                  class="w-28 h-28 object-cover rounded-lg border border-gray-200 shadow-sm" />
             <div class="hidden w-28 h-28 rounded-lg bg-gray-100 items-center justify-center">
               <i class="fas fa-user text-gray-300 text-5xl"></i>
             </div>
+            <script<?= csp_nonce_attr() ?>>
+              // A photo that fails to load gives way to the placeholder box
+              // (was an inline onerror, forbidden by the CSP).
+              (function () {
+                var img = document.querySelector('img[data-author-photo]');
+                if (!img) return;
+                var done = false;
+                var swap = function () {
+                  if (done) return;
+                  done = true;
+                  img.style.display = 'none';
+                  if (img.nextElementSibling) img.nextElementSibling.style.display = 'flex';
+                };
+                img.addEventListener('error', swap);
+                if (img.complete && img.naturalWidth === 0 && img.getAttribute('src')) swap();
+              })();
+            </script>
           <?php else: ?>
             <div class="w-28 h-28 rounded-lg bg-gray-100 flex items-center justify-center">
               <i class="fas fa-user text-gray-300 text-5xl"></i>
@@ -290,7 +307,7 @@ unset($workspaceHeader);
                   <img src="<?php echo htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>"
                        alt="Copertina <?php echo HtmlHelper::e($libro['titolo'] ?? ''); ?>"
                        class="w-full h-full object-contain transition-transform duration-300"
-                       onerror="this.onerror=null;this.src=(window.BASE_PATH||'')+'/uploads/copertine/placeholder.jpg'">
+                       data-pk-fallback-src="<?= htmlspecialchars(url('/uploads/copertine/placeholder.jpg'), ENT_QUOTES, 'UTF-8') ?>">
                 </div>
                 <div class="p-5 space-y-3">
                   <div>
@@ -374,7 +391,7 @@ unset($workspaceHeader);
                 <img src="<?php echo htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>"
                      alt="<?= htmlspecialchars(sprintf(__('Immagine di «%s»'), (string) ($articolo['titolo'] ?? '')), ENT_QUOTES, 'UTF-8') ?>"
                      class="w-full h-full object-contain transition-transform duration-300"
-                     onerror="this.onerror=null;this.src=(window.BASE_PATH||'')+'/uploads/copertine/placeholder.jpg'">
+                     data-pk-fallback-src="<?= htmlspecialchars(url('/uploads/copertine/placeholder.jpg'), ENT_QUOTES, 'UTF-8') ?>">
               </div>
               <div class="p-5 space-y-3">
                 <div>

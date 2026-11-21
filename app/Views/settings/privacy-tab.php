@@ -391,7 +391,7 @@
   </div>
 </section>
 
-<style>
+<style<?= csp_nonce_attr() ?>>
 .toggle-checkbox:checked + .toggle-bg {
   background-color: #111827;
 }
@@ -414,7 +414,7 @@
 }
 </style>
 
-<script>
+<script<?= csp_nonce_attr() ?>>
 document.addEventListener('DOMContentLoaded', function() {
   // Handle all toggle switches generically
   const toggles = document.querySelectorAll('.toggle-checkbox');

@@ -34,7 +34,7 @@ if (!defined('SILKTIDE_COOKIE_BANNER_CSS_LOADED')) {
 
 if (!defined('SILKTIDE_COOKIE_BANNER_JS_LOADED')) {
     define('SILKTIDE_COOKIE_BANNER_JS_LOADED', true);
-    echo '<script src="' . assetUrl('/js/silktide-consent-manager.js') . '"></script>';
+    echo '<script' . csp_nonce_attr() . ' src="' . htmlspecialchars(assetUrl('/js/silktide-consent-manager.js'), ENT_QUOTES, 'UTF-8') . '"></script>';
 }
 
 $hasAnalyticsCode = !empty(ConfigStore::get('advanced.custom_js_analytics'));
@@ -58,7 +58,7 @@ $cookieBannerTexts = [
 
 ?>
 <!-- Silktide Consent Manager -->
-<script>
+<script<?= csp_nonce_attr() ?>>
     (function() {
         function initCookieBannerConfig() {
             try {

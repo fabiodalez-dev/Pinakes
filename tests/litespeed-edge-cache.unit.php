@@ -58,10 +58,11 @@ $handler = static function (string $marker, bool $setCookie = false, bool $upgra
         public function handle(ServerRequestInterface $request): ResponseInterface
         {
             $response = new Response(200);
-            $response->getBody()->write('<!doctype html><html><head><style nonce="random">.x{color:red}</style></head><body><script nonce="random">window.x=1;</script></body></html>');
+            $nonce = ContentSecurityPolicy::createNonce();
+            $response->getBody()->write('<!doctype html><html><head><style nonce="' . $nonce . '">.x{color:red}</style></head><body><script nonce="' . $nonce . '">window.x=1;</script></body></html>');
             $response = $response
                 ->withHeader('Content-Type', 'text/html; charset=UTF-8')
-                ->withHeader('Content-Security-Policy', $this->upgrade ? "default-src 'self'; upgrade-insecure-requests" : "default-src 'self'")
+                ->withHeader('Content-Security-Policy', ContentSecurityPolicy::header($nonce, $this->upgrade))
                 ->withHeader(LiteSpeedCache::MARKER_HEADER, $this->marker);
             return $this->setCookie ? $response->withAddedHeader('Set-Cookie', 'sid=private') : $response;
         }
@@ -86,11 +87,13 @@ $check(
 );
 
 echo "-- CSP stabilization --\n";
-$html = '<style nonce="one">a{color:red}</style><script nonce="two">window.ok=true;</script>';
+$cacheNonce = ContentSecurityPolicy::createNonce();
+$html = '<style nonce="' . $cacheNonce . '">a{color:red}</style><script nonce="' . $cacheNonce . '">window.ok=true;</script>'
+    . '<script>window.injected=true;</script>';
 $stable = ContentSecurityPolicy::removeNonceAttributes($html);
-$csp = ContentSecurityPolicy::headerForCachedHtml($stable);
+$csp = ContentSecurityPolicy::headerForCachedHtml($html, $cacheNonce);
 $check(!str_contains($stable, 'nonce='), 'shared HTML contains no reusable CSP nonce');
-$check(substr_count($csp, "'sha256-") === 2, 'shared CSP hashes every inline style/script block');
+$check(substr_count($csp, "'sha256-") === 2, 'shared CSP hashes every nonced inline style/script block and nothing else');
 
 echo "-- LiteSpeed response policy --\n";
 $setConfig(true);

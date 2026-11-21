@@ -20,6 +20,14 @@ if ($start === false || $end === false || $end <= $start) {
     fwrite(STDERR, "FAIL: throttle helpers not found between their markers\n");
     exit(1);
 }
+// The password-policy helper the login handler calls lives in the
+// configuration block at the top of the script.
+$cfgStart = strpos($source, "define('UPGRADE_PASSWORD_MIN_LENGTH'");
+$cfgEnd = strpos($source, "define('MAX_ZIP_SIZE'");
+if ($cfgStart === false || $cfgEnd === false || $cfgEnd <= $cfgStart) {
+    fwrite(STDERR, "FAIL: upgradePasswordConfigured() not found in the configuration block\n");
+    exit(1);
+}
 $dumpStart = strpos($source, '// BEGIN upgrade-dump-credentials');
 $dumpEnd = strpos($source, '// END upgrade-dump-credentials');
 if ($dumpStart === false || $dumpEnd === false || $dumpEnd <= $dumpStart) {
@@ -27,7 +35,7 @@ if ($dumpStart === false || $dumpEnd === false || $dumpEnd <= $dumpStart) {
     exit(1);
 }
 $fixture = tempnam(sys_get_temp_dir(), 'upgrade_throttle_fixture_');
-file_put_contents($fixture, "<?php\n" . substr($source, $start, $end - $start) . "\n" . substr($source, $dumpStart, $dumpEnd - $dumpStart));
+file_put_contents($fixture, "<?php\n" . substr($source, $cfgStart, $cfgEnd - $cfgStart) . substr($source, $start, $end - $start) . "\n" . substr($source, $dumpStart, $dumpEnd - $dumpStart));
 require $fixture;
 unlink($fixture); // nosemgrep: php.lang.security.unlink-use.unlink-use -- test temp file
 
@@ -240,6 +248,8 @@ try {
     $rootDef = $mkStateRoot('siteDef');
     $err = upgradeAuthHandlePasswordPost($rootDef, $addr, 'pinakes2026', 'pinakes2026', 5, 300, static function () use (&$calls): void { $calls++; });
     $check(str_starts_with($err, 'SICUREZZA') && $calls === 0, 'the shipped default password never logs in');
+    $err = upgradeAuthHandlePasswordPost($rootDef, $addr . '1', 'short1', 'short1', 5, 300, static function () use (&$calls): void { $calls++; });
+    $check(str_starts_with($err, 'SICUREZZA') && $calls === 0, 'a configured password shorter than UPGRADE_PASSWORD_MIN_LENGTH never logs in');
     $err = upgradeAuthHandlePasswordPost($rootO, $addr, $pw, $pw, 5, 300, static function () use (&$calls): void { $calls++; }, $foreignUid);
     $check(str_contains($err, 'chown') && $calls === 0, 'a foreign-owned state directory fails closed with its own message');
     $err = upgradeAuthHandlePasswordPost($rootE, $addr, $pw, $pw, 5, 300, static function () use (&$calls): void { $calls++; });
