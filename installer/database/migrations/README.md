@@ -299,7 +299,7 @@ Then trigger update process again.
 ## Pending migrations
 
 A schema change that lands before the release that ships it waits in `pending/`
-(e.g. `pending/migrate_0.9.6.sql`). Neither the Updater nor the CI gate
+(e.g. `pending/migrate_X.Y.Z.sql`; 0.9.6 shipped the first one). Neither the Updater nor the CI gate
 "migration version ≤ version.json" scans that folder, so `main` stays green
 while `version.json` still names the previous release. The release commit that
 bumps `version.json` moves every pending file up into this directory, where the
