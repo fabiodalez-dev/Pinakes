@@ -45,6 +45,13 @@ $citeEsc = static fn (string $value): string => htmlspecialchars($value, ENT_QUO
     <h2 id="cite-dialog-title"><?= $citeEsc($citeTitle !== '' ? __('Cita «%s»', $citeTitle) : __('Cita')) ?></h2>
     <button type="button" id="cite-close" aria-label="<?= $citeEsc(__('Chiudi')) ?>">&times;</button>
   </div>
+  <?php if (!empty($citeExports)): ?>
+  <div class="flex flex-wrap gap-2 mb-3">
+    <?php foreach ($citeExports as $label => $href): ?>
+    <a class="pk-btn pk-btn--ghost pk-btn--sm" href="<?= $citeEsc($href) ?>"<?= str_starts_with($href, 'https://') ? ' target="_blank" rel="noopener noreferrer"' : '' ?>><?= $citeEsc($label) ?></a>
+    <?php endforeach; ?>
+  </div>
+  <?php endif; ?>
   <label class="text-sm text-gray-600" for="cite-style"><?= $citeEsc(__('Formato')) ?></label>
   <select id="cite-style">
     <option value=""><?= $citeEsc(__('Tutti i formati')) ?></option>

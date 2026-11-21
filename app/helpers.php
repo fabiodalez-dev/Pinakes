@@ -236,6 +236,19 @@ if (!function_exists('book_path')) {
     }
 }
 
+if (!function_exists('flash_deferred')) {
+    /**
+     * True on a page load that fetch() made while following a form's redirect
+     * (the book form sends X-Pinakes-Fetch-Submit). Nobody sees that load, so
+     * the flash messages stay in the session for the page the browser opens
+     * next instead of being shown and dropped here.
+     */
+    function flash_deferred(): bool
+    {
+        return ($_SERVER['HTTP_X_PINAKES_FETCH_SUBMIT'] ?? '') === '1';
+    }
+}
+
 if (!function_exists('book_url')) {
     /**
      * Build the canonical frontend URL for a book (author slug + book slug + ID).

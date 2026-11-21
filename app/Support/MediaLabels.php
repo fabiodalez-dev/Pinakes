@@ -10,6 +10,9 @@ namespace App\Support;
  */
 class MediaLabels
 {
+    /** Audio-carrier tokens matched as substrings of a collapsed format string. */
+    private const MUSIC_TOKENS = ['cdaudio', 'compactdisc', 'vinile', 'vinyl', 'cassetta', 'cassette', 'audiocassetta'];
+
     /**
      * Build normalized lookup candidates for format/media values.
      *
@@ -55,7 +58,7 @@ class MediaLabels
                 return 'audiolibro';
             }
 
-            if (in_array($candidate, ['dvd', 'bluray', 'blu_ray', 'movie', 'film'], true)) {
+            if (in_array($candidate, ['dvd', 'bluray', 'blu_ray', 'bluraydisc', 'blu_ray_disc', 'uhd', '4k', '4k_uhd', '4kuhd', 'vhs', 'videocassetta', 'videocassette', 'videodisc', 'videodisco', 'movie', 'movies', 'film', 'films', 'film_e_video', 'filmevideo'], true)) {
                 return 'dvd';
             }
 
@@ -94,6 +97,20 @@ class MediaLabels
     }
 
     /**
+     * Check if a format string indicates film or video (#539). The enum value
+     * stays 'dvd' for compatibility; it covers every video carrier.
+     */
+    public static function isFilm(?string $formato, ?string $tipoMedia = null): bool
+    {
+        $normalizedTipoMedia = self::normalizeTipoMedia($tipoMedia);
+        if ($normalizedTipoMedia !== null) {
+            return $normalizedTipoMedia === 'dvd';
+        }
+
+        return self::inferTipoMedia($formato) === 'dvd';
+    }
+
+    /**
      * Map of internal format keys to translatable display names.
      */
     private static array $formatDisplayNames = [
@@ -112,6 +129,13 @@ class MediaLabels
         'dvd' => 'DVD',
         'blu-ray' => 'Blu-ray',
         'blu_ray' => 'Blu-ray',
+        'bluray' => 'Blu-ray',
+        'uhd' => '4K Ultra HD',
+        '4k' => '4K Ultra HD',
+        '4k_uhd' => '4K Ultra HD',
+        'vhs' => 'VHS',
+        'videocassetta' => 'Videocassetta',
+        'videocassette' => 'Videocassetta',
         'digitale' => 'Digitale',
         'altro' => 'Altro',
     ];
@@ -207,7 +231,7 @@ class MediaLabels
             'libro' => ['icon' => 'fa-book', 'schema' => 'Book', 'label' => 'Libro'],
             'disco' => ['icon' => 'fa-compact-disc', 'schema' => 'MusicAlbum', 'label' => 'Disco'],
             'audiolibro' => ['icon' => 'fa-headphones', 'schema' => 'Audiobook', 'label' => 'Audiolibro'],
-            'dvd' => ['icon' => 'fa-film', 'schema' => 'Movie', 'label' => 'DVD'],
+            'dvd' => ['icon' => 'fa-film', 'schema' => 'Movie', 'label' => 'Film e video'],
             'altro' => ['icon' => 'fa-box', 'schema' => 'CreativeWork', 'label' => 'Altro'],
         ];
     }
@@ -234,6 +258,47 @@ class MediaLabels
         return __($label);
     }
 
+    /** Recognise the physical video format, including qualified catalogue labels. */
+    public static function videoFormat(?string $formato): ?string
+    {
+        $label = strtolower(str_replace('_', ' ', (string) $formato));
+        return match (true) {
+            preg_match('/\b(?:4k(?:uhd)?|uhd|ultra[ -]?hd)\b/', $label) === 1 => 'uhd',
+            preg_match('/blu[ -]?ray/', $label) === 1 => 'blu-ray',
+            preg_match('/\bvhs\b/', $label) === 1 => 'vhs',
+            str_contains($label, 'videocassett') => 'videocassette',
+            str_contains($label, 'dvd') => 'dvd',
+            str_contains($label, 'videodisc') => 'videodisc',
+            default => null,
+        };
+    }
+
+    /**
+     * Whether a format string names an audio carrier (CD, LP, vinyl, audio
+     * cassette). A videocassette is not one, and neither is a CD-ROM. On a
+     * tape video carrier ("Cassetta VHS") a bare "cassetta"/"cassette" is the
+     * tape itself, so only an explicit audio cassette counts there.
+     */
+    private static function namesAudioCarrier(string $formato, ?string $videoFormat = null): bool
+    {
+        $label = strtolower($formato);
+        $collapsed = str_replace('videocassett', '', preg_replace('/[\s\-_]+/u', '', $label) ?? $label);
+        $onTape = $videoFormat === 'vhs' || $videoFormat === 'videocassette';
+        if ($onTape && preg_match('/audiocassett|musicassett/', $collapsed) === 1) {
+            return true;
+        }
+        foreach (self::MUSIC_TOKENS as $musicToken) {
+            if ($onTape && str_contains($musicToken, 'cassett')) {
+                continue;
+            }
+            if (str_contains($collapsed, $musicToken)) {
+                return true;
+            }
+        }
+        // Short tokens only as whole words ('cd' must not match 'cdrom', 'lp' 'help').
+        return preg_match('/(?<![a-z0-9])(?:cd(?![\s_-]?rom)|lp)(?![a-z0-9])/', $label) === 1;
+    }
+
     /**
      * Infer tipo_media from formato field (for backward compat / migration).
      */
@@ -254,8 +319,15 @@ class MediaLabels
                 return 'audiolibro';
             }
 
+            // A video carrier makes a film, unless an audio carrier is named
+            // with it: "CD + DVD" is a music edition with a bonus disc.
+            $video = self::videoFormat($candidate);
+            if ($video !== null) {
+                return self::namesAudioCarrier($formato, $video) ? 'disco' : 'dvd';
+            }
+
             // Long tokens: safe for substring match (unique enough)
-            foreach (['cdaudio', 'compactdisc', 'vinile', 'vinyl', 'cassetta', 'cassette', 'audiocassetta'] as $musicToken) {
+            foreach (self::MUSIC_TOKENS as $musicToken) {
                 if (str_contains($candidate, $musicToken)) {
                     return 'disco';
                 }
@@ -264,10 +336,6 @@ class MediaLabels
             // ('cd' would match 'cdrom', 'lp' would match 'help')
             if ($candidate === 'cd' || $candidate === 'lp') {
                 return 'disco';
-            }
-
-            if (str_contains($candidate, 'dvd') || str_contains($candidate, 'bluray') || str_contains($candidate, 'blu_ray')) {
-                return 'dvd';
             }
 
             if (str_contains($candidate, 'other') || str_contains($candidate, 'altro')) {
@@ -290,11 +358,17 @@ class MediaLabels
 
     /**
      * Get the appropriate label for a field based on format.
-     * Returns the music label if format is music, otherwise the default.
+     * Returns the music or film label for those media, otherwise the default.
      */
     public static function label(string $field, ?string $formato = null, ?string $tipoMedia = null): string
     {
         $isMusic = self::isMusic($formato, $tipoMedia);
+        if (!$isMusic && self::isFilm($formato, $tipoMedia)) {
+            $film = self::filmLabel($field);
+            if ($film !== null) {
+                return $film;
+            }
+        }
 
         return match ($field) {
             'autore', 'author' => $isMusic ? __('Artista') : __('Autore'),
@@ -308,6 +382,21 @@ class MediaLabels
             'collana', 'series' => $isMusic ? __('Discografia') : __('Collana'),
             'formato', 'format' => __('Formato'),
             default => __($field),
+        };
+    }
+
+    /** Film/video wording of a field, or NULL to use the default label. */
+    private static function filmLabel(string $field): ?string
+    {
+        return match ($field) {
+            'autore', 'author' => __('Regista'),
+            'autori', 'authors' => __('Regia'),
+            'editore', 'publisher' => __('Produzione / Distribuzione'),
+            'anno_pubblicazione', 'year' => __('Anno di Uscita'),
+            'isbn13', 'ean' => __('Barcode'),
+            'descrizione', 'description' => __('Trama'),
+            'collana', 'series' => __('Serie'),
+            default => null,
         };
     }
 }

@@ -1426,6 +1426,11 @@ class LibriController
 
             // Supplier and RDA overrides (0.9.0): only the keys the form posts.
             \App\Support\CataloguingExtras::save($db, $id, $data);
+            // Film and video facts (#539): only the keys the form posts.
+            $filmDropped = \App\Support\FilmFields::save($db, $id, $data);
+            if ($filmDropped !== []) {
+                $_SESSION['error_message'] = \App\Support\FilmFields::droppedMessage($filmDropped);
+            }
 
             // Plugin hook: After book save
             \App\Support\Hooks::do('book.save.after', [$id, $fields]);
@@ -2061,6 +2066,11 @@ class LibriController
 
             // Supplier and RDA overrides (0.9.0): only the keys the form posts.
             \App\Support\CataloguingExtras::save($db, $id, $data);
+            // Film and video facts (#539): only the keys the form posts.
+            $filmDropped = \App\Support\FilmFields::save($db, $id, $data);
+            if ($filmDropped !== []) {
+                $_SESSION['error_message'] = \App\Support\FilmFields::droppedMessage($filmDropped);
+            }
 
             // Plugin hook: After book save (update)
             \App\Support\Hooks::do('book.save.after', [$id, $fields]);
