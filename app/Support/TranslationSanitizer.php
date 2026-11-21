@@ -7,14 +7,16 @@ namespace App\Support;
  * Filter applied to admin-supplied translation values (uploaded locale files
  * and the locale/overrides/ files written from them).
  *
- * Views place __() output in double-quoted HTML attributes, in JS strings and
- * in JS template literals, often through a json_encode() that guards only the
- * JS layer. A value is safe in all of them when it carries no markup, no ASCII
- * double quote, no backtick and no "${". Every such sink already copes with
- * those characters when the SOURCE string (the key) contains them — otherwise
- * the shipped translation would break the page — so a translation may use one
- * only when its key does. Elsewhere it is replaced with a typographic
- * equivalent, which reads the same and ends nothing.
+ * Views place __() output in double- and single-quoted HTML attributes, in
+ * JS strings of either quote and in JS template literals, often through a
+ * json_encode() that guards only the JS layer. A value is safe in all of them
+ * when it carries no markup, no ASCII double quote, no ASCII apostrophe, no
+ * backtick and no "${". Every such sink already copes with those characters
+ * when the SOURCE string (the key) contains them — otherwise the shipped
+ * translation would break the page — so a translation may use one only when
+ * its key does. Elsewhere it is replaced with a typographic equivalent, which
+ * reads the same and ends nothing (an apostrophe becomes U+2019, the
+ * typographic apostrophe of Italian, French and English text alike).
  */
 final class TranslationSanitizer
 {
@@ -37,10 +39,11 @@ final class TranslationSanitizer
 
     /**
      * Same guarantee as sanitize(), for the per-request load of an override
-     * file. A full override holds ~9k entries and only a small fraction carry a
-     * character the filter acts on (markup, NUL, a double quote, a backtick or a
-     * "$"), so values without one are kept as they are and only the rest go
-     * through the full filter. Values were already trimmed when uploaded.
+     * file. A full override holds ~9k entries and only a fraction carry a
+     * character the filter acts on (markup, NUL, a double quote, an apostrophe,
+     * a backtick or a "$"), so values without one are kept as they are and only
+     * the rest go through the full filter. Values were already trimmed when
+     * uploaded.
      *
      * @param array<mixed> $translations
      * @return array<string, string>
@@ -52,7 +55,7 @@ final class TranslationSanitizer
             if (!is_string($key)) {
                 continue;
             }
-            $sanitized[$key] = is_string($value) && strpbrk($value, "<\"`\$\0") === false
+            $sanitized[$key] = is_string($value) && strpbrk($value, "<\"'`\$\0") === false
                 ? $value
                 : self::sanitizeValue($key, $value);
         }
@@ -77,6 +80,9 @@ final class TranslationSanitizer
                 $open = !$open;
                 return $quote;
             }, $value);
+        }
+        if (!str_contains($key, "'")) {
+            $value = str_replace("'", "\u{2019}", $value);
         }
         if (!str_contains($key, '`')) {
             $value = str_replace('`', "\u{2019}", $value);
