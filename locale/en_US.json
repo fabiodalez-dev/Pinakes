@@ -9404,5 +9404,7 @@
   "Cita questo film": "Cite this film",
   "Il libro è stato salvato, ma i dati del film (durata, interpreti, sottotitoli, classificazione, regione) no. Se il database non ha ancora le colonne, ripeti l'aggiornamento o elimina il file storage/.schema-repaired per rilanciare la verifica dello schema; poi reinserisci i dati del film e salva di nuovo la scheda. Il motivo è nel log degli errori.": "The book was saved, but not its film details (running time, cast, subtitles, age rating, region). If the database does not have those columns yet, run the update again or delete the file storage/.schema-repaired to repeat the schema check; then enter the film details again and save the record once more. The reason is in the error log.",
   "Durata non valida": "Invalid running time",
-  "La durata deve essere un numero intero di minuti tra 1 e %d.": "The running time must be a whole number of minutes between 1 and %d."
+  "La durata deve essere un numero intero di minuti tra 1 e %d.": "The running time must be a whole number of minutes between 1 and %d.",
+  "Impossibile registrare il tentativo di accesso: la cartella storage/cache/installer-login non è scrivibile. Verifica i permessi della cartella storage/ sul server.": "The login attempt could not be recorded: the storage/cache/installer-login folder is not writable. Check the permissions of the storage/ folder on the server.",
+  "Il database configurato non risponde come previsto. Il dettaglio dell'errore è nel log del server.": "The configured database does not respond as expected. The error details are in the server log."
 }

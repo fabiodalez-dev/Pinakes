@@ -9404,5 +9404,7 @@
   "Cita questo film": "Diesen Film zitieren",
   "Il libro è stato salvato, ma i dati del film (durata, interpreti, sottotitoli, classificazione, regione) no. Se il database non ha ancora le colonne, ripeti l'aggiornamento o elimina il file storage/.schema-repaired per rilanciare la verifica dello schema; poi reinserisci i dati del film e salva di nuovo la scheda. Il motivo è nel log degli errori.": "Das Buch wurde gespeichert, die Filmangaben (Laufzeit, Besetzung, Untertitel, Altersfreigabe, Regionalcode) jedoch nicht. Wenn der Datenbank diese Spalten noch fehlen, führen Sie das Update erneut aus oder löschen Sie die Datei storage/.schema-repaired, um die Schemaprüfung zu wiederholen; geben Sie danach die Filmangaben erneut ein und speichern Sie den Datensatz noch einmal. Der Grund steht im Fehlerprotokoll.",
   "Durata non valida": "Ungültige Laufzeit",
-  "La durata deve essere un numero intero di minuti tra 1 e %d.": "Die Laufzeit muss eine ganze Zahl von Minuten zwischen 1 und %d sein."
+  "La durata deve essere un numero intero di minuti tra 1 e %d.": "Die Laufzeit muss eine ganze Zahl von Minuten zwischen 1 und %d sein.",
+  "Impossibile registrare il tentativo di accesso: la cartella storage/cache/installer-login non è scrivibile. Verifica i permessi della cartella storage/ sul server.": "Der Anmeldeversuch konnte nicht gespeichert werden: Der Ordner storage/cache/installer-login ist nicht beschreibbar. Prüfen Sie die Berechtigungen des Ordners storage/ auf dem Server.",
+  "Il database configurato non risponde come previsto. Il dettaglio dell'errore è nel log del server.": "Die konfigurierte Datenbank antwortet nicht wie erwartet. Die Fehlerdetails stehen im Server-Log."
 }

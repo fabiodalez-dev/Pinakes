@@ -115,6 +115,23 @@ mkdir($broken, 0700);
 file_put_contents($broken . '/storage', 'not a directory');
 $check(!(new Installer($broken))->recordForceLoginAttempt('198.51.100.9', $now), 'an unrecordable attempt is refused (fail closed)');
 
+// Review of PR #536: an unwritable storage/cache/installer-login was reported to
+// the administrator as HTTP 429 "too many attempts". Still refused, but the
+// reason is told apart from a used-up budget.
+$hasVerdict = method_exists(Installer::class, 'forceLoginAttemptVerdict') && defined('Installer::FORCE_LOGIN_UNAVAILABLE');
+$check($hasVerdict && (new Installer($broken))->forceLoginAttemptVerdict('198.51.100.9', $now) === Installer::FORCE_LOGIN_UNAVAILABLE,
+    'an unrecordable attempt is reported as "storage unavailable", not as "too many attempts"');
+$verdictSite = $tmp . '/verdict';
+mkdir($verdictSite, 0700);
+$verdictInstaller = new Installer($verdictSite);
+for ($i = 0; $i < Installer::FORCE_LOGIN_MAX_ATTEMPTS; $i++) {
+    $verdictInstaller->recordForceLoginAttempt('198.51.100.77', $now + $i);
+}
+$check($hasVerdict && $verdictInstaller->forceLoginAttemptVerdict('198.51.100.77', $now + 20) === Installer::FORCE_LOGIN_LIMITED,
+    'a used-up budget is reported as "too many attempts"');
+$check($hasVerdict && $verdictInstaller->forceLoginAttemptVerdict('198.51.100.78', $now + 20) === Installer::FORCE_LOGIN_ALLOWED,
+    'a recorded attempt within the budget is allowed');
+
 // Review of PR #536: the prune read a bucket's age and then unlinked it, while a
 // request could record an attempt in the same file in between, and the login got
 // a fresh budget. The prune locks each bucket and reads its age again under the
@@ -241,11 +258,12 @@ $check(preg_match("/unset\\(\\s*\\\$_SESSION\\['installer_admin_user_id'\\],\\s*
     'a stale installer login is dropped with its fingerprint and its row id');
 $check(preg_match("/tipo_utente = 'admin' AND stato = 'attivo' AND email_verificata = 1/", $gate) === 1,
     'the POST door requires stato attivo and a verified email');
-$check(str_contains($gate, 'recordForceLoginAttempt('), 'the POST door is rate limited');
-$check(str_contains($gate, 'recordForceLoginAttempt(Installer::forceLoginClientIp($_SERVER))'), 'the POST door counts the proxy-resolved client address');
+$check(str_contains($gate, 'forceLoginAttemptVerdict('), 'the POST door is rate limited');
+$check(str_contains($gate, 'forceLoginAttemptVerdict(Installer::forceLoginClientIp($_SERVER))'), 'the POST door counts the proxy-resolved client address');
+$check(str_contains($gate, '!== Installer::FORCE_LOGIN_ALLOWED'), 'anything but an allowed verdict refuses the login (fail closed)');
 $check(str_contains($gate, 'catch (\\Throwable $e)') && !preg_match('/catch \(Exception \$e\)/', $gate),
     'failures are caught as \\Throwable and fail closed');
-$postPos = strpos($gate, 'recordForceLoginAttempt(');
+$postPos = strpos($gate, 'forceLoginAttemptVerdict(');
 $queryPos = strpos($gate, "AND stato = 'attivo'");
 $check($postPos !== false && $queryPos !== false && $postPos < $queryPos, 'the attempt is counted before the credential check');
 
@@ -299,6 +317,36 @@ $grantPos = strpos($gate, "\$_SESSION['installer_admin_user_id'] = (int) \$row['
 $check($bindPos !== false && $guardPos !== false && $grantPos !== false && $bindPos < $guardPos && $guardPos < $grantPos,
     'the installer login writes its row first and is refused when the row cannot be written');
 $check(str_contains($gate, '$_SESSION[Installer::INSTALLER_SESSION_ROW_KEY] = $sessionRowId;'), 'the row id is kept in the installer session');
+
+// Review of PR #536: the gate shows its own, accurate error when the throttle
+// storage cannot be written, and that error is translated.
+$throttleKey = 'Impossibile registrare il tentativo di accesso: la cartella storage/cache/installer-login non è scrivibile. Verifica i permessi della cartella storage/ sul server.';
+$check(str_contains($gate, 'Installer::FORCE_LOGIN_UNAVAILABLE') && str_contains($gate, '$throttleUnavailable = true;')
+    && str_contains($gate, $throttleKey) && str_contains($gate, 'http_response_code(503);'),
+    'the gate reports an unwritable throttle storage (503) apart from the rate limit (429)');
+$throttlePos = strpos($gate, 'if ($throttleUnavailable) {');
+$limitPos = strpos($gate, 'http_response_code(429);');
+$check($throttlePos !== false && $limitPos !== false && $throttlePos < $limitPos, 'the storage error is checked before the rate-limit message');
+
+// Review of PR #536: with the .installed redirect gone from installer/.htaccess,
+// an anonymous GET /installer/ on an installed site reached verifyInstallation()
+// and printed the driver message (database user, host, schema). No
+// force-authenticated session reaches that page (it routes through the gate),
+// so the page never prints the exception text; the detail goes to the log.
+$pageStart = strpos($src, 'if (!$forceRequested && $installer->isInstalled()) {');
+$pageSrc = $pageStart === false ? '' : substr($src, $pageStart);
+$genericKey = "Il database configurato non risponde come previsto. Il dettaglio dell'errore è nel log del server.";
+$check($pageSrc !== '' && !str_contains($pageSrc, "['db_error'] = \$e->getMessage()") && !preg_match('/db_error\'\]\s*=\s*\$e->getMessage/', $pageSrc),
+    'the anonymous installed-state page does not show the database exception message');
+$check(str_contains($pageSrc, "error_log('[Installer] installation check failed: ' . \$e->getMessage());") && str_contains($pageSrc, $genericKey),
+    'it logs the detail and shows a generic, translated message');
+$check(str_contains($pageSrc, 'catch (\\Throwable $e)'), 'any failure of the check (\\Throwable) takes the generic path');
+foreach (['it_IT', 'en_US', 'de_DE', 'fr_FR', 'da_DK'] as $loc) {
+    $strings = json_decode((string) file_get_contents($ROOT . '/locale/' . $loc . '.json'), true);
+    $check(is_array($strings) && isset($strings[$throttleKey], $strings[$genericKey]) && $strings[$throttleKey] !== '' && $strings[$genericKey] !== ''
+        && ($loc === 'it_IT' || ($strings[$throttleKey] !== $throttleKey && $strings[$genericKey] !== $genericKey)),
+        "the two new installer messages are translated ({$loc})");
+}
 
 // Cleanup: only the private temp tree created above.
 $it = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($tmp, FilesystemIterator::SKIP_DOTS), RecursiveIteratorIterator::CHILD_FIRST);
