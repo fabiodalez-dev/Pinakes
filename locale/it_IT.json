@@ -9381,5 +9381,7 @@
   "Prenotazione non trovata o non modificabile con il tuo ruolo.": "Prenotazione non trovata o non modificabile con il tuo ruolo.",
   "Prestito non trovato o non modificabile con il tuo ruolo.": "Prestito non trovato o non modificabile con il tuo ruolo.",
   "Questa sessione non può importare lo schema: l'installazione è in corso in un altro browser oppure il database non è vuoto. Riprendi l'installazione dal browser che l'ha iniziata, oppure ricomincia dal passo 2 con un database vuoto.": "Questa sessione non può importare lo schema: l'installazione è in corso in un altro browser oppure il database non è vuoto. Riprendi l'installazione dal browser che l'ha iniziata, oppure ricomincia dal passo 2 con un database vuoto.",
-  "Questa iscrizione è già stata modificata da un'altra operazione: la pagina mostra lo stato attuale.": "Questa iscrizione è già stata modificata da un'altra operazione: la pagina mostra lo stato attuale."
+  "Questa iscrizione è già stata modificata da un'altra operazione: la pagina mostra lo stato attuale.": "Questa iscrizione è già stata modificata da un'altra operazione: la pagina mostra lo stato attuale.",
+  "Impossibile registrare il tentativo di accesso: la cartella storage/cache/installer-login non è scrivibile. Verifica i permessi della cartella storage/ sul server.": "Impossibile registrare il tentativo di accesso: la cartella storage/cache/installer-login non è scrivibile. Verifica i permessi della cartella storage/ sul server.",
+  "Il database configurato non risponde come previsto. Il dettaglio dell'errore è nel log del server.": "Il database configurato non risponde come previsto. Il dettaglio dell'errore è nel log del server."
 }

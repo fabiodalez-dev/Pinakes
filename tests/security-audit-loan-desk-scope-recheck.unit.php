@@ -262,7 +262,7 @@ try {
         $check(str_contains((string) file_get_contents($root . '/' . $file), $needle), basename($file) . ': the check inside the transaction is a locking read');
     }
     $prestiti = (string) file_get_contents($root . '/app/Controllers/PrestitiController.php');
-    foreach (["(int) \$locked['utente_id'], true)", "\$newUserId, true)", "(int) \$lockedLoan['utente_id'], true)"] as $needle) {
+    foreach (["\$lockedOwnerId, true)", "\$newUserId, true)", "(int) \$lockedLoan['utente_id'], true)"] as $needle) {
         $check(str_contains($prestiti, $needle), 'PrestitiController: locked-row check uses a locking read (' . $needle . ')');
     }
 } catch (\Throwable $e) {

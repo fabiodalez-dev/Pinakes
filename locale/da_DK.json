@@ -9381,5 +9381,7 @@
   "Prenotazione non trovata o non modificabile con il tuo ruolo.": "Reservationen blev ikke fundet, eller din rolle kan ikke ændre den.",
   "Prestito non trovato o non modificabile con il tuo ruolo.": "Udlånet blev ikke fundet, eller din rolle kan ikke ændre det.",
   "Questa sessione non può importare lo schema: l'installazione è in corso in un altro browser oppure il database non è vuoto. Riprendi l'installazione dal browser che l'ha iniziata, oppure ricomincia dal passo 2 con un database vuoto.": "Denne session kan ikke importere skemaet: installationen er i gang i en anden browser, eller databasen er ikke tom. Fortsæt installationen fra den browser, der startede den, eller start forfra fra trin 2 med en tom database.",
-  "Questa iscrizione è già stata modificata da un'altra operazione: la pagina mostra lo stato attuale.": "Dette medlemskab er allerede ændret af en anden handling: siden viser den aktuelle status."
+  "Questa iscrizione è già stata modificata da un'altra operazione: la pagina mostra lo stato attuale.": "Dette medlemskab er allerede ændret af en anden handling: siden viser den aktuelle status.",
+  "Impossibile registrare il tentativo di accesso: la cartella storage/cache/installer-login non è scrivibile. Verifica i permessi della cartella storage/ sul server.": "Loginforsøget kunne ikke registreres: mappen storage/cache/installer-login er ikke skrivbar. Kontrollér rettighederne for mappen storage/ på serveren.",
+  "Il database configurato non risponde come previsto. Il dettaglio dell'errore è nel log del server.": "Den konfigurerede database svarer ikke som forventet. Fejldetaljerne findes i serverens log."
 }

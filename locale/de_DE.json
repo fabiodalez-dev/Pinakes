@@ -9381,5 +9381,7 @@
   "Prenotazione non trovata o non modificabile con il tuo ruolo.": "Vormerkung nicht gefunden, oder deine Rolle darf sie nicht ändern.",
   "Prestito non trovato o non modificabile con il tuo ruolo.": "Ausleihe nicht gefunden, oder deine Rolle darf sie nicht ändern.",
   "Questa sessione non può importare lo schema: l'installazione è in corso in un altro browser oppure il database non è vuoto. Riprendi l'installazione dal browser che l'ha iniziata, oppure ricomincia dal passo 2 con un database vuoto.": "Diese Sitzung kann das Schema nicht importieren: Die Installation läuft in einem anderen Browser, oder die Datenbank ist nicht leer. Setze die Installation in dem Browser fort, in dem sie begonnen wurde, oder beginne erneut bei Schritt 2 mit einer leeren Datenbank.",
-  "Questa iscrizione è già stata modificata da un'altra operazione: la pagina mostra lo stato attuale.": "Diese Mitgliedschaft wurde bereits durch eine andere Aktion geändert: Die Seite zeigt den aktuellen Stand."
+  "Questa iscrizione è già stata modificata da un'altra operazione: la pagina mostra lo stato attuale.": "Diese Mitgliedschaft wurde bereits durch eine andere Aktion geändert: Die Seite zeigt den aktuellen Stand.",
+  "Impossibile registrare il tentativo di accesso: la cartella storage/cache/installer-login non è scrivibile. Verifica i permessi della cartella storage/ sul server.": "Der Anmeldeversuch konnte nicht gespeichert werden: Der Ordner storage/cache/installer-login ist nicht beschreibbar. Prüfen Sie die Berechtigungen des Ordners storage/ auf dem Server.",
+  "Il database configurato non risponde come previsto. Il dettaglio dell'errore è nel log del server.": "Die konfigurierte Datenbank antwortet nicht wie erwartet. Die Fehlerdetails stehen im Server-Log."
 }
