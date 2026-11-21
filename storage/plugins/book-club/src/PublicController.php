@@ -115,7 +115,10 @@ class PublicController extends BaseController
         if ($existing !== null && in_array($existing['status'], ['active', 'pending'], true)) {
             return $this->redirect($response, \App\Support\RouteTranslator::route('book_club') . '/' . $slug);
         }
-        if ($existing !== null && $existing['status'] === 'banned') {
+        // Suspension and ban are sanctions set by the library or the club's
+        // managers: a self-service join must not overwrite them (upsertMember
+        // rewrites the status of the existing row).
+        if ($existing !== null && in_array($existing['status'], ['banned', 'suspended'], true)) {
             $this->flash('error', __('Non puoi unirti a questo club.'));
             return $this->redirect($response, \App\Support\RouteTranslator::route('book_club') . '/' . $slug);
         }
@@ -131,9 +134,19 @@ class PublicController extends BaseController
         if ($roleId === null) {
             return $this->notFound($response);
         }
-        $status = $club['privacy'] === 'public' ? 'active' : 'pending';
-        $this->repo->upsertMember((int) $club['id'], $userId, $roleId, $status);
-        if (function_exists('do_action')) {
+        $requested = $club['privacy'] === 'public' ? 'active' : 'pending';
+        // The status the row really has: a ban or suspension that landed after
+        // the check above is kept by the write (Repo::joinMember()).
+        $status = $this->repo->joinMember((int) $club['id'], $userId, $roleId, $requested);
+        if ($status === null) {
+            $this->flash('error', __("Si è verificato un errore durante l'operazione. Riprova più tardi."));
+            return $this->redirect($response, \App\Support\RouteTranslator::route('book_club') . '/' . $slug);
+        }
+        if (!in_array($status, ['active', 'pending'], true)) {
+            $this->flash('error', __('Non puoi unirti a questo club.'));
+            return $this->redirect($response, \App\Support\RouteTranslator::route('book_club') . '/' . $slug);
+        }
+        if ($status === $requested && function_exists('do_action')) {
             do_action('bookclub.member.joined', (int) $club['id'], $userId, $status);
         }
         if ($status === 'pending') {
@@ -159,7 +172,10 @@ class PublicController extends BaseController
         }
         $member = $this->membership($club);
         if ($member !== null && in_array($member['status'], ['active', 'pending'], true)) {
-            $this->repo->setMemberStatus((int) $member['id'], 'left');
+            if (!$this->repo->setMemberStatus((int) $member['id'], 'left', ['active', 'pending'])) {
+                $this->flashStatusChangeFailure((int) $member['id'], ['active', 'pending']);
+                return $this->redirect($response, \App\Support\RouteTranslator::route('book_club') . '/' . $slug);
+            }
             if (function_exists('do_action')) {
                 do_action('bookclub.member.left', (int) $club['id'], (int) $member['user_id']);
             }
@@ -186,18 +202,43 @@ class PublicController extends BaseController
         }
         $body = $request->getParsedBody();
         $action = self::str($body, 'action', 10);
+        // Both outcomes apply only while the request is still pending: the
+        // status is re-checked under the row lock in setMemberStatus().
         if ($action === 'reject') {
-            $this->repo->setMemberStatus($memberId, 'left');
+            if (!$this->repo->setMemberStatus($memberId, 'left', ['pending'])) {
+                $this->flashStatusChangeFailure($memberId, ['pending']);
+                return $this->redirect($response, \App\Support\RouteTranslator::route('book_club') . '/' . $slug);
+            }
             $this->flash('success', __('Richiesta rifiutata.'));
         } else {
             if ($club['max_members'] !== null && $this->repo->countActiveMembers((int) $club['id']) >= (int) $club['max_members']) {
                 $this->flash('error', __('Il club ha raggiunto il numero massimo di membri.'));
                 return $this->redirect($response, \App\Support\RouteTranslator::route('book_club') . '/' . $slug);
             }
-            $this->repo->setMemberStatus($memberId, 'active');
+            if (!$this->repo->setMemberStatus($memberId, 'active', ['pending'])) {
+                $this->flashStatusChangeFailure($memberId, ['pending']);
+                return $this->redirect($response, \App\Support\RouteTranslator::route('book_club') . '/' . $slug);
+            }
             $this->flash('success', __('Membro approvato.'));
         }
         return $this->redirect($response, \App\Support\RouteTranslator::route('book_club') . '/' . $slug);
+    }
+
+    /**
+     * Repo::setMemberStatus() answers false both for a failure and for a
+     * membership another request changed first (approved, rejected or left
+     * meanwhile). Tell them apart: "try again later" cannot fix the second.
+     *
+     * @param list<string> $onlyFrom
+     */
+    private function flashStatusChangeFailure(int $memberId, array $onlyFrom): void
+    {
+        $now = $this->repo->memberById($memberId);
+        if ($now === null || !in_array($now['status'], $onlyFrom, true)) {
+            $this->flash('warning', __('Questa iscrizione è già stata modificata da un\'altra operazione: la pagina mostra lo stato attuale.'));
+            return;
+        }
+        $this->flash('error', __("Si è verificato un errore durante l'operazione. Riprova più tardi."));
     }
 
     // ------------------------------------------------------------------
@@ -229,21 +270,29 @@ class PublicController extends BaseController
             return $this->redirect($response, \App\Support\RouteTranslator::route('book_club') . '/' . $slug);
         }
 
-        $link = absoluteUrl(\App\Support\RouteTranslator::route('book_club') . '/invite/' . $token);
+        $invitePath = \App\Support\RouteTranslator::route('book_club') . '/invite/' . $token;
+        // The emailed link carries the invitation token: its host must be one
+        // the operator configured (TrustedLink), never the request's Host
+        // header. With none, no email goes out and the manager is handed the
+        // link below, built for the page they are looking at.
+        $mailLink = \App\Support\TrustedLink::build($invitePath);
+        $link = $mailLink ?? absoluteUrl($invitePath);
         $sent = false;
-        try {
-            $emailService = new EmailService($this->db);
-            $subject = sprintf(__('Invito al club di lettura "%s"'), (string) $club['name']);
-            $bodyHtml = '<p>' . htmlspecialchars(sprintf(
-                __('Sei stato invitato a unirti al club di lettura "%s".'),
-                (string) $club['name']
-            ), ENT_QUOTES, 'UTF-8') . '</p>'
-                . '<p><a href="' . htmlspecialchars($link, ENT_QUOTES, 'UTF-8') . '">'
-                . htmlspecialchars(__('Accetta l\'invito'), ENT_QUOTES, 'UTF-8') . '</a></p>'
-                . '<p>' . htmlspecialchars(__('Se non hai ancora un account, registrati prima con questo indirizzo email.'), ENT_QUOTES, 'UTF-8') . '</p>';
-            $sent = $emailService->sendEmail($email, $subject, $bodyHtml);
-        } catch (\Throwable $e) {
-            SecureLogger::error('[BookClub] invite email failed: ' . $e->getMessage());
+        if ($mailLink !== null) {
+            try {
+                $emailService = new EmailService($this->db);
+                $subject = sprintf(__('Invito al club di lettura "%s"'), (string) $club['name']);
+                $bodyHtml = '<p>' . htmlspecialchars(sprintf(
+                    __('Sei stato invitato a unirti al club di lettura "%s".'),
+                    (string) $club['name']
+                ), ENT_QUOTES, 'UTF-8') . '</p>'
+                    . '<p><a href="' . htmlspecialchars($mailLink, ENT_QUOTES, 'UTF-8') . '">'
+                    . htmlspecialchars(__('Accetta l\'invito'), ENT_QUOTES, 'UTF-8') . '</a></p>'
+                    . '<p>' . htmlspecialchars(__('Se non hai ancora un account, registrati prima con questo indirizzo email.'), ENT_QUOTES, 'UTF-8') . '</p>';
+                $sent = $emailService->sendEmail($email, $subject, $bodyHtml);
+            } catch (\Throwable $e) {
+                SecureLogger::error('[BookClub] invite email failed: ' . $e->getMessage());
+            }
         }
 
         if ($sent) {
@@ -288,7 +337,8 @@ class PublicController extends BaseController
         }
         $userId = (int) $this->userId();
         $existing = $this->repo->memberRow((int) $club['id'], $userId);
-        if ($existing !== null && $existing['status'] === 'banned') {
+        // Same rule as join(): an invitation does not lift a suspension or a ban.
+        if ($existing !== null && in_array($existing['status'], ['banned', 'suspended'], true)) {
             $this->flash('error', __('Non puoi unirti a questo club.'));
             return $this->redirect($response, \App\Support\RouteTranslator::route('book_club'));
         }
@@ -302,9 +352,20 @@ class PublicController extends BaseController
                 'token' => $token,
             ], __('Invito al club'));
         }
-        $this->repo->upsertMember((int) $club['id'], $userId, $roleId, 'active', $invitation['invited_by'] !== null ? (int) $invitation['invited_by'] : null);
+        // From the status the row really has (Repo::joinMember()): a ban or
+        // suspension that landed after the check above is kept, and then the
+        // invitation is not consumed and no join is announced.
+        $status = $this->repo->joinMember((int) $club['id'], $userId, $roleId, 'active', $invitation['invited_by'] !== null ? (int) $invitation['invited_by'] : null);
+        if ($status === null) {
+            $this->flash('error', __("Si è verificato un errore durante l'operazione. Riprova più tardi."));
+            return $this->redirect($response, \App\Support\RouteTranslator::route('book_club'));
+        }
+        if ($status !== 'active') {
+            $this->flash('error', __('Non puoi unirti a questo club.'));
+            return $this->redirect($response, \App\Support\RouteTranslator::route('book_club'));
+        }
         $this->repo->markInvitationAccepted((int) $invitation['id']);
-        if (function_exists('do_action')) {
+        if (($existing === null || $existing['status'] !== 'active') && function_exists('do_action')) {
             do_action('bookclub.member.joined', (int) $club['id'], $userId, 'active');
         }
         $this->flash('success', sprintf(__('Benvenuto nel club "%s"!'), (string) $club['name']));
@@ -537,9 +598,10 @@ class PublicController extends BaseController
      *
      * Permissions (granular matrix, two concerns gated separately):
      * - proposal moderation — approving a book still in the 'pending'
-     *   moderation state, or state='reject-proposal' — requires
-     *   `proposals.approve`;
-     * - every other workflow move requires `workflow.transition`.
+     *   moderation state into the workflow's entry state, or
+     *   state='reject-proposal' — requires `proposals.approve`;
+     * - every other workflow move requires `workflow.transition` (plus
+     *   `proposals.approve` when the book is still pending).
      */
     public function changeBookState(ServerRequestInterface $request, ResponseInterface $response, string $slug, int $bookId): ResponseInterface
     {
@@ -554,14 +616,23 @@ class PublicController extends BaseController
         $body = $request->getParsedBody();
         $toState = self::str($body, 'state', 50);
 
-        // Moderation branch (approve a pending proposal / reject it) is
-        // gated by proposals.approve; plain transitions by workflow.transition.
+        // Moderation (approve a pending proposal into the workflow's entry
+        // state, or reject it) is gated by proposals.approve; every other move
+        // by workflow.transition. Moderation is decided on the TARGET too: a
+        // pending book sent anywhere but the entry state is a workflow move,
+        // so proposals.approve alone cannot skip the vote and land it in
+        // 'reading' or 'finished'. That move also needs proposals.approve,
+        // because it takes the book out of moderation.
+        $states = $this->repo->workflowStates($club);
+        $isPending = $book['state'] === BookClubPlugin::STATE_PENDING;
         $isModeration = $toState === 'reject-proposal'
-            || $book['state'] === BookClubPlugin::STATE_PENDING;
-        if (!$this->can($club, $isModeration ? 'proposals.approve' : 'workflow.transition')) {
+            || ($isPending && $toState === Repo::entryStateKey($states));
+        $allowed = $isModeration
+            ? $this->can($club, 'proposals.approve')
+            : $this->can($club, 'workflow.transition') && (!$isPending || $this->can($club, 'proposals.approve'));
+        if (!$allowed) {
             return $this->notFound($response);
         }
-        $states = $this->repo->workflowStates($club);
 
         if ($toState === 'reject-proposal') {
             // Hard-delete a rejected moderated proposal: it never entered the
@@ -718,9 +789,15 @@ class PublicController extends BaseController
         $clubs = $this->repo->listClubsForUser($userId);
         $cards = [];
         foreach ($clubs as $club) {
+            // listClubsForUser() includes pending requests: a non-public club
+            // lists its card, not its activity, until the membership is
+            // active (same rule as canSeeContent() everywhere else, and as
+            // the mobile dashboard).
             $cards[] = [
                 'club' => $club,
-                'snapshot' => $this->repo->clubSnapshot($club),
+                'snapshot' => $this->canSeeContent($club)
+                    ? $this->repo->clubSnapshot($club)
+                    : ['current_books' => [], 'next_meeting' => null, 'open_polls' => []],
             ];
         }
         return $this->renderPublic($response, 'public/dashboard', [

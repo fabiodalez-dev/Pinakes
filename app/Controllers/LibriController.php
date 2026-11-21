@@ -2190,125 +2190,20 @@ class LibriController
                 return;
             }
 
-            // Otherwise, download and save locally
-
-            // SECURITY FIX #1 (CRITICAL): Prevent SSRF via DNS rebinding
-            // Resolve hostname to IP and validate it's not a private/reserved IP
-            $host = parse_url($url, PHP_URL_HOST);
-            if ($host) {
-                $ip = gethostbyname($host);
-
-                // Block private IP ranges (RFC 1918), link-local, loopback, and reserved ranges
-                if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false) {
-                    $this->logCoverDebug('handleCoverUrl.security.private_ip_blocked', [
-                        'bookId' => $bookId,
-                        'url' => $url,
-                        'host' => $host,
-                        'resolved_ip' => $ip
-                    ]);
-                    return;
-                }
-            }
-
-            // SECURITY FIX: DoS Prevention - Check Content-Length BEFORE downloading
-            // Prevent memory exhaustion attacks by verifying file size before streaming
-
-            // Step 1: HEAD request to check Content-Length
-            $ch = curl_init($url);
-            curl_setopt_array($ch, [
-                CURLOPT_NOBODY => true,  // Only headers, no body
-                CURLOPT_RETURNTRANSFER => true,
-                CURLOPT_FOLLOWLOCATION => false,
-                CURLOPT_TIMEOUT => 5,
-                CURLOPT_SSL_VERIFYPEER => true,
-                CURLOPT_SSL_VERIFYHOST => 2,
-                CURLOPT_USERAGENT => 'BibliotecaBot/1.0'
-            ]);
-            if (defined('CURLOPT_PROTOCOLS_STR')) {
-                curl_setopt($ch, CURLOPT_PROTOCOLS_STR, 'https,http');
-            } else {
-                curl_setopt($ch, CURLOPT_PROTOCOLS, CURLPROTO_HTTPS | CURLPROTO_HTTP);
-            }
-            curl_exec($ch);
-            $contentLength = curl_getinfo($ch, CURLINFO_CONTENT_LENGTH_DOWNLOAD);
-            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-            /* curl_close(): no-op since PHP 8.0, deprecated 8.5 */
-
-            // Reject if size is known and exceeds limit (2MB)
-            if ($contentLength > 0 && $contentLength > 2 * 1024 * 1024) {
-                $this->logCoverDebug('handleCoverUrl.security.size_exceeded_precheck', [
-                    'bookId' => $bookId,
-                    'url' => $url,
-                    'size' => $contentLength
-                ]);
+            // Otherwise, download and save locally, through the same SSRF-safe
+            // fetch as downloadExternalCover() (App\Support\SsrfGuard): every
+            // A/AAAA record checked with the audited isPublicIp() predicate
+            // (CGNAT, NAT64, 6to4, IPv4-mapped... included), the connection
+            // pinned to the checked IP, redirects followed by hand with each hop
+            // re-checked, and a 2 MB cap enforced while streaming. The old check
+            // (a single A record and the bare private/reserved filter_var flags)
+            // let those ranges through and resolved the host again inside cURL.
+            $fetched = \App\Support\SsrfGuard::fetchImage($url, 2 * 1024 * 1024);
+            if ($fetched === null) {
+                $this->logCoverDebug('handleCoverUrl.security.fetch_refused', ['bookId' => $bookId, 'url' => $url]);
                 return;
             }
-
-            // Reject if HEAD request failed
-            if ($httpCode >= 400) {
-                $this->logCoverDebug('handleCoverUrl.download.head_fail', [
-                    'bookId' => $bookId,
-                    'url' => $url,
-                    'httpCode' => $httpCode
-                ]);
-                return;
-            }
-
-            // Step 2: Download with streaming and size limit enforcement
-            $ch = curl_init($url);
-            curl_setopt_array($ch, [
-                CURLOPT_RETURNTRANSFER => true,
-                CURLOPT_FOLLOWLOCATION => false,  // Prevent redirect bypass
-                CURLOPT_TIMEOUT => 10,
-                CURLOPT_SSL_VERIFYPEER => true,
-                CURLOPT_SSL_VERIFYHOST => 2,
-                CURLOPT_USERAGENT => 'BibliotecaBot/1.0',
-                CURLOPT_BUFFERSIZE => 128 * 1024,  // 128KB chunks
-                CURLOPT_NOPROGRESS => false,
-                CURLOPT_PROGRESSFUNCTION => function ($resource, $download_size, $downloaded, $upload_size, $uploaded) {
-                    // Abort download if it exceeds 2MB during streaming
-                    return ($downloaded > 2 * 1024 * 1024) ? 1 : 0;
-                }
-            ]);
-            if (defined('CURLOPT_PROTOCOLS_STR')) {
-                curl_setopt($ch, CURLOPT_PROTOCOLS_STR, 'https,http');
-            } else {
-                curl_setopt($ch, CURLOPT_PROTOCOLS, CURLPROTO_HTTPS | CURLPROTO_HTTP);
-            }
-            $img = curl_exec($ch);
-            $curlError = curl_errno($ch);
-            $curlHttpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-            /* curl_close(): no-op since PHP 8.0, deprecated 8.5 */
-
-            // Handle abort from progress function
-            if ($curlError === CURLE_ABORTED_BY_CALLBACK) {
-                $this->logCoverDebug('handleCoverUrl.security.size_exceeded_during_download', [
-                    'bookId' => $bookId,
-                    'url' => $url
-                ]);
-                return;
-            }
-
-            // Handle download failure
-            if ($img === false || $curlError !== 0 || $curlHttpCode >= 400) {
-                $this->logCoverDebug('handleCoverUrl.download.fail', [
-                    'bookId' => $bookId,
-                    'url' => $url,
-                    'curlError' => $curlError,
-                    'httpCode' => $curlHttpCode
-                ]);
-                return;
-            }
-
-            // Final size check (defense in depth)
-            if (strlen($img) > 2 * 1024 * 1024) {
-                $this->logCoverDebug('handleCoverUrl.security.size_exceeded_final', [
-                    'bookId' => $bookId,
-                    'url' => $url,
-                    'size' => strlen($img)
-                ]);
-                return;
-            }
+            $img = $fetched[0];
 
             // Security: Validate MIME type of downloaded content
             if (!$this->isValidImageMimeType($img)) {

@@ -89,6 +89,14 @@ class QueryCache
     /** Monotonic tie-breaker for the CSPRNG-less negative generation sentinel. */
     private static int $sentinelCounter = 0;
 
+    /**
+     * Memoized install tag, keyed by the APP_KEY it was derived from so a value
+     * computed before .env was loaded is not reused afterwards.
+     *
+     * @var array{0: string, 1: string}|null [appKey, tag]
+     */
+    private static ?array $installTagMemo = null;
+
     /** @var int Instrumentation: total get() calls this request */
     private static int $statGets = 0;
 
@@ -571,6 +579,10 @@ class QueryCache
                 if (str_starts_with($item['key'], 'pinakes_lock_')) {
                     continue;
                 }
+                // Another install's entry in a shared APCu segment: not ours to drop.
+                if (!self::isOwnApcuKey((string) $item['key'])) {
+                    continue;
+                }
                 if (apcu_delete($item['key'])) {
                     $count++;
                 }
@@ -627,6 +639,10 @@ class QueryCache
                 // computing would allow a second worker to acquire a new
                 // lock for the same key. The sentinel expires on its own.
                 if (str_starts_with($item['key'], 'pinakes_lock_')) {
+                    continue;
+                }
+                // Leave other installs sharing this APCu segment alone.
+                if (!self::isOwnApcuKey((string) $item['key'])) {
                     continue;
                 }
                 if (!apcu_delete($item['key']) && apcu_exists($item['key'])) {
@@ -964,7 +980,38 @@ class QueryCache
             $hashInput .= '|gen:' . self::currentGeneration($ns);
         }
 
-        return 'pinakes_' . $prefix . '_' . md5($hashInput);
+        // The install tag goes into the hash AND at the end of the name. APCu
+        // is one segment per SAPI pool, often shared by every site on a host:
+        // without it two installs (or any co-tenant) read and overwrite each
+        // other's entries, e.g. config_settings_raw with custom JS and private
+        // mode. The suffix lets flush()/clearByPrefix() touch only this install.
+        $tag = self::installTag();
+
+        return 'pinakes_' . $prefix . '_' . md5($tag . '|' . $hashInput) . '_' . $tag;
+    }
+
+    /**
+     * Short identifier of this installation: the real path of the app root plus
+     * APP_KEY, hashed. Stable across requests and SAPIs of one install, different
+     * between installs that share an APCu segment.
+     */
+    private static function installTag(): string
+    {
+        $appKey = (string) ($_ENV['APP_KEY'] ?? (getenv('APP_KEY') ?: ''));
+        if (self::$installTagMemo !== null && self::$installTagMemo[0] === $appKey) {
+            return self::$installTagMemo[1];
+        }
+        $root = realpath(dirname(__DIR__, 2)) ?: dirname(__DIR__, 2);
+        $tag = substr(hash('sha256', 'pinakes-querycache|' . $root . "\0" . $appKey), 0, 16);
+        self::$installTagMemo = [$appKey, $tag];
+
+        return $tag;
+    }
+
+    /** True when an APCu key was written by this installation (see hashKey()). */
+    private static function isOwnApcuKey(string $storedKey): bool
+    {
+        return str_ends_with($storedKey, '_' . self::installTag());
     }
 
     /**

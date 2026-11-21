@@ -258,7 +258,11 @@ class UpdateController
      */
     public function getBackups(Request $request, Response $response, mysqli $db): Response
     {
-
+        // Every backup action (create, download, restore, delete) is admin-only;
+        // so is the list of recovery points they act on.
+        if (($_SESSION['user']['tipo_utente'] ?? '') !== 'admin') {
+            return $this->jsonResponse($response, ['error' => __('Operazione riservata agli amministratori')], 403);
+        }
 
         $backups = (new BackupManager($db, dirname(__DIR__, 2)))->listBackups();
 
@@ -471,7 +475,13 @@ class UpdateController
      */
     public function clearMaintenance(Request $request, Response $response): Response
     {
-        // Admin-only access check removed
+        // Lifting the lock reopens the site over an update or a restore an
+        // administrator is running — or over the sticky lock BackupManager leaves
+        // after an incomplete restore — so admin-only, like performUpdate.
+        // AdminAuthMiddleware also lets staff through: re-check here.
+        if (($_SESSION['user']['tipo_utente'] ?? '') !== 'admin') {
+            return $this->jsonResponse($response, ['error' => __('Operazione riservata agli amministratori')], 403);
+        }
 
 
         // Verify CSRF token
@@ -511,6 +521,12 @@ class UpdateController
      */
     public function getLogs(Request $request, Response $response): Response
     {
+        // The application log (error contexts, user ids, IPs) belongs to the
+        // admin-only updater surface: re-check, AdminAuthMiddleware admits staff.
+        if (($_SESSION['user']['tipo_utente'] ?? '') !== 'admin') {
+            return $this->jsonResponse($response, ['error' => __('Operazione riservata agli amministratori')], 403);
+        }
+
         $logFile = dirname(__DIR__, 2) . '/storage/logs/app.log';
         $lines = (int)($request->getQueryParams()['lines'] ?? 200);
         $filter = $request->getQueryParams()['filter'] ?? 'Updater';

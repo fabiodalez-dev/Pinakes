@@ -1,0 +1,359 @@
+<?php
+declare(strict_types=1);
+
+/**
+ * Security audit 2026-11 — installer/index.php:force-gate-trusts-stale-session-and-unverified-admin
+ *
+ * /installer/?force=1 (which from step 2 rewrites .env) trusted the login-time
+ * $_SESSION['user']['tipo_utente'] snapshot and a sticky installer_admin_verified
+ * flag, and its POST door ignored stato/email_verificata and had no rate limit.
+ * A demoted, suspended, deleted or session-revoked ex-admin kept the door.
+ *
+ *   A. Installer::adminRowIsActive(): admin + 'attivo' + verified, nothing less.
+ *   B. Installer::boundSessionRowIsRevoked(): same semantics as
+ *      RememberMeService::boundSessionIsRevoked() (deleted/revoked/expired row),
+ *      and an unbound session is not trusted.
+ *   C. recordForceLoginAttempt(): 15 attempts / 300 s per IP, fail closed.
+ *   D. installer/index.php wiring: no snapshot trust, no sticky flag, the POST
+ *      query carries the account-state conditions, \Throwable fails closed.
+ *   E. an installer login stays valid only while the account's password hash
+ *      matches the keyed fingerprint taken at login (password change/reset
+ *      ends it).
+ *   F. ...and only while the user_sessions row it wrote at login is live:
+ *      revoking that admin's sessions ends it even without a password change.
+ *
+ * No database needed. Run: php tests/security-audit-installer-force-gate.unit.php
+ */
+
+$ROOT = dirname(__DIR__);
+
+if (!function_exists('__')) {
+    function __(string $key, mixed ...$args): string
+    {
+        return $args ? sprintf($key, ...$args) : $key;
+    }
+}
+
+require_once $ROOT . '/installer/classes/Installer.php';
+
+$failed = 0;
+$passed = 0;
+$check = static function (bool $cond, string $label) use (&$failed, &$passed): void {
+    if ($cond) { $passed++; echo "  OK   $label\n"; }
+    else       { $failed++; echo "  FAIL $label\n"; }
+};
+
+// ---------------------------------------------------------------------------
+echo "A. Active-admin predicate (re-read from utenti on every request)\n";
+// ---------------------------------------------------------------------------
+$active = ['tipo_utente' => 'admin', 'stato' => 'attivo', 'email_verificata' => 1];
+$check(Installer::adminRowIsActive($active), 'active verified admin is accepted');
+$check(Installer::adminRowIsActive(['email_verificata' => '1'] + $active), 'mysqli string "1" for email_verificata is accepted');
+$check(!Installer::adminRowIsActive(null), 'deleted account (no row) is refused');
+$check(!Installer::adminRowIsActive(['tipo_utente' => 'standard'] + $active), 'demoted account is refused');
+$check(!Installer::adminRowIsActive(['tipo_utente' => 'staff'] + $active), 'staff is refused');
+$check(!Installer::adminRowIsActive(['stato' => 'sospeso'] + $active), 'suspended admin is refused');
+$check(!Installer::adminRowIsActive(['stato' => 'sospeso', 'tipo_utente' => 'admin', 'email_verificata' => 1]), 'suspended admin (explicit) is refused');
+$check(!Installer::adminRowIsActive(['email_verificata' => 0] + $active), 'unverified admin is refused');
+
+// ---------------------------------------------------------------------------
+echo "B. Bound sign-in row (remember_session_id)\n";
+// ---------------------------------------------------------------------------
+$check(Installer::boundSessionRowIsRevoked(0, null), 'session bound to no row is not trusted');
+$check(Installer::boundSessionRowIsRevoked(7, null), 'deleted row counts as revoked');
+$check(Installer::boundSessionRowIsRevoked(7, ['is_revoked' => 1, 'still_valid' => 1]), 'revoked row counts as revoked');
+$check(Installer::boundSessionRowIsRevoked(7, ['is_revoked' => 0, 'still_valid' => 0]), 'expired row counts as revoked');
+$check(!Installer::boundSessionRowIsRevoked(7, ['is_revoked' => '0', 'still_valid' => '1']), 'live row is accepted');
+
+// ---------------------------------------------------------------------------
+echo "C. Reinstall-login rate limit\n";
+// ---------------------------------------------------------------------------
+$tmp = sys_get_temp_dir() . '/pk_secaudit_force_' . bin2hex(random_bytes(5));
+mkdir($tmp . '/storage/cache', 0700, true);
+$installer = new Installer($tmp);
+$now = 1_800_000_000;
+$allowed = 0;
+for ($i = 0; $i < Installer::FORCE_LOGIN_MAX_ATTEMPTS; $i++) {
+    $allowed += $installer->recordForceLoginAttempt('198.51.100.7', $now + $i) ? 1 : 0;
+}
+$check($allowed === 15, 'the first 15 attempts in the window are allowed');
+$check(!$installer->recordForceLoginAttempt('198.51.100.7', $now + 20), 'the 16th attempt is refused');
+$check($installer->recordForceLoginAttempt('198.51.100.8', $now + 20), 'another IP has its own budget');
+$check($installer->recordForceLoginAttempt('198.51.100.7', $now + Installer::FORCE_LOGIN_WINDOW + 15), 'attempts age out after the window');
+$files = glob($tmp . '/storage/cache/installer-login/*.json') ?: [];
+$check($files !== [] && !str_contains(implode('', $files), '198.51.100'), 'the IP is stored hashed, not in clear');
+
+// Review of PR #536 (F057/F069): the buckets were never pruned, IPv6 counted
+// per address, and behind a reverse proxy every client shared the proxy's.
+$dir = $tmp . '/storage/cache/installer-login';
+$check(count(glob($dir . '/*.json') ?: []) === 2, 'one bucket per live address');
+$installer->recordForceLoginAttempt('198.51.100.50', $now + 3 * Installer::FORCE_LOGIN_WINDOW);
+$check(count(glob($dir . '/*.json') ?: []) === 1, 'buckets whose attempts all expired are deleted on the way');
+$v6 = 0;
+for ($i = 0; $i < Installer::FORCE_LOGIN_MAX_ATTEMPTS + 1; $i++) {
+    $v6 += $installer->recordForceLoginAttempt('2001:db8:1:2::' . dechex($i + 1), $now + 3 * Installer::FORCE_LOGIN_WINDOW) ? 1 : 0;
+}
+$check($v6 === Installer::FORCE_LOGIN_MAX_ATTEMPTS, 'rotating addresses inside one IPv6 /64 share one budget');
+$check($installer->recordForceLoginAttempt('2001:db8:1:3::1', $now + 3 * Installer::FORCE_LOGIN_WINDOW), 'another /64 has its own budget');
+$check(Installer::forceLoginBucket('198.51.100.7') === '198.51.100.7' && Installer::forceLoginBucket('::ffff:198.51.100.7') === '::ffff:198.51.100.7',
+    'IPv4 (and IPv4-mapped) addresses count as given');
+
+$savedProxies = getenv('TRUSTED_PROXIES');
+putenv('TRUSTED_PROXIES=10.0.0.5');
+$_ENV['TRUSTED_PROXIES'] = '10.0.0.5';
+$check(Installer::forceLoginClientIp(['REMOTE_ADDR' => '10.0.0.5', 'HTTP_X_FORWARDED_FOR' => '203.0.113.9']) === '203.0.113.9',
+    'behind a trusted proxy the throttle counts the forwarded client, not the proxy');
+$check(Installer::forceLoginClientIp(['REMOTE_ADDR' => '198.51.100.7', 'HTTP_X_FORWARDED_FOR' => '203.0.113.9']) === '198.51.100.7',
+    'a forwarding header from an untrusted peer is ignored');
+putenv('TRUSTED_PROXIES' . ($savedProxies === false ? '' : '=' . $savedProxies));
+unset($_ENV['TRUSTED_PROXIES']);
+$check(Installer::forceLoginClientIp(['REMOTE_ADDR' => '10.0.0.5', 'HTTP_X_FORWARDED_FOR' => '203.0.113.9']) === '10.0.0.5',
+    'without TRUSTED_PROXIES REMOTE_ADDR is used, as before');
+
+$broken = $tmp . '/broken';
+mkdir($broken, 0700);
+file_put_contents($broken . '/storage', 'not a directory');
+$check(!(new Installer($broken))->recordForceLoginAttempt('198.51.100.9', $now), 'an unrecordable attempt is refused (fail closed)');
+
+// Review of PR #536: an unwritable storage/cache/installer-login was reported to
+// the administrator as HTTP 429 "too many attempts". Still refused, but the
+// reason is told apart from a used-up budget.
+$hasVerdict = method_exists(Installer::class, 'forceLoginAttemptVerdict') && defined('Installer::FORCE_LOGIN_UNAVAILABLE');
+$check($hasVerdict && (new Installer($broken))->forceLoginAttemptVerdict('198.51.100.9', $now) === Installer::FORCE_LOGIN_UNAVAILABLE,
+    'an unrecordable attempt is reported as "storage unavailable", not as "too many attempts"');
+$verdictSite = $tmp . '/verdict';
+mkdir($verdictSite, 0700);
+$verdictInstaller = new Installer($verdictSite);
+for ($i = 0; $i < Installer::FORCE_LOGIN_MAX_ATTEMPTS; $i++) {
+    $verdictInstaller->recordForceLoginAttempt('198.51.100.77', $now + $i);
+}
+$check($hasVerdict && $verdictInstaller->forceLoginAttemptVerdict('198.51.100.77', $now + 20) === Installer::FORCE_LOGIN_LIMITED,
+    'a used-up budget is reported as "too many attempts"');
+$check($hasVerdict && $verdictInstaller->forceLoginAttemptVerdict('198.51.100.78', $now + 20) === Installer::FORCE_LOGIN_ALLOWED,
+    'a recorded attempt within the budget is allowed');
+
+// Review of PR #536: the prune read a bucket's age and then unlinked it, while a
+// request could record an attempt in the same file in between, and the login got
+// a fresh budget. The prune locks each bucket and reads its age again under the
+// lock; a request that waited for the lock opens the path again.
+$realNow = time();
+$raceIp = '198.51.100.200';
+$check($installer->recordForceLoginAttempt($raceIp, $realNow), 'race: first attempt recorded');
+$bucket = $dir . '/' . hash('sha256', Installer::forceLoginBucket($raceIp)) . '.json';
+touch($bucket, $realNow - 3 * Installer::FORCE_LOGIN_WINDOW);
+$holder = fopen($bucket, 'c+');
+$check($holder !== false && flock($holder, LOCK_EX), 'race: a request holds the stale bucket locked');
+$installer->recordForceLoginAttempt('198.51.100.201', $realNow);
+clearstatcache();
+$check(is_file($bucket), 'race: a locked bucket is in use, the prune leaves it');
+flock($holder, LOCK_UN);
+fclose($holder);
+touch($bucket, $realNow);
+$installer->recordForceLoginAttempt('198.51.100.202', $realNow);
+clearstatcache();
+$check(is_file($bucket), 'race: a bucket refreshed after the scan stays');
+
+$childCode = '$h = fopen($argv[1], "c+"); flock($h, LOCK_EX); echo "READY\n"; fflush(STDOUT);'
+    . 'usleep(400000); unlink($argv[1]); flock($h, LOCK_UN);';
+$proc = proc_open([PHP_BINARY, '-r', $childCode, $bucket], [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
+if (is_resource($proc)) {
+    $check(trim((string) fgets($pipes[1])) === 'READY', 'race: the stand-in for the prune holds the bucket lock');
+    $ok = $installer->recordForceLoginAttempt($raceIp, $realNow);
+    proc_close($proc);
+    clearstatcache();
+    $hits = is_file($bucket) ? json_decode((string) file_get_contents($bucket), true) : null;
+    $check($ok === true, 'race: the attempt that waited out the removal is allowed');
+    $check(is_array($hits) && count($hits) === 1, 'race: it was recorded in a fresh bucket, not on the unlinked file');
+} else {
+    $check(false, 'race: could not start the child process');
+}
+$installerSrc = (string) file_get_contents($ROOT . '/installer/classes/Installer.php');
+$check(str_contains($installerSrc, 'LOCK_EX | LOCK_NB') && str_contains($installerSrc, 'openLockedBucket('), 'race: the prune locks each bucket and the writer reopens a removed one');
+
+// Two prune passes: the first removes a stale bucket and a request creates it
+// again; the second still holds a descriptor on the OLD file and gets its lock
+// after that. Its descriptor is no longer the file at the path, and the new bucket
+// must not be deleted on the old one's age.
+$linked = new ReflectionMethod(Installer::class, 'bucketHandleIsLinked');
+$linked->setAccessible(true);
+$twin = $dir . '/' . str_repeat('d', 64) . '.json';
+file_put_contents($twin, '[1]');
+$oldFd = fopen($twin, 'c+');
+$check($linked->invoke(null, $oldFd, $twin) === true, 'race (two prunes): a descriptor on the file at the path is accepted');
+unlink($twin);
+file_put_contents($twin, '[2]');
+$check($linked->invoke(null, $oldFd, $twin) === false, 'race (two prunes): after the file was removed and recreated the old descriptor is refused');
+fclose($oldFd);
+symlink($bucket, $twin . '.lnk');
+$lnkFd = fopen($twin, 'c+');
+$check($linked->invoke(null, $lnkFd, $twin . '.lnk') === false, 'race (two prunes): a symlink at the path is never accepted');
+fclose($lnkFd);
+unlink($twin . '.lnk');
+unlink($twin);
+// The full interleaving, with a barrier right after the prune opened the bucket:
+// the bucket is stale when opened; another pass removes it and a request records a
+// new attempt at the same path before the first pass takes its lock. The first
+// pass must leave that new bucket alone.
+final class BarrierInstaller extends Installer
+{
+    public ?Closure $afterOpen = null;
+    protected function openBucketForPrune(string $path)
+    {
+        $handle = parent::openBucketForPrune($path);
+        if ($this->afterOpen !== null) {
+            ($this->afterOpen)($path);
+        }
+        return $handle;
+    }
+}
+$barrier = new BarrierInstaller($tmp);
+$twinBucket = $dir . '/' . str_repeat('e', 64) . '.json';
+file_put_contents($twinBucket, '[1]');
+touch($twinBucket, $realNow - 3 * Installer::FORCE_LOGIN_WINDOW);
+$barrierFired = 0;
+$barrier->afterOpen = static function (string $path) use ($realNow, $twinBucket, &$barrierFired): void {
+    if ($path !== $twinBucket || $barrierFired > 0) {
+        return;
+    }
+    $barrierFired++;
+    unlink($path);                          // the other prune pass
+    file_put_contents($path, '[' . $realNow . ']'); // a request records an attempt
+    touch($path, $realNow);
+};
+$barrier->recordForceLoginAttempt('198.51.100.230', $realNow);
+clearstatcache();
+$check($barrierFired === 1, 'race (two prunes, barrier after the open): the barrier ran between the open and the lock');
+$check(is_file($twinBucket) && file_get_contents($twinBucket) === '[' . $realNow . ']',
+    'race (two prunes, barrier after the open): the bucket recreated meanwhile is not deleted on the old one\'s age');
+@unlink($twinBucket);
+$check(preg_match('/private function pruneForceLoginBuckets.*?bucketHandleIsLinked\(\$handle, \$path\).*?@unlink\(\$path\)/s', $installerSrc) === 1,
+    'race (two prunes): the prune checks the descriptor is still the file at the path before it unlinks');
+
+// ---------------------------------------------------------------------------
+echo "D. installer/index.php force gate wiring\n";
+// ---------------------------------------------------------------------------
+$src = (string) file_get_contents($ROOT . '/installer/index.php');
+$gateStart = strpos($src, "if (\$forceRequested && \$installer->isInstalled())");
+$gateEnd = strpos($src, '// Check if already installed');
+$gate = ($gateStart !== false && $gateEnd !== false) ? substr($src, $gateStart, $gateEnd - $gateStart) : '';
+$check($gate !== '', 'force gate located');
+$check(preg_match("/\\\$_SESSION\\['user'\\]\\['tipo_utente'\\]\\s*===\\s*'admin'/", $gate) !== 1,
+    'the login-time role snapshot no longer grants the door');
+$check(!str_contains($gate, "\$_SESSION['installer_admin_verified'] = true")
+    && preg_match("/installer_admin_verified'\\]\\s*\\)\\s*&&\\s*\\\$_SESSION\\['installer_admin_verified'\\]\\s*===\\s*true/", $gate) !== 1,
+    'the sticky installer_admin_verified grant is gone');
+$check(str_contains($gate, "unset(\$_SESSION['installer_admin_verified'])"), 'a legacy sticky flag in an old session is dropped');
+$check(str_contains($gate, 'Installer::isActiveAdmin($db, $sessionUserId)')
+    && str_contains($gate, 'Installer::isBoundSessionRevoked($db, $boundRowId)')
+    && str_contains($gate, "\$_SESSION['remember_session_id']"),
+    'a main-app session is re-validated against utenti and its bound user_sessions row');
+$check(str_contains($gate, 'Installer::isActiveAdminWithCredential(')
+    && preg_match('/isActiveAdminWithCredential\(\s*\$db,\s*\$installerUserId,/', $gate) === 1
+    && !str_contains($gate, 'Installer::isActiveAdmin($db, $installerUserId)'),
+    'an installer login is re-validated on every request, account AND password fingerprint');
+$check(str_contains($gate, "\$_SESSION['installer_admin_credential'] = Installer::installerCredentialFingerprint((string) \$row['password'], \$credentialKey)")
+    && str_contains($gate, "\$_SESSION['installer_admin_credential_key'] = \$credentialKey"),
+    'the installer login stores a keyed fingerprint of the password hash it verified');
+$check(preg_match("/unset\\(\\s*\\\$_SESSION\\['installer_admin_user_id'\\],\\s*\\\$_SESSION\\['installer_admin_credential'\\],\\s*\\\$_SESSION\\['installer_admin_credential_key'\\],\\s*\\\$_SESSION\\[Installer::INSTALLER_SESSION_ROW_KEY\\]\\s*\\)/", $gate) === 1,
+    'a stale installer login is dropped with its fingerprint and its row id');
+$check(preg_match("/tipo_utente = 'admin' AND stato = 'attivo' AND email_verificata = 1/", $gate) === 1,
+    'the POST door requires stato attivo and a verified email');
+$check(str_contains($gate, 'forceLoginAttemptVerdict('), 'the POST door is rate limited');
+$check(str_contains($gate, 'forceLoginAttemptVerdict(Installer::forceLoginClientIp($_SERVER))'), 'the POST door counts the proxy-resolved client address');
+$check(str_contains($gate, '!== Installer::FORCE_LOGIN_ALLOWED'), 'anything but an allowed verdict refuses the login (fail closed)');
+$check(str_contains($gate, 'catch (\\Throwable $e)') && !preg_match('/catch \(Exception \$e\)/', $gate),
+    'failures are caught as \\Throwable and fail closed');
+$postPos = strpos($gate, 'forceLoginAttemptVerdict(');
+$queryPos = strpos($gate, "AND stato = 'attivo'");
+$check($postPos !== false && $queryPos !== false && $postPos < $queryPos, 'the attempt is counted before the credential check');
+
+// ---------------------------------------------------------------------------
+echo "E. Installer login is bound to the password it was made with\n";
+// ---------------------------------------------------------------------------
+if (!method_exists(Installer::class, 'installerLoginRowIsCurrent') || !method_exists(Installer::class, 'installerCredentialFingerprint')) {
+    $check(false, 'Installer::installerLoginRowIsCurrent()/installerCredentialFingerprint() exist');
+} else {
+    $key = bin2hex(random_bytes(32));
+    $hash = password_hash('old-password', PASSWORD_DEFAULT);
+    $fp = Installer::installerCredentialFingerprint($hash, $key);
+    $row = $active + ['password' => $hash];
+    $check(Installer::installerLoginRowIsCurrent($row, $fp, $key), 'same active admin, same password: still logged in');
+    $check(!Installer::installerLoginRowIsCurrent(['password' => password_hash('new-password', PASSWORD_DEFAULT)] + $row, $fp, $key),
+        'password changed or reset (CredentialRevoker::revokeAll() path): login refused');
+    $check(!Installer::installerLoginRowIsCurrent(['stato' => 'sospeso'] + $row, $fp, $key), 'suspended admin: login refused');
+    $check(!Installer::installerLoginRowIsCurrent(null, $fp, $key), 'deleted account: login refused');
+    $check(!Installer::installerLoginRowIsCurrent($row, '', $key) && !Installer::installerLoginRowIsCurrent($row, $fp, ''),
+        'a session without fingerprint (pre-fix login) is refused');
+    $check(!Installer::installerLoginRowIsCurrent($row, $fp, bin2hex(random_bytes(32))), 'a fingerprint under another key is refused');
+    $check(!Installer::installerLoginRowIsCurrent(['password' => ''] + $row, Installer::installerCredentialFingerprint('', $key), $key),
+        'an account without a password hash is refused');
+    $check(!str_contains($fp, $hash) && strlen($fp) === 64, 'the session holds an HMAC, not the password hash');
+}
+
+// ---------------------------------------------------------------------------
+echo "F. Installer login is bound to a revocable user_sessions row\n";
+// ---------------------------------------------------------------------------
+if (!method_exists(Installer::class, 'installerSessionRowIsAcceptable')) {
+    $check(false, 'Installer::installerSessionRowIsAcceptable() exists');
+} else {
+    $live = ['is_revoked' => '0', 'still_valid' => '1'];
+    $check(Installer::installerSessionRowIsAcceptable(42, true, $live), 'live row: installer login holds');
+    $check(!Installer::installerSessionRowIsAcceptable(42, true, ['is_revoked' => 1] + $live),
+        'row revoked ("sign out everywhere", revokeAll()) without a password change: login ends');
+    $check(!Installer::installerSessionRowIsAcceptable(42, true, ['still_valid' => 0] + $live), 'expired row: login ends');
+    $check(!Installer::installerSessionRowIsAcceptable(42, true, null), 'deleted row: login ends');
+    $check(!Installer::installerSessionRowIsAcceptable(-1, true, $live) && !Installer::installerSessionRowIsAcceptable(-1, false, null),
+        'a login with no row recorded (pre-fix session) is refused');
+    $check(Installer::installerSessionRowIsAcceptable(0, false, null), 'schema without user_sessions: account + password checks only (as before)');
+    $check(!Installer::installerSessionRowIsAcceptable(0, true, null) && !Installer::installerSessionRowIsAcceptable(0, null, null),
+        'row id 0 once the table exists, or when that cannot be told: refused');
+    $check(Installer::INSTALLER_SESSION_ROW_TTL > 0 && Installer::INSTALLER_SESSION_ROW_TTL <= 7200, 'the installer row is short-lived (at most 2 h)');
+}
+$check(preg_match('/Installer::isActiveAdminWithCredential\([^;]*\)\s*&&\s*Installer::installerSessionRowIsLive\(\s*\$db,\s*\(int\) \(\$_SESSION\[Installer::INSTALLER_SESSION_ROW_KEY\] \?\? -1\)/s', $gate) === 1,
+    'the installer-login re-check also requires its user_sessions row to be live (missing key = refused)');
+$bindPos = strpos($gate, 'Installer::bindInstallerSessionRow(');
+$guardPos = strpos($gate, 'if ($sessionRowId !== null) {');
+$grantPos = strpos($gate, "\$_SESSION['installer_admin_user_id'] = (int) \$row['id'];");
+$check($bindPos !== false && $guardPos !== false && $grantPos !== false && $bindPos < $guardPos && $guardPos < $grantPos,
+    'the installer login writes its row first and is refused when the row cannot be written');
+$check(str_contains($gate, '$_SESSION[Installer::INSTALLER_SESSION_ROW_KEY] = $sessionRowId;'), 'the row id is kept in the installer session');
+
+// Review of PR #536: the gate shows its own, accurate error when the throttle
+// storage cannot be written, and that error is translated.
+$throttleKey = 'Impossibile registrare il tentativo di accesso: la cartella storage/cache/installer-login non è scrivibile. Verifica i permessi della cartella storage/ sul server.';
+$check(str_contains($gate, 'Installer::FORCE_LOGIN_UNAVAILABLE') && str_contains($gate, '$throttleUnavailable = true;')
+    && str_contains($gate, $throttleKey) && str_contains($gate, 'http_response_code(503);'),
+    'the gate reports an unwritable throttle storage (503) apart from the rate limit (429)');
+$throttlePos = strpos($gate, 'if ($throttleUnavailable) {');
+$limitPos = strpos($gate, 'http_response_code(429);');
+$check($throttlePos !== false && $limitPos !== false && $throttlePos < $limitPos, 'the storage error is checked before the rate-limit message');
+
+// Review of PR #536: with the .installed redirect gone from installer/.htaccess,
+// an anonymous GET /installer/ on an installed site reached verifyInstallation()
+// and printed the driver message (database user, host, schema). No
+// force-authenticated session reaches that page (it routes through the gate),
+// so the page never prints the exception text; the detail goes to the log.
+$pageStart = strpos($src, 'if (!$forceRequested && $installer->isInstalled()) {');
+$pageSrc = $pageStart === false ? '' : substr($src, $pageStart);
+$genericKey = "Il database configurato non risponde come previsto. Il dettaglio dell'errore è nel log del server.";
+$check($pageSrc !== '' && !str_contains($pageSrc, "['db_error'] = \$e->getMessage()") && !preg_match('/db_error\'\]\s*=\s*\$e->getMessage/', $pageSrc),
+    'the anonymous installed-state page does not show the database exception message');
+$check(str_contains($pageSrc, "error_log('[Installer] installation check failed: ' . \$e->getMessage());") && str_contains($pageSrc, $genericKey),
+    'it logs the detail and shows a generic, translated message');
+$check(str_contains($pageSrc, 'catch (\\Throwable $e)'), 'any failure of the check (\\Throwable) takes the generic path');
+foreach (['it_IT', 'en_US', 'de_DE', 'fr_FR', 'da_DK'] as $loc) {
+    $strings = json_decode((string) file_get_contents($ROOT . '/locale/' . $loc . '.json'), true);
+    $check(is_array($strings) && isset($strings[$throttleKey], $strings[$genericKey]) && $strings[$throttleKey] !== '' && $strings[$genericKey] !== ''
+        && ($loc === 'it_IT' || ($strings[$throttleKey] !== $throttleKey && $strings[$genericKey] !== $genericKey)),
+        "the two new installer messages are translated ({$loc})");
+}
+
+// Cleanup: only the private temp tree created above.
+$it = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($tmp, FilesystemIterator::SKIP_DOTS), RecursiveIteratorIterator::CHILD_FIRST);
+foreach ($it as $f) {
+    $f->isDir() ? @rmdir($f->getPathname()) : @unlink($f->getPathname()); // nosemgrep
+}
+@rmdir($tmp);
+
+echo "\n" . ($failed === 0 ? "ALL {$passed} PASS\n" : "{$passed} PASS, {$failed} FAIL\n");
+exit($failed === 0 ? 0 : 1);

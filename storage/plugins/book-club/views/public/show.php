@@ -39,10 +39,15 @@ $closedPolls = array_values(array_filter(
     $polls,
     static fn(array $poll): bool => ($poll['status'] ?? '') === 'closed'
 ));
-// Members always get the tokenized feed URL: the token proves membership
-// and unlocks the members-only fields (e.g. video-conference links) that
-// the anonymous public-club feed omits.
-$icsUrl = url(\App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/calendar.ics') . '?token=' . $club['ics_token'];
+// Members always get the tokenized feed URL: the token names the viewer, the
+// feed checks on every request that they may still see it, and it unlocks the
+// members-only fields (e.g. video-conference links) that the anonymous
+// public-club feed omits (MeetingController::feedToken()).
+$icsFeedToken = \App\Plugins\BookClub\MeetingController::feedToken($club, (int) ($_SESSION['user']['id'] ?? 0));
+// Without a server key there is no personal token: the plain feed URL then
+// serves what anyone may see (a public club's schedule, without video links).
+$icsUrl = url(\App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/calendar.ics')
+    . ($icsFeedToken !== null ? '?token=' . rawurlencode($icsFeedToken) : '');
 $kindLabels = ['in_person' => __('In presenza'), 'online' => __('Online'), 'hybrid' => __('Ibrido')];
 ?>
 <?php $bookClubStyles = true; ?>

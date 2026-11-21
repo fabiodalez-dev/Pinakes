@@ -2,6 +2,14 @@
 <?php
 declare(strict_types=1);
 
+// CLI only. Under a web SAPI any anonymous visitor could run this tool (the
+// unanchored installer exemption of the root .htaccess once let
+// /scripts/<file>.php/installer through). scripts/.htaccess denies it as well.
+if (PHP_SAPI !== 'cli') {
+    http_response_code(404);
+    exit;
+}
+
 /**
  * Print one source-derived expectation per line for shell/CI consumers.
  *

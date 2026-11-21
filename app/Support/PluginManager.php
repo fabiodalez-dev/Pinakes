@@ -2323,6 +2323,19 @@ class PluginManager
                 SecureLogger::error('[PluginManager] public ICS heal failed', ['error' => $e->getMessage()]);
             }
 
+            // Same window, for the shipped files that live under a directory the updater
+            // preserves (storage/calendar/.htaccess): the in-app upgrade runs the OLD
+            // Updater already in memory, which never heals them, so an install upgrading
+            // from a release before the fix would keep the old file until the upgrade
+            // after. Idempotent; a failure is logged and the sync goes on.
+            try {
+                foreach (PackagedFileHeal::healAll() as $relative => $status) {
+                    SecureLogger::error('[PluginManager] packaged file not healed', ['file' => $relative, 'reason' => $status]);
+                }
+            } catch (\Throwable $e) {
+                SecureLogger::error('[PluginManager] packaged file heal failed', ['error' => $e->getMessage()]);
+            }
+
             // Same window, for public/.htaccess (#480): the in-app upgrade runs the OLD
             // Updater already in memory, which knows nothing of this repair, and the
             // manual upgrade preserves the file. The first request under the new code
