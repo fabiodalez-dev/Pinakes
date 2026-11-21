@@ -107,7 +107,10 @@ class Validator {
                 $stmt = $pdo->query("SHOW TABLES");
                 $tables = $stmt->fetchAll(PDO::FETCH_COLUMN);
 
-                if (count($tables) > 0) {
+                // The import-proof table the installer creates at step 2 does not
+                // make the database "populated": a resubmit of step 2 over the
+                // same database must still be accepted.
+                if (!Installer::schemaHoldsNoAccounts(count($tables), isset($tables[0]) ? (string) $tables[0] : null)) {
                     $this->errors['database'] = sprintf(__("Il database '%s' non è vuoto. Deve essere un database vuoto."), $database);
                     return false;
                 }
