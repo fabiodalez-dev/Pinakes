@@ -275,13 +275,22 @@ class MediaLabels
 
     /**
      * Whether a format string names an audio carrier (CD, LP, vinyl, audio
-     * cassette). A videocassette is not one, and neither is a CD-ROM.
+     * cassette). A videocassette is not one, and neither is a CD-ROM. On a
+     * tape video carrier ("Cassetta VHS") a bare "cassetta"/"cassette" is the
+     * tape itself, so only an explicit audio cassette counts there.
      */
-    private static function namesAudioCarrier(string $formato): bool
+    private static function namesAudioCarrier(string $formato, ?string $videoFormat = null): bool
     {
         $label = strtolower($formato);
         $collapsed = str_replace('videocassett', '', preg_replace('/[\s\-_]+/u', '', $label) ?? $label);
+        $onTape = $videoFormat === 'vhs' || $videoFormat === 'videocassette';
+        if ($onTape && preg_match('/audiocassett|musicassett/', $collapsed) === 1) {
+            return true;
+        }
         foreach (self::MUSIC_TOKENS as $musicToken) {
+            if ($onTape && str_contains($musicToken, 'cassett')) {
+                continue;
+            }
             if (str_contains($collapsed, $musicToken)) {
                 return true;
             }
@@ -312,8 +321,9 @@ class MediaLabels
 
             // A video carrier makes a film, unless an audio carrier is named
             // with it: "CD + DVD" is a music edition with a bonus disc.
-            if (self::videoFormat($candidate) !== null) {
-                return self::namesAudioCarrier($formato) ? 'disco' : 'dvd';
+            $video = self::videoFormat($candidate);
+            if ($video !== null) {
+                return self::namesAudioCarrier($formato, $video) ? 'disco' : 'dvd';
             }
 
             // Long tokens: safe for substring match (unique enough)

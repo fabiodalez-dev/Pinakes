@@ -89,8 +89,8 @@ final class MarcMediaType
             'vhs' => 'vf |b||||',
             'videocassette' => 'vf |u||||',
             'blu-ray' => 'vd |s||||',
-            // 007/04 has no UHD code: a 4K disc is a Blu-ray ('s').
-            'uhd' => 'vd |s||||',
+            // 007/04 't' = 4K Ultra HD Blu-ray (LC MARC 21, new in 2025).
+            'uhd' => 'vd |t||||',
             'videodisc' => 'vd |u||||',
             default => self::TYPES['dvd'][1],
         };
