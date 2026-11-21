@@ -293,7 +293,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const submitButtons = form.querySelectorAll('button[type="submit"]');
             submitButtons.forEach(btn => {
                 btn.disabled = true;
-                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> ' + <?= json_encode(__("Salvataggio..."), JSON_HEX_TAG) ?>;
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> ' + escapeHtml(<?= json_encode(__("Salvataggio..."), JSON_HEX_TAG) ?>);
             });
         }
     });

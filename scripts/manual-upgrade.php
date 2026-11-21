@@ -602,6 +602,413 @@ function copyTree(string $src, string $dst, string $rootDst, array $skipRelative
 }
 
 // ============================================================
+// LOGIN THROTTLE STATE
+//
+// Kept inside the installation (storage/cache/upgrade-auth, private to the PHP
+// user), never in the host-shared temp dir: there the file name was predictable
+// (a hash of the client address), so a co-tenant could pre-create it to lock the
+// operator out, delete it to reset the counter, or plant a symlink that the next
+// write followed to any file this account can write. Same class of problem as
+// App\Support\RateLimiter, fixed the same way. Self-contained: this script runs
+// before, and without, the application.
+// ============================================================
+// BEGIN upgrade-auth-throttle
+/**
+ * The user this PHP process runs as, or null when it cannot be told. Without
+ * the posix extension (not among the documented requirements) it is read from
+ * the owner of a file this process creates: first inside the install
+ * (storage/cache, then storage), which open_basedir always allows, and only
+ * then in the system temp dir.
+ */
+function upgradeEffectiveUid(?string $rootPath = null): ?int
+{
+    if (function_exists('posix_geteuid')) {
+        return posix_geteuid();
+    }
+    $dirs = [];
+    if ($rootPath !== null) {
+        $base = rtrim(str_replace('\\', '/', $rootPath), '/');
+        $dirs[] = $base . '/storage/cache';
+        $dirs[] = $base . '/storage';
+    }
+    $dirs[] = sys_get_temp_dir();
+    return upgradeProbeFileOwner($dirs);
+}
+
+/**
+ * Owner of a file created in the first of $dirs that accepts one (the file is
+ * removed again), or null when none does. Exclusive create: never a planted
+ * file or link.
+ *
+ * @param list<string> $dirs
+ */
+function upgradeProbeFileOwner(array $dirs): ?int
+{
+    foreach ($dirs as $dir) {
+        if (!is_dir($dir) || is_link($dir)) {
+            continue;
+        }
+        $probe = $dir . '/.pinakes_uid_' . bin2hex(random_bytes(8));
+        $handle = @fopen($probe, 'x');
+        if ($handle === false) {
+            continue;
+        }
+        $stat = @fstat($handle);
+        fclose($handle);
+        @unlink($probe);
+        if ($stat !== false) {
+            return (int) $stat['uid'];
+        }
+    }
+    return null;
+}
+
+/**
+ * The throttle state directory, or null when it cannot be trusted. $problem
+ * says why: 'foreign_owner' when the directory exists but belongs to another
+ * user (typically created by a run as root), 'unavailable' otherwise. $euid is
+ * the user the directory must belong to; it defaults to the PHP process user.
+ */
+function upgradeAuthStateDir(string $rootPath, ?string &$problem = null, ?int $euid = null): ?string
+{
+    $problem = null;
+    $dir = upgradeAuthStateDirPath($rootPath);
+    $euid ??= upgradeEffectiveUid($rootPath);
+    if ($euid === null) {
+        // Ownership cannot be checked, so the directory cannot be trusted:
+        // another account could own it and reset the counter.
+        $problem = 'uid_unknown';
+        return null;
+    }
+    if (!is_dir($dir) && !is_link($dir)) {
+        // A run as root must never create the directory (nor storage/cache on
+        // the way): it would be root-owned and 0700, and the web server user
+        // would then be locked out of the page for good.
+        if ($euid !== 0) {
+            @mkdir($dir, 0700, true);
+        }
+    }
+    if (is_link($dir) || !is_dir($dir)) {
+        $problem = 'unavailable';
+        return null;
+    }
+    $owner = @fileowner($dir);
+    if ($owner === false) {
+        $problem = 'unavailable';
+        return null;
+    }
+    if ($owner !== $euid) {
+        $problem = 'foreign_owner';
+        return null;
+    }
+    $perms = @fileperms($dir);
+    if ($perms !== false && ($perms & 0077) !== 0) {
+        @chmod($dir, 0700);
+    }
+    return $dir;
+}
+
+function upgradeAuthStateDirPath(string $rootPath): string
+{
+    return rtrim(str_replace('\\', '/', $rootPath), '/') . '/storage/cache/upgrade-auth';
+}
+
+/** State file for a client address, or null when the state directory cannot be trusted. */
+function upgradeAuthStateFile(string $rootPath, string $clientAddr, ?string &$problem = null, ?int $euid = null): ?string
+{
+    $dir = upgradeAuthStateDir($rootPath, $problem, $euid);
+    if ($dir === null) {
+        return null;
+    }
+    $root = realpath($rootPath) ?: $rootPath;
+    $file = $dir . '/' . hash('sha256', $root . "\0" . $clientAddr) . '.json';
+    foreach ([$file, $file . '.lock'] as $path) {
+        if (is_link($path)) {
+            // Never follow a link out of the state directory.
+            @unlink($path);
+            if (is_link($path)) {
+                $problem = 'unavailable';
+                return null;
+            }
+        }
+    }
+    return $file;
+}
+
+/** What the operator is told when no trustworthy counter can be kept. */
+function upgradeAuthUnavailableMessage(?string $problem, string $rootPath): string
+{
+    if ($problem === 'foreign_owner') {
+        return 'Protezione dai tentativi non disponibile: la cartella storage/cache/upgrade-auth'
+            . ' appartiene a un altro utente (di solito perché lo script è stato eseguito come root).'
+            . ' Eliminala, oppure assegnala all\'utente del web server con chown, poi riprova.';
+    }
+    if ($problem === 'uid_unknown') {
+        return 'Protezione dai tentativi non disponibile: non riesco a determinare l\'utente del web server'
+            . ' (manca l\'estensione PHP posix e non posso creare file di prova in storage/).'
+            . ' Abilita l\'estensione posix oppure rendi scrivibile storage/cache/ per l\'utente del web server, oppure esegui l\'aggiornamento da riga di comando.';
+    }
+    return 'Protezione dai tentativi non disponibile: rendi scrivibile storage/cache/ per l\'utente del web server, oppure esegui l\'aggiornamento da riga di comando.';
+}
+
+/** Failed-attempt count given to an unreadable state file: above any limit. */
+const UPGRADE_AUTH_SATURATED = 1000000;
+
+/**
+ * Atomic read-modify-write of the throttle state. $mutate receives
+ * ['failed' => int, 'lock_until' => int] and returns the state to store.
+ * Returns the stored state, or null when the file cannot be used safely
+ * (callers fail closed: no password check without a counter).
+ *
+ * @param callable(array{failed:int,lock_until:int}):array{failed:int,lock_until:int} $mutate
+ * @return array{failed:int,lock_until:int}|null
+ */
+function upgradeAuthUpdate(string $file, callable $mutate): ?array
+{
+    // A separate, stable lock file serialises the read-modify-write; the state
+    // file itself is only ever replaced whole (rename), so no reader can see a
+    // half-written state, valid-looking or not.
+    $lock = @fopen($file . '.lock', 'c');
+    if ($lock === false) {
+        return null;
+    }
+    try {
+        if (!flock($lock, LOCK_EX) || !upgradeAuthIsSameRegularFile($lock, $file . '.lock')) {
+            return null;
+        }
+        $state = ['failed' => 0, 'lock_until' => 0];
+        $raw = '';
+        clearstatcache(true, $file);
+        if (is_link($file) || (file_exists($file) && !is_file($file))) {
+            return null;
+        }
+        if (is_file($file)) {
+            $in = @fopen($file, 'r');
+            if ($in === false) {
+                return null;
+            }
+            try {
+                if (!upgradeAuthIsSameRegularFile($in, $file)) {
+                    return null;
+                }
+                $raw = stream_get_contents($in);
+            } finally {
+                fclose($in);
+            }
+            if (!is_string($raw)) {
+                return null;
+            }
+        }
+        if ($raw !== '') {
+            $decoded = json_decode($raw, true);
+            if (is_array($decoded)) {
+                $state['failed'] = max(0, (int) ($decoded['failed'] ?? 0));
+                $state['lock_until'] = max(0, (int) ($decoded['lock_until'] ?? 0));
+            } else {
+                // Unreadable state is never a fresh counter: it counts as
+                // attempts used up. Only a missing or empty file starts at zero.
+                $state['failed'] = UPGRADE_AUTH_SATURATED;
+            }
+        }
+        $new = $mutate($state);
+        $json = json_encode($new);
+        if ($json === false) {
+            return null;
+        }
+        // Written whole to a fresh exclusive file, then renamed over the state.
+        $tmp = $file . '.' . bin2hex(random_bytes(8)) . '.tmp';
+        $out = @fopen($tmp, 'x');
+        if ($out === false) {
+            return null;
+        }
+        $complete = fwrite($out, $json) === strlen($json) && fflush($out);
+        fclose($out);
+        if (!$complete || !@rename($tmp, $file)) {
+            @unlink($tmp);
+            return null;
+        }
+        return $new;
+    } finally {
+        flock($lock, LOCK_UN);
+        fclose($lock);
+    }
+}
+
+/** True when $handle is the regular file currently linked at $path. */
+function upgradeAuthIsSameRegularFile($handle, string $path): bool
+{
+    $opened = @fstat($handle);
+    $atPath = @lstat($path);
+    return $opened !== false && $atPath !== false
+        && ($atPath['mode'] & 0170000) === 0100000
+        && $opened['dev'] === $atPath['dev'] && $opened['ino'] === $atPath['ino'];
+}
+/**
+ * Reserve one login attempt BEFORE the password is compared. Refusal and
+ * counting happen in a single critical section, so concurrent requests cannot
+ * all read "not locked" and then try the password in parallel: at most
+ * $maxAttempts attempts are ever allowed per window, however many arrive at
+ * once. The counter is cleared by the caller on success.
+ *
+ * @return array{allowed: bool}|null null when no trustworthy counter can be kept
+ */
+function upgradeAuthReserveAttempt(string $file, int $maxAttempts, int $lockSeconds): ?array
+{
+    $allowed = false;
+    $stored = upgradeAuthUpdate($file, static function (array $state) use (&$allowed, $maxAttempts, $lockSeconds): array {
+        if (time() < $state['lock_until']) {
+            return $state; // locked: refused, nothing more to count
+        }
+        if ($state['failed'] >= $maxAttempts) {
+            // Already over the limit (unreadable state): lock without letting
+            // this attempt compare the password.
+            return ['failed' => 0, 'lock_until' => time() + $lockSeconds];
+        }
+        $allowed = true;
+        $state['failed']++;
+        if ($state['failed'] >= $maxAttempts) {
+            $state['lock_until'] = time() + $lockSeconds;
+            $state['failed'] = 0;
+        }
+        return $state;
+    });
+    return $stored === null ? null : ['allowed' => $allowed];
+}
+/**
+ * The password POST of the login form. The attempt is counted (and refused
+ * when locked) before the password is looked at, in one critical section: see
+ * upgradeAuthReserveAttempt(). Returns the error to show, '' on success, after
+ * $onSuccess has run and the counter has been cleared.
+ *
+ * @param callable():void $onSuccess
+ */
+function upgradeAuthHandlePasswordPost(
+    string $rootPath,
+    string $clientAddr,
+    string $submitted,
+    string $configured,
+    int $maxAttempts,
+    int $lockSeconds,
+    callable $onSuccess,
+    ?int $euid = null
+): string {
+    $problem = null;
+    $attemptFile = upgradeAuthStateFile($rootPath, $clientAddr, $problem, $euid);
+    $reservation = $attemptFile !== null
+        ? upgradeAuthReserveAttempt($attemptFile, $maxAttempts, $lockSeconds)
+        : null;
+    if ($attemptFile === null || $reservation === null) {
+        // No trustworthy counter, no password check: a throttle that cannot be
+        // kept is the same as no throttle.
+        return upgradeAuthUnavailableMessage($problem ?? 'unavailable', $rootPath);
+    }
+    if (!$reservation['allowed']) {
+        return 'Troppi tentativi. Riprova tra qualche minuto.';
+    }
+    if (hash_equals('pinakes2026', $configured)) {
+        return 'SICUREZZA: cambia la password nel file prima di procedere.';
+    }
+    if (!hash_equals($configured, $submitted)) {
+        return 'Password errata.';
+    }
+    $onSuccess();
+    upgradeAuthUpdate($attemptFile, static fn (array $state): array => ['failed' => 0, 'lock_until' => 0]);
+    return '';
+}
+// END upgrade-auth-throttle
+
+// ============================================================
+// MYSQLDUMP CLIENT
+// ============================================================
+// BEGIN upgrade-dump-credentials
+function upgradeFindDumpBinary(): ?string
+{
+    if (!function_exists('proc_open')) {
+        throw new RuntimeException('Il backup richiede la funzione PHP proc_open.');
+    }
+    // open_basedir may prohibit PHP from stat-ing system binaries. Probe the
+    // fixed paths with the same process API that will run the actual dump.
+    foreach (['/usr/bin', '/usr/local/bin', '/opt/homebrew/bin'] as $dir) {
+        foreach (['mysqldump', 'mariadb-dump'] as $name) {
+            $binary = $dir . '/' . $name;
+            $process = @proc_open([$binary, '--no-defaults', '--version'], [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
+            if (is_resource($process)) {
+                // A one-line banner: read stdout, then stderr, before waiting.
+                stream_get_contents($pipes[1]);
+                fclose($pipes[1]);
+                stream_get_contents($pipes[2]);
+                fclose($pipes[2]);
+                if (proc_close($process) === 0) {
+                    return $binary;
+                }
+            }
+        }
+    }
+    return null;
+}
+
+const UPGRADE_DUMP_DIAGNOSTICS_BYTES = 2000;
+
+/**
+ * Pass the client options on an inherited pipe. The dump child reads its own
+ * descriptor, so neither deployment ownership nor PHP's open_basedir matters.
+ * $diagnostics receives the tail of the child's stderr on one line (at most
+ * UPGRADE_DUMP_DIAGNOSTICS_BYTES, control characters removed, always valid
+ * UTF-8 so h() cannot blank the whole error): it is the only place that says
+ * why a mandatory backup failed (bad credentials, unknown database, no
+ * /dev/fd on the host). mysqldump never echoes the password.
+ * @param list<string> $arguments
+ * @param-out string $diagnostics
+ */
+function upgradeRunDump(string $binary, array $arguments, array $env, string $backupFile, mixed &$diagnostics = null): int
+{
+    $diagnostics = '';
+    $quote = static fn (string $value): string => '"' . strtr($value, [
+        '\\' => '\\\\', '"' => '\\"', "\n" => '\n', "\r" => '\r', "\t" => '\t',
+    ]) . '"';
+    $options = "[client]\n"
+        . 'host=' . $quote((string) ($env['DB_HOST'] ?? 'localhost')) . "\n"
+        . 'user=' . $quote((string) ($env['DB_USER'] ?? '')) . "\n"
+        . 'password=' . $quote((string) ($env['DB_PASS'] ?? '')) . "\n"
+        . 'port=' . (int) ($env['DB_PORT'] ?? 3306) . "\n";
+    $command = array_merge([$binary, '--defaults-extra-file=/dev/fd/3'], $arguments);
+    $process = proc_open($command, [
+        1 => ['file', $backupFile, 'wb'],
+        2 => ['pipe', 'w'],
+        3 => ['pipe', 'r'],
+    ], $pipes);
+    if (!is_resource($process)) {
+        throw new RuntimeException('Impossibile avviare mysqldump.');
+    }
+    $sent = fwrite($pipes[3], $options);
+    fclose($pipes[3]);
+    // Keep diagnostic output separate from the SQL backup; drain it fully
+    // before waiting for the child, keeping only a bounded tail.
+    $tail = '';
+    while (!feof($pipes[2])) {
+        $chunk = fread($pipes[2], 8192);
+        if ($chunk === false) {
+            break;
+        }
+        $tail = substr($tail . $chunk, -UPGRADE_DUMP_DIAGNOSTICS_BYTES);
+    }
+    fclose($pipes[2]);
+    $status = proc_close($process);
+    if (preg_match('//u', $tail) !== 1) {
+        // A cut multibyte sequence or a non-UTF-8 locale: keep the ASCII.
+        $tail = (string) preg_replace('/[\x80-\xFF]/', '?', $tail);
+    }
+    $lines = preg_split('/[\r\n]+/', (string) preg_replace('/[\x00-\x09\x0B\x0C\x0E-\x1F\x7F]+/', ' ', $tail)) ?: [];
+    $diagnostics = implode(' | ', array_filter(array_map('trim', $lines), static fn (string $l): bool => $l !== ''));
+    if ($sent !== strlen($options)) {
+        $diagnostics = trim('opzioni di connessione non consegnate a mysqldump. ' . $diagnostics);
+        return 1;
+    }
+    return $status;
+}
+// END upgrade-dump-credentials
+
+// ============================================================
 // AUTH CHECK
 // ============================================================
 
@@ -615,37 +1022,23 @@ $requestMethod = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 $maxAttempts = 5;
 $lockSeconds = 300;
 
-// File-based throttling (not session-scoped, so rotating cookies cannot bypass it)
-$clientKey = hash('sha256', (string) ($_SERVER['REMOTE_ADDR'] ?? 'unknown'));
-$attemptFile = sys_get_temp_dir() . '/pinakes_upgrade_auth_' . $clientKey . '.json';
-$attemptState = ['failed' => 0, 'lock_until' => 0];
-if (is_file($attemptFile)) {
-    $raw = file_get_contents($attemptFile);
-    $decoded = is_string($raw) ? json_decode($raw, true) : null;
-    if (is_array($decoded)) {
-        $attemptState['failed'] = (int) ($decoded['failed'] ?? 0);
-        $attemptState['lock_until'] = (int) ($decoded['lock_until'] ?? 0);
-    }
-}
-
-if ($requestMethod === 'POST' && isset($_POST['password'])) {
-    if (time() < $attemptState['lock_until']) {
-        $error = 'Troppi tentativi. Riprova tra qualche minuto.';
-    } elseif (hash_equals('pinakes2026', UPGRADE_PASSWORD)) {
-        $error = 'SICUREZZA: cambia la password nel file prima di procedere.';
-    } elseif (hash_equals(UPGRADE_PASSWORD, (string) $_POST['password'])) {
-        session_regenerate_id(true);
-        $_SESSION['upgrade_auth'] = true;
-        @unlink($attemptFile);
-    } else {
-        $attemptState['failed']++;
-        if ($attemptState['failed'] >= $maxAttempts) {
-            $attemptState['lock_until'] = time() + $lockSeconds;
-            $attemptState['failed'] = 0;
+// File-based throttling (not session-scoped, so rotating cookies cannot bypass
+// it). Web only: the CLI run is authenticated synthetically above and must not
+// touch the throttle state — run as root, it would create the state directory
+// root-owned and lock the web user out of this page for good.
+if (PHP_SAPI !== 'cli' && $requestMethod === 'POST' && isset($_POST['password'])) {
+    $error = upgradeAuthHandlePasswordPost(
+        $rootPath,
+        (string) ($_SERVER['REMOTE_ADDR'] ?? 'unknown'),
+        (string) $_POST['password'],
+        UPGRADE_PASSWORD,
+        $maxAttempts,
+        $lockSeconds,
+        static function (): void {
+            session_regenerate_id(true);
+            $_SESSION['upgrade_auth'] = true;
         }
-        file_put_contents($attemptFile, json_encode($attemptState), LOCK_EX);
-        $error = 'Password errata.';
-    }
+    );
 }
 
 $authenticated = !empty($_SESSION['upgrade_auth']);
@@ -763,37 +1156,9 @@ if ($authenticated && $requestMethod === 'POST' && isset($_FILES['zipfile'])) {
         ]);
         $log[] = '[OK] Spazio cumulativo per dump, backup critici e riserva verificato';
 
-        $mysqldumpBin = null;
-        foreach (['/usr/bin/mysqldump', '/usr/local/bin/mysqldump', '/opt/homebrew/bin/mysqldump'] as $candidate) {
-            if (is_file($candidate) && is_executable($candidate)) {
-                $mysqldumpBin = $candidate;
-                break;
-            }
-        }
-
+        $mysqldumpBin = upgradeFindDumpBinary();
         if ($mysqldumpBin) {
-            // Use defaults-extra-file to avoid exposing password in process list
-            $defaultsFile = tempnam(sys_get_temp_dir(), 'pinakes_dump_');
-            if ($defaultsFile === false) {
-                throw new RuntimeException('Impossibile creare file temporaneo per credenziali mysqldump');
-            }
-            $written = file_put_contents($defaultsFile,
-                "[client]\n"
-                . "host=" . ($env['DB_HOST'] ?? 'localhost') . "\n"
-                . "user=" . ($env['DB_USER'] ?? '') . "\n"
-                . "password=" . ($env['DB_PASS'] ?? '') . "\n"
-                . "port=" . (int) ($env['DB_PORT'] ?? 3306) . "\n"
-            );
-            if ($written === false || $written === 0) {
-                @unlink($defaultsFile);
-                throw new RuntimeException('Impossibile scrivere il file temporaneo credenziali mysqldump');
-            }
-            @chmod($defaultsFile, 0600);
-
-            $args = [
-                $mysqldumpBin,
-                '--defaults-extra-file=' . $defaultsFile,
-            ];
+            $args = [];
             if (!empty($env['DB_SOCKET'])) {
                 $args[] = '--socket=' . $env['DB_SOCKET'];
             }
@@ -802,20 +1167,19 @@ if ($authenticated && $requestMethod === 'POST' && isset($_FILES['zipfile'])) {
             $args[] = '--triggers';
             $args[] = $env['DB_NAME'];
 
-            $safeCmd = implode(' ', array_map('escapeshellarg', $args)) . ' > ' . escapeshellarg($backupFile) . ' 2>&1';
-            $cmdOutput = [];
-            $exitCode = 0;
-            try {
-                exec($safeCmd, $cmdOutput, $exitCode);
-            } finally {
-                @unlink($defaultsFile);
-            }
+            $dumpDiagnostics = '';
+            $exitCode = upgradeRunDump($mysqldumpBin, $args, $env, $backupFile, $dumpDiagnostics);
 
             if ($exitCode === 0 && is_file($backupFile) && filesize($backupFile) > 100) {
                 $log[] = '[OK] Backup DB creato: ' . basename($backupFile) . ' (' . formatBytes(filesize($backupFile)) . ')';
+                if ($dumpDiagnostics !== '') {
+                    $log[] = '[WARN] mysqldump: ' . $dumpDiagnostics;
+                }
             } else {
                 @unlink($backupFile);
-                throw new RuntimeException('Backup DB fallito (mysqldump exit ' . $exitCode . '). Upgrade interrotto per sicurezza.');
+                throw new RuntimeException('Backup DB fallito (mysqldump exit ' . $exitCode . ')'
+                    . ($dumpDiagnostics !== '' ? ': ' . $dumpDiagnostics : '')
+                    . '. Upgrade interrotto per sicurezza.');
             }
         } else {
             throw new RuntimeException('mysqldump non trovato. Upgrade interrotto per sicurezza (backup obbligatorio).');

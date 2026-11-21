@@ -130,7 +130,7 @@ unset($workspaceHeader);
             + '<td class="py-2 pr-3 text-center"><input type="checkbox" name="flag_voting[' + idx + ']" value="1"></td>'
             + '<td class="py-2 pr-3 text-center"><input type="checkbox" name="flag_current[' + idx + ']" value="1"></td>'
             + '<td class="py-2 pr-3 text-center"><input type="checkbox" name="flag_archived[' + idx + ']" value="1"></td>'
-            + '<td class="py-2 text-right"><button type="button" class="btn-icon btn-secondary text-red-500 hover:text-red-700 bc-remove-state" aria-label="<?= htmlspecialchars(__('Chiudi'), ENT_QUOTES, 'UTF-8') ?>"><i class="fas fa-times"></i></button></td>';
+            + '<td class="py-2 text-right"><button type="button" class="btn-icon btn-secondary text-red-500 hover:text-red-700 bc-remove-state" aria-label="' + <?= json_encode(htmlspecialchars(__('Chiudi'), ENT_QUOTES, 'UTF-8'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) ?> + '"><i class="fas fa-times"></i></button></td>';
           table.appendChild(tr);
         });
         table.addEventListener('click', function (ev) {

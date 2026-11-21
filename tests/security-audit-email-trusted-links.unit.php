@@ -286,7 +286,8 @@ $sites = [
         "'dashboard_url' => absoluteUrl", "'book_url' => absoluteUrl", "'wishlist_url' => absoluteUrl", "\$verificationUrl = absoluteUrl"],
     'app/Controllers/ReservationManager.php' => ["'book_url' => absoluteUrl", "'profile_url' => absoluteUrl"],
     'app/Services/ReservationReassignmentService.php' => ["'book_url' => absoluteUrl", "'profile_url' => absoluteUrl"],
-    'app/Support/LoanCalendarLinks.php' => ['$icsUrl = $this->icsUrl('],
+    // icsUrl() itself goes through TrustedLink (tests/security-audit-loan-ics-trusted-link.unit.php).
+    'app/Support/LoanCalendarLinks.php' => ['return absoluteUrl(\'/calendar/loan/'],
     'app/Support/EmailLayout.php' => ['absoluteUrl($logo)'],
     'storage/plugins/book-club/src/PublicController.php' => ["\$link = absoluteUrl(\\App\\Support\\RouteTranslator::route('book_club') . '/invite/'"],
     'storage/plugins/book-club/src/MeetingController.php' => ['$link = absoluteUrl('],

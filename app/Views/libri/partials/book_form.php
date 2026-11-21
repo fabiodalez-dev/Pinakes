@@ -1421,7 +1421,7 @@ function displayImagePreview(file) {
                     </div>
                     <button type="button" onclick="removeCoverImage()" class="text-xs text-red-600 hover:text-red-800 hover:underline flex items-center gap-1">
                         <i class="fas fa-trash"></i>
-                        <?= __('Rimuovi') ?>
+                        ${escapeHtml(<?= json_encode(__('Rimuovi'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) ?>)}
                     </button>
                 </div>
             </div>
@@ -1462,7 +1462,7 @@ async function removeCoverImage() {
     container.innerHTML = `
         <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-sm text-yellow-800 flex items-center gap-2" role="alert">
             <i class="fas fa-info-circle"></i>
-            <span>${<?= json_encode(__("La copertina verrà rimossa al salvataggio del libro"), JSON_HEX_TAG) ?>}</span>
+            <span>${escapeHtml(<?= json_encode(__("La copertina verrà rimossa al salvataggio del libro"), JSON_HEX_TAG) ?>)}</span>
         </div>
     `;
 }
@@ -1502,7 +1502,7 @@ function initializeChoicesJS() {
             placeholderValue: <?= json_encode(__("Cerca autori esistenti o aggiungine di nuovi..."), JSON_HEX_TAG) ?>,
             noChoicesText: <?= json_encode(__("Nessun autore trovato, premi Invio per aggiungerne uno nuovo"), JSON_HEX_TAG) ?>,
             itemSelectText: <?= json_encode(__("Clicca per selezionare"), JSON_HEX_TAG) ?>,
-            addItemText: (value) => `${<?= json_encode(__('Aggiungi'), JSON_HEX_TAG) ?>} <b>"${value}"</b> ${<?= json_encode(__('come nuovo autore'), JSON_HEX_TAG) ?>}`,
+            addItemText: (value) => `${escapeHtml(<?= json_encode(__('Aggiungi'), JSON_HEX_TAG) ?>)} <b>"${value}"</b> ${escapeHtml(<?= json_encode(__('come nuovo autore'), JSON_HEX_TAG) ?>)}`,
             maxItemText: (maxItemCount) => <?= json_encode(__("Solo %d autori possono essere aggiunti"), JSON_HEX_TAG) ?>.replace('%d', maxItemCount),
             shouldSort: false,
             searchResultLimit: -1,
@@ -2221,7 +2221,7 @@ function initializePublishersChoices() {
             placeholderValue: <?= json_encode(__("Cerca editori esistenti o aggiungine di nuovi..."), JSON_HEX_TAG) ?>,
             noChoicesText: <?= json_encode(__("Nessun editore trovato, premi Invio per aggiungerne uno nuovo"), JSON_HEX_TAG) ?>,
             itemSelectText: <?= json_encode(__("Clicca per selezionare"), JSON_HEX_TAG) ?>,
-            addItemText: (value) => `${<?= json_encode(__('Aggiungi'), JSON_HEX_TAG) ?>} <b>"${value}"</b> ${<?= json_encode(__('come nuovo editore'), JSON_HEX_TAG) ?>}`,
+            addItemText: (value) => `${escapeHtml(<?= json_encode(__('Aggiungi'), JSON_HEX_TAG) ?>)} <b>"${value}"</b> ${escapeHtml(<?= json_encode(__('come nuovo editore'), JSON_HEX_TAG) ?>)}`,
             shouldSort: false,
             searchResultLimit: -1,
             searchFloor: 1,
@@ -2734,7 +2734,7 @@ function initializeCollocationFilters() {
       if (window.Toast && posizioneInput.value) {
         window.Toast.fire({
           icon: 'success',
-          title: `${<?= json_encode(__("Posizione generata:"), JSON_HEX_TAG) ?>} ${posizioneInput.value}`
+          title: `${escapeHtml(<?= json_encode(__("Posizione generata:"), JSON_HEX_TAG) ?>)} ${escapeHtml(posizioneInput.value)}`
         });
       }
     });
@@ -3041,24 +3041,24 @@ function setupEnhancedAutocomplete(inputId, suggestId, fetchUrl, onSelect, onEmp
 async function handleDuplicateBook(existingBook) {
     const result = await Swal.fire({
         icon: 'warning',
-        title: __('Libro Già Esistente'),
+        title: escapeHtml(__('Libro Già Esistente')),
         html: `
-            <p class="mb-4">${__('Esiste già un libro con lo stesso identificatore (ISBN/EAN).')}</p>
+            <p class="mb-4">${escapeHtml(__('Esiste già un libro con lo stesso identificatore (ISBN/EAN).'))}</p>
             <div class="bg-gray-100 p-4 rounded-lg mb-4 text-left">
-                <p class="font-semibold mb-2"><i class="fas fa-book mr-2"></i>${__('Libro Esistente:')}</p>
-                <p class="text-gray-700 mb-1"><strong>${__('ID:')}</strong> #${existingBook.id}</p>
-                <p class="text-gray-700 mb-1"><strong>${__('Titolo:')}</strong> ${escapeHtml(existingBook.title)}</p>
-                ${existingBook.isbn13 ? `<p class="text-gray-700 mb-1"><strong>${__('ISBN-13:')}</strong> ${escapeHtml(existingBook.isbn13)}</p>` : ''}
-                ${existingBook.ean ? `<p class="text-gray-700 mb-1"><strong>${__('EAN:')}</strong> ${escapeHtml(existingBook.ean)}</p>` : ''}
-                ${existingBook.location ? `<p class="text-gray-700 mb-1"><strong>${__('Collocazione:')}</strong> <span class="inline-flex items-center px-2 py-1 bg-blue-100 text-blue-800 rounded-md text-sm"><i class="fas fa-map-marker-alt mr-1"></i>${escapeHtml(existingBook.location)}</span></p>` : `<p class="text-gray-700 mb-1"><strong>${__('Collocazione:')}</strong> <span class="text-gray-400">${__('Non specificata')}</span></p>`}
+                <p class="font-semibold mb-2"><i class="fas fa-book mr-2"></i>${escapeHtml(__('Libro Esistente:'))}</p>
+                <p class="text-gray-700 mb-1"><strong>${escapeHtml(__('ID:'))}</strong> #${existingBook.id}</p>
+                <p class="text-gray-700 mb-1"><strong>${escapeHtml(__('Titolo:'))}</strong> ${escapeHtml(existingBook.title)}</p>
+                ${existingBook.isbn13 ? `<p class="text-gray-700 mb-1"><strong>${escapeHtml(__('ISBN-13:'))}</strong> ${escapeHtml(existingBook.isbn13)}</p>` : ''}
+                ${existingBook.ean ? `<p class="text-gray-700 mb-1"><strong>${escapeHtml(__('EAN:'))}</strong> ${escapeHtml(existingBook.ean)}</p>` : ''}
+                ${existingBook.location ? `<p class="text-gray-700 mb-1"><strong>${escapeHtml(__('Collocazione:'))}</strong> <span class="inline-flex items-center px-2 py-1 bg-blue-100 text-blue-800 rounded-md text-sm"><i class="fas fa-map-marker-alt mr-1"></i>${escapeHtml(existingBook.location)}</span></p>` : `<p class="text-gray-700 mb-1"><strong>${escapeHtml(__('Collocazione:'))}</strong> <span class="text-gray-400">${escapeHtml(__('Non specificata'))}</span></p>`}
             </div>
-            <p class="text-sm text-gray-600">${__('Vuoi aumentare il numero di copie di questo libro?')}</p>
+            <p class="text-sm text-gray-600">${escapeHtml(__('Vuoi aumentare il numero di copie di questo libro?'))}</p>
         `,
         showCancelButton: true,
         showDenyButton: true,
-        confirmButtonText: '<i class="fas fa-plus mr-2"></i>' + __('Aumenta Copie'),
-        denyButtonText: '<i class="fas fa-eye mr-2"></i>' + __('Visualizza Libro'),
-        cancelButtonText: __('Annulla'),
+        confirmButtonText: '<i class="fas fa-plus mr-2"></i>' + escapeHtml(__('Aumenta Copie')),
+        denyButtonText: '<i class="fas fa-eye mr-2"></i>' + escapeHtml(__('Visualizza Libro')),
+        cancelButtonText: escapeHtml(__('Annulla')),
         confirmButtonColor: '#10b981',
         denyButtonColor: '#3b82f6',
         reverseButtons: true
@@ -3076,19 +3076,19 @@ async function handleDuplicateBook(existingBook) {
 // Increase copies of existing book
 async function increaseCopies(book) {
     const { value: copiesToAdd } = await Swal.fire({
-        title: __('Aumenta Copie'),
+        title: escapeHtml(__('Aumenta Copie')),
         html: `
-            <p class="mb-4">${__('Quante copie vuoi aggiungere a "%s"?').replace('%s', escapeHtml(book.title))}</p>
+            <p class="mb-4">${escapeHtml(__('Quante copie vuoi aggiungere a "%s"?')).replace('%s', escapeHtml(book.title))}</p>
             <input type="number" id="copiesToAdd" class="swal2-input" value="1" min="1" max="100" style="width: 150px;">
         `,
         focusConfirm: false,
         showCancelButton: true,
-        confirmButtonText: __('Aggiungi'),
-        cancelButtonText: __('Annulla'),
+        confirmButtonText: escapeHtml(__('Aggiungi')),
+        cancelButtonText: escapeHtml(__('Annulla')),
         preConfirm: () => {
             const value = parseInt(document.getElementById('copiesToAdd').value);
             if (!value || value < 1) {
-                Swal.showValidationMessage(__('Inserisci un numero valido di copie'));
+                Swal.showValidationMessage(escapeHtml(__('Inserisci un numero valido di copie')));
                 return false;
             }
             return value;
@@ -3098,7 +3098,7 @@ async function increaseCopies(book) {
     if (copiesToAdd) {
         // Show loading
         Swal.fire({
-            title: __('Aggiornamento in corso...'),
+            title: escapeHtml(__('Aggiornamento in corso...')),
             text: __('Attendere prego'),
             allowOutsideClick: false,
             showConfirmButton: false,
@@ -3124,9 +3124,9 @@ async function increaseCopies(book) {
             if (data.code === 'SESSION_EXPIRED' || data.code === 'CSRF_INVALID') {
                 await Swal.fire({
                     icon: 'error',
-                    title: __('Errore di sicurezza'),
+                    title: escapeHtml(__('Errore di sicurezza')),
                     text: data.error || __('Errore di sicurezza'),
-                    confirmButtonText: __('OK')
+                    confirmButtonText: escapeHtml(__('OK'))
                 });
                 setTimeout(() => window.location.reload(), 2000);
                 return;
@@ -3136,9 +3136,9 @@ async function increaseCopies(book) {
             if (!response.ok || data.error) {
                 await Swal.fire({
                     icon: 'error',
-                    title: __('Errore'),
+                    title: escapeHtml(__('Errore')),
                     text: data.error || data.message || __('Errore durante l\'aggiornamento delle copie'),
-                    confirmButtonText: __('OK')
+                    confirmButtonText: escapeHtml(__('OK'))
                 });
                 return;
             }
@@ -3146,13 +3146,13 @@ async function increaseCopies(book) {
             if (data.success) {
                 await Swal.fire({
                     icon: 'success',
-                    title: __('Copie Aggiunte!'),
+                    title: escapeHtml(__('Copie Aggiunte!')),
                     html: `
-                        <p class="mb-2">${__('Hai aggiunto %s copie a "%s"').replace('%s', copiesToAdd).replace('%s', escapeHtml(book.title))}</p>
-                        <p class="text-sm text-gray-600">${__('Copie in circolazione')}: ${data.copie_totali}</p>
-                        <p class="text-sm text-gray-600">${__('Copie disponibili:')}: ${data.copie_disponibili}</p>
+                        <p class="mb-2">${escapeHtml(__('Hai aggiunto %s copie a "%s"')).replace('%s', copiesToAdd).replace('%s', escapeHtml(book.title))}</p>
+                        <p class="text-sm text-gray-600">${escapeHtml(__('Copie in circolazione'))}: ${data.copie_totali}</p>
+                        <p class="text-sm text-gray-600">${escapeHtml(__('Copie disponibili:'))}: ${data.copie_disponibili}</p>
                     `,
-                    confirmButtonText: __('OK')
+                    confirmButtonText: escapeHtml(__('OK'))
                 });
                 // Redirect to book list
                 window.location.href = window.BASE_PATH + '/admin/books';
@@ -3160,7 +3160,7 @@ async function increaseCopies(book) {
                 const error = data;
                 Swal.fire({
                     icon: 'error',
-                    title: __('Errore'),
+                    title: escapeHtml(__('Errore')),
                     text: error.message || __('Impossibile aggiornare le copie.')
                 });
             }
@@ -3168,7 +3168,7 @@ async function increaseCopies(book) {
             console.error('Error increasing copies:', error);
             Swal.fire({
                 icon: 'error',
-                title: __('Errore'),
+                title: escapeHtml(__('Errore')),
                 text: __('Si è verificato un errore di rete.')
             });
         }
@@ -3481,32 +3481,32 @@ function showAlternativesPanel(alternatives) {
 
         // Show key fields from this source (using data-* attributes for event delegation)
         if (sourceData.title && typeof sourceData.title === 'string') {
-            html += `<div><span class="font-medium">${<?= json_encode(__("Titolo:"), JSON_HEX_TAG) ?>}</span> ${escapeHtml(sourceData.title)}
-                <button type="button" class="ml-2 text-gray-800 hover:underline apply-alt-value" data-field="titolo" data-value="${escapeAttr(sourceData.title)}">${<?= json_encode(__("Usa"), JSON_HEX_TAG) ?>}</button></div>`;
+            html += `<div><span class="font-medium">${escapeHtml(<?= json_encode(__("Titolo:"), JSON_HEX_TAG) ?>)}</span> ${escapeHtml(sourceData.title)}
+                <button type="button" class="ml-2 text-gray-800 hover:underline apply-alt-value" data-field="titolo" data-value="${escapeAttr(sourceData.title)}">${escapeHtml(<?= json_encode(__("Usa"), JSON_HEX_TAG) ?>)}</button></div>`;
         }
         if (sourceData.publisher && typeof sourceData.publisher === 'string') {
-            html += `<div><span class="font-medium">${<?= json_encode(__("Editore:"), JSON_HEX_TAG) ?>}</span> ${escapeHtml(sourceData.publisher)}
-                <button type="button" class="ml-2 text-gray-800 hover:underline apply-alt-publisher" data-publisher="${escapeAttr(sourceData.publisher)}">${<?= json_encode(__("Usa"), JSON_HEX_TAG) ?>}</button></div>`;
+            html += `<div><span class="font-medium">${escapeHtml(<?= json_encode(__("Editore:"), JSON_HEX_TAG) ?>)}</span> ${escapeHtml(sourceData.publisher)}
+                <button type="button" class="ml-2 text-gray-800 hover:underline apply-alt-publisher" data-publisher="${escapeAttr(sourceData.publisher)}">${escapeHtml(<?= json_encode(__("Usa"), JSON_HEX_TAG) ?>)}</button></div>`;
         }
         // Show cover only if it's not an SBN/LibraryThing cover (requires API key)
         // Also sanitize URL to prevent javascript: and other unsafe protocols
         const safeImage = sanitizeUrl(sourceData.image);
         if (safeImage && !safeImage.includes('librarything.com/devkey')) {
-            html += `<div><span class="font-medium">${<?= json_encode(__("Copertina:"), JSON_HEX_TAG) ?>}</span>
-                <a href="${escapeAttr(safeImage)}" target="_blank" rel="noopener noreferrer" class="text-gray-800 hover:underline">${<?= json_encode(__("Vedi"), JSON_HEX_TAG) ?>}</a>
-                <button type="button" class="ml-2 text-gray-800 hover:underline apply-alt-cover" data-cover="${escapeAttr(safeImage)}">${<?= json_encode(__("Usa"), JSON_HEX_TAG) ?>}</button></div>`;
+            html += `<div><span class="font-medium">${escapeHtml(<?= json_encode(__("Copertina:"), JSON_HEX_TAG) ?>)}</span>
+                <a href="${escapeAttr(safeImage)}" target="_blank" rel="noopener noreferrer" class="text-gray-800 hover:underline">${escapeHtml(<?= json_encode(__("Vedi"), JSON_HEX_TAG) ?>)}</a>
+                <button type="button" class="ml-2 text-gray-800 hover:underline apply-alt-cover" data-cover="${escapeAttr(safeImage)}">${escapeHtml(<?= json_encode(__("Usa"), JSON_HEX_TAG) ?>)}</button></div>`;
         }
         if (sourceData.description && typeof sourceData.description === 'string') {
             const shortDesc = sourceData.description.substring(0, 100) + (sourceData.description.length > 100 ? '...' : '');
-            html += `<div><span class="font-medium">${<?= json_encode(__("Descrizione:"), JSON_HEX_TAG) ?>}</span> ${escapeHtml(shortDesc)}
-                <button type="button" class="ml-2 text-gray-800 hover:underline apply-alt-value" data-field="descrizione" data-value="${escapeAttr(sourceData.description)}">${<?= json_encode(__("Usa"), JSON_HEX_TAG) ?>}</button></div>`;
+            html += `<div><span class="font-medium">${escapeHtml(<?= json_encode(__("Descrizione:"), JSON_HEX_TAG) ?>)}</span> ${escapeHtml(shortDesc)}
+                <button type="button" class="ml-2 text-gray-800 hover:underline apply-alt-value" data-field="descrizione" data-value="${escapeAttr(sourceData.description)}">${escapeHtml(<?= json_encode(__("Usa"), JSON_HEX_TAG) ?>)}</button></div>`;
         }
 
         html += `</div></div>`;
     }
 
     if (html === '') {
-        html = `<p class="text-gray-500">${<?= json_encode(__("Nessuna alternativa disponibile"), JSON_HEX_TAG) ?>}</p>`;
+        html = `<p class="text-gray-500">${escapeHtml(<?= json_encode(__("Nessuna alternativa disponibile"), JSON_HEX_TAG) ?>)}</p>`;
     }
 
     content.innerHTML = html;
@@ -4350,8 +4350,8 @@ function displayScrapedCover(imageUrl) {
                 <div class="text-gray-400 mb-2">
                     <i class="fas fa-image text-3xl"></i>
                 </div>
-                <p class="text-sm text-gray-600 mb-2">${<?= json_encode(__("Anteprima non disponibile"), JSON_HEX_TAG) ?>}</p>
-                <p class="text-xs text-gray-500 mb-3">${<?= json_encode(__("L'immagine verrà scaricata al salvataggio"), JSON_HEX_TAG) ?>}</p>
+                <p class="text-sm text-gray-600 mb-2">${escapeHtml(<?= json_encode(__("Anteprima non disponibile"), JSON_HEX_TAG) ?>)}</p>
+                <p class="text-xs text-gray-500 mb-3">${escapeHtml(<?= json_encode(__("L'immagine verrà scaricata al salvataggio"), JSON_HEX_TAG) ?>)}</p>
                 <a href="${escapeAttr(imageSrc)}" target="_blank" rel="noopener noreferrer" class="text-xs text-gray-700 hover:text-gray-900 underline break-all">${escapeHtml(imageUrl)}</a>
             </div>
         `;
@@ -4367,11 +4367,11 @@ function displayScrapedCover(imageUrl) {
             <div class="flex items-center gap-4">
                 <div class="flex items-center gap-2 text-sm text-gray-600">
                     <i class="fas fa-globe text-gray-600"></i>
-                    <span>${<?= json_encode(__("Copertina recuperata automaticamente"), JSON_HEX_TAG) ?>}</span>
+                    <span>${escapeHtml(<?= json_encode(__("Copertina recuperata automaticamente"), JSON_HEX_TAG) ?>)}</span>
                 </div>
                 <button type="button" onclick="removeCoverImage()" class="text-xs text-red-600 hover:text-red-800 hover:underline flex items-center gap-1">
                     <i class="fas fa-trash"></i>
-                    <?= __('Rimuovi') ?>
+                    ${escapeHtml(<?= json_encode(__('Rimuovi'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) ?>)}
                 </button>
             </div>
         </div>
