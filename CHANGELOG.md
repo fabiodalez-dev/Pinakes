@@ -18,6 +18,10 @@ Films can be catalogued as films. Five nullable columns of `libri` (`durata_minu
 - **MARC 21 and UNIMARC exports describe a videorecording**: 300 / 215 "1 videodisc (95 min)" (videocassette for VHS), 306 playing time, 008/18-20 running time and 008/33 `v`, 041 `$j` subtitle languages, 511 / 323 cast, 521 / 333 age rating, 538 region and 546 subtitles; the director is `$e film director` (UNIMARC `$4 300`) and comes back as the principal author on import. A book's record is unchanged.
 - **The catalogue's media type filter is translated** in every language; it showed the Italian names.
 
+### GoodLib
+
+- **Z-Library links now go to `1lib.sk`.** It replaces `z-lib.gd` as the default and among the suggested mirrors. Installs that still have `z-lib.gd` saved switch automatically; a different mirror or custom domain chosen by the operator is kept. GoodLib 1.0.3.
+
 ## [0.9.5]
 
 A patch release for loans and reservations, from an audit of circulation with 120 new browser scenarios ([#533](https://github.com/fabiodalez-dev/Pinakes/pull/533)). No migration: one nullable column, `prenotazioni.prestito_promosso_id`, is added to existing installs by the schema check that runs after every update.
