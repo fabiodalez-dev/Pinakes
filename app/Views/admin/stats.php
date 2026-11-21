@@ -563,7 +563,7 @@ document.addEventListener('DOMContentLoaded', function() {
     loansByStatusWrapper.innerHTML = `
       <div class="flex h-full w-full flex-col items-center justify-center gap-3 text-slate-400">
         <i class="fas fa-chart-pie text-4xl"></i>
-        <p class="text-sm"><?= htmlspecialchars(__("Nessun prestito disponibile per generare il grafico"), ENT_QUOTES, 'UTF-8') ?></p>
+        <p class="text-sm">${<?= json_encode(htmlspecialchars(__("Nessun prestito disponibile per generare il grafico"), ENT_QUOTES, 'UTF-8'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) ?>}</p>
       </div>
     `;
   } else if (loansByStatusCanvas) {

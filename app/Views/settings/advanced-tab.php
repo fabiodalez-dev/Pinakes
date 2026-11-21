@@ -1154,7 +1154,7 @@ function toggleApiKeyVisibility(keyId) {
 function copyToClipboard(text, button) {
   navigator.clipboard.writeText(text).then(() => {
     const originalHTML = button.innerHTML;
-    button.innerHTML = '<i class="fas fa-check"></i> ' + <?= json_encode(__("Copiato!"), JSON_HEX_TAG) ?>;
+    button.innerHTML = '<i class="fas fa-check"></i> ' + escapeHtml(<?= json_encode(__("Copiato!"), JSON_HEX_TAG) ?>);
     setTimeout(() => {
       button.innerHTML = originalHTML;
     }, 2000);

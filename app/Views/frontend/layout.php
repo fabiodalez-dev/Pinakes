@@ -2078,7 +2078,7 @@ $htmlLang = substr($currentLocale, 0, 2);
 
             function displaySearchResults(results, container, query) {
                 if (!Array.isArray(results) || results.length === 0) {
-                    container.innerHTML = '<div class="search-no-results" style="padding: 1rem; text-align: center; color: var(--text-muted);">' + __('Nessun risultato trovato') + '</div>';
+                    container.innerHTML = '<div class="search-no-results" style="padding: 1rem; text-align: center; color: var(--text-muted);">' + escapeHtml(__('Nessun risultato trovato')) + '</div>';
                     container.classList.add('is-visible');
                     return;
                 }
@@ -2094,7 +2094,7 @@ $htmlLang = substr($currentLocale, 0, 2);
 
                 // Books section
                 if (books.length > 0) {
-                    html += '<div class="search-section" style="padding: 0.75rem 0; border-bottom: 1px solid var(--accent-color);"><h6 class="search-section-title" style="margin: 0 1rem 0.5rem; font-size: 0.875rem; font-weight: 600; color: #374151;">' + __('Libri') + '</h6>';
+                    html += '<div class="search-section" style="padding: 0.75rem 0; border-bottom: 1px solid var(--accent-color);"><h6 class="search-section-title" style="margin: 0 1rem 0.5rem; font-size: 0.875rem; font-weight: 600; color: #374151;">' + escapeHtml(__('Libri')) + '</h6>';
                     books.forEach(book => {
                         const bookUrl = sanitizeUrl(book.url ?? '#');
                         const coverUrl = sanitizeUrl(book.cover ?? '');
@@ -2119,11 +2119,11 @@ $htmlLang = substr($currentLocale, 0, 2);
 
                 // Authors section
                 if (authors.length > 0) {
-                    html += '<div class="search-section" style="padding: 0.75rem 0; border-bottom: 1px solid var(--accent-color);"><h6 class="search-section-title" style="margin: 0 1rem 0.5rem; font-size: 0.875rem; font-weight: 600; color: #374151;">' + __('Autori') + '</h6>';
+                    html += '<div class="search-section" style="padding: 0.75rem 0; border-bottom: 1px solid var(--accent-color);"><h6 class="search-section-title" style="margin: 0 1rem 0.5rem; font-size: 0.875rem; font-weight: 600; color: #374151;">' + escapeHtml(__('Autori')) + '</h6>';
                     authors.forEach(author => {
                         const authorUrl = sanitizeUrl(author.url ?? '#');
                         const authorName = escapeHtml(author.name ?? '');
-                        const authorBooks = escapeHtml(author.book_count ?? '0') + __(' libri');
+                        const authorBooks = escapeHtml(author.book_count ?? '0') + escapeHtml(__(' libri'));
                         const authorBio = escapeHtml(author.biography ?? '');
 
                         html += '<a href="' + authorUrl + '" class="search-result-item author-result" style="display: flex; align-items: center; padding: 0.75rem 1rem; text-decoration: none; color: var(--text-color); transition: background-color 0.2s;" onmouseover="this.style.backgroundColor=\'var(--light-bg)\'" onmouseout="this.style.backgroundColor=\'transparent\'">' +
@@ -2140,11 +2140,11 @@ $htmlLang = substr($currentLocale, 0, 2);
 
                 // Publishers section
                 if (publishers.length > 0) {
-                    html += '<div class="search-section" style="padding: 0.75rem 0; border-bottom: 1px solid var(--accent-color);"><h6 class="search-section-title" style="margin: 0 1rem 0.5rem; font-size: 0.875rem; font-weight: 600; color: #374151;">' + __('Editori') + '</h6>';
+                    html += '<div class="search-section" style="padding: 0.75rem 0; border-bottom: 1px solid var(--accent-color);"><h6 class="search-section-title" style="margin: 0 1rem 0.5rem; font-size: 0.875rem; font-weight: 600; color: #374151;">' + escapeHtml(__('Editori')) + '</h6>';
                     publishers.forEach(publisher => {
                         const publisherUrl = sanitizeUrl(publisher.url ?? '#');
                         const publisherName = escapeHtml(publisher.name ?? '');
-                        const publisherBooks = escapeHtml(publisher.book_count ?? '0') + __(' libri');
+                        const publisherBooks = escapeHtml(publisher.book_count ?? '0') + escapeHtml(__(' libri'));
                         const publisherDesc = escapeHtml(publisher.description ?? '');
 
                         html += '<a href="' + publisherUrl + '" class="search-result-item publisher-result" style="display: flex; align-items: center; padding: 0.75rem 1rem; text-decoration: none; color: var(--text-color); transition: background-color 0.2s;" onmouseover="this.style.backgroundColor=\'var(--light-bg)\'" onmouseout="this.style.backgroundColor=\'transparent\'">' +
@@ -2162,7 +2162,7 @@ $htmlLang = substr($currentLocale, 0, 2);
                 // Articles section (Emeroteca, #412): a journal or newspaper
                 // article is found by the same search as a book.
                 if (articles.length > 0) {
-                    html += '<div class="search-section" style="padding: 0.75rem 0; border-bottom: 1px solid var(--accent-color);"><h6 class="search-section-title" style="margin: 0 1rem 0.5rem; font-size: 0.875rem; font-weight: 600; color: #374151;">' + __('Articoli') + '</h6>';
+                    html += '<div class="search-section" style="padding: 0.75rem 0; border-bottom: 1px solid var(--accent-color);"><h6 class="search-section-title" style="margin: 0 1rem 0.5rem; font-size: 0.875rem; font-weight: 600; color: #374151;">' + escapeHtml(__('Articoli')) + '</h6>';
                     articles.forEach(art => {
                         const artUrl = sanitizeUrl(art.url ?? '#');
                         const artLabel = escapeHtml(art.label ?? '');
@@ -2190,7 +2190,7 @@ $htmlLang = substr($currentLocale, 0, 2);
 
                 // Archives section
                 if (archives.length > 0) {
-                    html += '<div class="search-section" style="padding: 0.75rem 0; border-bottom: 1px solid var(--accent-color);"><h6 class="search-section-title" style="margin: 0 1rem 0.5rem; font-size: 0.875rem; font-weight: 600; color: #374151;">' + __('Archivio') + '</h6>';
+                    html += '<div class="search-section" style="padding: 0.75rem 0; border-bottom: 1px solid var(--accent-color);"><h6 class="search-section-title" style="margin: 0 1rem 0.5rem; font-size: 0.875rem; font-weight: 600; color: #374151;">' + escapeHtml(__('Archivio')) + '</h6>';
                     archives.forEach(arc => {
                         const arcUrl = sanitizeUrl(arc.url ?? '#');
                         const arcLabel = escapeHtml(arc.label ?? '');

@@ -1638,10 +1638,10 @@ unset($workspaceHeader);
                           title: escapeHtml(info.event.title),
                           html: `
                               <div class="text-left">
-                                  <p><strong>${<?= json_encode(__("Copia"), JSON_HEX_TAG) ?>}:</strong> ${escapeHtml(props.inventario)}</p>
-                                  <p><strong>${<?= json_encode(__("Stato"), JSON_HEX_TAG) ?>}:</strong> ${escapeHtml(props.statusLabel)}</p>
-                                  <p><strong>${<?= json_encode(__("Dal"), JSON_HEX_TAG) ?>}:</strong> ${escapeHtml(formatDateLocale(start))}</p>
-                                  <p><strong>${<?= json_encode(__("Al"), JSON_HEX_TAG) ?>}:</strong> ${escapeHtml(formatDateLocale(end))}</p>
+                                  <p><strong>${escapeHtml(<?= json_encode(__("Copia"), JSON_HEX_TAG) ?>)}:</strong> ${escapeHtml(props.inventario)}</p>
+                                  <p><strong>${escapeHtml(<?= json_encode(__("Stato"), JSON_HEX_TAG) ?>)}:</strong> ${escapeHtml(props.statusLabel)}</p>
+                                  <p><strong>${escapeHtml(<?= json_encode(__("Dal"), JSON_HEX_TAG) ?>)}:</strong> ${escapeHtml(formatDateLocale(start))}</p>
+                                  <p><strong>${escapeHtml(<?= json_encode(__("Al"), JSON_HEX_TAG) ?>)}:</strong> ${escapeHtml(formatDateLocale(end))}</p>
                               </div>
                           `,
                           icon: 'info',
@@ -1727,14 +1727,14 @@ unset($workspaceHeader);
     async function addVolumeModal(operaId) {
       const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
       const { value: formData } = await Swal.fire({
-        title: __('Aggiungi volume'),
+        title: escapeHtml(__('Aggiungi volume')),
         html: '<div class="text-left">'
-          + '<label class="block text-sm font-medium text-gray-700 mb-1">' + __('Cerca libro') + '</label>'
-          + '<p class="text-sm text-gray-600 mb-2" style="margin-top:0">' + __('Cerca un libro già in catalogo da collegare come volume.') + '</p>'
-          + '<input id="swal-volume-search" class="swal2-input" placeholder="' + __('Titolo o ISBN...') + '" style="margin:0;width:100%">'
+          + '<label class="block text-sm font-medium text-gray-700 mb-1">' + escapeHtml(__('Cerca libro')) + '</label>'
+          + '<p class="text-sm text-gray-600 mb-2" style="margin-top:0">' + escapeHtml(__('Cerca un libro già in catalogo da collegare come volume.')) + '</p>'
+          + '<input id="swal-volume-search" class="swal2-input" placeholder="' + escapeHtml(__('Titolo o ISBN...')) + '" style="margin:0;width:100%">'
           + '<div id="swal-volume-results" class="mt-2 max-h-40 overflow-y-auto text-sm"></div>'
           + '<input type="hidden" id="swal-volume-id" value="">'
-          + '<label class="block text-sm font-medium text-gray-700 mt-3 mb-1">' + __('Numero volume') + '</label>'
+          + '<label class="block text-sm font-medium text-gray-700 mt-3 mb-1">' + escapeHtml(__('Numero volume')) + '</label>'
           + '<input id="swal-volume-num" type="number" class="swal2-input" min="1" value="1" style="margin:0;width:100%">'
           + '</div>',
         showCancelButton: true,
@@ -2209,12 +2209,12 @@ unset($workspaceHeader);
 
       if (window.Swal) {
         Swal.fire({
-          title: __('Conferma modifica'),
+          title: escapeHtml(__('Conferma modifica')),
           text: __('Vuoi aggiornare lo stato di questa copia?'),
           icon: 'question',
           showCancelButton: true,
-          confirmButtonText: __('Sì, aggiorna'),
-          cancelButtonText: __('Annulla'),
+          confirmButtonText: escapeHtml(__('Sì, aggiorna')),
+          cancelButtonText: escapeHtml(__('Annulla')),
           confirmButtonColor: '#1f2937'
         }).then(result => {
           if (result.isConfirmed) {
@@ -2231,12 +2231,12 @@ unset($workspaceHeader);
     function confirmDeleteCopy(copyId, numeroInventario) {
       if (window.Swal) {
         Swal.fire({
-          title: __('Elimina copia'),
-          html: `${__('Sei sicuro di voler eliminare la copia')} <strong>${escapeHtml(numeroInventario)}</strong>?<br><span class="text-sm text-gray-600">${__('Questa azione non può essere annullata.')}</span>`,
+          title: escapeHtml(__('Elimina copia')),
+          html: `${escapeHtml(__('Sei sicuro di voler eliminare la copia'))} <strong>${escapeHtml(numeroInventario)}</strong>?<br><span class="text-sm text-gray-600">${escapeHtml(__('Questa azione non può essere annullata.'))}</span>`,
           icon: 'warning',
           showCancelButton: true,
-          confirmButtonText: __('Sì, elimina'),
-          cancelButtonText: __('Annulla'),
+          confirmButtonText: escapeHtml(__('Sì, elimina')),
+          cancelButtonText: escapeHtml(__('Annulla')),
           confirmButtonColor: '#dc2626'
         }).then(result => {
           if (result.isConfirmed) {
