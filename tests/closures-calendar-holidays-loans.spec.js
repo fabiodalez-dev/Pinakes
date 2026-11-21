@@ -259,21 +259,26 @@ test.describe('Holidays in circulation', () => {
   test.afterAll(async () => {
     dropCreatedHolidays();
     if (prev.ready) {
-      // Rows that existed before the run: put back as they were (a preset
-      // apply may have adopted or removed one); rows written meanwhile by
-      // someone else are left alone.
-      const cols = prev.closureColumns.map((c) => `\`${c}\``);
-      const set = cols.filter((c) => c !== '`id`').map((c) => `c.${c}=b.${c}`).join(', ');
-      db(`UPDATE calendario_chiusure c JOIN ${prev.closureBackup} b ON b.id=c.id SET ${set}`);
-      db(`INSERT INTO calendario_chiusure (${cols.join(', ')}) SELECT ${cols.map((c) => `b.${c}`).join(', ')} FROM ${prev.closureBackup} b LEFT JOIN calendario_chiusure c ON c.id=b.id WHERE c.id IS NULL`);
-      db(`UPDATE festivita_personalizzate SET attiva=1 WHERE id IN (${prev.activeCustomIds.join(',') || '0'})`);
-      db("DELETE FROM system_settings WHERE category='calendar' AND setting_key LIKE 'holiday\\_%'");
-      for (const [key, value] of prev.holidaySettings) {
-        db(`INSERT INTO system_settings (category, setting_key, setting_value) VALUES ('calendar', UNHEX('${key}'), UNHEX('${value}'))`);
+      // The feature switches come back even when a restore above throws:
+      // a leaked switch would change every later suite.
+      try {
+        // Rows that existed before the run: put back as they were (a preset
+        // apply may have adopted or removed one); rows written meanwhile by
+        // someone else are left alone.
+        const cols = prev.closureColumns.map((c) => `\`${c}\``);
+        const set = cols.filter((c) => c !== '`id`').map((c) => `c.${c}=b.${c}`).join(', ');
+        db(`UPDATE calendario_chiusure c JOIN ${prev.closureBackup} b ON b.id=c.id SET ${set}`);
+        db(`INSERT INTO calendario_chiusure (${cols.join(', ')}) SELECT ${cols.map((c) => `b.${c}`).join(', ')} FROM ${prev.closureBackup} b LEFT JOIN calendario_chiusure c ON c.id=b.id WHERE c.id IS NULL`);
+        db(`UPDATE festivita_personalizzate SET attiva=1 WHERE id IN (${prev.activeCustomIds.join(',') || '0'})`);
+        db("DELETE FROM system_settings WHERE category='calendar' AND setting_key LIKE 'holiday\\_%'");
+        for (const [key, value] of prev.holidaySettings) {
+          db(`INSERT INTO system_settings (category, setting_key, setting_value) VALUES ('calendar', UNHEX('${key}'), UNHEX('${value}'))`);
+        }
+        if (prev.weekdays === '') db("DELETE FROM system_settings WHERE category='loans' AND setting_key='closed_weekdays'");
+        else db(`INSERT INTO system_settings (category, setting_key, setting_value) VALUES ('loans','closed_weekdays',UNHEX('${prev.weekdays}')) ON DUPLICATE KEY UPDATE setting_value=VALUES(setting_value)`);
+      } finally {
+        await ft.restoreFeatures(prev.features);
       }
-      if (prev.weekdays === '') db("DELETE FROM system_settings WHERE category='loans' AND setting_key='closed_weekdays'");
-      else db(`INSERT INTO system_settings (category, setting_key, setting_value) VALUES ('loans','closed_weekdays',UNHEX('${prev.weekdays}')) ON DUPLICATE KEY UPDATE setting_value=VALUES(setting_value)`);
-      await ft.writeFeatures(prev.features);
     }
     restoreLoans(db, loanSnap, ADMIN_EMAIL);
     db(`DROP TABLE IF EXISTS ${prev.closureBackup}`);
