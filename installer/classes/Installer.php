@@ -1290,6 +1290,25 @@ HTACCESS;
         return PHP_SAPI === 'cli';
     }
 
+    /**
+     * True when a database with $tableCount tables, the first of which is
+     * $firstTable, has never been filled: no table at all, or only the import
+     * proof table the installer creates at step 2 (CREATE TABLE of the proof
+     * runs before the schema import). The proof table carries a nonce and no
+     * account, so it must not make the new database look populated: a step-2
+     * resubmit over the same database, and the takeover of an install whose
+     * owner lost its session, both keep working. A new step 2 rewrites the
+     * nonce (REPLACE INTO), which cuts off the previous owner's proof. Who may
+     * go on is still decided by the live-claim check, never by this probe.
+     */
+    public static function schemaHoldsNoAccounts(int $tableCount, ?string $firstTable): bool {
+        if ($tableCount === 0) {
+            return true;
+        }
+        return $tableCount === 1 && $firstTable !== null
+            && strcasecmp($firstTable, self::INSTALL_PROOF_TABLE) === 0;
+    }
+
     /** @var bool|null memo of configuredDatabaseIsEmpty() for this request */
     private $configuredDatabaseEmpty = null;
 
@@ -1314,16 +1333,11 @@ HTACCESS;
             try {
                 $result = $db->query('SELECT COUNT(*), MIN(TABLE_NAME) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE()');
                 $count = $result instanceof \mysqli_result ? $result->fetch_row() : null;
-                $this->configuredDatabaseEmpty = is_array($count) && (int) $count[0] === 0;
-                // A crash between the proof-table DDL and the first schema import
-                // can leave this table as the only object. Only its current owner
-                // may resume, and never over a different installation's proof.
-                if (is_array($count) && (int) $count[0] === 1 && $count[1] === self::INSTALL_PROOF_TABLE
-                    && $this->ownsInstallInProgress()) {
-                    $stored = $this->readProofNonce();
-                    $this->configuredDatabaseEmpty = $stored === null
-                        || (is_string($stored) && hash_equals($this->ownerDatabaseNonce(), $stored));
-                }
+                // Step 2 records the import proof at once, so a database that
+                // holds nothing but that table is a database nobody has filled
+                // yet (no account can exist in it): see schemaHoldsNoAccounts().
+                $this->configuredDatabaseEmpty = is_array($count)
+                    && self::schemaHoldsNoAccounts((int) $count[0], is_string($count[1] ?? null) ? $count[1] : null);
             } finally {
                 $db->close();
             }

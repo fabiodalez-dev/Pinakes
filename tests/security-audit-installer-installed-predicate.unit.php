@@ -686,6 +686,29 @@ $check(str_contains($out, 'Installazione Completata!') && is_file($site5 . '/.in
     'the success page appears only once .installed exists, and the binding is released');
 
 // ---------------------------------------------------------------------------
+// Review of PR #536: step 2 now earns the import proof, which creates the proof
+// table in the new database. A database holding nothing but that table has no
+// account in it and must still count as empty: a step-2 resubmit over the same
+// database (Validator) and the takeover of an install whose owner lost its
+// session (the emptiness probe) both depend on it.
+$check(Installer::schemaHoldsNoAccounts(0, null) === true, 'no table: empty');
+$check(Installer::schemaHoldsNoAccounts(1, Installer::INSTALL_PROOF_TABLE) === true, 'only the proof table: still empty');
+$check(Installer::schemaHoldsNoAccounts(1, strtoupper(Installer::INSTALL_PROOF_TABLE)) === true, 'only the proof table, in the case a lower_case_table_names=0 server reports it: still empty');
+$check(Installer::schemaHoldsNoAccounts(1, 'email_delivery_outbox') === false, 'a single stray table is not the proof table: populated');
+$check(Installer::schemaHoldsNoAccounts(1, null) === false, 'one table of unknown name: populated (fails closed)');
+$check(Installer::schemaHoldsNoAccounts(2, Installer::INSTALL_PROOF_TABLE) === false, 'the proof table plus anything else: populated');
+$check(Installer::schemaHoldsNoAccounts(12, 'autori') === false, 'an imported schema: populated');
+
+$validatorSrc = (string) file_get_contents($ROOT . '/installer/classes/Validator.php');
+$check(str_contains($validatorSrc, 'Installer::schemaHoldsNoAccounts(count($tables)') && !str_contains($validatorSrc, 'count($tables) > 0'),
+    'the step-2 validator judges the database through the same helper, not a bare table count');
+$installerSrc = (string) file_get_contents($ROOT . '/installer/classes/Installer.php');
+$check(str_contains($installerSrc, 'self::schemaHoldsNoAccounts((int) $count[0]'),
+    'the emptiness probe judges the database through the same helper');
+$check(!str_contains($installerSrc, '&& $this->ownsInstallInProgress()) {' . "\n" . '                    $stored = $this->readProofNonce();'),
+    'a proof-only database is no longer empty for its owner alone');
+
+// ---------------------------------------------------------------------------
 // Cleanup: only the private temp tree created above.
 $it = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($tmpRoot, FilesystemIterator::SKIP_DOTS), RecursiveIteratorIterator::CHILD_FIRST);
 foreach ($it as $f) {
