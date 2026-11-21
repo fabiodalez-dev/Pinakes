@@ -157,10 +157,10 @@ test('action styling preserves hidden and responsive layout behaviour', async ({
 test('API key eye remains centred on hover and has an accessible name', async ({ page }) => {
   await login(page);
   await page.goto(`${BASE}/admin/plugins`);
-  const configure = page.locator('button[onclick="openApiBookScraperModal(this)"]');
+  const configure = page.locator('button[data-pk-action="plugins-open-api-scraper"]');
   await expect(configure).toBeVisible();
   await configure.click();
-  const eye = page.locator('button[onclick="toggleApiKeyVisibility()"]');
+  const eye = page.locator('button[data-pk-action="plugins-toggle-api-key"]');
   await expect(eye).toHaveAttribute('aria-label', /.+/);
   const offset = async () => eye.evaluate(element => {
     const button = element.getBoundingClientRect();
@@ -171,5 +171,5 @@ test('API key eye remains centred on hover and has an accessible name', async ({
   await eye.hover();
   await expect.poll(offset).toBeLessThan(1);
   // Cancel rather than submit; this test does not read or change the key.
-  await page.locator('button[onclick="closeApiBookScraperModal()"]', { hasText: /Annulla|Cancel/ }).click();
+  await page.locator('button[data-pk-action="plugins-close-api-scraper"]', { hasText: /Annulla|Cancel/ }).click();
 });

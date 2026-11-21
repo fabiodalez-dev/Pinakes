@@ -97,8 +97,22 @@ session-based admin endpoints.
 
 1. The setting `api.enabled` must equal `'1'` (Admin → Settings → API tab).
    If disabled, **every** `/api/public/*` request returns `403`.
-2. Create an API key (stored in the `api_keys` table, managed by
-   `ApiKeyRepository`). Inactive/unknown keys return `401`.
+2. Create an API key (Admin → Settings → Advanced → API Keys). The full key is
+   shown **once**, right after creation: copy it then. Only a SHA-256 of the key
+   and its first 8 characters are stored (`api_keys.key_hash` /
+   `api_keys.key_prefix`, managed by `ApiKeyRepository`), so the settings page
+   afterwards shows just the prefix and a lost key cannot be recovered: delete it
+   and create a new one. Inactive/unknown keys return `401`. Keys created before
+   0.9.6 keep working. After installation, the first API request supplying a
+   key or the first visit to the API settings converts the existing keys to
+   hashes and clears the plaintext.
+
+Take a database backup before upgrading. The updater can restore the previous
+files if installation fails before conversion. To downgrade to a version
+before 0.9.6 after conversion, put the site in maintenance mode and restore the
+previous application files and the matching pre-upgrade database backup before
+reopening it. This restores the keys and their active/inactive state as of that
+backup. Keys created after it need to be reissued.
 
 ### Passing the key
 
@@ -176,11 +190,24 @@ curl "https://example.com/api/public/books/search?isbn13=9788842935780" \
 The full per-book object also includes: `data_acquisizione`, `data_pubblicazione`,
 `tipo_acquisizione`, `copertina_url`, `descrizione`, `parole_chiave`, `formato`,
 `tipo_media`, `peso`, `dimensioni`, `prezzo`, `numero_pagine`, `traduttore`,
-`collana`, `numero_serie`, `numero_inventario`, `note_varie`, `file_url`,
+`collana`, `numero_serie`, `numero_inventario`, `file_url`,
 `audio_url`, `created_at`, `updated_at`. The `prestito` object (when a loan is
-active) carries `data_prestito`, `data_scadenza`, `data_restituzione`, `stato`,
-`attivo` and the borrowing `utente`. `recensioni` only contains reviews with
-`stato = 'approvata'`.
+active) carries `id`, `data_prestito`, `data_scadenza`, `data_restituzione`,
+`stato` and `attivo` only: the borrower is never identified. `recensioni` only
+contains reviews with `stato = 'approvata'`; each review's `utente` carries the
+reviewer's `nome` and `cognome` only.
+
+Not exposed to API-key holders: the internal notes (`note_varie`, shown only on
+the admin book page) and any user account id (neither the reviewer's nor the
+borrower's).
+
+**Compatibility note (after 0.9.5):** review objects no longer carry `utente.id`.
+Up to 0.9.5 each entry of `recensioni` looked like
+`"utente": { "id": 42, "nome": "...", "cognome": "..." }`; it is now
+`"utente": { "nome": "...", "cognome": "..." }`. Integrations that keyed reviews
+by reviewer must use the review's own `id` instead. Book objects no longer carry
+`note_varie` either (up to 0.9.5 it held the internal notes of the record);
+there is no replacement field, the notes stay on the admin book page.
 
 **Status Codes**:
 - `200 OK`: success
@@ -188,6 +215,7 @@ active) carries `data_prestito`, `data_scadenza`, `data_restituzione`, `stato`,
 - `401 Unauthorized`: missing or invalid API key
 - `403 Forbidden`: API disabled (`api.enabled != '1'`)
 - `500 Internal Server Error`: unhandled error (logged via `SecureLogger`)
+- `503 Service Unavailable`: the API key could not be checked (database error during the lookup; logged)
 
 **Error shape** (public API): `{ "error": "<message>", "status": <code> }`.
 

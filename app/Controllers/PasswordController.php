@@ -43,7 +43,7 @@ class PasswordController
             return $response->withHeader('Location', RouteTranslator::route('forgot_password') . '?error=rate_limit')->withStatus(302);
         }
 
-        $stmt = $db->prepare("SELECT id, nome, cognome, email_verificata FROM utenti WHERE LOWER(email) = LOWER(?) LIMIT 1");
+        $stmt = $db->prepare("SELECT id, email, nome, cognome, email_verificata FROM utenti WHERE LOWER(email) = LOWER(?) LIMIT 1");
         $stmt->bind_param('s', $email);
         $stmt->execute();
         $res = $stmt->get_result();
@@ -78,10 +78,15 @@ class PasswordController
                     'user_id' => $row['id'],
                 ]);
             } else {
+                // Mail the address STORED on the account, never the one typed
+                // in the form: LOWER(email) = LOWER(?) under a unicode_ci
+                // collation also matches look-alike spellings, and the reset
+                // link must only ever reach the account's own mailbox.
+                $recipient = (string) ($row['email'] ?? '');
                 $name = trim((string) ($row['nome'] ?? '') . ' ' . (string) ($row['cognome'] ?? ''));
                 $subject = __('Recupera la tua password');
                 $html = '<h2>' . __('Recupera la tua password') . '</h2>' .
-                    '<p>' . __('Ciao') . ' ' . htmlspecialchars($name !== '' ? $name : $email, ENT_QUOTES, 'UTF-8') . ',</p>' .
+                    '<p>' . __('Ciao') . ' ' . htmlspecialchars($name !== '' ? $name : $recipient, ENT_QUOTES, 'UTF-8') . ',</p>' .
                     '<p>' . __('Abbiamo ricevuto una richiesta di reset della password per il tuo account.') . '</p>' .
                     '<p>' . __('Clicca sul pulsante qui sotto per resettare la tua password:') . '</p>' .
                     '<p style="margin: 20px 0;"><a href="' . htmlspecialchars($resetUrl, ENT_QUOTES, 'UTF-8') . '" style="background-color: #111827; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px;">' . __('Resetta Password') . '</a></p>' .
@@ -93,13 +98,13 @@ class PasswordController
                 // Use EmailService if available, fall back to Mailer
                 try {
                     $emailService = new EmailService($db);
-                    $emailService->sendEmail($email, $subject, $html, $name);
+                    $emailService->sendEmail($recipient, $subject, $html, $name);
                 } catch (\Throwable $e) {
                     // Use SecureLogger (not error_log): the PHPMailer exception
                     // message can embed the recipient address, and SecureLogger
                     // applies the centralised redaction/retention.
                     \App\Support\SecureLogger::error('EmailService failed, falling back to Mailer', ['error' => $e->getMessage()]);
-                    Mailer::send($email, $subject, $html);
+                    Mailer::send($recipient, $subject, $html);
                 }
             }
         } else {

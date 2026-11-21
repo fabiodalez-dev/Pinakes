@@ -189,7 +189,7 @@ unset($workspaceHeader);
   </div>
 </div>
 
-<script>
+<script<?= csp_nonce_attr() ?>>
 document.addEventListener('DOMContentLoaded', function() {
   // Filter functionality
   const filterType = document.getElementById('filter-type');
@@ -235,7 +235,7 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 
-<style>
+<style<?= csp_nonce_attr() ?>>
 .log-row {
   transition: background-color 0.2s;
 }

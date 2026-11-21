@@ -108,6 +108,8 @@ $check(is_array($out) && !str_contains((string) $out['swalTitle'], '<img') && st
  */
 $swalProbe = static function (string $snippet, string $drive) use ($run, $payload, $escapeHtml): ?array {
     $out = $run('const window = globalThis; window.BASE_PATH = ""; window.location = { href: "", reload() {} };'
+        // Page scripts register their data-pk-action verbs (pk-actions.js); nothing to wire here.
+        . ' window.PinakesActions = { register() {} };'
         . ' const CSRF_TOKEN = "t"; const __ = (k) => ' . json_encode($payload) . ' + k;'
         . ' globalThis.setTimeout = () => 0; console.error = () => {}; ' . $escapeHtml
         . ' const fired = []; const validation = []; let answers = [];'

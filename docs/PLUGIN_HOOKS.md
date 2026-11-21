@@ -266,21 +266,25 @@ Hooks::add('login.form.fields', function() {
 
 ### `login.validate` (Filter)
 **Status:** Implementato
-**File:** `app/Controllers/AuthController.php:107`
+**File:** `app/Controllers/AuthController.php` (login web), `storage/plugins/mobile-api/src/Controllers/AuthController.php` (login dell'app), `storage/plugins/ncip-server/NcipServerPlugin.php`, `storage/plugins/oai-pmh-server/OaiPmhServerPlugin.php`, `storage/plugins/resource-sync/ResourceSyncPlugin.php`, `storage/plugins/viaf-authority/ViafAuthorityPlugin.php` (Basic auth)
 
-Validazione personalizzata durante il login (reCAPTCHA, 2FA, etc.).
+Validazione personalizzata durante il login (reCAPTCHA, 2FA, etc.). Scatta per ogni accesso con email e password: il form web, il login dell'app mobile e l'autenticazione Basic di NCIP, OAI-PMH (download UNIMARC), ResourceSync e VIAF. Nei canali Basic il filtro gira solo dopo una password corretta su un account con email verificata.
 
 **Parametri:**
 - `$isValid` (bool): Risultato validazione predefinita
 - `$email` (string): Email fornita
 - `$request` (ServerRequestInterface): Oggetto richiesta
+- `$channel` (string): da dove arriva il login: `'web'` (form del browser), `'mobile'` (API dell'app), `'ncip'` (Basic auth di un client NCIP), `'oai-pmh'`, `'resourcesync'`, `'viaf'` (Basic auth di quei plugin). Argomento aggiunto in coda: un callback che dichiara solo i primi tre parametri continua a funzionare.
 
 **Restituisce:** bool - true se valido, false altrimenti
 
+Un controllo che ha senso solo nel browser (un CAPTCHA, un campo del form) va limitato a `$channel === 'web'`: un client NCIP, un harvester o l'app non possono rispondere e verrebbero sempre rifiutati. Un controllo sull'account (2FA, blocco, lista consentiti) vale invece per tutti i canali.
+
 **Esempio:**
 ```php
-Hooks::add('login.validate', function($isValid, $email, $request) {
+Hooks::add('login.validate', function($isValid, $email, $request, string $channel = 'web') {
     if (!$isValid) return false; // Già fallito
+    if ($channel !== 'web') return true; // il CAPTCHA esiste solo nel form web
 
     // Valida reCAPTCHA
     $response = $_POST['g-recaptcha-response'] ?? '';
@@ -1421,7 +1425,7 @@ Eseguito nel `<head>` sia del layout admin sia di quello frontend. Permette di i
 
 Controparte di `assets.head` in fondo al `<body>`: invocato con l'helper `do_action('assets.footer')`, senza argomenti, sia nel layout admin (dopo gli script inline del layout, prima del partial `scroll-to-top`) sia in quello frontend (dopo `$additional_js`, prima dei partial `cookie-banner` e `scroll-to-top`). Scatta quindi su ogni pagina HTML resa con uno dei due layout. Il valore di ritorno non viene letto. Adatto a `<script>` che devono girare dopo il markup della pagina.
 
-L'handler emette HTML (echo) direttamente nel documento, senza escape da parte del core. Il middleware CSP di `public/index.php` aggiunge il nonce della risposta a ogni `<script>` e `<style>` inline che non ne ha già uno, quindi gli script inline funzionano; gli script esterni restano soggetti a `script-src` (`'self'` e pochi host CDN elencati in `ContentSecurityPolicy::header()`). I dati PHP passati a JavaScript vanno codificati con `json_encode(..., JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP)`, come fa `openurl-resolver` in `assets.head`. Sul frontend, se la cache LiteSpeed opzionale è attiva, home, catalogo e scheda libro possono essere servite dalla cache condivisa: non emettere dati legati all'utente o alla sessione. Nessun plugin bundled registra oggi questo hook.
+L'handler emette HTML (echo) direttamente nel documento, senza escape da parte del core. Il core NON riscrive la risposta per aggiungere nonce: ogni `<script>` e `<style>` inline emesso da un plugin deve portare da sé il nonce della risposta, con `<script<?= csp_nonce_attr() ?>>` (o `'<script' . csp_nonce_attr() . '>'` in una stringa PHP), altrimenti il browser lo blocca. Gli attributi evento inline (`onclick="..."`, `onload="..."`, ...) sono sempre bloccati (`script-src-attr 'none'`): collega gli eventi da JavaScript con `addEventListener`, o con gli attributi `data-pk-action` / `data-pk-confirm` gestiti da `pk-actions.js`. Gli script esterni restano soggetti a `script-src` (`'self'` e pochi host CDN elencati in `ContentSecurityPolicy::header()`). I dati PHP passati a JavaScript vanno codificati con `json_encode(..., JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP)`, come fa `openurl-resolver` in `assets.head`. Sul frontend, se la cache LiteSpeed opzionale è attiva, home, catalogo e scheda libro possono essere servite dalla cache condivisa: non emettere dati legati all'utente o alla sessione. Nessun plugin bundled registra oggi questo hook.
 
 **Esempio:**
 
@@ -1429,8 +1433,8 @@ L'handler emette HTML (echo) direttamente nel documento, senza escape da parte d
 public function injectFooterScript(): void
 {
     $config = ['endpoint' => url('/api/mio-plugin')];
-    // Script inline: il nonce CSP viene aggiunto dal middleware
-    echo '<script>window.mioPlugin = ' . json_encode($config, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP) . ';</script>';
+    // Script inline: porta il nonce CSP della risposta
+    echo '<script' . csp_nonce_attr() . '>window.mioPlugin = ' . json_encode($config, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP) . ';</script>';
 }
 ```
 

@@ -1,4 +1,4 @@
-<script>
+<script<?= csp_nonce_attr() ?>>
 (function() {
   var btn = document.createElement('button');
   btn.id = 'scroll-to-top';

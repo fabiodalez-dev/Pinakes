@@ -36,7 +36,7 @@ try {
 }
 if ($themeCustomCss !== ''):
     ?>
-    <style>
+    <style<?= csp_nonce_attr() ?>>
         <?= $themeCustomCss ?>
     </style>
 <?php endif; ?>

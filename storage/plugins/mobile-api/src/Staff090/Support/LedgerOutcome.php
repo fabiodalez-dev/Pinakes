@@ -32,6 +32,9 @@ final class LedgerOutcome
         'missing_request_key'    => [422, 'validation', 'idempotency_key'],
         'amount_exceeds_balance' => [409, 'amount_exceeds_balance', null],
         'user_not_found'         => [404, 'not_found', null],
+        // Separation of duties (App\Support\SelfDealingGuard): an operator who is
+        // not an administrator never moves money on their own account.
+        'self_dealing'           => [403, 'not_permitted', null],
         'save_failed'            => [500, 'internal_error', null],
     ];
 

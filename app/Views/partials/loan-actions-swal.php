@@ -43,7 +43,7 @@ $loanActionTranslations = array_merge([
     'Prestito rifiutato!' => __('Prestito rifiutato!'),
 ], $loanActionTranslations ?? []);
 ?>
-<script>
+<script<?= csp_nonce_attr() ?>>
 (function() {
   const t = <?= json_encode($loanActionTranslations, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG); ?>;
   

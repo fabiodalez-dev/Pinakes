@@ -119,7 +119,7 @@ $currentEspressioneId = $hasOpera ? (int) ($currentOpera['espressione_id'] ?? 0)
 </div>
 
 <?php if ($id > 0): ?>
-<script>
+<script<?= csp_nonce_attr() ?>>
 (function () {
     const panel = document.getElementById('frbr-opera-panel');
     if (!panel || panel.dataset.frbrInit === '1') { return; }

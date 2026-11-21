@@ -193,7 +193,7 @@ unset($workspaceHeader);
   </div>
 </div>
 
-<script>
+<script<?= csp_nonce_attr() ?>>
 window.i18nLocale = <?= json_encode(\App\Support\I18n::getLocale(), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
 window.__ = function(key) { return key; };
 
@@ -324,7 +324,7 @@ document.addEventListener('DOMContentLoaded', function() {
             <a href="${window.BASE_PATH || ''}/admin/authors/edit/${id}" class="btn-icon btn-secondary w-7 h-7 inline-flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded transition-all" title="${<?= json_encode(htmlspecialchars(__('Modifica'), ENT_QUOTES, 'UTF-8'), JSON_HEX_TAG) ?>}" aria-label="${<?= json_encode(htmlspecialchars(__('Modifica'), ENT_QUOTES, 'UTF-8'), JSON_HEX_TAG) ?>}">
               <i class="fas fa-edit text-xs"></i>
             </a>
-            <button onclick="deleteAuthor(${id})" class="btn-icon btn-danger-outline w-7 h-7 inline-flex items-center justify-center text-gray-500 hover:text-red-600 hover:bg-red-50 rounded transition-all" title="${<?= json_encode(htmlspecialchars(__('Elimina'), ENT_QUOTES, 'UTF-8'), JSON_HEX_TAG) ?>}" aria-label="${<?= json_encode(htmlspecialchars(__('Elimina'), ENT_QUOTES, 'UTF-8'), JSON_HEX_TAG) ?>}">
+            <button type="button" data-pk-action="authors-delete" data-author-id="${id}" class="btn-icon btn-danger-outline w-7 h-7 inline-flex items-center justify-center text-gray-500 hover:text-red-600 hover:bg-red-50 rounded transition-all" title="${<?= json_encode(htmlspecialchars(__('Elimina'), ENT_QUOTES, 'UTF-8'), JSON_HEX_TAG) ?>}" aria-label="${<?= json_encode(htmlspecialchars(__('Elimina'), ENT_QUOTES, 'UTF-8'), JSON_HEX_TAG) ?>}">
               <i class="fas fa-trash text-xs"></i>
             </button>
           </div>`;
@@ -673,6 +673,7 @@ document.addEventListener('DOMContentLoaded', function() {
   });
 
   // Single delete
+  window.PinakesActions.register('authors-delete', (el) => window.deleteAuthor(parseInt(el.dataset.authorId, 10)));
   window.deleteAuthor = function(id) {
     Swal.fire({
       title: <?= json_encode(__("Sei sicuro?"), JSON_HEX_TAG) ?>,
@@ -702,7 +703,7 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 
-<style>
+<style<?= csp_nonce_attr() ?>>
 .entity-table-wrap { overflow-x: auto; }
 .line-clamp-1 { display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
 

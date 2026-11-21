@@ -24,7 +24,10 @@ class SeoController
 
         return $response
             ->withHeader('Content-Type', 'application/xml; charset=UTF-8')
-            ->withHeader('Cache-Control', 'public, max-age=3600, s-maxage=3600');
+            // private: a shared cache (CDN, proxy) must not keep the catalogue
+            // URL list — it would go on serving it for up to an hour after an
+            // admin turns private mode on. The crawler itself may still cache it.
+            ->withHeader('Cache-Control', 'private, max-age=3600');
     }
 
     public function robots(Request $request, Response $response): Response
@@ -156,7 +159,9 @@ class SeoController
         $response->getBody()->write(implode("\n", $lines));
         return $response
             ->withHeader('Content-Type', 'text/plain; charset=UTF-8')
-            ->withHeader('Cache-Control', 'public, max-age=3600');
+            // Same reasoning as the sitemap: no shared-cache copy that would
+            // outlive a switch to private mode.
+            ->withHeader('Cache-Control', 'private, max-age=3600');
     }
 
     public static function resolveBaseUrl(?Request $request = null): string

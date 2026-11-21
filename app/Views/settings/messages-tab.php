@@ -13,7 +13,7 @@ use App\Support\HtmlHelper;
         <p class="text-sm text-gray-600 mt-1"><?= __("Tutti i messaggi ricevuti tramite il form contatti") ?></p>
       </div>
       <div class="flex gap-2">
-        <button onclick="markAllAsRead()" class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white border border-gray-300 text-gray-700 text-sm font-semibold hover:bg-gray-50 transition-colors">
+        <button data-pk-action="messages-mark-all-read" class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white border border-gray-300 text-gray-700 text-sm font-semibold hover:bg-gray-50 transition-colors">
           <i class="fas fa-check-double"></i>
           <?= __("Segna tutti come letti") ?>
         </button>
@@ -88,10 +88,10 @@ use App\Support\HtmlHelper;
                   <?php endif; ?>
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                  <button onclick="viewMessage(<?php echo $message['id']; ?>)" class="text-blue-600 hover:text-blue-900 mr-3">
+                  <button data-pk-action="messages-view" data-message-id="<?php echo (int) $message['id']; ?>" class="text-blue-600 hover:text-blue-900 mr-3">
                     <i class="fas fa-eye"></i>
                   </button>
-                  <button onclick="deleteMessage(<?php echo $message['id']; ?>)" class="text-red-600 hover:text-red-900">
+                  <button data-pk-action="messages-delete" data-message-id="<?php echo (int) $message['id']; ?>" class="text-red-600 hover:text-red-900">
                     <i class="fas fa-trash"></i>
                   </button>
                 </td>
@@ -110,7 +110,7 @@ use App\Support\HtmlHelper;
   <div class="bg-white rounded-2xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
     <div class="p-6 border-b border-gray-200 flex items-center justify-between">
       <h3 class="text-xl font-semibold text-gray-900"><?= __("Dettagli Messaggio") ?></h3>
-      <button onclick="closeMessageModal()" class="text-gray-400 hover:text-gray-600">
+      <button data-pk-action="messages-close-modal" class="text-gray-400 hover:text-gray-600">
         <i class="fas fa-times text-xl"></i>
       </button>
     </div>
@@ -120,7 +120,7 @@ use App\Support\HtmlHelper;
   </div>
 </div>
 
-<script>
+<script<?= csp_nonce_attr() ?>>
 function viewMessage(id) {
   fetch(`${window.BASE_PATH}/admin/messages/${id}`)
     .then(response => { if (!response.ok) throw new Error('fetch failed'); return response.json(); })
@@ -166,12 +166,12 @@ function viewMessage(id) {
             <div class="mt-2 p-4 bg-gray-50 rounded-xl text-sm text-gray-900 whitespace-pre-wrap">${escapeHtml(data.messaggio)}</div>
           </div>
           <div class="flex gap-2 pt-4">
-            <button onclick="replyToMessage(this.dataset.email)" data-email="${escapeHtmlAttr(data.email)}" class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gray-900 text-white text-sm font-semibold hover:bg-gray-800 transition-colors">
+            <button type="button" data-pk-action="messages-reply" data-email="${escapeHtmlAttr(data.email)}" class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gray-900 text-white text-sm font-semibold hover:bg-gray-800 transition-colors">
               <i class="fas fa-reply"></i>
               ${escapeHtml(<?= json_encode(__("Rispondi"), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>)}
             </button>
             ${!data.is_archived ? `
-            <button onclick="archiveMessage(${parseInt(data.id, 10)})" class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gray-600 text-white text-sm font-semibold hover:bg-gray-700 transition-colors">
+            <button type="button" data-pk-action="messages-archive" data-message-id="${parseInt(data.id, 10)}" class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gray-600 text-white text-sm font-semibold hover:bg-gray-700 transition-colors">
               <i class="fas fa-archive"></i>
               ${escapeHtml(<?= json_encode(__("Archivia"), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>)}
             </button>
@@ -235,4 +235,12 @@ function escapeHtmlAttr(text) {
   div.textContent = text;
   return div.innerHTML.replace(/"/g, '&quot;').replace(/'/g, '&#x27;');
 }
+
+// Delegated actions (CSP script-src-attr 'none': no inline on* attributes).
+PinakesActions.register('messages-mark-all-read', () => markAllAsRead());
+PinakesActions.register('messages-view', (el) => viewMessage(parseInt(el.dataset.messageId, 10)));
+PinakesActions.register('messages-delete', (el) => deleteMessage(parseInt(el.dataset.messageId, 10)));
+PinakesActions.register('messages-close-modal', () => closeMessageModal());
+PinakesActions.register('messages-reply', (el) => replyToMessage(el.dataset.email));
+PinakesActions.register('messages-archive', (el) => archiveMessage(parseInt(el.dataset.messageId, 10)));
 </script>

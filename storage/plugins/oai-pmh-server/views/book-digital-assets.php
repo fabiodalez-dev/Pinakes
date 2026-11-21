@@ -195,7 +195,7 @@ $oaiHasData = !empty($assets);
     </div><!-- /#oai-digital-assets-body -->
 </div>
 
-<script>
+<script<?= csp_nonce_attr() ?>>
 (function () {
     'use strict';
 

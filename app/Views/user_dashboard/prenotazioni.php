@@ -36,7 +36,7 @@ function resolveCoverUrl(array $item, string $key = 'copertina_url'): string {
 
 <link rel="stylesheet" href="<?= htmlspecialchars(assetUrl('star-rating/dist/star-rating.css'), ENT_QUOTES, 'UTF-8') ?>">
 
-<style>
+<style<?= csp_nonce_attr() ?>>
   .loans-container {
     max-width: 1200px;
     margin: 0 auto;
@@ -961,8 +961,8 @@ function resolveCoverUrl(array $item, string $key = 'copertina_url'): string {
   </div>
 </div>
 
-<script src="<?= htmlspecialchars(assetUrl('star-rating/dist/star-rating.js'), ENT_QUOTES, 'UTF-8') ?>"></script>
-<script>
+<script<?= csp_nonce_attr() ?> src="<?= htmlspecialchars(assetUrl('star-rating/dist/star-rating.js'), ENT_QUOTES, 'UTF-8') ?>"></script>
+<script<?= csp_nonce_attr() ?>>
 // Global __ function for JavaScript inline handlers (onsubmit, onclick, etc.)
 if (typeof window.__ === 'undefined') {
   window.__ = function(key) {

@@ -217,7 +217,7 @@ include $corePartials . '/catalog-hero.php';
 
           <?php if ($status === 'offered' || $status === 'requested'): ?>
             <form method="post" action="<?= $e($base . '/' . $lid . '/cancel') ?>" class="mt-2"
-                  onsubmit="return confirm(<?= $e(json_encode(__('Annullare questa offerta?'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP)) ?>);">
+                  data-pk-confirm="<?= $e(__('Annullare questa offerta?')) ?>">
               <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
               <button type="submit" class="bc-btn bc-btn-danger bc-btn-sm"><?= $e(__('Annulla l\'offerta')) ?></button>
             </form>

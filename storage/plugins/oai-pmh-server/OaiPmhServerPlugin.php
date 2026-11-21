@@ -1249,7 +1249,12 @@ class OaiPmhServerPlugin
         // `periodicals` is only a legal set while the Emeroteca bridge is
         // exposed; otherwise it falls through to noRecordsMatch exactly like
         // any other unknown setSpec.
-        $validSets = ['', 'books', 'archives'];
+        // Same rule for `archives`: legal only while the Archives plugin is
+        // active (ListSets advertises it under the same gate).
+        $validSets = ['', 'books'];
+        if ($this->isArchivesSetExposed()) {
+            $validSets[] = 'archives';
+        }
         if ($this->isPeriodicalsSetExposed()) {
             $validSets[] = 'periodicals';
         }
@@ -2754,8 +2759,12 @@ class OaiPmhServerPlugin
             }
         }
 
-        // Try archival_unit pattern.
-        if (preg_match('/^oai:(?:pinakes|' . preg_quote($host, '/') . '):archival_unit:(\d+)$/i', $identifier, $m)) {
+        // Try archival_unit pattern. Resolvable only while Archives is
+        // exposed (same gate as the periodical branch below), so GetRecord
+        // cannot harvest a deactivated plugin's units record by record.
+        if (preg_match('/^oai:(?:pinakes|' . preg_quote($host, '/') . '):archival_unit:(\d+)$/i', $identifier, $m)
+            && $this->isArchivesSetExposed()
+        ) {
             $id   = (int) $m[1];
             $stmt = $this->db->prepare('SELECT * FROM archival_units WHERE id = ? AND deleted_at IS NULL');
             if (!$stmt) { return null; }
@@ -2823,6 +2832,10 @@ class OaiPmhServerPlugin
             $entityType = 'book';
             $entityId   = (int) $m[1];
         } elseif (preg_match('/^oai:(?:pinakes|' . $hostPat . '):archival_unit:(\d+)$/i', $identifier, $m)) {
+            // Deletion history follows the same exposure gate as the record.
+            if (!$this->isArchivesSetExposed()) {
+                return null;
+            }
             $entityType = 'archival_unit';
             $entityId   = (int) $m[1];
         } elseif (preg_match('/^oai:(?:pinakes|' . $hostPat . '):periodical:(\d+)$/i', $identifier, $m)) {
@@ -2968,9 +2981,12 @@ class OaiPmhServerPlugin
         return [
             // Books carry every format except ric-o.
             'book' => ($unqualified || $set === 'books') && $metadataPrefix !== 'ric-o',
-            // Archival units are oai_dc + ric-o only.
+            // Archival units are oai_dc + ric-o only, and only while Archives
+            // is exposed: a deactivated plugin keeps its tables, and its
+            // records must not stay harvestable through the oai_dc arm.
             'archival_unit' => ($unqualified || $set === 'archives')
-                && ($metadataPrefix === 'oai_dc' || $metadataPrefix === 'ric-o'),
+                && ($metadataPrefix === 'oai_dc' || $metadataPrefix === 'ric-o')
+                && $this->isArchivesSetExposed(),
             // Mastheads are oai_dc only, and only while Emeroteca is exposed.
             'periodical' => ($set === 'periodicals' || ($unqualified && $metadataPrefix === 'oai_dc'))
                 && $this->isPeriodicalsSetExposed(),
@@ -4026,33 +4042,34 @@ class OaiPmhServerPlugin
         ?ResponseInterface &$out,
         ?ServerRequestInterface $request = null
     ): bool {
-        if (
-            isset($_SESSION['user']) &&
-            in_array($_SESSION['user']['tipo_utente'] ?? '', ['admin', 'staff'], true)
-        ) {
+        if ($this->requireAdminOrStaff()) {
             return true;
         }
 
         $auth = $request !== null ? $request->getHeaderLine('Authorization') : '';
         if ($request !== null && $auth !== '' && str_starts_with($auth, 'Basic ')) {
-            // Throttle credential guessing per client IP, checked BEFORE the
-            // password (same 10 attempts / 300 s as the ResourceSync gate and
-            // the mobile login): every attempt counts toward the limit.
-            $ip   = (string) ($request->getServerParams()['REMOTE_ADDR'] ?? 'unknown');
-            $rlId = 'oai_unimarc_basic:' . $ip;
-            if (\App\Support\RateLimiter::isLimited($rlId, 10, 300)) {
+            // Throttle credential guessing per client IP AND account, checked
+            // BEFORE the password (same 10 attempts / 300 s as the ResourceSync
+            // gate and the mobile login): every attempt counts toward the
+            // limit, and a success clears only that account's counter — a
+            // staff login can no longer wipe the counter of guesses at another
+            // account from the same IP (same key shape as NCIP).
+            $ip      = (string) ($request->getServerParams()['REMOTE_ADDR'] ?? 'unknown');
+            $decoded = base64_decode(substr($auth, 6), true);
+            $parts   = $decoded !== false ? explode(':', $decoded, 2) : [];
+            // Plus a failures-only bucket per IP that no success clears, so
+            // spraying many accounts (or spellings of one) is capped too.
+            $rlId    = 'oai_unimarc_basic:' . \App\Support\RateLimiter::clientKey($ip) . ':' . \App\Support\RateLimiter::accountKey($parts[0] ?? '');
+            $rlIpId  = 'oai_unimarc_basic_fail:' . \App\Support\RateLimiter::clientKey($ip);
+            if (\App\Support\RateLimiter::isLimited($rlIpId, 30, 300, false) || \App\Support\RateLimiter::isLimited($rlId, 10, 300)) {
                 $out = $response->withStatus(429)->withHeader('Retry-After', '300');
                 return false;
             }
-            $decoded = base64_decode(substr($auth, 6), true);
-            if ($decoded !== false) {
-                $parts = explode(':', $decoded, 2);
-                if (count($parts) === 2 && $this->authenticateBasicOai($parts[0], $parts[1])) {
-                    // Successful auth clears the throttle for this IP.
-                    \App\Support\RateLimiter::reset($rlId);
-                    return true;
-                }
+            if (count($parts) === 2 && $this->authenticateBasicOai($parts[0], $parts[1], $request)) {
+                \App\Support\RateLimiter::reset($rlId);
+                return true;
             }
+            \App\Support\RateLimiter::isLimited($rlIpId, 30, 300); // count this failure for the IP
         }
 
         // Missing or invalid credentials — challenge the client (RFC 7235 §3.1)
@@ -4060,10 +4077,16 @@ class OaiPmhServerPlugin
         return false;
     }
 
-    private function authenticateBasicOai(string $email, string $pass): bool
+    /**
+     * Admin/staff Basic credentials, held to the same gates as the
+     * interactive login and NCIP: a verified email and the plugin
+     * 'login.validate' hook (2FA, allow-lists...), on the 'oai-pmh' channel,
+     * so a verification plugin cannot be bypassed through this endpoint.
+     */
+    private function authenticateBasicOai(string $email, string $pass, ServerRequestInterface $request): bool
     {
         $stmt = $this->db->prepare(
-            "SELECT password FROM utenti WHERE email = ? AND stato = 'attivo'
+            "SELECT password, email_verificata FROM utenti WHERE email = ? AND stato = 'attivo'
              AND tipo_utente IN ('admin','staff') LIMIT 1"
         );
         if ($stmt === false) { return false; }
@@ -4075,10 +4098,14 @@ class OaiPmhServerPlugin
         if ($row === null) {
             // Constant-time dummy verify: an unknown admin/staff email costs
             // the same bcrypt work as a wrong password (no enumeration oracle).
-            password_verify($pass, '$2y$12$FYWkjQ0krgMEuFnovQ3C6.vL6MZP/pdGGrLm.Q1PBhX29YNNu.Bfe');
+            \App\Support\PasswordTiming::equalize($pass);
             return false;
         }
-        return password_verify($pass, (string) $row['password']);
+        if (!password_verify($pass, (string) $row['password'])) {
+            return false;
+        }
+        return (int) ($row['email_verificata'] ?? 0) === 1
+            && (bool) \App\Support\Hooks::apply('login.validate', true, [$email, $request, 'oai-pmh']);
     }
 
     /**
@@ -4349,8 +4376,11 @@ class OaiPmhServerPlugin
 
     private function requireAdminOrStaff(): bool
     {
-        return isset($_SESSION['user']) &&
-            in_array($_SESSION['user']['tipo_utente'] ?? '', ['admin', 'staff'], true);
+        // Decide on the role read from the database on this request, not on
+        // the login-time session snapshot: a lookup failure or a demoted /
+        // suspended account fails CLOSED (same contract as AdminAuthMiddleware).
+        return isset($_SESSION['user'])
+            && \App\Support\SessionRoleRevalidator::holdsActiveRole(['admin', 'staff'], $this->db);
     }
 
     /**

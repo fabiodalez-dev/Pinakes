@@ -10,6 +10,14 @@ class SecurityLogsController
 {
     public function index(Request $request, Response $response): Response
     {
+        // security.log holds the e-mail addresses and IPs of every login
+        // attempt. AdminAuthMiddleware also admits staff on /admin paths, and
+        // the menu entry is administrator-only, so the role is re-checked here.
+        if (($_SESSION['user']['tipo_utente'] ?? '') !== 'admin') {
+            $_SESSION['error_message'] = __('Operazione riservata agli amministratori');
+            return $response->withHeader('Location', url('/admin/dashboard'))->withStatus(302);
+        }
+
         $logFile = __DIR__ . '/../../storage/security.log';
         $logs = [];
         $totalLines = 0;

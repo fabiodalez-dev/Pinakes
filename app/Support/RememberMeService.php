@@ -281,7 +281,7 @@ class RememberMeService
             return null;
         }
 
-        $token = $_COOKIE[self::COOKIE_NAME] ?? null;
+        $token = self::cookieToken();
         if ($token === null || strlen($token) !== self::TOKEN_LENGTH * 2) {
             return null;
         }
@@ -332,7 +332,7 @@ class RememberMeService
             return;
         }
 
-        $token = $_COOKIE[self::COOKIE_NAME] ?? null;
+        $token = self::cookieToken();
         if ($token !== null) {
             $tokenHash = hash('sha256', $token);
 
@@ -362,7 +362,7 @@ class RememberMeService
 
         // Get current token hash to preserve current session
         $currentTokenHash = null;
-        $token = $_COOKIE[self::COOKIE_NAME] ?? null;
+        $token = self::cookieToken();
         if ($token !== null) {
             $currentTokenHash = hash('sha256', $token);
         }
@@ -506,7 +506,7 @@ class RememberMeService
 
         // Pre-compute current token hash to avoid N+1 queries
         $currentTokenHash = null;
-        $token = $_COOKIE[self::COOKIE_NAME] ?? null;
+        $token = self::cookieToken();
         if ($token !== null) {
             $currentTokenHash = hash('sha256', $token);
         }
@@ -632,6 +632,19 @@ class RememberMeService
         $this->clearCookie();
     }
 
+    /**
+     * The remember-me cookie value, or null when absent or not a string.
+     *
+     * A client can send `remember_token[]=x`, which PHP turns into an array;
+     * strlen()/hash() on it would raise a TypeError (HTTP 500). Treat any
+     * non-string value exactly like a missing cookie.
+     */
+    private static function cookieToken(): ?string
+    {
+        $token = $_COOKIE[self::COOKIE_NAME] ?? null;
+        return is_string($token) ? $token : null;
+    }
+
     private function clearCookie(): void
     {
         // The note that lets concurrent sign-ins share one session is keyed by
@@ -639,7 +652,7 @@ class RememberMeService
         // id that a later request could still be pointed at — bounded by the
         // note's own short life, but there is no reason to rely on that when
         // every path that retires the cookie comes through here.
-        $token = (string) ($_COOKIE[self::COOKIE_NAME] ?? '');
+        $token = (string) self::cookieToken();
         if ($token !== '') {
             RememberMeSessionRegistry::forget($token);
         }

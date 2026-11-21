@@ -76,7 +76,7 @@ $statusMeta = [
             </form>
           <?php elseif ($status === 'proposed'): ?>
             <form method="post" action="<?= $e($base . '/' . $pairingId . '/decline') ?>"
-                  onsubmit="return confirm(<?= $e(json_encode(__('Ritirare questa proposta?'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP)) ?>);">
+                  data-pk-confirm="<?= $e(__('Ritirare questa proposta?')) ?>">
               <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
               <button type="submit" class="bc-btn bc-btn-danger bc-btn-sm">
                 <i class="fas fa-trash"></i><?= $e(__('Ritira')) ?>
@@ -84,7 +84,7 @@ $statusMeta = [
             </form>
           <?php elseif ($status === 'active'): ?>
             <form method="post" action="<?= $e($base . '/' . $pairingId . '/done') ?>"
-                  onsubmit="return confirm(<?= $e(json_encode(__('Segnare questa lettura in coppia come conclusa?'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP)) ?>);">
+                  data-pk-confirm="<?= $e(__('Segnare questa lettura in coppia come conclusa?')) ?>">
               <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
               <button type="submit" class="bc-btn bc-btn-outline bc-btn-sm">
                 <i class="fas fa-flag-checkered"></i><?= $e(__('Concludi')) ?>

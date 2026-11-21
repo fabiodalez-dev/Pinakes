@@ -104,7 +104,7 @@ $reservationsRoute = route_path('reservations');
                 <div class="pk-book__blank-foot"><div class="pk-book__rule"></div><?php if (!empty($it['editore'])): ?><div class="pk-book__brand"><?= htmlspecialchars(html_entity_decode((string) $it['editore'], ENT_QUOTES, 'UTF-8'), ENT_QUOTES, 'UTF-8'); ?></div><?php endif; ?></div>
               </div>
               <?php if ($cover !== ''): ?>
-              <img class="book-image pk-book__img" src="<?= htmlspecialchars((string) $cover, ENT_QUOTES, 'UTF-8'); ?>" alt="<?= htmlspecialchars(__("Copertina"), ENT_QUOTES, 'UTF-8') ?>" loading="lazy" decoding="async" onerror="this.onerror=null;this.classList.add('is-missing')">
+              <img class="book-image pk-book__img" src="<?= htmlspecialchars((string) $cover, ENT_QUOTES, 'UTF-8'); ?>" alt="<?= htmlspecialchars(__("Copertina"), ENT_QUOTES, 'UTF-8') ?>" loading="lazy" decoding="async" data-pk-fallback-class="is-missing">
               <?php endif; ?>
               <div class="pk-book__spine"></div>
               <div class="pk-book__gloss"></div>
@@ -139,7 +139,7 @@ $reservationsRoute = route_path('reservations');
 </div>
 
 <?php if ($totalItems > 0): ?>
-<script>
+<script<?= csp_nonce_attr() ?>>
 document.addEventListener('DOMContentLoaded', () => {
   const grid = document.getElementById('wishlist-grid');
   if (!grid) return;

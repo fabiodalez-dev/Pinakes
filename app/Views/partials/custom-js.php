@@ -27,7 +27,7 @@ use App\Support\ContentSanitizer;
     // JavaScript Essenziali: sempre caricati
     if (!empty($customJsEssential)):
         ?>
-        <script id="custom-js-essential">
+        <script<?= csp_nonce_attr() ?> id="custom-js-essential">
             <?= $customJsEssential ?>
         </script>
     <?php endif; ?>
@@ -37,7 +37,7 @@ use App\Support\ContentSanitizer;
     // Preparazione script per caricamento condizionato
     if (!empty($customJsAnalytics) || !empty($customJsMarketing)):
         ?>
-        <script id="custom-js-loader">
+        <script<?= csp_nonce_attr() ?> id="custom-js-loader">
                 (function () {
                     'use strict';
 

@@ -46,7 +46,9 @@ CREATE TABLE `email_delivery_outbox` (
 /*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `api_keys` (
   `id` int NOT NULL AUTO_INCREMENT,
-  `api_key` varchar(64) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `api_key` varchar(64) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `key_hash` char(64) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `key_prefix` varchar(16) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `name` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
   `description` text COLLATE utf8mb4_unicode_ci,
   `is_active` tinyint(1) DEFAULT '1',
@@ -55,6 +57,7 @@ CREATE TABLE `api_keys` (
   `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   UNIQUE KEY `api_key` (`api_key`),
+  UNIQUE KEY `uniq_key_hash` (`key_hash`),
   KEY `idx_api_key` (`api_key`),
   KEY `idx_is_active` (`is_active`)
 ) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

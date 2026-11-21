@@ -294,7 +294,7 @@ ob_start();
                                 <a href="<?= htmlspecialchars($bookUrl, ENT_QUOTES, 'UTF-8') ?>" tabindex="-1" aria-hidden="true">
                                     <img class="book-image" src="<?= htmlspecialchars($coverUrl, ENT_QUOTES, 'UTF-8') ?>"
                                          alt="" loading="lazy" decoding="async"
-                                         onerror="this.onerror=null;this.src=<?= htmlspecialchars(json_encode($defaultCoverUrl), ENT_QUOTES, 'UTF-8') ?>">
+                                         data-pk-fallback-src="<?= htmlspecialchars((string) $defaultCoverUrl, ENT_QUOTES, 'UTF-8') ?>">
                                 </a>
                                 <span class="book-status-badge <?= htmlspecialchars($statusClass, ENT_QUOTES, 'UTF-8') ?>"><span><?= htmlspecialchars($statusLabel, ENT_QUOTES, 'UTF-8') ?></span><?php do_action('book.badge.digital_icons', $book); ?></span>
                             </div>

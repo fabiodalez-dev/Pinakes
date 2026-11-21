@@ -144,7 +144,7 @@ unset($workspaceHeader);
 </div>
 
 <!-- JavaScript for Enhanced UX -->
-<script>
+<script<?= csp_nonce_attr() ?>>
 document.addEventListener('DOMContentLoaded', function() {
 
     // Initialize form validation
@@ -251,7 +251,7 @@ function isValidEmail(email) {
 </script>
 
 <!-- Custom Styles -->
-<style>
+<style<?= csp_nonce_attr() ?>>
 .fade-in {
   animation: fadeIn 0.5s ease-in-out;
 }

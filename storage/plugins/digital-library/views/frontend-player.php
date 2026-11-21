@@ -25,7 +25,7 @@ $bookTitle = htmlspecialchars($book['titolo'] ?? 'Audiobook', ENT_QUOTES, 'UTF-8
                     <span class="font-bold"><?= __("Audiobook") ?></span>
                 </h5>
                 <button type="button"
-                        onclick="document.getElementById('btn-toggle-audiobook')?.click()"
+                        data-pk-action="digital-library-close-audio"
                         class="ui-button btn-outline plugin-player-action plugin-player-action--close">
                     <i class="fas fa-times"></i>
                 </button>
@@ -72,7 +72,16 @@ $bookTitle = htmlspecialchars($book['titolo'] ?? 'Audiobook', ENT_QUOTES, 'UTF-8
     </div>
 </div>
 
-<script>
+<script<?= csp_nonce_attr() ?>>
+// The close (x) button delegates to the toggle button, which owns the
+// open/closed state of the player.
+if (window.PinakesActions && !window.PinakesActions.has('digital-library-close-audio')) {
+    window.PinakesActions.register('digital-library-close-audio', function () {
+        var toggle = document.getElementById('btn-toggle-audiobook');
+        if (toggle) toggle.click();
+    });
+}
+
 /**
  * Initialize Green Audio Player with Media Session API
  * Enables OS-level controls (lock screen, media keys, notifications)
@@ -223,7 +232,7 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 
-<style>
+<style<?= csp_nonce_attr() ?>>
 /* Audio Player — Black & White Theme */
 .player-digital-library {
     margin: 0;

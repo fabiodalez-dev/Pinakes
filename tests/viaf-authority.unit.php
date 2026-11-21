@@ -5,8 +5,8 @@ declare(strict_types=1);
  * viaf-authority: Basic-Auth throttle and the authority panel on a new author.
  *
  *  A. The Basic-Auth path of requireAdminOrStaff() is throttled per client IP
- *     (10 attempts / 5 min) BEFORE any password check, a success clears the
- *     counter, a wrong password is a 401 with a Basic challenge, and an
+ *     and account (10 attempts / 5 min) BEFORE any password check, a success
+ *     clears that account's counter only, a wrong password is a 401 with a Basic challenge, and an
  *     unknown account still spends a bcrypt round (no timing enumeration).
  *  B. renderAuthorFields() with no author row (authorId 0, the create form)
  *     has no Save button — the fields are posted with the form and stored by
@@ -65,7 +65,9 @@ $adminEmail = 'viaf-unit-' . bin2hex(random_bytes(4)) . '@example.invalid';
 $adminPass  = 'Viaf-unit-' . bin2hex(random_bytes(6));
 $hash = password_hash($adminPass, PASSWORD_DEFAULT);
 $card = 'VU' . strtoupper(bin2hex(random_bytes(5)));
-$ins = $db->prepare("INSERT INTO utenti (codice_tessera, nome, cognome, email, password, tipo_utente, stato) VALUES (?, 'Viaf', 'Unit', ?, ?, 'staff', 'attivo')");
+// Verified email: the Basic gate applies the same verified-email rule as the
+// interactive login.
+$ins = $db->prepare("INSERT INTO utenti (codice_tessera, nome, cognome, email, password, tipo_utente, stato, email_verificata) VALUES (?, 'Viaf', 'Unit', ?, ?, 'staff', 'attivo', 1)");
 $ins->bind_param('sss', $card, $adminEmail, $hash);
 $ins->execute();
 $ins->close();
@@ -83,7 +85,9 @@ $plugin = new ViafAuthorityPlugin($db, new \App\Support\HookManager($db));
 $gate = new ReflectionMethod($plugin, 'requireAdminOrStaff');
 
 $ip = '198.51.100.' . random_int(1, 254);
-$rlId = 'viaf_basic:' . $ip;
+// The counter is keyed on IP AND account (as NCIP): one key per email.
+$rlKey = static fn (string $email): string => 'viaf_basic:' . RateLimiter::clientKey($ip) . ':' . strtolower($email);
+$rlId = $rlKey($adminEmail);
 RateLimiter::reset($rlId);
 $_SESSION = [];
 
@@ -107,27 +111,27 @@ for ($i = 2; $i <= 9; $i++) {
 }
 [$ok] = $attempt($adminEmail, $adminPass);
 $check($ok, 'valid credentials pass while under the limit (10th attempt)');
-for ($i = 1; $i <= 9; $i++) {
-    [, $res] = $attempt('nobody-' . $i . '@example.invalid', 'x');
+for ($i = 1; $i <= 10; $i++) {
+    $attempt($adminEmail, $adminPass . '-wrong');
 }
-$check($res->getStatusCode() === 401, 'a success clears the counter: 9 more failures are still 401, not 429');
 [, $res] = $attempt('nobody@example.invalid', 'x');
-$check($res->getStatusCode() === 401, 'the 10th failure after the reset is still answered');
+$check($res->getStatusCode() === 401, 'another account has its own counter: still answered (401)');
 [$ok, $res] = $attempt($adminEmail, $adminPass);
-$check(!$ok && $res->getStatusCode() === 429, 'the 11th attempt is throttled BEFORE the password check (valid credentials get 429)');
+$check(!$ok && $res->getStatusCode() === 429, 'the 11th attempt on one account is throttled BEFORE the password check (valid credentials get 429)');
 $check($res->getHeaderLine('Retry-After') === '300', 'the 429 says when to retry');
 RateLimiter::reset($rlId);
+RateLimiter::reset($rlKey('nobody@example.invalid'));
 
 // Unknown account: the dummy bcrypt verify keeps the timing of a real one.
-$src = (string) file_get_contents($root . '/storage/plugins/viaf-authority/ViafAuthorityPlugin.php');
-$check(
-    preg_match('/if \(\$row === null\) \{[^}]*password_verify\(\$pass, \'\$2y\$/s', $src) === 1,
-    'an unknown account still spends a constant-time dummy password_verify'
-);
+$equalizedBefore = \App\Support\PasswordTiming::equalizedCount();
 $t0 = microtime(true);
 $attempt('nobody-timing@example.invalid', 'x');
+$check(
+    \App\Support\PasswordTiming::equalizedCount() === $equalizedBefore + 1,
+    'an unknown account still spends a constant-time dummy password_verify'
+);
 $unknownMs = (microtime(true) - $t0) * 1000;
-RateLimiter::reset($rlId);
+RateLimiter::reset($rlKey('nobody-timing@example.invalid'));
 $check($unknownMs > 20, sprintf('an unknown account costs a bcrypt round (%.1f ms)', $unknownMs));
 
 echo "B. Authority panel without an author row\n";

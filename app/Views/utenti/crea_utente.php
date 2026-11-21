@@ -197,7 +197,7 @@ unset($workspaceHeader);
   </div>
 </div>
 
-<script>
+<script<?= csp_nonce_attr() ?>>
 (function() {
   const roleField = document.getElementById('tipo_utente');
   const phoneField = document.getElementById('telefono');

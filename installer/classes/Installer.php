@@ -85,7 +85,8 @@ class Installer {
         $envContent .= "# Force HTTPS\n";
         $envContent .= "# Set to 'true' only if your server supports HTTPS (requires valid SSL certificate)\n";
         $envContent .= "# Leave 'false' for local development or HTTP-only production servers\n";
-        $envContent .= "FORCE_HTTPS=false\n";
+        $envContent .= "# Defaults to 'true' when the installation itself ran over HTTPS\n";
+        $envContent .= "FORCE_HTTPS=" . (self::isInstallRequestHttps() ? 'true' : 'false') . "\n";
         $envContent .= "\n# Canonical URL (auto-detected during installation)\n";
         $envContent .= "APP_CANONICAL_URL=" . $this->detectCanonicalUrl() . "\n";
 
@@ -198,6 +199,59 @@ class Installer {
             return null;
         }
         return $out;
+    }
+
+    /**
+     * Whether the installer request itself arrived over HTTPS.
+     *
+     * A direct TLS connection always counts. X-Forwarded-Proto / X-Forwarded-SSL
+     * count only when REMOTE_ADDR is a TRUSTED_PROXIES peer, using the same
+     * matcher as the application (App\Support\HtmlHelper), so a client cannot
+     * talk the installer into FORCE_HTTPS=true on an HTTP-only server (which
+     * would redirect-loop the freshly installed site).
+     *
+     * @param array<string, mixed>|null $server defaults to $_SERVER (injectable for tests)
+     */
+    public static function isInstallRequestHttps(?array $server = null): bool
+    {
+        $server ??= $_SERVER;
+        if (!empty($server['HTTPS']) && strtolower((string) $server['HTTPS']) !== 'off') {
+            return true;
+        }
+        if (!class_exists(\App\Support\HtmlHelper::class)) {
+            $helper = dirname(__DIR__, 2) . '/app/Support/HtmlHelper.php';
+            if (!is_file($helper)) {
+                return false;
+            }
+            require_once $helper;
+        }
+        if (!\App\Support\HtmlHelper::isTrustedProxyIp((string) ($server['REMOTE_ADDR'] ?? ''))) {
+            return false;
+        }
+        $proto = strtolower(trim(explode(',', (string) ($server['HTTP_X_FORWARDED_PROTO'] ?? ''))[0]));
+        $ssl = strtolower(trim((string) ($server['HTTP_X_FORWARDED_SSL'] ?? '')));
+        return $proto === 'https' || $ssl === 'on';
+    }
+
+    /**
+     * True when the request says it is HTTPS through X-Forwarded-Proto /
+     * X-Forwarded-SSL but the peer is not a TRUSTED_PROXIES entry, so
+     * isInstallRequestHttps() refuses it. During an install TRUSTED_PROXIES is
+     * normally not set yet, so a site behind a TLS-terminating proxy lands
+     * here: step 5 then leaves "Force HTTPS" unchecked and says why, instead
+     * of trusting a header any client can send.
+     *
+     * @param array<string, mixed>|null $server defaults to $_SERVER (injectable for tests)
+     */
+    public static function untrustedForwardedHttps(?array $server = null): bool
+    {
+        $server ??= $_SERVER;
+        if (self::isInstallRequestHttps($server)) {
+            return false;
+        }
+        $proto = strtolower(trim(explode(',', (string) ($server['HTTP_X_FORWARDED_PROTO'] ?? ''))[0]));
+        $ssl = strtolower(trim((string) ($server['HTTP_X_FORWARDED_SSL'] ?? '')));
+        return $proto === 'https' || $ssl === 'on';
     }
 
     /**
@@ -379,31 +433,59 @@ class Installer {
     }
 
     /**
+     * Feed an SQL file to the mysql client. The credentials go through a 0600
+     * --defaults-extra-file (as BackupManager does), never the command line,
+     * where -p<password> is visible to every local user in the process list.
+     * The file is removed as soon as the client exits.
+     *
+     * @return array{0:int,1:list<string>} exit code, merged stdout/stderr lines
+     */
+    private function runMysqlClientImport(string $sqlFile): array {
+        $host = (string) ($this->config['DB_HOST'] ?? 'localhost');
+        $port = (int) ($this->config['DB_PORT'] ?? 3306);
+        $database = (string) ($this->config['DB_NAME'] ?? '');
+        $username = (string) ($this->config['DB_USER'] ?? 'root');
+        $password = (string) ($this->config['DB_PASS'] ?? '');
+
+        $cnf = tempnam(sys_get_temp_dir(), 'pk_inst_cnf_');
+        if ($cnf === false) {
+            throw new Exception('Impossibile creare il file temporaneo delle credenziali per il client mysql');
+        }
+        try {
+            @chmod($cnf, 0600);
+            $escape = static fn (string $v): string => str_replace(['\\', '"'], ['\\\\', '\\"'], $v);
+            $lines = "[client]\n"
+                . 'user="' . $escape($username) . "\"\n"
+                . 'host="' . $escape($host) . "\"\n"
+                . 'port=' . $port . "\n";
+            // Same as before: an empty password sends none.
+            if ($password !== '') {
+                $lines .= 'password="' . $escape($password) . "\"\n";
+            }
+            if (file_put_contents($cnf, $lines) === false) {
+                throw new Exception('Impossibile scrivere il file temporaneo delle credenziali per il client mysql');
+            }
+
+            // --defaults-extra-file must be the first option.
+            $cmd = 'mysql --defaults-extra-file=' . escapeshellarg($cnf)
+                . ' --default-character-set=utf8mb4' // Force UTF-8 to prevent encoding corruption (📚 → ðŸ"š, È → Ãˆ)
+                . ' ' . escapeshellarg($database)
+                . ' < ' . escapeshellarg($sqlFile);
+
+            $output = [];
+            $exitCode = 0;
+            exec($cmd . ' 2>&1', $output, $exitCode);
+            return [$exitCode, $output];
+        } finally {
+            @unlink($cnf);
+        }
+    }
+
+    /**
      * Import schema using MySQL CLI (faster but requires exec())
      */
     private function importSchemaViaExec($schemaFile) {
-        $host = $this->config['DB_HOST'] ?? 'localhost';
-        $port = (int)($this->config['DB_PORT'] ?? 3306);
-        $database = $this->config['DB_NAME'] ?? '';
-        $username = $this->config['DB_USER'] ?? 'root';
-        $password = $this->config['DB_PASS'] ?? '';
-
-        // Build mysql command
-        $cmd = 'mysql';
-        $cmd .= ' -h ' . escapeshellarg($host);
-        $cmd .= ' -P ' . (int)$port;
-        $cmd .= ' -u ' . escapeshellarg($username);
-        if (!empty($password)) {
-            $cmd .= ' -p' . escapeshellarg($password);
-        }
-        $cmd .= ' --default-character-set=utf8mb4'; // Force UTF-8 to prevent encoding corruption (📚 → ðŸ"š, È → Ãˆ)
-        $cmd .= ' ' . escapeshellarg($database);
-        $cmd .= ' < ' . escapeshellarg($schemaFile);
-
-        // Execute mysql command
-        $output = [];
-        $exitCode = 0;
-        exec($cmd . ' 2>&1', $output, $exitCode);
+        [$exitCode, $output] = $this->runMysqlClientImport($schemaFile);
 
         if ($exitCode !== 0) {
             $errorMsg = implode("\n", $output);
@@ -516,28 +598,7 @@ class Installer {
      * Import data using MySQL CLI (faster but requires exec())
      */
     private function importDataViaExec($dataFile) {
-        $host = $this->config['DB_HOST'] ?? 'localhost';
-        $port = (int)($this->config['DB_PORT'] ?? 3306);
-        $database = $this->config['DB_NAME'] ?? '';
-        $username = $this->config['DB_USER'] ?? 'root';
-        $password = $this->config['DB_PASS'] ?? '';
-
-        // Build mysql command
-        $cmd = 'mysql';
-        $cmd .= ' -h ' . escapeshellarg($host);
-        $cmd .= ' -P ' . (int)$port;
-        $cmd .= ' -u ' . escapeshellarg($username);
-        if (!empty($password)) {
-            $cmd .= ' -p' . escapeshellarg($password);
-        }
-        $cmd .= ' --default-character-set=utf8mb4'; // Force UTF-8 to prevent encoding corruption (📚 → ðŸ"š, È → Ãˆ)
-        $cmd .= ' ' . escapeshellarg($database);
-        $cmd .= ' < ' . escapeshellarg($dataFile);
-
-        // Execute mysql command
-        $output = [];
-        $exitCode = 0;
-        exec($cmd . ' 2>&1', $output, $exitCode);
+        [$exitCode, $output] = $this->runMysqlClientImport($dataFile);
 
         if ($exitCode !== 0) {
             $errorMsg = implode("\n", $output);
@@ -2488,12 +2549,15 @@ HTACCESS;
 
     private function generateEncryptionKey(): string
     {
+        // No fallback: a key derived from uniqid()/mt_rand() is guessable, and it
+        // would encrypt every stored plugin secret. Without a CSPRNG the install
+        // stops here rather than write a weak PLUGIN_ENCRYPTION_KEY.
         try {
             $bytes = random_bytes(32);
-            return 'base64:' . base64_encode($bytes);
         } catch (\Throwable $e) {
-            return 'base64:' . base64_encode(hash('sha256', uniqid((string)mt_rand(), true), true));
+            throw new \RuntimeException('Impossibile generare una chiave di cifratura sicura (random_bytes non disponibile): ' . $e->getMessage(), 0, $e);
         }
+        return 'base64:' . base64_encode($bytes);
     }
 
     /**

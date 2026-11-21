@@ -22,7 +22,7 @@ $checks = [
     'scroll-to-top control has a 44px target' => str_contains($scroll, 'width:44px;height:44px'),
     'profile password form exposes its username to password managers' => str_contains($profile, 'name="username"') && str_contains($profile, 'autocomplete="username"'),
     'admin user email fields identify the login username' => str_contains($createUser, 'name="email" autocomplete="username"') && str_contains($editUser, 'name="email" autocomplete="username"'),
-    'GitHub token field belongs to a non-navigating form' => str_contains($updates, 'id="github-token-form"') && str_contains($updates, 'onsubmit="event.preventDefault(); saveGitHubToken();"') && str_contains($updates, 'autocomplete="new-password"'),
+    'GitHub token field belongs to a non-navigating form' => str_contains($updates, 'id="github-token-form"') && !str_contains($updates, 'onsubmit=') && preg_match("/getElementById\\('github-token-form'\\)\\?\\.addEventListener\\('submit',\\s*\\(event\\)\\s*=>\\s*\\{\\s*event\\.preventDefault\\(\\);\\s*saveGitHubToken\\(\\);/", $updates) === 1 && str_contains($updates, 'autocomplete="new-password"'),
 ];
 
 $failed = 0;

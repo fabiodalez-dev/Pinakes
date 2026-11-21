@@ -117,7 +117,7 @@ unset($workspaceHeader);
         <span class="text-xs text-gray-400"><?= $e(__('Attenzione: rinominare una chiave non migra i libri già in quello stato.')) ?></span>
       </div>
     </form>
-    <script>
+    <script<?= csp_nonce_attr() ?>>
       (function () {
         var table = document.getElementById('bc-workflow-table').querySelector('tbody');
         document.getElementById('bc-add-state').addEventListener('click', function () {
@@ -188,7 +188,7 @@ unset($workspaceHeader);
             <td class="py-2 pr-3">
               <form method="post" action="<?= $e(url('/admin/book-club/' . $clubId . '/members/' . (int) $member['id'] . '/update')) ?>">
                 <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
-                <select name="role" class="border border-gray-200 rounded px-2 py-1 text-xs" onchange="this.form.submit()">
+                <select name="role" class="border border-gray-200 rounded px-2 py-1 text-xs" data-pk-action="submit-form">
                   <?php foreach ($roles as $role): ?>
                     <option value="<?= $e($role['slug']) ?>" <?= $role['slug'] === $member['role_slug'] ? 'selected' : '' ?>><?= $e($role['name']) ?></option>
                   <?php endforeach; ?>
@@ -205,7 +205,7 @@ unset($workspaceHeader);
             <td class="py-2 pr-3">
               <form method="post" action="<?= $e(url('/admin/book-club/' . $clubId . '/members/' . (int) $member['id'] . '/update')) ?>">
                 <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
-                <select name="status" class="border border-gray-200 rounded px-2 py-1 text-xs" onchange="this.form.submit()">
+                <select name="status" class="border border-gray-200 rounded px-2 py-1 text-xs" data-pk-action="submit-form">
                   <?php foreach ($statusLabels as $value => $label): ?>
                     <option value="<?= $e($value) ?>" <?= $value === $member['status'] ? 'selected' : '' ?>><?= $e($label) ?></option>
                   <?php endforeach; ?>

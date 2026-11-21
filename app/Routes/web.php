@@ -1288,7 +1288,7 @@ return function (App $app): void {
         $db = $app->getContainer()->get('db');
         $controller = new DashboardController();
         return $controller->index($request, $response, $db);
-    })->add(new AuthMiddleware(['admin', 'staff', 'standard', 'premium']));
+    })->add(new AdminAuthMiddleware()); // back office: same audience as the global BackendPermissionsMiddleware
 
     // Withdraw every operator calendar link (dashboard "regenerate link").
     // AdminAuthMiddleware also admits staff: this is an admin-only action.
@@ -1485,12 +1485,12 @@ return function (App $app): void {
         $controller = new AutoriController();
         $db = $app->getContainer()->get('db');
         return $controller->index($request, $response, $db);
-    })->add(new AuthMiddleware(['admin', 'staff', 'standard', 'premium']));
+    })->add(new AdminAuthMiddleware()); // back office: same audience as the global BackendPermissionsMiddleware
     $app->get('/admin/authors/{id:\d+}', function ($request, $response, $args) use ($app) {
         $controller = new AutoriController();
         $db = $app->getContainer()->get('db');
         return $controller->show($request, $response, $db, (int) $args['id']);
-    })->add(new AuthMiddleware(['admin', 'staff', 'standard', 'premium']));
+    })->add(new AdminAuthMiddleware()); // back office: same audience as the global BackendPermissionsMiddleware
     $app->get('/admin/authors/create', function ($request, $response) {
         $controller = new AutoriController();
         return $controller->createForm($request, $response);
@@ -1599,13 +1599,13 @@ return function (App $app): void {
         $controller = new LibriController();
         $db = $app->getContainer()->get('db');
         return $controller->index($request, $response, $db);
-    })->add(new AuthMiddleware(['admin', 'staff', 'standard', 'premium']));
+    })->add(new AdminAuthMiddleware()); // back office: same audience as the global BackendPermissionsMiddleware
 
     $app->get('/admin/books/{id:\d+}', function ($request, $response, $args) use ($app) {
         $controller = new LibriController();
         $db = $app->getContainer()->get('db');
         return $controller->show($request, $response, $db, (int) $args['id']);
-    })->add(new AuthMiddleware(['admin', 'staff', 'standard', 'premium']));
+    })->add(new AdminAuthMiddleware()); // back office: same audience as the global BackendPermissionsMiddleware
 
     $app->get('/admin/books/create', function ($request, $response) use ($app) {
         $controller = new LibriController();
@@ -2502,12 +2502,12 @@ return function (App $app): void {
         $controller = new \App\Controllers\EditorsController();
         $db = $app->getContainer()->get('db');
         return $controller->index($request, $response, $db);
-    })->add(new AuthMiddleware(['admin', 'staff', 'standard', 'premium']));
+    })->add(new AdminAuthMiddleware()); // back office: same audience as the global BackendPermissionsMiddleware
     $app->get('/admin/publishers/{id:\d+}', function ($request, $response, $args) use ($app) {
         $controller = new \App\Controllers\EditorsController();
         $db = $app->getContainer()->get('db');
         return $controller->show($request, $response, $db, (int) $args['id']);
-    })->add(new AuthMiddleware(['admin', 'staff', 'standard', 'premium']));
+    })->add(new AdminAuthMiddleware()); // back office: same audience as the global BackendPermissionsMiddleware
     $app->get('/admin/publishers/create', function ($request, $response) {
         $controller = new \App\Controllers\EditorsController();
         return $controller->createForm($request, $response);
@@ -3669,59 +3669,9 @@ return function (App $app): void {
             ->withHeader('X-Proxy-Type', 'plugin');
     })->add(new AdminAuthMiddleware());
 
-    // Serve uploaded files from storage directory
-    $app->get('/uploads/storage/{filepath:.*}', function ($request, $response, $args) {
-        $rawPath = (string) ($args['filepath'] ?? '');
-        if ($rawPath === '') {
-            return $response->withStatus(404);
-        }
-
-        // Normalize and validate the requested path
-        $sanitizedPath = str_replace(["\0", "\r", "\n"], '', $rawPath);
-        $sanitizedPath = str_replace('\\', '/', $sanitizedPath);
-        $sanitizedPath = ltrim($sanitizedPath, '/');
-
-        if ($sanitizedPath === '' || preg_match('#(^|/)\.\.(?:/|$)#', $sanitizedPath)) {
-            return $response->withStatus(403);
-        }
-
-        $basePath = realpath(__DIR__ . '/../../storage/uploads');
-        if ($basePath === false) {
-            return $response->withStatus(500);
-        }
-
-        $fullPath = $basePath . '/' . $sanitizedPath;
-
-        // Ensure file exists and resolve real path for final security check
-        if (!file_exists($fullPath) || !is_file($fullPath)) {
-            return $response->withStatus(404);
-        }
-
-        $realFullPath = realpath($fullPath);
-        if ($realFullPath === false || !str_starts_with($realFullPath, $basePath)) {
-            return $response->withStatus(403);
-        }
-
-        // Security: Check file extension
-        $allowedExtensions = ['jpg', 'jpeg', 'png', 'gif'];
-        $extension = strtolower(pathinfo($realFullPath, PATHINFO_EXTENSION));
-        if (!in_array($extension, $allowedExtensions, true)) {
-            return $response->withStatus(403);
-        }
-
-        // Serve file
-        $finfo = new finfo(FILEINFO_MIME_TYPE);
-        $mimeType = $finfo->file($realFullPath);
-        $fileContent = file_get_contents($realFullPath);
-
-        if ($fileContent === false) {
-            return $response->withStatus(500);
-        }
-
-        $response->getBody()->write($fileContent);
-        return $response->withHeader('Content-Type', $mimeType)
-            ->withHeader('Cache-Control', 'public, max-age=3600');
-    });
+    // (No GET /uploads/storage/{filepath} route here: the earlier catch-all
+    // /uploads/{path:.*} always matched first, so it was dead code with a
+    // weaker containment check. ProtectedUploadController serves that prefix.)
 
     // Serve ICS calendar file for external calendar sync (dynamic generation)
     // Supports both legacy path and new clean URL
@@ -3773,7 +3723,7 @@ return function (App $app): void {
             $token = (string) ($request->getQueryParams()['token'] ?? '');
 
             $links = new \App\Support\LoanCalendarLinks($db);
-            if (!$links->isValidToken($loanId, $token)) {
+            if (!$links->isValidToken($loanId, $token) || !$links->isLinkLive($loanId)) {
                 return $response->withStatus(404);
             }
 

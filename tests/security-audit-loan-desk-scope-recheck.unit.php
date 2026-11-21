@@ -167,6 +167,16 @@ try {
     $a = $json($approval->rejectLoan($post(['loan_id' => (string) $control, 'reason' => 'audit']), new Response(), $db));
     $check($a['status'] === 200 && ($a['data']['success'] ?? null) === true, 'rejecting a reader request goes through');
 
+    // Built-in Staff can act on this borrower both before and after the hand-over.
+    // Only the separation-of-duties check on the locked row can refuse the write.
+    \App\Support\SessionRoleRevalidator::reset();
+    $_SESSION = ['user' => P::viewer($staff, $db)];
+    $own = $insertLoan($reader, null, 'pendente', 0);
+    $handOverAtBegin('prestiti', $own, $staff);
+    $a = $json($approval->rejectLoan($post(['loan_id' => (string) $own, 'reason' => 'audit']), new Response(), $db));
+    $check($a['status'] === 403 && ($a['data']['code'] ?? '') === 'self_dealing', 'reject checks the locked borrower against the operator');
+    $check(($one('SELECT stato FROM prestiti WHERE id = ?', $own)['stato'] ?? '') === 'pendente', 'the operator’s request stays pending');
+
     echo "The loan is handed to a Staff account after the first scope check\n";
     $actAsOperator();
     $pending = $insertLoan($reader, null, 'pendente', 0);
@@ -253,18 +263,40 @@ try {
     $db->rollback();
     $other->close();
 
-    $sources = [
-        'app/Controllers/LoanApprovalController.php' => "mayActOnBorrower(\$db, (int) (\$row['utente_id'] ?? 0), true)",
-        'app/Controllers/PrestitiController.php' => "mayActOnBorrower(\$db, \$utente_id, true)",
-        'app/Controllers/ReservationsAdminController.php' => "mayActOnBorrower(\$db, \$utenteId, true)",
-    ];
-    foreach ($sources as $file => $needle) {
-        $check(str_contains((string) file_get_contents($root . '/' . $file), $needle), basename($file) . ': the check inside the transaction is a locking read');
+    // The invariant, not a list of call sites: inside a method, every borrower
+    // scope check that follows begin_transaction() is a locking read. A list of
+    // needles let new checks added later (the overdue-extension waiver, the
+    // return desk's penalty, the bulk extension) slip through as plain reads.
+    $inTransaction = 0;
+    foreach (['LoanApprovalController', 'PrestitiController', 'ReservationsAdminController'] as $controller) {
+        $lines = file($root . '/app/Controllers/' . $controller . '.php') ?: [];
+        $method = '';
+        $txOpen = false;
+        foreach ($lines as $n => $line) {
+            if (preg_match('/^\s*(?:(?:public|private|protected|static|final)\s+)*function\s+(\w+)\s*\(/', $line, $m) === 1) {
+                $method = $m[1];
+                $txOpen = false;
+                continue;
+            }
+            $code = ltrim($line);
+            if (str_starts_with($code, '//') || str_starts_with($code, '*')) {
+                continue;
+            }
+            if (str_contains($line, 'begin_transaction(')) {
+                $txOpen = true;
+            }
+            if ($txOpen && str_contains($line, 'mayActOnBorrower(')) {
+                $inTransaction++;
+                $check(preg_match('/mayActOnBorrower\([^;]*,\s*true\)/', $line) === 1, "{$controller}::{$method}() line " . ($n + 1) . ': the check inside the transaction is a locking read');
+            }
+        }
     }
-    $prestiti = (string) file_get_contents($root . '/app/Controllers/PrestitiController.php');
-    foreach (["\$lockedOwnerId, true)", "\$newUserId, true)", "(int) \$lockedLoan['utente_id'], true)"] as $needle) {
-        $check(str_contains($prestiti, $needle), 'PrestitiController: locked-row check uses a locking read (' . $needle . ')');
-    }
+    // Guard against a scan that silently matches nothing (renamed method, moved file).
+    $check($inTransaction >= 9, "the scan found the in-transaction checks ({$inTransaction}, expected at least 9)");
+    // lockedRowOutOfScope() opens no transaction itself: its callers already hold one.
+    $approval = (string) file_get_contents($root . '/app/Controllers/LoanApprovalController.php');
+    $helperBody = preg_match('/function lockedRowOutOfScope\b[^{]*\{(.*?)\n    \}/s', $approval, $hm) === 1 ? $hm[1] : '';
+    $check(str_contains($helperBody, 'mayActOnBorrower(') && preg_match('/mayActOnBorrower\([^;]*,\s*true\)/', $helperBody) === 1, 'LoanApprovalController::lockedRowOutOfScope(): the check under the caller\'s transaction is a locking read');
 } catch (\Throwable $e) {
     $check(false, 'unexpected ' . get_class($e) . ': ' . $e->getMessage() . ' @ ' . basename($e->getFile()) . ':' . $e->getLine());
 } finally {

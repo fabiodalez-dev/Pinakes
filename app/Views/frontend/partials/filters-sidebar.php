@@ -94,8 +94,7 @@ $filterClearHref = (string) ($filterClearHref ?? '');
 <?php
 // Same small-screen behaviour as the catalogue sidebar: collapsed behind its
 // toggle at <=768px, always open above. Without JS the panel simply stays open.
-$additional_js = ($additional_js ?? '') . <<<'JS'
-<script>
+$additional_js = ($additional_js ?? '') . '<script' . csp_nonce_attr() . '>' . <<<'JS'
 (() => {
     const toggle = document.getElementById('catalog-filters-toggle');
     const content = document.getElementById('catalog-filters-content');

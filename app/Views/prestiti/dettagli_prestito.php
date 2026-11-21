@@ -250,7 +250,7 @@ foreach ($jsTranslationKeys as $key) {
     $jsTranslations[$key] = __($key);
 }
 ?>
-<script>
+<script<?= csp_nonce_attr() ?>>
 (function() {
     const translations = <?= json_encode($jsTranslations, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG); ?>;
     window.APP_TRANSLATIONS = Object.assign(window.APP_TRANSLATIONS || {}, translations);
@@ -262,7 +262,7 @@ foreach ($jsTranslationKeys as $key) {
     }
 })();
 </script>
-<script>
+<script<?= csp_nonce_attr() ?>>
 (function() {
     const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
 

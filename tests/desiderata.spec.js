@@ -15,6 +15,15 @@ const ADMIN_PASS = process.env.E2E_ADMIN_PASS || settings.E2E_ADMIN_PASS;
 let seeded;
 test.skip(!ADMIN_EMAIL || !ADMIN_PASS, 'Requires an installed app and E2E_ADMIN_EMAIL/E2E_ADMIN_PASS');
 test.describe.configure({mode:'serial'});
+
+// The receipt buttons confirm through pk-actions.js (data-pk-confirm), which
+// uses SweetAlert2 where the admin layout loads it: click, then confirm.
+async function clickAndConfirm(page, locator) {
+  await locator.click();
+  const confirm = page.locator('.swal2-confirm');
+  await confirm.waitFor({ state: 'visible', timeout: 15000 });
+  await confirm.click();
+}
 // The plugin is optional and ships inactive: nothing else in this shard turns
 // it on, and its routes 404 until it is. Activating here — through the real
 // admin endpoint, before the fixture seeds anything — is what lets the spec run
@@ -127,8 +136,8 @@ test('anonymous home offer, actual receipt and duplicate receipt protection',asy
   const context=await browser.newContext(); const admin=await context.newPage();
   try {
     // The receipt button now asks for confirmation (it creates a real
-    // inventory copy). Playwright dismisses dialogs by default, which would
-    // cancel the action; accept it the way an operator does.
+    // inventory copy). clickAndConfirm accepts it the way an operator does;
+    // the dialog handler covers the native fallback when Swal is absent.
     admin.on('dialog', dialog => dialog.accept());
     await login(admin); await admin.goto('/admin/desiderata');
     let row=admin.locator('article').filter({hasText:seeded.prefix+' desiderata'});
@@ -136,7 +145,7 @@ test('anonymous home offer, actual receipt and duplicate receipt protection',asy
     await expect(admin.locator('article').filter({hasText:seeded.prefix+' desiderata'})).toContainText('In attesa della consegna');
     expect(fixture('state').books.find(b=>b.id===seeded.wanted).physical).toBe(0);
     row=admin.locator('article').filter({hasText:seeded.prefix+' desiderata'});
-    await row.getByRole('button',{name:'Libro arrivato: registra una copia',exact:true}).click();
+    await clickAndConfirm(admin, row.getByRole('button',{name:'Libro arrivato: registra una copia',exact:true}));
     await expect(admin.locator('article').filter({hasText:seeded.prefix+' desiderata'})).toContainText('Ricevuta');
     state=fixture('state'); const acquired=state.books.find(b=>b.id===seeded.wanted);
     expect(acquired.physical).toBe(1); expect(acquired.is_desiderata).toBe(0);
@@ -165,7 +174,7 @@ test('free donation remains a proposal and can be matched to an existing zero-co
   await row.getByRole('searchbox').fill(seeded.prefix+' ordinario');
   await expect(row.locator('select option')).toHaveCount(2);
   await row.locator('select').selectOption(String(seeded.normal));
-  await row.getByRole('button',{name:'Libro arrivato: registra una copia',exact:true}).click();
+  await clickAndConfirm(page, row.getByRole('button',{name:'Libro arrivato: registra una copia',exact:true}));
   await expect(page.locator('article').filter({hasText:'Offerta libera '+tag})).toContainText('Ricevuta');
   expect(fixture('state').books.find(b=>b.id===seeded.normal).physical).toBe(1);
 });

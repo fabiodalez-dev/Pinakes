@@ -314,7 +314,7 @@ unset($workspaceHeader);
     </div>
   </div>
 </section>
-<style>
+<style<?= csp_nonce_attr() ?>>
   .suggestions-box {
     position: absolute;
     background: white;
@@ -343,8 +343,8 @@ unset($workspaceHeader);
   }
 </style>
 <?php include __DIR__ . '/../partials/copy-scanner-i18n.php'; ?>
-<script src="<?= htmlspecialchars(assetUrl('copy-scanner.bundle.js'), ENT_QUOTES, 'UTF-8') ?>" defer></script>
-<script>
+<script<?= csp_nonce_attr() ?> src="<?= htmlspecialchars(assetUrl('copy-scanner.bundle.js'), ENT_QUOTES, 'UTF-8') ?>" defer></script>
+<script<?= csp_nonce_attr() ?>>
 document.addEventListener('DOMContentLoaded', function () {
   const card = document.getElementById('codice_tessera');
   if (card) { card.focus(); }

@@ -777,7 +777,7 @@ final class MobileModule
                     array_push($params,$pat,$pat,$pat,$pat,$pat,trim(mb_substr($q['q'],0,200)));
                     if ($extraAuthors !== '') { array_push($params,$pat,$pat); }
                 }
-                $rows=$service->rows('SELECT c.*, '.\App\Plugins\Emeroteca\Services\ContributionService::PLACEMENT_COLUMNS.' FROM emeroteca_contributi c'.\App\Plugins\Emeroteca\Services\ContributionService::PLACEMENT_JOINS.' WHERE '.$where.' ORDER BY c.id LIMIT '.($limit+1),$params);
+                $rows=$service->rows('SELECT c.*, '.\App\Plugins\Emeroteca\Services\ContributionService::PLACEMENT_COLUMNS.' FROM emeroteca_contributi c'.\App\Plugins\Emeroteca\Services\ContributionService::PLACEMENT_JOINS.' WHERE '.$where.' ORDER BY c.id LIMIT ?',array_merge($params,[(int) $limit + 1]));
                 $rows=(new \App\Services\ArticleAuthorService($this->db))->hydrate($rows);
                 $more=count($rows)>$limit; if ($more) { array_pop($rows); }
                 $items=array_map($this->mapContribution(...),$rows);

@@ -59,7 +59,7 @@ if ($canReceive) {
   </div>
   <?php endif; ?>
 </div>
-<script>
+<script<?= csp_nonce_attr() ?>>
 document.addEventListener('DOMContentLoaded', () => {
   const flag = document.getElementById('is_desiderata');
   if (!flag) return;

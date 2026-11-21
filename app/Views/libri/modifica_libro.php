@@ -86,10 +86,28 @@ unset($workspaceHeader);
             <img src="<?= htmlspecialchars(url($currentCover), ENT_QUOTES, 'UTF-8') ?>"
                  alt="<?php echo HtmlHelper::e(($book['titolo'] ?? 'Libro') . ' - Copertina attuale'); ?>"
                  class="w-12 h-16 object-cover rounded border"
-                 onerror="this.style.display='none'; this.closest('[data-current-cover]').style.display = 'none';" />
+                 data-edit-cover-thumb />
         </div>
       </div>
     </div>
+    <script<?= csp_nonce_attr() ?>>
+      // A cover whose file is gone hides the whole "current cover" box
+      // (was an inline onerror, forbidden by the CSP).
+      (function () {
+        var img = document.querySelector('img[data-edit-cover-thumb]');
+        if (!img) return;
+        var done = false;
+        var hide = function () {
+          if (done) return;
+          done = true;
+          img.style.display = 'none';
+          var box = img.closest('[data-current-cover]');
+          if (box) box.style.display = 'none';
+        };
+        img.addEventListener('error', hide);
+        if (img.complete && img.naturalWidth === 0 && img.getAttribute('src')) hide();
+      })();
+    </script>
     <?php endif; ?>
 
     <!-- Main Form -->

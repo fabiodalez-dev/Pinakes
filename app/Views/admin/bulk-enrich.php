@@ -145,7 +145,7 @@ unset($workspaceHeader);
     </div>
 </div>
 
-<script>
+<script<?= csp_nonce_attr() ?>>
 const csrfToken = <?= json_encode(Csrf::ensureToken(), JSON_HEX_TAG) ?>;
 // Route URLs built server-side once — no per-fetch string concatenation of
 // window.BASE_PATH + hardcoded path. If the route changes or the subfolder

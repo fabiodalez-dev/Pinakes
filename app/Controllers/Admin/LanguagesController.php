@@ -884,6 +884,11 @@ class LanguagesController
                 continue;
             }
 
+            if (!self::isSafeRouteSlug($trimmedValue)) {
+                $errors[] = __("La route") . " '$key' " . __("contiene caratteri non validi");
+                continue;
+            }
+
             $validatedRoutes[$key] = $trimmedValue;
         }
 
@@ -922,6 +927,19 @@ class LanguagesController
                 ->withHeader('Location', '/admin/languages/' . urlencode($code) . '/edit-routes')
                 ->withStatus(302);
         }
+    }
+
+    /**
+     * A route slug is a URL path: after the leading '/' only letters, digits
+     * and the unreserved path characters . _ ~ - / are allowed, plus the
+     * {placeholder} braces the shipped route files use (/api/bibframe/book/{id}).
+     * Quotes, '<', '>', '?', '#', '%', '\\' and control characters are
+     * refused, so a slug can never break out of the HTML attribute or script
+     * it is later printed into.
+     */
+    public static function isSafeRouteSlug(string $value): bool
+    {
+        return preg_match('~^/[\p{L}\p{N}._\~/{}-]*$~uD', $value) === 1;
     }
 
     /**

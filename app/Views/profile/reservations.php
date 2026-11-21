@@ -33,7 +33,7 @@ $profileReservationCoverUrl = static function (array $item): string {
 <!-- Link star-rating.js CSS -->
 <link rel="stylesheet" href="<?= htmlspecialchars(assetUrl('star-rating/dist/star-rating.css'), ENT_QUOTES, 'UTF-8') ?>">
 
-<style>
+<style<?= csp_nonce_attr() ?>>
   .loans-container {
     max-width: 1200px;
     margin: 0 auto;
@@ -373,7 +373,7 @@ $profileReservationCoverUrl = static function (array $item): string {
           <a href="<?php echo htmlspecialchars($profileReservationBookUrl($p), ENT_QUOTES, 'UTF-8'); ?>" class="item-cover">
             <img src="<?php echo htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>"
                  alt="<?php echo App\Support\HtmlHelper::e(($p['titolo'] ?? __('Libro')) . ' - ' . __('Copertina')); ?>"
-                 onerror="this.onerror=null;this.src=(window.BASE_PATH||'')+'/uploads/copertine/placeholder.jpg'">
+                 data-pk-fallback-src="<?= htmlspecialchars(url('/uploads/copertine/placeholder.jpg'), ENT_QUOTES, 'UTF-8') ?>">
           </a>
           <div class="item-info">
             <h3 class="item-title"><a href="<?php echo htmlspecialchars($profileReservationBookUrl($p), ENT_QUOTES, 'UTF-8'); ?>"><?php echo App\Support\HtmlHelper::e($p['titolo'] ?? ''); ?></a></h3>
@@ -435,7 +435,7 @@ $profileReservationCoverUrl = static function (array $item): string {
             <a href="<?php echo htmlspecialchars($profileReservationBookUrl($p), ENT_QUOTES, 'UTF-8'); ?>" class="item-cover">
               <img src="<?php echo htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>"
                    alt="<?= htmlspecialchars(__('Copertina'), ENT_QUOTES, 'UTF-8') ?>"
-                   onerror="this.onerror=null;this.src=(window.BASE_PATH||'')+'/uploads/copertine/placeholder.jpg'">
+                   data-pk-fallback-src="<?= htmlspecialchars(url('/uploads/copertine/placeholder.jpg'), ENT_QUOTES, 'UTF-8') ?>">
             </a>
             <div class="item-info">
               <h3 class="item-title"><a href="<?php echo htmlspecialchars($profileReservationBookUrl($p), ENT_QUOTES, 'UTF-8'); ?>"><?php echo App\Support\HtmlHelper::e($p['titolo'] ?? ''); ?></a></h3>
@@ -472,7 +472,7 @@ $profileReservationCoverUrl = static function (array $item): string {
                 <span><?= __('Già recensito') ?></span>
               </button>
               <?php elseif (!$isScheduled): ?>
-              <button class="btn-review" onclick="openReviewModal(<?php echo (int)$p['libro_id']; ?>, <?php echo htmlspecialchars(json_encode($p['titolo'] ?? '', JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT), ENT_QUOTES, 'UTF-8'); ?>)">
+              <button type="button" class="btn-review" data-pk-action="review-open" data-book-id="<?php echo (int)$p['libro_id']; ?>" data-book-title="<?php echo htmlspecialchars((string) ($p['titolo'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
                 <i class="fas fa-star"></i>
                 <span><?= __('Lascia una recensione') ?></span>
               </button>
@@ -513,7 +513,7 @@ $profileReservationCoverUrl = static function (array $item): string {
             <a href="<?php echo htmlspecialchars($profileReservationBookUrl($p), ENT_QUOTES, 'UTF-8'); ?>" class="item-cover">
               <img src="<?php echo htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>"
                    alt="<?= htmlspecialchars(__('Copertina'), ENT_QUOTES, 'UTF-8') ?>"
-                   onerror="this.onerror=null;this.src=(window.BASE_PATH||'')+'/uploads/copertine/placeholder.jpg'">
+                   data-pk-fallback-src="<?= htmlspecialchars(url('/uploads/copertine/placeholder.jpg'), ENT_QUOTES, 'UTF-8') ?>">
             </a>
             <div class="item-info">
               <h3 class="item-title"><a href="<?php echo htmlspecialchars($profileReservationBookUrl($p), ENT_QUOTES, 'UTF-8'); ?>"><?php echo App\Support\HtmlHelper::e($p['titolo'] ?? ''); ?></a></h3>
@@ -586,7 +586,7 @@ $profileReservationCoverUrl = static function (array $item): string {
             <a href="<?php echo htmlspecialchars($profileReservationBookUrl($p), ENT_QUOTES, 'UTF-8'); ?>" class="item-cover">
               <img src="<?php echo htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>"
                    alt="<?= htmlspecialchars(__('Copertina'), ENT_QUOTES, 'UTF-8') ?>"
-                   onerror="this.onerror=null;this.src=(window.BASE_PATH||'')+'/uploads/copertine/placeholder.jpg'">
+                   data-pk-fallback-src="<?= htmlspecialchars(url('/uploads/copertine/placeholder.jpg'), ENT_QUOTES, 'UTF-8') ?>">
             </a>
             <div class="item-info">
               <h3 class="item-title"><a href="<?php echo htmlspecialchars($profileReservationBookUrl($p), ENT_QUOTES, 'UTF-8'); ?>"><?php echo App\Support\HtmlHelper::e($p['titolo'] ?? ''); ?></a></h3>
@@ -608,7 +608,7 @@ $profileReservationCoverUrl = static function (array $item): string {
                 <span><?= __('Già recensito') ?></span>
               </button>
               <?php elseif ($canReview): ?>
-              <button class="btn-review" onclick="openReviewModal(<?php echo (int)$p['libro_id']; ?>, <?php echo htmlspecialchars(json_encode($p['titolo'] ?? '', JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT), ENT_QUOTES, 'UTF-8'); ?>)">
+              <button type="button" class="btn-review" data-pk-action="review-open" data-book-id="<?php echo (int)$p['libro_id']; ?>" data-book-title="<?php echo htmlspecialchars((string) ($p['titolo'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>">
                 <i class="fas fa-star"></i>
                 <span><?= __('Lascia una recensione') ?></span>
               </button>
@@ -663,7 +663,7 @@ $profileReservationCoverUrl = static function (array $item): string {
             <a href="<?php echo htmlspecialchars($profileReservationBookUrl($r), ENT_QUOTES, 'UTF-8'); ?>" class="item-cover">
               <img src="<?php echo htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>"
                    alt="<?= htmlspecialchars(__('Copertina'), ENT_QUOTES, 'UTF-8') ?>"
-                   onerror="this.onerror=null;this.src=(window.BASE_PATH||'')+'/uploads/copertine/placeholder.jpg'">
+                   data-pk-fallback-src="<?= htmlspecialchars(url('/uploads/copertine/placeholder.jpg'), ENT_QUOTES, 'UTF-8') ?>">
             </a>
             <div class="item-info">
               <h3 class="item-title"><a href="<?php echo htmlspecialchars($profileReservationBookUrl($r), ENT_QUOTES, 'UTF-8'); ?>"><?php echo App\Support\HtmlHelper::e($r['libro_titolo'] ?? ''); ?></a></h3>
@@ -705,7 +705,7 @@ $profileReservationCoverUrl = static function (array $item): string {
   <div style="background: white; border-radius: 16px; max-width: 600px; width: 90%; max-height: 90vh; overflow-y: auto; padding: 2rem;">
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
       <h3 style="margin: 0; font-size: 1.5rem; font-weight: 700;"><?= __('Lascia una recensione') ?></h3>
-      <button onclick="closeReviewModal()" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; color: #6b7280;" aria-label="<?= htmlspecialchars(__('Chiudi'), ENT_QUOTES, 'UTF-8') ?>">&times;</button>
+      <button type="button" data-pk-action="review-close" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; color: #6b7280;" aria-label="<?= htmlspecialchars(__('Chiudi'), ENT_QUOTES, 'UTF-8') ?>">&times;</button>
     </div>
     <div id="reviewBookTitle" style="font-size: 1.125rem; color: #6b7280; margin-bottom: 1.5rem;"></div>
     <form id="reviewForm">
@@ -735,15 +735,15 @@ $profileReservationCoverUrl = static function (array $item): string {
       </div>
 
       <div style="display: flex; gap: 1rem;">
-        <button type="button" onclick="closeReviewModal()" style="flex: 1; padding: 0.75rem; background: #e5e7eb; border: none; border-radius: 8px; font-weight: 600; cursor: pointer;"><?= __('Annulla') ?></button>
+        <button type="button" data-pk-action="review-close" style="flex: 1; padding: 0.75rem; background: #e5e7eb; border: none; border-radius: 8px; font-weight: 600; cursor: pointer;"><?= __('Annulla') ?></button>
         <button type="submit" style="flex: 1; padding: 0.75rem; background: #3b82f6; color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer;"><?= __('Invia recensione') ?></button>
       </div>
     </form>
   </div>
 </div>
 
-<script src="<?= htmlspecialchars(assetUrl('star-rating/dist/star-rating.js'), ENT_QUOTES, 'UTF-8') ?>"></script>
-<script>
+<script<?= csp_nonce_attr() ?> src="<?= htmlspecialchars(assetUrl('star-rating/dist/star-rating.js'), ENT_QUOTES, 'UTF-8') ?>"></script>
+<script<?= csp_nonce_attr() ?>>
 // Global __ function for JavaScript inline handlers (onsubmit, onclick, etc.)
 if (typeof window.__ === 'undefined') {
   window.__ = function(key) {
@@ -775,6 +775,9 @@ function openReviewModal(bookId, bookTitle) {
 function closeReviewModal() {
   document.getElementById('reviewModal').style.display = 'none';
 }
+
+window.PinakesActions.register('review-open', (el) => openReviewModal(parseInt(el.dataset.bookId, 10), el.dataset.bookTitle || ''));
+window.PinakesActions.register('review-close', () => closeReviewModal());
 
 document.getElementById('reviewForm').addEventListener('submit', async function(e) {
   e.preventDefault();

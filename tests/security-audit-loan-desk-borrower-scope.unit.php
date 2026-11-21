@@ -379,9 +379,16 @@ try {
     $actAs($operator);
     $a = $json($approval->rejectLoan($post(['loan_id' => (string) $readerPending, 'reason' => 'audit']), new Response(), $db));
     $check($a['status'] === 200 && ($a['data']['success'] ?? null) === true, 'rejecting a reader request goes through');
+    // Staff keeps every account in scope. Its own request is the one exception,
+    // and that refusal comes from separation of duties (SelfDealingGuard), not
+    // from the borrower scope: it never answers "not found".
+    $adminPending = $insertState($admin, null, 'pendente', 0);
     $actAs($staff);
+    $a = $json($approval->rejectLoan($post(['loan_id' => (string) $adminPending, 'reason' => 'audit']), new Response(), $db));
+    $check($a['status'] === 200 && ($a['data']['success'] ?? null) === true, 'Staff keeps every account: it rejects an admin account request');
     $a = $json($approval->rejectLoan($post(['loan_id' => (string) $staffPending, 'reason' => 'audit']), new Response(), $db));
-    $check($a['status'] === 200 && ($a['data']['success'] ?? null) === true, 'Staff keeps every account: it rejects the Staff request');
+    $check($a['status'] !== 404 && ($a['data']['success'] ?? null) === false, 'Staff cannot reject its own request (separation of duties, not the scope)');
+    $check(($one('SELECT stato FROM prestiti WHERE id = ?', $staffPending)['stato'] ?? '') === 'pendente', 'its own request is still pending');
 } catch (\Throwable $e) {
     $check(false, 'unexpected ' . get_class($e) . ': ' . $e->getMessage() . ' @ ' . basename($e->getFile()) . ':' . $e->getLine());
 } finally {

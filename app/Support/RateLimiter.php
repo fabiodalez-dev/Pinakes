@@ -21,16 +21,17 @@ class RateLimiter
      * Check if the request should be rate limited.
      * Uses file-based storage with flock() for atomic read-modify-write.
      */
-    public static function isLimited(string $identifier, int $maxAttempts = self::MAX_ATTEMPTS, int $window = self::WINDOW): bool
+    public static function isLimited(string $identifier, int $maxAttempts = self::MAX_ATTEMPTS, int $window = self::WINDOW, bool $count = true): bool
     {
-        return self::countAttempt($identifier, $maxAttempts, $window, 3);
+        return self::countAttempt($identifier, $maxAttempts, $window, $count, 3);
     }
 
     /**
-     * @param int $reopens how many times the counter may be opened again when the
-     *                     prune pass removes it while this request waits for its lock
+     * @param bool $count   false for a read-only check that spends no attempt
+     * @param int  $reopens how many times the counter may be opened again when the
+     *                      prune pass removes it while this request waits for its lock
      */
-    private static function countAttempt(string $identifier, int $maxAttempts, int $window, int $reopens): bool
+    private static function countAttempt(string $identifier, int $maxAttempts, int $window, bool $count, int $reopens): bool
     {
         // Elapsed-based window measurement: microtime(true) keeps the window a
         // true float duration instead of quantizing the first-attempt marker to
@@ -43,7 +44,7 @@ class RateLimiter
             // Answering "limited" here locked every login, registration and
             // password reset out with no way back; the degraded limiter keeps
             // counting in APCu or in the session instead.
-            return self::degradedIsLimited($identifier, $maxAttempts, $window);
+            return self::degradedIsLimited($identifier, $maxAttempts, $window, $count);
         }
 
         // Open (or create) state file with exclusive lock for atomic read-modify-write
@@ -52,7 +53,7 @@ class RateLimiter
             // Same reasoning: a counter file we cannot open (e.g. left behind
             // by another user) must not lock this identifier out for good.
             self::logDegraded('RateLimiter: failed to open the state file, using the degraded limiter', ['file' => basename($file)]);
-            return self::degradedIsLimited($identifier, $maxAttempts, $window);
+            return self::degradedIsLimited($identifier, $maxAttempts, $window, $count);
         }
 
         // The opened handle must be the regular file that sits at $file, not
@@ -79,7 +80,7 @@ class RateLimiter
                     error_log("RateLimiter: state file kept disappearing: {$file}");
                     return true;
                 }
-                return self::countAttempt($identifier, $maxAttempts, $window, $reopens - 1);
+                return self::countAttempt($identifier, $maxAttempts, $window, $count, $reopens - 1);
             }
 
             // Read current state under lock
@@ -98,6 +99,13 @@ class RateLimiter
             // Reset if window expired
             if ($state['first_attempt'] > 0 && ($currentTime - $state['first_attempt']) > $window) {
                 $state = ['attempts' => 0, 'first_attempt' => 0.0];
+            }
+
+            // Read-only check: report whether the bucket is already over its
+            // budget without spending an attempt (used for failure-only
+            // counters that a successful request must not grow).
+            if (!$count) {
+                return $state['attempts'] >= $maxAttempts;
             }
 
             if ($state['attempts'] === 0) {
@@ -121,7 +129,103 @@ class RateLimiter
         } finally {
             flock($handle, LOCK_UN);
             fclose($handle);
+            self::pruneExpired();
         }
+    }
+
+    /**
+     * Canonical form of a login name for a per-account bucket key. The users
+     * table compares emails under a case- and accent-insensitive, PAD SPACE
+     * collation, so 'Admin@x ', 'admin@x' and 'ädmin@x' reach the same
+     * account: keying on the raw string would hand an attacker a fresh,
+     * empty counter for every spelling of one victim's email.
+     */
+    public static function accountKey(string $account): string
+    {
+        $account = trim($account);
+        if (class_exists(\Normalizer::class)) {
+            $decomposed = \Normalizer::normalize($account, \Normalizer::FORM_KD);
+            if (is_string($decomposed)) {
+                $account = (string) (preg_replace('/\p{Mn}+/u', '', $decomposed) ?? $account);
+            }
+        }
+        return hash('sha256', mb_strtolower($account, 'UTF-8'));
+    }
+
+    /**
+     * Bucket key for a client IP. An IPv6 client is keyed on its /64: one
+     * end-site normally owns a whole /64, so keying the full /128 let a
+     * client rotate through fresh addresses — and fresh, empty counters —
+     * at will. An IPv4-mapped IPv6 address is keyed as the IPv4 it carries.
+     * Anything that is not an IP (e.g. 'unknown') is returned unchanged.
+     */
+    public static function clientKey(string $ip): string
+    {
+        $packed = @inet_pton(trim($ip, '[]'));
+        if ($packed === false) {
+            return $ip;
+        }
+        if (strlen($packed) !== 16) {
+            return (string) inet_ntop($packed);
+        }
+        if (str_starts_with($packed, str_repeat("\0", 10) . "\xff\xff")) {
+            return (string) inet_ntop(substr($packed, 12));
+        }
+
+        return inet_ntop(substr($packed, 0, 8) . str_repeat("\0", 8)) . '/64';
+    }
+
+    /** State files untouched for this long are expired for every window in use (max 1 h). */
+    private const PRUNE_AGE = 86400;
+    /** One isLimited() call in PRUNE_ODDS sweeps the directory. */
+    private const PRUNE_ODDS = 100;
+    /** Upper bound of directory entries one sweep looks at. */
+    private const PRUNE_BATCH = 500;
+
+    /**
+     * Opportunistic garbage collection of expired state files: every file is
+     * one identifier, and nothing else ever removes the ones whose client
+     * never came back. Cheap and bounded — runs on a small fraction of
+     * calls and inspects at most PRUNE_BATCH entries.
+     */
+    public static function pruneExpired(?int $now = null, bool $force = false): int
+    {
+        if (!$force && random_int(1, self::PRUNE_ODDS) !== 1) {
+            return 0;
+        }
+        $dir = self::stateDirectory();
+        if (is_link($dir) || !is_dir($dir)) {
+            return 0;
+        }
+        $handle = @opendir($dir);
+        if ($handle === false) {
+            return 0;
+        }
+        $now ??= time();
+        $cutoff = $now - self::PRUNE_AGE;
+        $removed = 0;
+        $seen = 0;
+        try {
+            while ($seen < self::PRUNE_BATCH && ($entry = readdir($handle)) !== false) {
+                if (preg_match('/^[0-9a-f]{64}\.json$/D', $entry) !== 1) {
+                    continue;
+                }
+                $seen++;
+                $path = $dir . '/' . $entry;
+                // The scan's age is only a pre-filter: the unlink goes through
+                // pruneIfStale(), which re-reads the age under the writers' lock,
+                // so a counter that took the first attempt of a new window in
+                // between is kept (same race as pruneStateDirectory()).
+                $mtime = @filemtime($path);
+                if ($mtime !== false && $mtime < $cutoff && self::pruneIfStale($path, $now, self::PRUNE_AGE)) {
+                    $removed++;
+                }
+            }
+        } finally {
+            closedir($handle);
+        }
+
+        return $removed;
     }
 
     /**
@@ -236,10 +340,17 @@ class RateLimiter
      * (shared by the PHP processes of this server, see apcuCount()) when APCu is enabled,
      * otherwise a counter in the PHP session when one is active. Only when
      * neither exists does it let the request through, and that is logged.
+     *
+     * $count = false is the same read-only check as on the file-backed path:
+     * it reports whether the bucket is already at its budget and never spends
+     * an attempt, so a failures-only bucket does not grow on every success.
      */
-    private static function degradedIsLimited(string $identifier, int $maxAttempts, int $window): bool
+    private static function degradedIsLimited(string $identifier, int $maxAttempts, int $window, bool $count = true): bool
     {
         $key = self::degradedKey($identifier);
+        if (!$count) {
+            return self::degradedAttempts($key, $window) >= $maxAttempts;
+        }
         if (self::apcuAvailable()) {
             $attempts = self::apcuCount($key, $window);
             if ($attempts !== null) {
@@ -267,6 +378,36 @@ class RateLimiter
             SecureLogger::error('RateLimiter: no state directory, no APCu and no session, throttling is off for this request');
         }
         return false;
+    }
+
+    /**
+     * Attempts already counted in the current window of a degraded bucket,
+     * read without counting one (APCu first, then the session, as
+     * degradedIsLimited() counts them). 0 when nothing holds a counter.
+     */
+    private static function degradedAttempts(string $key, int $window): int
+    {
+        if (self::apcuAvailable() && PHP_INT_SIZE >= 8) {
+            $current = apcu_fetch($key, $found);
+            if (!$found || !is_int($current) || $current <= 0) {
+                return 0; // missing, corrupt, or a window being reset
+            }
+            $start = $current >> self::APCU_COUNT_BITS;
+            $now = time();
+            if ($now - $start >= max(1, $window) || $start > $now) {
+                return 0;
+            }
+            return $current & ((1 << self::APCU_COUNT_BITS) - 1);
+        }
+        if (session_status() === PHP_SESSION_ACTIVE) {
+            $bucket = $_SESSION[self::SESSION_KEY] ?? [];
+            $state = is_array($bucket) ? ($bucket[$key] ?? null) : null;
+            if (!is_array($state) || (microtime(true) - (float) ($state['first'] ?? 0)) > $window) {
+                return 0;
+            }
+            return (int) ($state['attempts'] ?? 0);
+        }
+        return 0;
     }
 
     /** Bits of the packed APCu value that hold the attempt count. */
@@ -528,7 +669,7 @@ class RateLimiter
      * lock sees afterwards that its handle no longer is the file at the path,
      * and opens the path again (see isLimited()).
      */
-    private static function pruneIfStale(string $path, int $now): bool
+    private static function pruneIfStale(string $path, int $now, int $maxAge = self::PRUNE_AFTER_SECONDS): bool
     {
         $handle = @fopen($path, 'r');
         if ($handle === false) {
@@ -542,7 +683,7 @@ class RateLimiter
                 return false;
             }
             $stat = @fstat($handle);
-            if ($stat === false || $now - $stat['mtime'] <= self::PRUNE_AFTER_SECONDS) {
+            if ($stat === false || $now - $stat['mtime'] <= $maxAge) {
                 return false;
             }
             return @unlink($path); // nosemgrep: php.lang.security.unlink-use.unlink-use -- hash-named counter in the limiter's own directory

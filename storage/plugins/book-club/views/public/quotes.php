@@ -47,7 +47,7 @@ $visibilityBadge = static function (string $visibility) use ($e, $quoteVisibilit
 };
 ?>
 <?php $bookClubStyles = true; ?>
-<style>
+<style<?= csp_nonce_attr() ?>>
   .bc-quote{border-left:1px solid var(--primary-color);padding-left:1rem;font-style:italic;color:var(--text-color);margin:0}
   .bc-badge-club{background:var(--accent-color);color:var(--primary-text, var(--primary-color))}
 </style>
@@ -188,7 +188,7 @@ $visibilityBadge = static function (string $visibility) use ($e, $quoteVisibilit
                 </form>
               <?php endif; ?>
               <form method="post" action="<?= $e($base . '/' . $qid . '/delete') ?>"
-                    onsubmit="return confirm(<?= $e(json_encode(__('Eliminare questa citazione?'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP)) ?>);">
+                    data-pk-confirm="<?= $e(__('Eliminare questa citazione?')) ?>">
                 <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
                 <button type="submit" class="bc-btn bc-btn-danger bc-btn-sm"><?= $e(__('Elimina')) ?></button>
               </form>
@@ -279,7 +279,7 @@ $visibilityBadge = static function (string $visibility) use ($e, $quoteVisibilit
             </div>
           </form>
           <form method="post" action="<?= $e($base . '/notes/' . $nid . '/delete') ?>" class="mt-2"
-                onsubmit="return confirm(<?= $e(json_encode(__('Eliminare questa annotazione?'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP)) ?>);">
+                data-pk-confirm="<?= $e(__('Eliminare questa annotazione?')) ?>">
             <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
             <button type="submit" class="bc-btn bc-btn-danger bc-btn-sm"><?= $e(__('Elimina')) ?></button>
           </form>
@@ -309,7 +309,7 @@ $visibilityBadge = static function (string $visibility) use ($e, $quoteVisibilit
           <p class="text-sm mb-0" style="color:var(--text-light)"><?= nl2br($e($note['body'])) ?></p>
           <?php if ($canManage): ?>
             <form method="post" action="<?= $e($base . '/notes/' . (int) $note['id'] . '/delete') ?>" class="mt-2"
-                  onsubmit="return confirm(<?= $e(json_encode(__('Eliminare questa annotazione?'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP)) ?>);">
+                  data-pk-confirm="<?= $e(__('Eliminare questa annotazione?')) ?>">
               <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
               <button type="submit" class="bc-btn bc-btn-danger bc-btn-sm"><?= $e(__('Elimina')) ?></button>
             </form>

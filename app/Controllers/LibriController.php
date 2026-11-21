@@ -1745,7 +1745,7 @@ class LibriController
                     $baseDir = realpath($this->getCoversUploadPath());
 
                     // Ensure resolved path is within allowed directory
-                    if ($safePath && $baseDir && strpos($safePath, $baseDir) === 0 && file_exists($safePath)) {
+                    if ($safePath && $baseDir && str_starts_with($safePath, $baseDir . DIRECTORY_SEPARATOR) && is_file($safePath)) {
                         // nosemgrep: php.lang.security.unlink-use.unlink-use -- path confined by the realpath() containment check above (SECURITY FIX #2), not user input
                         unlink($safePath);
                         $this->logCoverDebug('cover.deleted', ['path' => $oldCoverPath]);
@@ -2333,7 +2333,7 @@ class LibriController
         }
         $safePath = realpath(__DIR__ . '/../../public' . $oldUrl);
         $baseDir = realpath($this->getCoversUploadPath());
-        if ($safePath && $baseDir && strpos($safePath, $baseDir) === 0 && file_exists($safePath)) {
+        if ($safePath && $baseDir && str_starts_with($safePath, $baseDir . DIRECTORY_SEPARATOR) && is_file($safePath)) {
             // nosemgrep: php.lang.security.unlink-use.unlink-use -- path confined by the realpath() containment check above, not user input
             unlink($safePath);
             $this->logCoverDebug('cover.old.deleted', ['path' => $oldUrl]);
@@ -3529,16 +3529,13 @@ class LibriController
         }
 
         // formulaPrefix "'" neutralizes CSV injection: user-controlled fields
-        // (titolo, autori, editore, parole_chiave…) starting with = + - @ are
-        // prefixed so spreadsheet clients don't evaluate them as formulas.
-        //
-        // The LibraryThing export is a machine round-trip format (TSV re-imported
-        // into LibraryThing/Pinakes), NOT a spreadsheet view: EscapeFormula would
-        // prepend "'" to legitimate values starting with -, @, = or a tab,
-        // corrupting the round-trip and diverging from the dedicated
-        // LibraryThingImportController::exportLibraryThing (which does not prefix).
-        // So the formula guard applies only to the human-facing standard CSV.
-        $formulaPrefix = $format === 'librarything' ? null : "'";
+        // (titolo, autori, editore, parole_chiave…) starting with = + - @, a tab
+        // or a CR are prefixed so spreadsheet clients don't evaluate them as
+        // formulas. The LibraryThing TSV gets the same guard: it is opened in
+        // spreadsheets too, and the dedicated
+        // LibraryThingImportController::exportLibraryThing already writes it
+        // with the "'" prefix, so both LibraryThing exports now agree.
+        $formulaPrefix = "'";
         $writer = Csv::writerToStream($stream, $delimiter, $formulaPrefix);
         $writer->insertOne($headers);
 

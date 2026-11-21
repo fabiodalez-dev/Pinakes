@@ -1310,7 +1310,7 @@ class MobileApiPlugin
         if ($stored === '') {
             return '';
         }
-        $plain = \App\Support\SettingsEncryption::decrypt($stored);
+        $plain = \App\Support\SettingsEncryption::decrypt($stored, self::ENABLE_CATEGORY, self::PUSH_FCM_CREDENTIALS_KEY);
 
         return ($plain !== null && $plain !== '') ? $plain : $stored;
     }
@@ -1330,7 +1330,7 @@ class MobileApiPlugin
         $privEnc = (string) ($repo->get(self::ENABLE_CATEGORY, self::PUSH_VAPID_PRIVATE_KEY, '') ?? '');
 
         if ($public !== '' && $privEnc !== '') {
-            $privPem = \App\Support\SettingsEncryption::decrypt($privEnc);
+            $privPem = \App\Support\SettingsEncryption::decrypt($privEnc, self::ENABLE_CATEGORY, self::PUSH_VAPID_PRIVATE_KEY);
             if (is_string($privPem) && $privPem !== '') {
                 return ['public' => $public, 'private' => $privPem];
             }
@@ -1342,7 +1342,7 @@ class MobileApiPlugin
         }
 
         $repo->set(self::ENABLE_CATEGORY, self::PUSH_VAPID_PUBLIC_KEY, $pair['public']);
-        $repo->set(self::ENABLE_CATEGORY, self::PUSH_VAPID_PRIVATE_KEY, \App\Support\SettingsEncryption::encrypt($pair['private']));
+        $repo->set(self::ENABLE_CATEGORY, self::PUSH_VAPID_PRIVATE_KEY, \App\Support\SettingsEncryption::encrypt($pair['private'], self::ENABLE_CATEGORY, self::PUSH_VAPID_PRIVATE_KEY));
 
         return $pair;
     }
@@ -1410,7 +1410,7 @@ class MobileApiPlugin
                 $repo->set(
                     self::ENABLE_CATEGORY,
                     self::PUSH_FCM_CREDENTIALS_KEY,
-                    $fcm === '' ? '' : \App\Support\SettingsEncryption::encrypt($fcm)
+                    $fcm === '' ? '' : \App\Support\SettingsEncryption::encrypt($fcm, self::ENABLE_CATEGORY, self::PUSH_FCM_CREDENTIALS_KEY)
                 );
             }
 
@@ -1533,7 +1533,7 @@ class MobileApiPlugin
     public function adminRevokeDevice(int $tokenId): bool
     {
         $stmt = $this->db->prepare(
-            'UPDATE mobile_app_tokens SET revoked_at = NOW()
+            'UPDATE mobile_app_tokens SET revoked_at = UTC_TIMESTAMP()
              WHERE id = ? AND revoked_at IS NULL'
         );
 

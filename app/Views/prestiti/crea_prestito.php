@@ -100,6 +100,9 @@ unset($workspaceHeader);
         case 'duplicate_reservation':
           echo __('Questo utente ha già un prestito o una prenotazione attiva per questo libro.');
           break;
+        case \App\Support\SelfDealingGuard::ERROR:
+          echo htmlspecialchars(\App\Support\SelfDealingGuard::message(), ENT_QUOTES, 'UTF-8');
+          break;
         case 'book_not_found':
           echo __('Libro non trovato o non più disponibile.');
           break;
@@ -300,7 +303,7 @@ unset($workspaceHeader);
     </div>
   </form>
 
-  <style>
+  <style<?= csp_nonce_attr() ?>>
     .suggestions-box {
       position: absolute;
       background: white;
@@ -357,7 +360,7 @@ unset($workspaceHeader);
     }
   </style>
 
-  <script>
+  <script<?= csp_nonce_attr() ?>>
     document.addEventListener('DOMContentLoaded', function() {
       // The success notice describes the loan that was just saved, not the next
       // values now being entered. Remove it on the first form edit (including a
@@ -1162,7 +1165,7 @@ unset($workspaceHeader);
   </script>
 
   <?php if ($pdfIdForDownload > 0): ?>
-  <script>
+  <script<?= csp_nonce_attr() ?>>
     (function () {
       var pdfId = <?= json_encode($pdfIdForDownload, JSON_HEX_TAG) ?>;
       if (pdfId <= 0) return;
@@ -1179,5 +1182,5 @@ unset($workspaceHeader);
 
   <!-- Camera barcode scanner (Phase 2) -->
   <?php include __DIR__ . '/../partials/copy-scanner-i18n.php'; ?>
-  <script src="<?= htmlspecialchars(assetUrl('copy-scanner.bundle.js'), ENT_QUOTES, 'UTF-8') ?>" defer></script>
+  <script<?= csp_nonce_attr() ?> src="<?= htmlspecialchars(assetUrl('copy-scanner.bundle.js'), ENT_QUOTES, 'UTF-8') ?>" defer></script>
 </section>

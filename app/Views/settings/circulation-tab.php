@@ -117,7 +117,7 @@ $cMoneyPlaceholder = static fn (?float $v): string => $v !== null && $v > 0 ? nu
                     <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
                     <button type="submit" class="text-gray-600 hover:text-gray-900" title="<?= htmlspecialchars(__('Rendi predefinita'), ENT_QUOTES, 'UTF-8') ?>" aria-label="<?= htmlspecialchars(__('Rendi predefinita'), ENT_QUOTES, 'UTF-8') ?>" data-testid="make-default"><i class="fas fa-star"></i></button>
                   </form>
-                  <form action="<?= htmlspecialchars(url('/admin/settings/circulation/types/' . (int) $cTypeId . '/delete'), ENT_QUOTES, 'UTF-8') ?>" method="post" class="inline" onsubmit="return confirm(<?= htmlspecialchars(json_encode(__('Eliminare questa tipologia? I suoi lettori passeranno alla tipologia predefinita.'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT), ENT_QUOTES, 'UTF-8') ?>);">
+                  <form action="<?= htmlspecialchars(url('/admin/settings/circulation/types/' . (int) $cTypeId . '/delete'), ENT_QUOTES, 'UTF-8') ?>" method="post" class="inline" data-pk-confirm="<?= htmlspecialchars(__('Eliminare questa tipologia? I suoi lettori passeranno alla tipologia predefinita.'), ENT_QUOTES, 'UTF-8') ?>">
                     <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
                     <button type="submit" class="text-red-600 hover:text-red-800" title="<?= htmlspecialchars(__('Elimina'), ENT_QUOTES, 'UTF-8') ?>" aria-label="<?= htmlspecialchars(__('Elimina'), ENT_QUOTES, 'UTF-8') ?>" data-testid="delete-type"><i class="fas fa-trash"></i></button>
                   </form>

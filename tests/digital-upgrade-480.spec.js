@@ -143,7 +143,7 @@ test.describe.serial(`Digital Library across the upgrade (#480) — ${PHASE}`, (
     const toggle = async action => {
       await page.goto(`${BASE}/admin/plugins`);
       const answered = page.waitForResponse(r => r.url().includes(`/admin/plugins/${id}/${action}`));
-      await page.locator(`button[onclick="${action}Plugin(${id})"]`).click();
+      await page.locator(`button[data-pk-action="plugins-${action}"][data-plugin-id="${id}"]`).click();
       await page.locator('.swal2-confirm:visible').click();
       const response = await answered;
       const body = await response.json().catch(() => ({}));

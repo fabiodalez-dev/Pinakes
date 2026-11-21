@@ -161,7 +161,11 @@ jobs:
           gh api -H "Accept: application/octet-stream" "repos/${GH_REPO}/releases/assets/${zip_id}" > "${release_dir}/${zip_name}"
           gh api -H "Accept: application/octet-stream" "repos/${GH_REPO}/releases/assets/${sum_id}" > "${release_dir}/${sum_name}"
           (cd "${release_dir}" && sha256sum -c "${sum_name}")
-          gh attestation verify "${release_dir}/${zip_name}" --repo "${GH_REPO}"
+          # Only provenance signed by release.yml for this exact tag passes: any
+          # other workflow of the repository could also write an attestation.
+          gh attestation verify "${release_dir}/${zip_name}" --repo "${GH_REPO}" \
+            --signer-workflow "${GH_REPO}/.github/workflows/release.yml" \
+            --source-ref "refs/tags/${tag}"
           echo "BASELINE_ZIP=${release_dir}/${zip_name}" >> "${GITHUB_ENV}"
 
       - name: Unpack both installs

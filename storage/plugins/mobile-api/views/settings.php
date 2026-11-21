@@ -288,7 +288,8 @@ unset($workspaceHeader);
                 <i class="fas fa-triangle-exclamation mr-1"></i>
                 <?= htmlspecialchars(sprintf(__('Rilevato un reverse proxy da %s che inoltra HTTPS, ma quell\'indirizzo non è ancora fidato: l\'app riceverebbe un errore HTTPS. Aggiungilo alla lista qui sopra e salva.'), $proxyRemoteAddr), ENT_QUOTES, 'UTF-8') ?>
                 <button type="button"
-                        onclick="var f=document.getElementById('trusted_proxies');f.value=(f.value.trim()?f.value.trim().replace(/,\s*$/,'')+', ':'')+<?= htmlspecialchars(json_encode($proxyRemoteAddr, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT), ENT_QUOTES, 'UTF-8') ?>;"
+                        data-pk-action="mobile-api-add-proxy"
+                        data-proxy-addr="<?= htmlspecialchars($proxyRemoteAddr, ENT_QUOTES, 'UTF-8') ?>"
                         class="ml-1 underline font-medium">
                   <?= htmlspecialchars(sprintf(__('Aggiungi %s'), $proxyRemoteAddr), ENT_QUOTES, 'UTF-8') ?>
                 </button>
@@ -421,7 +422,7 @@ unset($workspaceHeader);
                           data-device-name="<?= htmlspecialchars($deviceName, ENT_QUOTES, 'UTF-8') ?>"
                           data-user-name="<?= htmlspecialchars($userName ?: $userEmail, ENT_QUOTES, 'UTF-8') ?>"
                           data-form-id="mobile-device-revoke-form-<?= $devId ?>"
-                          onclick="mobileApiConfirmRevoke(this)"
+                          data-pk-action="mobile-api-revoke"
                           class="inline-flex items-center px-3 py-1.5 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800 text-xs font-medium rounded-lg hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors">
                     <i class="fas fa-ban mr-1.5" aria-hidden="true"></i>
                     <?= htmlspecialchars(__('Revoca'), ENT_QUOTES, 'UTF-8') ?>
@@ -440,7 +441,7 @@ unset($workspaceHeader);
   </div><!-- /p-6 -->
 </div>
 
-<script>
+<script<?= csp_nonce_attr() ?>>
 (function () {
   'use strict';
   var I18N = {
@@ -488,5 +489,17 @@ unset($workspaceHeader);
       if (result && result.isConfirmed && form) { form.submit(); }
     });
   };
+
+  if (window.PinakesActions) {
+    window.PinakesActions.register('mobile-api-revoke', function (btn) {
+      window.mobileApiConfirmRevoke(btn);
+    });
+    // "Aggiungi <ip>": append the detected proxy address to the trusted list.
+    window.PinakesActions.register('mobile-api-add-proxy', function (btn) {
+      var f = document.getElementById('trusted_proxies');
+      if (!f) return;
+      f.value = (f.value.trim() ? f.value.trim().replace(/,\s*$/, '') + ', ' : '') + (btn.dataset.proxyAddr || '');
+    });
+  }
 })();
 </script>
