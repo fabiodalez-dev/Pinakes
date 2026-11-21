@@ -1007,9 +1007,32 @@ class PrestitiController
                 $db->rollback();
                 return $response->withHeader('Location', url('/admin/loans') . '?error=loan_closed')->withStatus(302);
             }
+            // A reassignment locks two utenti rows: the current borrower's (the scope
+            // re-check below) and the new borrower's (eligibility + max-loans). Taken
+            // old-then-new, two reassignments in opposite directions (A->B and B->A
+            // on different books) each held one row and waited for the other: an
+            // AB/BA deadlock. Both rows are locked here in ascending id order, so the
+            // locking reads that follow only re-enter locks this transaction holds.
+            $lockedOwnerId = (int) $locked['utente_id'];
+            $targetUserId = isset($updateData['utente_id']) ? (int) $updateData['utente_id'] : $lockedOwnerId;
+            if ($targetUserId !== $lockedOwnerId) {
+                $userRowsToLock = array_values(array_unique(array_filter(
+                    [$lockedOwnerId, $targetUserId],
+                    static fn (int $uid): bool => $uid > 0
+                )));
+                sort($userRowsToLock);
+                $orderedUserLock = $db->prepare('SELECT id FROM utenti WHERE id = ? FOR UPDATE');
+                foreach ($userRowsToLock as $userRowId) {
+                    $orderedUserLock->bind_param('i', $userRowId);
+                    $orderedUserLock->execute();
+                    $orderedUserLock->get_result();
+                }
+                $orderedUserLock->close();
+            }
+
             // The owner may have changed since the scope check above (an administrator can
             // hand the loan to a Staff account in between): ask again about the locked row.
-            if (!\App\Support\Permissions::mayActOnBorrower($db, (int) $locked['utente_id'], true)) {
+            if (!\App\Support\Permissions::mayActOnBorrower($db, $lockedOwnerId, true)) {
                 $db->rollback();
                 return $response->withHeader('Location', url('/admin/loans') . '?error=loan_not_found')->withStatus(302);
             }
@@ -1100,6 +1123,7 @@ class PrestitiController
                 // Lock the target user's row before the eligibility + max-loans checks, so two
                 // concurrent reassignments to the same user can't both pass the COUNT and
                 // overshoot max_active_loans_per_user (store() takes the same lock — #12).
+                // Already held since the ordered lock above; kept as the explicit guard.
                 $newUserLock = $db->prepare("SELECT id FROM utenti WHERE id = ? FOR UPDATE");
                 $newUserLock->bind_param('i', $newUserId);
                 $newUserLock->execute();

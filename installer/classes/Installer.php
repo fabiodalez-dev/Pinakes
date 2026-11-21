@@ -96,9 +96,21 @@ class Installer {
         // (isInstalled()). No binding, no .env; and when .env cannot be
         // written, the binding is put back as it was (a failed write must not
         // leave a grant behind).
-        return $this->withInstallOwnership(
+        if (!$this->withInstallOwnership(
             static fn (): bool => file_put_contents($envPath, $envContent) !== false
-        );
+        )) {
+            return false;
+        }
+
+        // Earn the import proof now, while the new database is known to be
+        // empty (step 2 accepts nothing else, and recordSchemaImportByOwner()
+        // probes it again). Waiting for step 3 left a window in which any
+        // stray table (a cron run on a reinstall, where .installed still
+        // exists, creating email_delivery_outbox) made step 3 refuse the
+        // import and ownerMayContinue() false: nobody could go on. Best-effort:
+        // when it cannot be recorded here, step 3 tries again.
+        $this->recordSchemaImportByOwner();
+        return true;
     }
 
     /**
@@ -1473,9 +1485,16 @@ HTACCESS;
      * Delete the binding and the import proof together: the marker, the
      * database nonce and this session's token and proof. Used when the
      * absolute TTL is over and when a ?force=1 reinstall is refused.
+     *
+     * $seen is the marker the caller judged abandoned (see
+     * discardAbandonedBinding()): a claim made since is left alone. This
+     * session's own keys go either way, since the token they hold no longer
+     * is the one on disk.
+     *
+     * @param array{exists: bool, content: ?string, mtime: ?int}|null $seen
      */
-    public function discardInstallOwnership(): void {
-        $this->discardAbandonedBinding();
+    public function discardInstallOwnership(?array $seen = null): void {
+        $this->discardAbandonedBinding($seen);
         unset(
             $_SESSION[self::INSTALL_OWNER_SESSION_KEY],
             $_SESSION[self::INSTALL_POPULATED_SESSION_KEY],
@@ -1727,7 +1746,7 @@ HTACCESS;
             return false;
         }
         if (self::ownerMarkerPastAbsoluteTtl($state)) {
-            $this->discardInstallOwnership();
+            $this->discardInstallOwnership($state);
             return false;
         }
         return true;
@@ -2238,16 +2257,38 @@ HTACCESS;
      * holds only the addresses of the last FORCE_LOGIN_WINDOW seconds.
      */
     public function recordForceLoginAttempt(string $ip, ?int $now = null): bool {
+        return $this->forceLoginAttemptVerdict($ip, $now) === self::FORCE_LOGIN_ALLOWED;
+    }
+
+    /** forceLoginAttemptVerdict(): the attempt was recorded and may proceed. */
+    public const FORCE_LOGIN_ALLOWED = 'allowed';
+
+    /** forceLoginAttemptVerdict(): the address used up its budget for the window. */
+    public const FORCE_LOGIN_LIMITED = 'limited';
+
+    /**
+     * forceLoginAttemptVerdict(): the attempt could not be recorded, because
+     * storage/cache/installer-login cannot be created, opened, locked or
+     * written. Refused all the same (fail closed), but it is a permissions
+     * problem on the server, not "too many attempts", and is reported as such.
+     */
+    public const FORCE_LOGIN_UNAVAILABLE = 'unavailable';
+
+    /**
+     * recordForceLoginAttempt() with the reason of a refusal: one of the
+     * FORCE_LOGIN_* constants. Only FORCE_LOGIN_ALLOWED lets the login go on.
+     */
+    public function forceLoginAttemptVerdict(string $ip, ?int $now = null): string {
         $now ??= time();
         $dir = $this->baseDir . '/storage/cache/installer-login';
         if (!is_dir($dir) && !@mkdir($dir, 0775, true) && !is_dir($dir)) {
-            return false;
+            return self::FORCE_LOGIN_UNAVAILABLE;
         }
         $this->pruneForceLoginBuckets($dir, $now);
         $file = $dir . '/' . hash('sha256', self::forceLoginBucket($ip)) . '.json';
         $handle = $this->openLockedBucket($file);
         if ($handle === false) {
-            return false;
+            return self::FORCE_LOGIN_UNAVAILABLE;
         }
         try {
             $raw = stream_get_contents($handle);
@@ -2258,18 +2299,18 @@ HTACCESS;
             $windowStart = $now - self::FORCE_LOGIN_WINDOW;
             $hits = array_values(array_filter($hits, static fn($t) => is_int($t) && $t > $windowStart));
             if (count($hits) >= self::FORCE_LOGIN_MAX_ATTEMPTS) {
-                return false;
+                return self::FORCE_LOGIN_LIMITED;
             }
             $hits[] = $now;
             if (!ftruncate($handle, 0) || !rewind($handle)
                 || fwrite($handle, (string) json_encode($hits)) === false) {
-                return false;
+                return self::FORCE_LOGIN_UNAVAILABLE;
             }
             fflush($handle);
             // The bucket's mtime is its last attempt, on the clock this method
             // counts with: pruneForceLoginBuckets() reads it.
             @touch($file, $now);
-            return true;
+            return self::FORCE_LOGIN_ALLOWED;
         } finally {
             flock($handle, LOCK_UN);
             fclose($handle);
@@ -2297,18 +2338,41 @@ HTACCESS;
                 fclose($handle);
                 return false;
             }
-            $opened = @fstat($handle);
-            clearstatcache(true, $file);
-            $atPath = @lstat($file);
-            if ($opened !== false && $atPath !== false
-                && ($atPath['mode'] & 0170000) === 0100000
-                && $opened['dev'] === $atPath['dev'] && $opened['ino'] === $atPath['ino']) {
+            if (self::bucketHandleIsLinked($handle, $file)) {
                 return $handle;
             }
             flock($handle, LOCK_UN);
             fclose($handle);
         }
         return false;
+    }
+
+    /**
+     * Open a bucket for the prune pass. A seam of its own, between the open and
+     * the lock that follows it, so a test can run another prune pass and a
+     * request in exactly that window.
+     *
+     * @return resource|false
+     */
+    protected function openBucketForPrune(string $path) {
+        return @fopen($path, 'r');
+    }
+
+    /**
+     * True when $handle is the regular file currently linked at $path: same
+     * device and inode as an lstat of the path (which does not follow links),
+     * read past the stat cache. A handle that waited for a lock may be on a file
+     * that was unlinked, or unlinked and recreated, in the meantime.
+     *
+     * @param resource $handle
+     */
+    private static function bucketHandleIsLinked($handle, string $path): bool {
+        $opened = @fstat($handle);
+        clearstatcache(true, $path);
+        $atPath = @lstat($path);
+        return $opened !== false && $atPath !== false
+            && ($atPath['mode'] & 0170000) === 0100000
+            && $opened['dev'] === $atPath['dev'] && $opened['ino'] === $atPath['ino'];
     }
 
     /**
@@ -2331,12 +2395,19 @@ HTACCESS;
             if (is_link($path)) {
                 continue;
             }
-            $handle = @fopen($path, 'r');
+            $handle = $this->openBucketForPrune($path);
             if ($handle === false) {
                 continue;
             }
             try {
                 if (!flock($handle, LOCK_EX | LOCK_NB)) {
+                    continue;
+                }
+                // Another prune pass may have removed this bucket, and a request
+                // created it again, while this one waited to open and lock it: the
+                // descriptor is then on the old file and the path names the new
+                // one, which must not be deleted on the old one's age.
+                if (!self::bucketHandleIsLinked($handle, $path)) {
                     continue;
                 }
                 $stat = @fstat($handle);

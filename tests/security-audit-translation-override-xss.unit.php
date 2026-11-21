@@ -95,6 +95,8 @@ $out = $sanitize->invoke($controller, [
     'Importa gli articoli (valore rilevato: "%s")' => 'Import the articles (detected value: "%s")',
     'Autore "${normalizedLabel}" pronto' => 'Author "${normalizedLabel}" ready',
     'Titolo' => '<img src=x onerror=alert(1)>Title',
+    'Annulla' => "x' onmouseover='alert(1)",
+    "Il database '%s' non è vuoto" => "The database '%s' is not empty",
     7 => 'numeric key',
 ]);
 $check(!str_contains($out['Visualizza dettagli'], '"'), 'a quote the source string lacks is neutralised (got: ' . $out['Visualizza dettagli'] . ')');
@@ -106,6 +108,10 @@ $check($out['Importa gli articoli (valore rilevato: "%s")'] === 'Import the arti
 $check($out['Autore "${normalizedLabel}" pronto'] === 'Author "${normalizedLabel}" ready',
     'placeholders are kept where the source string has them');
 $check($out['Titolo'] === 'Title', 'markup is still stripped');
+// Review of PR #536: the docblock promised safety in every sink but an ASCII
+// apostrophe passed, which ends a single-quoted attribute or JS string.
+$check($out['Annulla'] === "x\u{2019} onmouseover=\u{2019}alert(1)", 'an apostrophe the source string lacks becomes U+2019 (got: ' . $out['Annulla'] . ')');
+$check($out["Il database '%s' non è vuoto"] === "The database '%s' is not empty", 'apostrophes are kept where the source string has them');
 $check(!array_key_exists(7, $out), 'non-string keys are still dropped');
 
 // ── C ────────────────────────────────────────────────────────────────────────
@@ -225,6 +231,7 @@ $hostile = [
     'Elimina' => '`; alert(1); `',
     'Modifica' => '${alert(1)}',
     'Chiudi' => "a\0b",
+    'Conferma' => "it's",
     'Indietro' => 'plain value',
 ];
 $check(\App\Support\TranslationSanitizer::sanitizeLoaded($hostile) === \App\Support\TranslationSanitizer::sanitize($hostile),
