@@ -234,8 +234,12 @@ $check(str_contains($instSrc, '$this->discardAbandonedBinding($state);'), 'the e
 // claimed the install in between loses its marker and its import proof.
 $check(str_contains($instSrc, '$this->discardInstallOwnership($state);'), 'the owner path hands the marker it read to discardInstallOwnership()');
 $_SESSION = [];
+// The claim above is still live and, with the session emptied, belongs to
+// "another session": drop it so this claim is taken and the token is real.
+@unlink($markerPathAbs);
 $inst->claimInstallOwnership();
-$oldToken = $_SESSION[Installer::INSTALL_OWNER_SESSION_KEY];
+$oldToken = (string) ($_SESSION[Installer::INSTALL_OWNER_SESSION_KEY] ?? '');
+$check($oldToken !== '', 'the old owner\'s claim is taken (its token is the one the stale marker hashes)');
 $oldMarker = ['exists' => true, 'content' => hash('sha256', (string) $oldToken) . "\n" . (time() - Installer::INSTALL_OWNER_ABSOLUTE_TTL - 60), 'mtime' => time()];
 $newOwnerMarker = hash('sha256', 'someone-else') . "\n" . time();
 file_put_contents($markerPathAbs, $newOwnerMarker);
@@ -432,7 +436,24 @@ $_SESSION = [];
 $inst11->createEnvFile('127.0.0.1', 'u', 'p', 'newdb');
 $check($inst11->isInstalled() === false && (!$hasRule || $inst11->ownerMayContinue()),
     '(i) owner over the still-empty new database: goes on (no account exists yet)');
-$inst11->emptyDb = false; // populated, and not by this session
+
+// Review of PR #536: the proof was earned only at step 3, while the database was
+// still empty. One stray table in between (an hourly cron run on a reinstall,
+// where .installed still exists, creating email_delivery_outbox) made step 3
+// refuse the import and ownerMayContinue() false: nobody could go on. Step 2
+// earns it now, when the database is known empty.
+$check(is_string($inst11->dbNonce) && $inst11->dbNonce !== '' && isset($_SESSION[$popKey]),
+    'step 2 (createEnvFile() over an empty database) already records the import proof');
+$inst11->emptyDb = false; // a stray table appears before step 3
+$check($inst11->isInstalled() === false && $hasRule && $inst11->ownerMayContinue(),
+    'a stray table between step 2 and step 3 does not shut the owner out');
+$check($hasRule && $inst11->recordSchemaImportByOwner() === true,
+    'and step 3 still records its import (no "database not empty" refusal)');
+
+// The fallback path: step 2 could not record the proof (the database was not
+// reachable for that probe), so step 3 has to earn it, as before.
+$inst11->dbNonce = null;
+unset($_SESSION[$popKey], $_SESSION[Installer::INSTALL_PROOF_NONCE_SESSION_KEY]);
 $check($inst11->ownsInstallInProgress() && $inst11->isInstalled() === true,
     'owner over a populated database it did not fill: refused (needs an active admin of that database)');
 $check(!$hasRule || $inst11->ownerMayContinue() === false, 'ownerMayContinue() says no');
@@ -452,9 +473,8 @@ $inst11->emptyDb = false; // step 3 filled it
 $check($inst11->isInstalled() === false, '(ii) the session that imported the schema goes on over its own database (steps 4-7)');
 $check($inst11->recordSchemaImportByOwner() === true, 'a retry of a failed import keeps the proof it already earned');
 
-$inst11->emptyDb = true;
+$inst11->emptyDb = false; // the other database is not empty: step 2 earns no proof for it
 $inst11->createEnvFile('127.0.0.1', 'u', 'p', 'otherdb'); // back to step 2: new binding, new .env
-$inst11->emptyDb = false;
 $check($inst11->isInstalled() === true, 'a new step 2 drops the old import proof (it was for another database)');
 
 $saved = $_SESSION;

@@ -9404,5 +9404,7 @@
   "Cita questo film": "Citér denne film",
   "Il libro è stato salvato, ma i dati del film (durata, interpreti, sottotitoli, classificazione, regione) no. Se il database non ha ancora le colonne, ripeti l'aggiornamento o elimina il file storage/.schema-repaired per rilanciare la verifica dello schema; poi reinserisci i dati del film e salva di nuovo la scheda. Il motivo è nel log degli errori.": "Bogen blev gemt, men ikke filmoplysningerne (spilletid, medvirkende, undertekster, aldersgrænse, regionskode). Hvis databasen endnu ikke har disse kolonner, så kør opdateringen igen, eller slet filen storage/.schema-repaired for at gentage skemakontrollen; indtast derefter filmoplysningerne igen, og gem posten en gang til. Årsagen står i fejlloggen.",
   "Durata non valida": "Ugyldig spilletid",
-  "La durata deve essere un numero intero di minuti tra 1 e %d.": "Spilletiden skal være et helt antal minutter mellem 1 og %d."
+  "La durata deve essere un numero intero di minuti tra 1 e %d.": "Spilletiden skal være et helt antal minutter mellem 1 og %d.",
+  "Impossibile registrare il tentativo di accesso: la cartella storage/cache/installer-login non è scrivibile. Verifica i permessi della cartella storage/ sul server.": "Loginforsøget kunne ikke registreres: mappen storage/cache/installer-login er ikke skrivbar. Kontrollér rettighederne for mappen storage/ på serveren.",
+  "Il database configurato non risponde come previsto. Il dettaglio dell'errore è nel log del server.": "Den konfigurerede database svarer ikke som forventet. Fejldetaljerne findes i serverens log."
 }

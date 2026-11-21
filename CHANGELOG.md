@@ -6,7 +6,7 @@ Full version-by-version history for Pinakes. The README shows only the last thre
 
 ### Films and video ([#539](https://github.com/fabiodalez-dev/Pinakes/issues/539))
 
-Films can be catalogued as films. No migration: five nullable columns of `libri` (`durata_minuti`, `interpreti`, `sottotitoli`, `classificazione_eta`, `codice_regione`) are added to existing installs by the schema check that runs after every update.
+Films can be catalogued as films. Five nullable columns of `libri` (`durata_minuti`, `interpreti`, `sottotitoli`, `classificazione_eta`, `codice_regione`) are added by the 0.9.6 migration (`migrate_0.9.6.sql`, guarded so it is a no-op on a table that already has them); the schema check that runs after every update adds them too.
 
 - **The media type "DVD" is now "Film e video"** and covers every video carrier: DVD, Blu-ray, 4K Ultra HD and VHS are recognised in the format. The stored value stays `dvd`, so existing records, loan rules and statistics are unchanged.
 - **A film record speaks film.** The principal author reads as the director, the publisher as production / distribution, the description as the plot, the EAN as the barcode and the language as the audio languages, as a music record already reads artist and label.
