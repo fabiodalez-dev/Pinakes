@@ -43,6 +43,8 @@ final class CirculationOutcome
         'no_copies_available'   => [409, 'not_available', null, true],
         'libro_in_prestito'     => [409, 'not_available', null, true],
         'duplicate_submission'  => [500, 'internal_error', null, false],
+        // Separation of duties (App\Support\SelfDealingGuard).
+        'self_dealing'          => [403, 'not_permitted', null, true],
     ];
 
     /** ② PUT /staff/loans/{id} (PrestitiController::update). */
@@ -52,6 +54,8 @@ final class CirculationOutcome
         'concurrent_retry'   => [409, 'concurrent_retry', null, false],
         'loan_copy_conflict' => [409, 'not_available', null, true],
         'loan_update_failed' => [500, 'internal_error', null, false],
+        // An overdue loan moved forward waives the fine accrued so far: reason required.
+        'extension_reason_required' => [422, 'validation_error', 'waive_reason', false],
         // A loan whose borrower is outside the operator's loan-desk scope
         // (Permissions::mayActOnBorrower) answers as absent.
         'loan_not_found'     => [404, 'not_found', null, false],
@@ -67,6 +71,7 @@ final class CirculationOutcome
         'user_not_found'   => [404, 'not_found', 'user_id', false],
         'concurrent_retry' => [409, 'concurrent_retry', null, false],
         'update_failed'    => [500, 'internal_error', null, false],
+        'self_dealing'     => [403, 'not_permitted', null, true],
     ];
 
     /** ⑤ renew (PrestitiController::renew). */
@@ -85,6 +90,7 @@ final class CirculationOutcome
         'debt_block'          => [409, 'not_eligible', null, true],
         'renewal_failed'      => [500, 'internal_error', null, false],
         'book_not_found'      => [404, 'not_found', null, false],
+        'self_dealing'        => [403, 'not_permitted', null, true],
     ];
 
     /** Bulk extend / bulk recall (PrestitiController::bulkExtend, bulkRecall). */
@@ -93,6 +99,9 @@ final class CirculationOutcome
         'bulk_extend_conflict' => [409, 'not_available', null, true],
         'bulk_extend_failed'   => [500, 'internal_error', null, false],
         'bulk_recall_invalid'  => [422, 'validation_error', 'ids', true],
+        // An overdue loan with a fine accruing (meta.loan_id): extend it alone, with waive_reason.
+        'bulk_extend_fine_accruing' => [409, 'conflict', null, true],
+        'self_dealing'         => [403, 'not_permitted', null, true],
     ];
 
     /** ⑥ reservations (ReservationsAdminController::store/update). */
@@ -115,6 +124,7 @@ final class CirculationOutcome
         'debt_block'           => [409, 'not_eligible', null, true],
         'save_failed'          => [500, 'internal_error', null, false],
         'update_failed'        => [500, 'internal_error', null, false],
+        'self_dealing'         => [403, 'not_permitted', null, true],
     ];
 
     /** Copy states a return can leave the copy in (processReturn whitelist). */
@@ -172,10 +182,15 @@ final class CirculationOutcome
      * ③ LoanApprovalController JSON passthrough: 400 / 409 → 409 `conflict`,
      * 403 → 409 `not_eligible`, anything else ≥ 300 → 500. The core message is
      * shown as is (its 400s are polymorphic: no copy, deadline passed, …).
+     * A 403 carrying code `self_dealing` (SelfDealingGuard) is a 403
+     * `not_permitted`, as on the other circulation endpoints.
      */
-    public static function approvalError(ResponseInterface $response, int $coreStatus, string $coreMessage, string $context): ResponseInterface
+    public static function approvalError(ResponseInterface $response, int $coreStatus, string $coreMessage, string $context, string $coreCode = ''): ResponseInterface
     {
         $message = trim($coreMessage) !== '' ? $coreMessage : __('Operazione non consentita nello stato attuale.');
+        if ($coreStatus === 403 && $coreCode === \App\Support\SelfDealingGuard::ERROR) {
+            return ResponseEnvelope::error($response, 'not_permitted', \App\Support\SelfDealingGuard::message(), 403, ['reason' => $coreCode]);
+        }
         if ($coreStatus === 400 || $coreStatus === 409) {
             return ResponseEnvelope::error($response, 'conflict', $message, 409);
         }
@@ -303,6 +318,9 @@ final class CirculationOutcome
             'max_renewals'          => __('Numero massimo di rinnovi raggiunto.'),
             'promoted_loan_active'  => __('La prenotazione è già diventata un prestito attivo.'),
             'bulk_extend_invalid', 'bulk_recall_invalid' => __('Selezione non valida.'),
+            'self_dealing'          => \App\Support\SelfDealingGuard::message(),
+            'bulk_extend_fine_accruing' => __('Estensione annullata: un prestito scaduto sta maturando una multa. Estendilo singolarmente indicando una motivazione, con cui la multa viene condonata.'),
+            'extension_reason_required' => __('Il prestito è scaduto: per spostarne la scadenza serve una motivazione, con cui la multa maturata finora viene condonata.'),
             default                 => __('Errore interno.'),
         };
     }

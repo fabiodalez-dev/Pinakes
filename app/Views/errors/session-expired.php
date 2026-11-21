@@ -21,10 +21,12 @@ $loginUrl = $loginUrl ?? route_path('login');
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?= htmlspecialchars($pageTitle) ?></title>
-    <script>window.BASE_PATH = <?= json_encode(\App\Support\HtmlHelper::getBasePath(), JSON_HEX_TAG | JSON_HEX_AMP) ?>;</script>
+    <script<?= csp_nonce_attr() ?>>window.BASE_PATH = <?= json_encode(\App\Support\HtmlHelper::getBasePath(), JSON_HEX_TAG | JSON_HEX_AMP) ?>;</script>
+    <?php // Delegated replacements for inline on* handlers (the CSP sends script-src-attr 'none'). ?>
+    <script<?= csp_nonce_attr() ?> src="<?= htmlspecialchars(assetUrl('js/pk-actions.js'), ENT_QUOTES, 'UTF-8') ?>"></script>
     <link rel="stylesheet" href="<?= htmlspecialchars(assetUrl('vendor.css'), ENT_QUOTES, 'UTF-8') ?>">
     <link rel="stylesheet" href="<?= htmlspecialchars(assetUrl('main.css'), ENT_QUOTES, 'UTF-8') ?>">
-    <style>
+    <style<?= csp_nonce_attr() ?>>
         .session-expired-container {
             min-height: 100vh;
             display: flex;
@@ -168,7 +170,7 @@ $loginUrl = $loginUrl ?? route_path('login');
                         <?= __('Accedi') ?>
                     </a>
                 <?php else: ?>
-                    <button type="button" onclick="history.back()" class="session-expired-btn session-expired-btn-primary">
+                    <button type="button" data-pk-action="back" class="session-expired-btn session-expired-btn-primary">
                         <i class="fas fa-rotate-left"></i>
                         <?= __('Torna indietro e riprova') ?>
                     </button>

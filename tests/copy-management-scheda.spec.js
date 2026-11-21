@@ -366,7 +366,7 @@ test.describe.serial('Copy management from the book summary (#238/#351)', () => 
         const copyId = Number(dbQuery(`SELECT id FROM copie WHERE libro_id=${delBookId} AND stato='${stato}' ORDER BY id DESC LIMIT 1`));
         await page.goto(`${BASE}/admin/books/${delBookId}`);
         // The row exposes a delete button (view $canDelete now includes the state).
-        await expect(page.locator(`button[onclick^="confirmDeleteCopy(${copyId}"]`)).toBeVisible();
+        await expect(page.locator(`button[data-pk-action="book-copy-delete"][data-copy-id="${copyId}"]`)).toBeVisible();
         await page.evaluate((id) => window.confirmDeleteCopy(id, 'X'), copyId);
         const confirm = page.locator('.swal2-confirm');
         await expect(confirm).toBeVisible({ timeout: 3000 });

@@ -83,6 +83,35 @@ $applicationToday = \App\Support\DateHelper::today();
                 case 'loan_not_closable':
                     echo __('Prestito non trovato o non chiudibile.');
                     break;
+                case 'bulk_extend_fine_accruing':
+                    // Named loan: overdue with a fine accruing, extended one by one with a reason.
+                    $fineLoanId = is_scalar($_GET['loan_id'] ?? null) ? (int) $_GET['loan_id'] : 0;
+                    echo htmlspecialchars(
+                        __('Estensione annullata: il prestito n. %d è scaduto e sta maturando una multa. Estendilo singolarmente indicando una motivazione, con cui la multa viene condonata.', $fineLoanId),
+                        ENT_QUOTES,
+                        'UTF-8'
+                    );
+                    if ($fineLoanId > 0) {
+                        ?> <a href="<?= htmlspecialchars(url('/admin/loans/edit/' . $fineLoanId), ENT_QUOTES, 'UTF-8') ?>" class="underline font-semibold"><?= __("Modifica prestito") ?></a><?php
+                    }
+                    break;
+                case 'extension_reason_required':
+                    echo __('Il prestito è scaduto: per spostarne la scadenza serve una motivazione, con cui la multa maturata finora viene condonata.');
+                    $reasonLoanId = is_scalar($_GET['loan_id'] ?? null) ? (int) $_GET['loan_id'] : 0;
+                    if ($reasonLoanId > 0) {
+                        ?> <a href="<?= htmlspecialchars(url('/admin/loans/edit/' . $reasonLoanId), ENT_QUOTES, 'UTF-8') ?>" class="underline font-semibold"><?= __("Modifica prestito") ?></a><?php
+                    }
+                    break;
+                case \App\Support\SelfDealingGuard::ERROR:
+                    // A bulk extension names the operator's own loan it refused.
+                    $selfLoanId = is_scalar($_GET['loan_id'] ?? null) ? (int) $_GET['loan_id'] : 0;
+                    echo htmlspecialchars(
+                        \App\Support\SelfDealingGuard::message()
+                            . ($selfLoanId > 0 ? ' ' . __('Prestito n. %d', $selfLoanId) : ''),
+                        ENT_QUOTES,
+                        'UTF-8'
+                    );
+                    break;
                 case 'concurrent_retry':
                     echo __('Un\'altra operazione stava aggiornando lo stesso libro: nessuna modifica salvata, riprova ora.');
                     break;
@@ -160,7 +189,7 @@ $applicationToday = \App\Support\DateHelper::today();
     <?php endif; ?>
 
     <?php if($pdfIdForDownload > 0): ?>
-    <script>
+    <script<?= csp_nonce_attr() ?>>
     // Auto-trigger PDF download after loan creation
     (function() {
       // pdfId is filter_input-validated as an int above; encoding it with
@@ -204,7 +233,7 @@ ob_start();
 
 
       <div class="flex md:hidden mb-3 gap-2">
-        <button type="button" onclick="showExportDialog()" class="flex-1 btn-secondary inline-flex items-center justify-center">
+        <button type="button" data-pk-action="loans-export" class="flex-1 btn-secondary inline-flex items-center justify-center">
           <i class="fas fa-file-csv mr-2"></i><?= __("CSV") ?></button>
         <a href="<?= htmlspecialchars(url('/admin/loans/create'), ENT_QUOTES, 'UTF-8') ?>" class="flex-1 btn-primary inline-flex items-center justify-center">
           <i class="fas fa-plus mr-2"></i><?= __("Nuovo Prestito") ?></a>
@@ -215,7 +244,7 @@ ob_start();
 ?>
 
         <div class="flex items-center gap-3">
-          <button type="button" onclick="showExportDialog()" class="hidden md:inline-flex btn-secondary items-center">
+          <button type="button" data-pk-action="loans-export" class="hidden md:inline-flex btn-secondary items-center">
             <i class="fas fa-file-csv mr-2"></i>
             <?= __("Esporta CSV") ?>
           </button>
@@ -516,7 +545,7 @@ unset($workspaceHeader);
   </form>
 </div>
 
-<style>
+<style<?= csp_nonce_attr() ?>>
 .dt-search {
     margin-left: 1rem;
 }
@@ -531,7 +560,7 @@ unset($workspaceHeader);
 }
 </style>
 
-<script>
+<script<?= csp_nonce_attr() ?>>
 // Set current locale for DataTables language selection
 window.i18nLocale = <?= json_encode(\App\Support\I18n::getLocale(), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
 // formatDateLocale and appLocale are defined globally in layout.php
@@ -656,7 +685,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     const isReadyForPickup = row.stato === 'da_ritirare' ||
                         (row.stato === 'prenotato' && row.data_prestito && row.data_prestito <= applicationToday);
                     if (isReadyForPickup) {
-                        actions += `<button type="button" onclick="confirmPickup(${safeId})" class="btn-icon btn-secondary p-2 text-amber-600 hover:bg-amber-100 rounded-full transition-colors" title="${escHtml(window.__('Conferma Ritiro'))}" aria-label="${escHtml(window.__('Conferma Ritiro'))}">
+                        actions += `<button type="button" data-pk-action="loans-confirm-pickup" data-loan-id="${safeId}" class="btn-icon btn-secondary p-2 text-amber-600 hover:bg-amber-100 rounded-full transition-colors" title="${escHtml(window.__('Conferma Ritiro'))}" aria-label="${escHtml(window.__('Conferma Ritiro'))}">
                             <i class="fas fa-box-open w-4 h-4"></i>
                         </button>`;
                     }
@@ -1088,6 +1117,8 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // Export dialog with status filter
+    window.PinakesActions.register('loans-export', () => window.showExportDialog());
+    window.PinakesActions.register('loans-confirm-pickup', (el) => window.confirmPickup(parseInt(el.dataset.loanId, 10)));
     window.showExportDialog = function() {
         Swal.fire({
             title: escHtml(__('Esporta Prestiti')),
@@ -1225,4 +1256,4 @@ document.addEventListener('DOMContentLoaded', function() {
 
 <!-- Camera barcode scanner (Phase 2) -->
 <?php include __DIR__ . '/../partials/copy-scanner-i18n.php'; ?>
-<script src="<?= htmlspecialchars(assetUrl('copy-scanner.bundle.js'), ENT_QUOTES, 'UTF-8') ?>" defer></script>
+<script<?= csp_nonce_attr() ?> src="<?= htmlspecialchars(assetUrl('copy-scanner.bundle.js'), ENT_QUOTES, 'UTF-8') ?>" defer></script>

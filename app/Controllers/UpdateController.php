@@ -519,6 +519,19 @@ class UpdateController
     /**
      * API: Get recent updater logs
      */
+    /**
+     * Number of trailing log lines to return: 200 by default, kept within
+     * 1..5000. A negative value used to flip array_slice() into "everything but
+     * the first N lines", i.e. nearly the whole log.
+     */
+    public static function clampLogLines(mixed $raw): int
+    {
+        if (!is_scalar($raw) || !is_numeric((string) $raw)) {
+            return 200;
+        }
+        return max(1, min(5000, (int) $raw));
+    }
+
     public function getLogs(Request $request, Response $response): Response
     {
         // The application log (error contexts, user ids, IPs) belongs to the
@@ -528,14 +541,15 @@ class UpdateController
         }
 
         $logFile = dirname(__DIR__, 2) . '/storage/logs/app.log';
-        $lines = (int)($request->getQueryParams()['lines'] ?? 200);
-        $filter = $request->getQueryParams()['filter'] ?? 'Updater';
+        $query = $request->getQueryParams();
+        $lines = self::clampLogLines($query['lines'] ?? null);
+        $filter = is_string($query['filter'] ?? null) ? $query['filter'] : 'Updater';
 
         if (!file_exists($logFile)) {
+            // No server path in the body: it would disclose the install location.
             return $this->jsonResponse($response, [
                 'success' => false,
                 'error' => __('File di log non trovato'),
-                'path' => $logFile
             ], 404);
         }
 
@@ -681,7 +695,7 @@ class UpdateController
         }
 
         $version = trim((string) ($data['version'] ?? ''));
-        if ($version === '' || preg_match('/^v?\d+\.\d+\.\d+(?:-[0-9A-Za-z.]+)?$/', $version) !== 1) {
+        if ($version === '' || preg_match(\App\Support\Updater::RELEASE_VERSION_PATTERN, $version) !== 1) {
             return $this->jsonResponse($response, ['error' => __('Versione non specificata')], 400);
         }
 

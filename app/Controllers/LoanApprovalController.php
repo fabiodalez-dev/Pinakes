@@ -185,11 +185,16 @@ class LoanApprovalController
      */
     private function lockedRowOutOfScope(mysqli $db, Response $response, array $row, string $table): ?Response
     {
-        if (\App\Support\Permissions::mayActOnBorrower($db, (int) ($row['utente_id'] ?? 0), true)) {
-            return null;
+        $borrowerId = (int) ($row['utente_id'] ?? 0);
+        if (!\App\Support\Permissions::mayActOnBorrower($db, $borrowerId, true)) {
+            $db->rollback();
+            return $this->scopeNotFound($response, $table);
         }
-        $db->rollback();
-        return $this->scopeNotFound($response, $table);
+        if (\App\Support\SelfDealingGuard::blocks($borrowerId)) {
+            $db->rollback();
+            return $this->selfDealingResponse($response);
+        }
+        return null;
     }
 
     private function scopeNotFound(Response $response, string $table): Response
@@ -222,6 +227,12 @@ class LoanApprovalController
         // (An automatic approval is the system acting on the requester's own loan.)
         if (!$automaticApproval && ($scopeDenied = $this->outOfBorrowerScope($db, $response, 'prestiti', $loanId))) {
             return $scopeDenied;
+        }
+        // Separation of duties: an operator who is not an administrator never
+        // approves their own request. An automatic approval (the reader's own
+        // request, approved by the system's rules) is not an operator action.
+        if (!$automaticApproval && \App\Support\SelfDealingGuard::blocksLoan($db, $loanId)) {
+            return $this->selfDealingResponse($response);
         }
 
         try {
@@ -757,6 +768,17 @@ class LoanApprovalController
         }
     }
 
+    /** JSON refusal of an operator action on the operator's own account. */
+    private function selfDealingResponse(Response $response): Response
+    {
+        $response->getBody()->write((string) json_encode([
+            'success' => false,
+            'code' => \App\Support\SelfDealingGuard::ERROR,
+            'message' => \App\Support\SelfDealingGuard::message(),
+        ], JSON_UNESCAPED_UNICODE));
+        return $response->withHeader('Content-Type', 'application/json')->withStatus(403);
+    }
+
     /** @return array{string,string}|null */
     private function approvalWindow(mysqli $db, \App\Support\LibraryCalendar $calendar, \App\Services\CapacityService $capacity, int $bookId, int $loanId, int $copyId, string $start, string $due, string $today): ?array
     {
@@ -803,6 +825,11 @@ class LoanApprovalController
         }
         if ($scopeDenied = $this->outOfBorrowerScope($db, $response, 'prestiti', $loanId)) {
             return $scopeDenied;
+        }
+        // Separation of duties: an operator who is not an administrator never
+        // acts on their own loan from the desk (SelfDealingGuard).
+        if (\App\Support\SelfDealingGuard::blocksLoan($db, $loanId)) {
+            return $this->selfDealingResponse($response);
         }
 
         // Canonical lock order: resolve the book without locking, lock `libri`
@@ -1009,6 +1036,11 @@ class LoanApprovalController
         }
         if ($scopeDenied = $this->outOfBorrowerScope($db, $response, 'prestiti', $loanId)) {
             return $scopeDenied;
+        }
+        // Separation of duties: an operator who is not an administrator never
+        // acts on their own loan from the desk (SelfDealingGuard).
+        if (\App\Support\SelfDealingGuard::blocksLoan($db, $loanId)) {
+            return $this->selfDealingResponse($response);
         }
 
         try {
@@ -1297,6 +1329,11 @@ class LoanApprovalController
         if ($scopeDenied = $this->outOfBorrowerScope($db, $response, 'prestiti', $loanId)) {
             return $scopeDenied;
         }
+        // Separation of duties: an operator who is not an administrator never
+        // acts on their own loan from the desk (SelfDealingGuard).
+        if (\App\Support\SelfDealingGuard::blocksLoan($db, $loanId)) {
+            return $this->selfDealingResponse($response);
+        }
 
         try {
             $today = DateHelper::today();
@@ -1547,6 +1584,11 @@ class LoanApprovalController
             $response->getBody()->write(json_encode(['success' => false, 'message' => __('ID prestito non valido')]));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
         }
+        // Separation of duties: an operator who is not an administrator never
+        // acts on their own loan from the desk (SelfDealingGuard).
+        if (\App\Support\SelfDealingGuard::blocksLoan($db, $loanId)) {
+            return $this->selfDealingResponse($response);
+        }
 
         try {
             // ORDINE DI LOCK CANONICO (P3): la riga `libri` per prima, poi `prestiti`.
@@ -1773,6 +1815,12 @@ class LoanApprovalController
         }
         if ($scopeDenied = $this->outOfBorrowerScope($db, $response, 'prenotazioni', $reservationId)) {
             return $scopeDenied;
+        }
+        // Separation of duties, as for every other desk action: an operator who
+        // is not an administrator never cancels their own reservation from the
+        // desk (the user area has its own cancel path).
+        if (\App\Support\SelfDealingGuard::blocksReservation($db, $reservationId)) {
+            return $this->selfDealingResponse($response);
         }
 
         try {

@@ -331,7 +331,7 @@ unset($workspaceHeader);
                         <i class="fas fa-edit text-xs" aria-hidden="true"></i>
                       </a>
                       <form method="POST" action="<?= $deleteUrl ?>" class="inline-flex"
-                            onsubmit="return confirm(<?= $e(json_encode(__('Eliminare questa testata con tutte le annate, i fascicoli e lo spoglio?'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT)) ?>);">
+                            data-pk-confirm="<?= $e(__('Eliminare questa testata con tutte le annate, i fascicoli e lo spoglio?')) ?>">
                         <input type="hidden" name="csrf_token" value="<?= $e(\App\Support\Csrf::ensureToken()) ?>">
                         <button type="submit" class="btn-icon btn-danger-outline w-7 h-7 inline-flex items-center justify-center text-gray-500 hover:text-red-500 hover:bg-red-50 rounded transition-all" title="<?= $e(__('Elimina')) ?>" aria-label="<?= $e(__('Elimina')) ?>">
                           <i class="fas fa-trash text-xs" aria-hidden="true"></i>
@@ -388,7 +388,7 @@ unset($workspaceHeader);
   </div>
 </div>
 
-<style>
+<style<?= csp_nonce_attr() ?>>
 /* Same rules as the core book list (app/Views/libri/index.php), scoped here. */
 .periodicals-list-card {
   padding: 0;

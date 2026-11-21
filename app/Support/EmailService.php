@@ -167,7 +167,7 @@ class EmailService {
         // Decrypt SMTP password if encrypted; keep plaintext as-is, clear broken ciphertext
         if (isset($defaults['smtp_password']) && is_string($defaults['smtp_password'])) {
             $rawPassword = $defaults['smtp_password'];
-            $decrypted = SettingsEncryption::decrypt($rawPassword);
+            $decrypted = SettingsEncryption::decrypt($rawPassword, 'email', 'smtp_password');
             if ($decrypted !== null) {
                 $defaults['smtp_password'] = $decrypted;
             } elseif (str_starts_with($rawPassword, SettingsEncryption::PREFIX)) {

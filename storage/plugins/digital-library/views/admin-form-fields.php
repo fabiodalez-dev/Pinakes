@@ -59,7 +59,7 @@ $attachmentVisibilities = ['inherit' => sprintf(__('Predefinita (%s)'), $visibil
     </div>
 </section>
 
-<script>
+<script<?= csp_nonce_attr() ?>>
 /**
  * Digital Library Upload Handlers
  * Uses existing Uppy instance to upload digital content

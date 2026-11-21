@@ -27,6 +27,9 @@ use Slim\Psr7\Response as SlimResponse;
  */
 final class TokenQuotaMiddleware implements MiddlewareInterface
 {
+    /** The per-account budget, in per-token budgets. */
+    public const USER_BUDGET_DEVICES = 3;
+
     private int $maxRequests;
     private int $window;
 
@@ -51,10 +54,26 @@ final class TokenQuotaMiddleware implements MiddlewareInterface
         } else {
             $server = $request->getServerParams();
             $ip     = (string) ($server['REMOTE_ADDR'] ?? 'unknown');
-            $identifier = 'mobile_api_quota:ip:' . $ip;
+            $identifier = 'mobile_api_quota:ip:' . RateLimiter::clientKey($ip);
         }
 
-        if (RateLimiter::isLimited($identifier, $this->maxRequests, $this->window)) {
+        // Every request also counts against its ACCOUNT: tokens are free to
+        // mint (one per login), so a per-token quota alone let one account
+        // multiply its budget by logging in again. The account budget is a
+        // few devices' worth, so a phone and a tablet in use together are
+        // never throttled by each other.
+        $limited = RateLimiter::isLimited($identifier, $this->maxRequests, $this->window);
+        $user    = $request->getAttribute(AppAuthMiddleware::ATTR_USER);
+        $userId  = is_array($user) ? (int) ($user['id'] ?? 0) : 0;
+        if ($userId > 0) {
+            $limited = RateLimiter::isLimited(
+                'mobile_api_quota:user:' . $userId,
+                $this->maxRequests * self::USER_BUDGET_DEVICES,
+                $this->window
+            ) || $limited;
+        }
+
+        if ($limited) {
             return ResponseEnvelope::error(
                 new SlimResponse(),
                 'rate_limited',

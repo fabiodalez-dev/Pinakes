@@ -554,6 +554,14 @@ class UsersController
             $dataTokenReset = null;
         }
 
+        // An outstanding password-reset link was mailed to the PREVIOUS
+        // address and stays valid for up to 2 hours: once the administrator
+        // moves the account to another mailbox, that link must stop working.
+        if (strtolower(trim((string) ($original['email'] ?? ''))) !== strtolower(trim((string) $email))) {
+            $tokenReset = null;
+            $dataTokenReset = null;
+        }
+
         $types = str_repeat('s', 15) . 'i' . str_repeat('s', 2) . 'iii';
 
         // Exception mode: a failed UPDATE throws. prepare()/bind_param() can throw too under
@@ -750,7 +758,10 @@ class UsersController
 
             if ($loanResult['count'] > 0) {
                 // Cannot delete user with loan history - mark as suspended instead
-                $updateStmt = $db->prepare("UPDATE utenti SET stato = 'sospeso', note_utente = CONCAT(IFNULL(note_utente, ''), '\n[ELIMINATO IL ', NOW(), ']') WHERE id = ?");
+                // The pending email-verification token goes too, as in
+                // update(): a stale verification link must not be able to
+                // re-activate an account the administrator has "deleted".
+                $updateStmt = $db->prepare("UPDATE utenti SET stato = 'sospeso', token_verifica_email = NULL, data_token_verifica = NULL, note_utente = CONCAT(IFNULL(note_utente, ''), '\n[ELIMINATO IL ', NOW(), ']') WHERE id = ?");
                 $updateStmt->bind_param("i", $id);
                 $updateStmt->execute();
                 $updateStmt->close();
@@ -815,6 +826,11 @@ class UsersController
         }
         // Leftovers of earlier photos whose unlink failed go with the account.
         \App\Support\PatronPhoto::sweepOrphans($id, null);
+
+        // The account's approved reviews (and the reviewer name they print)
+        // are gone with it: drop the cached public reviews block instead of
+        // letting it show the name until the TTL runs out.
+        \App\Support\ContentCache::reviewsChanged();
 
         // Audit logging for user deletion
         \App\Support\SecureLogger::info('User deleted', [

@@ -158,12 +158,21 @@ const MEMBER_ID = 900003;
 const SUSPENDED_ID = 900004;
 const FRESH_ID = 900005;
 const ABSENT_ID = 900099;
+const CATALOGER_ID = 900006;
+const LENDER_ID = 900007;
+const SUSPENDED_CATALOGER_ID = 900008;
+const CATALOG_ROLE_ID = 900101;
+const LOANS_ROLE_ID = 900102;
 
-$ids = [ADMIN_ID, STAFF_ID, MEMBER_ID, SUSPENDED_ID, FRESH_ID, ABSENT_ID];
+$ids = [ADMIN_ID, STAFF_ID, MEMBER_ID, SUSPENDED_ID, FRESH_ID, ABSENT_ID, CATALOGER_ID, LENDER_ID, SUSPENDED_CATALOGER_ID];
 $purge = static function () use ($db, $ids): void {
     $db->query('DELETE FROM utenti WHERE id IN (' . implode(',', $ids) . ')');
+    $db->query('DELETE FROM ruoli WHERE id IN (' . CATALOG_ROLE_ID . ',' . LOANS_ROLE_ID . ')');
 };
 $purge();
+$db->query("INSERT INTO ruoli (id, nome, permessi) VALUES
+    (" . CATALOG_ROLE_ID . ", 'Probe cataloguer', '[\"backend.access\",\"catalog.manage\"]'),
+    (" . LOANS_ROLE_ID . ", 'Probe lender', '[\"backend.access\",\"loans.manage\"]')");
 
 $seed = $db->prepare(
     'INSERT INTO utenti (id, codice_tessera, nome, cognome, email, password, tipo_utente, stato)
@@ -176,6 +185,9 @@ foreach ([
     [SUSPENDED_ID, 'admin',  'sospeso'],
     // A genuine active admin kept UNPROBED until part C — see the note there.
     [FRESH_ID,     'admin',  'attivo'],
+    [CATALOGER_ID, 'standard', 'attivo'],
+    [LENDER_ID, 'standard', 'attivo'],
+    [SUSPENDED_CATALOGER_ID, 'standard', 'sospeso'],
 ] as [$id, $role, $state]) {
     $tessera = 'ROLEPROBE' . $id;
     $nome = 'Probe';
@@ -186,6 +198,8 @@ foreach ([
     $seed->execute();
 }
 $seed->close();
+$db->query('UPDATE utenti SET ruolo_id = ' . CATALOG_ROLE_ID . ' WHERE id IN (' . CATALOGER_ID . ',' . SUSPENDED_CATALOGER_ID . ')');
+$db->query('UPDATE utenti SET ruolo_id = ' . LOANS_ROLE_ID . ' WHERE id = ' . LENDER_ID);
 
 $_SESSION = [];
 
@@ -275,6 +289,76 @@ $handler = new class ($reached) implements RequestHandlerInterface {
 $response = $orphan->process((new ServerRequestFactory())->createServerRequest('GET', '/api/search/unified'), $handler);
 $check($response->getStatusCode() === 200, 'the handler still runs when the role cannot be checked');
 $check($reached === false, 'but the operator claim is dropped, though the account is a real active admin');
+
+echo "\nC2. Custom-role cataloguers get the author picker's full list\n";
+
+$attributes = static function (array $sessionUser) use ($db): array {
+    $_SESSION['user'] = $sessionUser;
+    $seen = [];
+    $handler = new class ($seen) implements RequestHandlerInterface {
+        public function __construct(private mixed &$seen) {}
+
+        public function handle(ServerRequestInterface $request): ResponseInterface
+        {
+            $this->seen = $request->getAttributes();
+
+            return new SlimResponse(200);
+        }
+    };
+    (new SessionRoleRefreshMiddleware($db))->process(
+        (new ServerRequestFactory())->createServerRequest('GET', '/api/search/autori'),
+        $handler
+    );
+    return $seen;
+};
+$cataloguer = $attributes(['id' => CATALOGER_ID, 'tipo_utente' => 'standard']);
+$check(($cataloguer[SessionRoleRefreshMiddleware::ATTRIBUTE] ?? null) === false
+    && ($cataloguer[SessionRoleRefreshMiddleware::CATALOG_ATTRIBUTE] ?? null) === true,
+    'a reader whose role grants catalog.manage is a cataloguer, not an operator');
+$check(($attributes(['id' => LENDER_ID, 'tipo_utente' => 'standard'])[SessionRoleRefreshMiddleware::CATALOG_ATTRIBUTE] ?? null) === false,
+    'a role without catalog.manage is not');
+$check(($attributes(['id' => SUSPENDED_CATALOGER_ID, 'tipo_utente' => 'standard'])[SessionRoleRefreshMiddleware::CATALOG_ATTRIBUTE] ?? null) === false,
+    'a suspended cataloguer is not');
+$check(($attributes(['id' => STAFF_ID, 'tipo_utente' => 'staff'])[SessionRoleRefreshMiddleware::CATALOG_ATTRIBUTE] ?? null) === true,
+    'operators keep it');
+
+// The controller, fed by the real middleware: 60 authors, empty query.
+$db->query("DELETE FROM autori WHERE nome LIKE 'ProbeAuthor %'");
+for ($i = 1; $i <= 60; $i++) {
+    $db->query("INSERT INTO autori (nome) VALUES ('ProbeAuthor " . sprintf('%02d', $i) . "')");
+}
+$listFor = static function (array $sessionUser, string $q) use ($db): array {
+    $_SESSION['user'] = $sessionUser;
+    $out = [];
+    $handler = new class ($db, $q, $out) implements RequestHandlerInterface {
+        public function __construct(private mysqli $db, private string $q, private mixed &$out) {}
+
+        public function handle(ServerRequestInterface $request): ResponseInterface
+        {
+            $response = (new \App\Controllers\SearchController())->authors(
+                $request->withQueryParams(['q' => $this->q]),
+                new SlimResponse(),
+                $this->db
+            );
+            $this->out = json_decode((string) $response->getBody(), true);
+
+            return $response;
+        }
+    };
+    (new SessionRoleRefreshMiddleware($db))->process(
+        (new ServerRequestFactory())->createServerRequest('GET', '/api/search/autori'),
+        $handler
+    );
+    return is_array($out) ? $out : [];
+};
+$check(count($listFor(['id' => CATALOGER_ID, 'tipo_utente' => 'standard'], '')) >= 60,
+    'a cataloguer gets the full author list on an empty query (picker preload)');
+$check(count($listFor(['id' => CATALOGER_ID, 'tipo_utente' => 'standard'], 'ProbeAuthor')) === 60,
+    'and uncapped search results');
+$check($listFor(['id' => LENDER_ID, 'tipo_utente' => 'standard'], '') === []
+    && count($listFor(['id' => LENDER_ID, 'tipo_utente' => 'standard'], 'ProbeAuthor')) === 50,
+    'a non-cataloguing reader still gets nothing for an empty query and a capped search');
+$db->query("DELETE FROM autori WHERE nome LIKE 'ProbeAuthor %'");
 
 echo "\nD. The middleware is actually attached to the route it protects\n";
 

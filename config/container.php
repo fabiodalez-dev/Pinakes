@@ -122,6 +122,9 @@ $containerDefinitions = [
             // Give database integrity triggers the same authoritative day used
             // by the PHP circulation layer (app.timezone).
             \App\Support\DateHelper::synchronizeDatabaseSession($mysqli);
+            // Bound interactive read queries (no-op in CLI and on long-running
+            // admin paths such as the updater, backups and imports). Never throws.
+            \App\Support\DbStatementTimeout::applyForWebRequest($mysqli);
             
             return $mysqli;
             

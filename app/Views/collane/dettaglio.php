@@ -303,7 +303,7 @@ unset($workspaceHeader);
 
 </section>
 
-<script>
+<script<?= csp_nonce_attr() ?>>
 (function() {
   const input = document.getElementById('merge-target');
   const suggestions = document.getElementById('merge-suggestions');

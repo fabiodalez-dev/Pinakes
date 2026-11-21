@@ -140,4 +140,4 @@ unset($workspaceHeader);
     <?php endif; ?>
   </div>
 </div>
-<script src="<?= $e(url('/plugins/emeroteca/assets/js/emeroteca-articles.js?v=1.5.0')) ?>" defer></script>
+<script<?= csp_nonce_attr() ?> src="<?= $e(url('/plugins/emeroteca/assets/js/emeroteca-articles.js?v=1.5.0')) ?>" defer></script>

@@ -114,7 +114,7 @@ unset($workspaceHeader);
               <?php foreach(['contenitore_curatori'=>[__('Curatori del volume'),__('Separa più curatori con un punto e virgola, per esempio Petersen, Hans Uwe.')],'contenitore_editore'=>[__('Editore'),''],'contenitore_luogo'=>[__('Luogo di pubblicazione'),''],'isbn'=>['ISBN',__('L’ISBN del volume.')]] as $key=>[$label,$hint]): ?><div<?= $key==='contenitore_curatori'?' class="md:col-span-2"':'' ?>><label for="article-<?= $e($key) ?>" class="form-label"><?= $e($label) ?></label><input class="form-input" id="article-<?= $e($key) ?>" name="<?= $e($key) ?>" value="<?= $e($row[$key]??'') ?>" maxlength="<?= \App\Plugins\Emeroteca\Services\ContributionService::TEXT_FIELDS[$key] ?>"><?php if($hint!==''): ?><p class="text-xs text-gray-500 mt-1"><?= $e($hint) ?></p><?php endif; ?></div><?php endforeach; ?>
             </div>
           </div>
-          <script>
+          <script<?= csp_nonce_attr() ?>>
           (function () {
             var type = document.getElementById('article-contenitore_tipo');
             var host = document.getElementById('article-host-volume');
@@ -151,7 +151,7 @@ unset($workspaceHeader);
             </select>
             <?php if (!$hostAvailable): ?><p class="text-red-600 mt-1"><?= __('Elenco delle testate non disponibile: il collegamento attuale non viene modificato.') ?></p><?php endif; ?>
             <p class="text-gray-600 mt-1"><?= __('«Titolo della pubblicazione» è il nome della rivista o del giornale come lo scrivi in questa scheda. La testata associata è la scheda di quella rivista nell’Emeroteca, con le sue annate e i suoi fascicoli: è facoltativa. Sceglila qui cercandola per titolo; titolo e ISSN vengono copiati nei campi sopra se sono ancora vuoti.') ?></p>
-            <script>
+            <script<?= csp_nonce_attr() ?>>
             document.addEventListener('DOMContentLoaded', function () {
               const select = document.getElementById('article-testata_id');
               if (!select) return;
@@ -241,7 +241,7 @@ if($scheme!==''&&$scheme!==$otherScheme){if(isset($schemes[strtoupper($scheme)])
             <div id="article-class-text"><label for="article-classificazione" class="form-label"><?= $e($labels['classificazione']) ?></label><input class="form-input" id="article-classificazione" name="classificazione" value="<?= $e($row['classificazione']??'') ?>" maxlength="<?= \App\Plugins\Emeroteca\Services\ContributionService::TEXT_FIELDS['classificazione'] ?>"><p class="text-xs text-gray-500 mt-1"><?= __('La notazione, per esempio 33.129.') ?></p></div></div>
             <?php $field('nota_possesso',__('Che cosa possiede la biblioteca di questo articolo, per esempio una fotocopia o un estratto, e non l’intera annata. Il formato, su carta o digitale, si sceglie più sopra.'),true); ?>
           </div>
-          <script>
+          <script<?= csp_nonce_attr() ?>>
           document.addEventListener('DOMContentLoaded', function () {
             // Scheme: "Other" asks for its name; Dewey swaps the text box for the
             // Dewey picker. Only one of the two "classificazione" inputs is enabled.
@@ -315,7 +315,7 @@ if($scheme!==''&&$scheme!==$otherScheme){if(isset($schemes[strtoupper($scheme)])
             <label class="flex items-center gap-2 text-sm text-gray-700 cursor-pointer"><input type="checkbox" id="article-risorsa_pubblica" name="risorsa_pubblica" value="1" class="w-4 h-4 rounded border-gray-300 text-gray-900 focus:ring-gray-500" <?= !empty($row['risorsa_pubblica'])?'checked':'' ?><?= $resourceMissing?' disabled aria-disabled="true"':'' ?> aria-describedby="article-risorsa-note"><span><?= __('Mostra la risorsa elettronica nel catalogo pubblico') ?></span></label>
             <p class="text-xs text-gray-500 mt-1" id="article-risorsa-note"<?= $resourceMissing?'':' hidden' ?>><?= __('Indica prima l’indirizzo o il percorso della risorsa: senza, non c’è nulla da mostrare nel catalogo pubblico.') ?></p>
           </div>
-          <script>
+          <script<?= csp_nonce_attr() ?>>
           (function () {
             // A public switch with no address publishes nothing (the server forces it
             // off too): keep it disabled, with the reason beside it, until one is typed.
@@ -396,13 +396,13 @@ if($scheme!==''&&$scheme!==$otherScheme){if(isset($schemes[strtoupper($scheme)])
       <summary class="card-header cursor-pointer"><h2 class="form-section-title flex items-center gap-2 text-red-700"><i class="fas fa-trash text-red-700" aria-hidden="true"></i><?= __('Elimina articolo') ?><i class="fas fa-chevron-down text-xs text-gray-500 ml-auto article-fold-chevron" aria-hidden="true"></i></h2></summary>
       <div class="card-body">
         <p class="text-sm text-gray-600 mb-4"><?= __('L’articolo e il suo PDF saranno eliminati. La testata rimane disponibile.') ?></p>
-        <form method="post" action="<?= $e(url('/admin/periodicals/articles/'.(int)$row['id'].'/delete')) ?>" onsubmit="return confirm(<?= $e(json_encode(__('Eliminare questo articolo e il suo PDF?'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT)) ?>);"><input type="hidden" name="csrf_token" value="<?= $e(\App\Support\Csrf::ensureToken()) ?>"><input type="hidden" name="revision" value="<?= (int)$row['revision'] ?>"><button type="submit" class="btn-danger"><i class="fas fa-trash mr-2"></i><?= __('Conferma eliminazione') ?></button></form>
+        <form method="post" action="<?= $e(url('/admin/periodicals/articles/'.(int)$row['id'].'/delete')) ?>" data-pk-confirm="<?= $e(__('Eliminare questo articolo e il suo PDF?')) ?>"><input type="hidden" name="csrf_token" value="<?= $e(\App\Support\Csrf::ensureToken()) ?>"><input type="hidden" name="revision" value="<?= (int)$row['revision'] ?>"><button type="submit" class="btn-danger"><i class="fas fa-trash mr-2"></i><?= __('Conferma eliminazione') ?></button></form>
       </div>
     </details>
     <?php endif; endif; ?>
   </div>
 </div>
-<style>
+<style<?= csp_nonce_attr() ?>>
   /* A folded section is a card whose header is the <summary>: closed, the
      header must not keep the bottom margin and rule that separate it from a
      body that is not there. */
@@ -416,5 +416,5 @@ if($scheme!==''&&$scheme!==$otherScheme){if(isset($schemes[strtoupper($scheme)])
   @media (prefers-reduced-motion: reduce) { .article-fold-chevron { transition: none; } }
   #article-host-volume[hidden], #article-cover-preview img[hidden] { display: none; }
 </style>
-<script src="<?= $e(url('/plugins/emeroteca/assets/js/emeroteca-upload.js?v=1.3.0')) ?>" defer></script>
-<script src="<?= $e(url('/plugins/emeroteca/assets/js/emeroteca-code-picker.js?v=1.0.0')) ?>" defer></script>
+<script<?= csp_nonce_attr() ?> src="<?= $e(url('/plugins/emeroteca/assets/js/emeroteca-upload.js?v=1.3.0')) ?>" defer></script>
+<script<?= csp_nonce_attr() ?> src="<?= $e(url('/plugins/emeroteca/assets/js/emeroteca-code-picker.js?v=1.0.0')) ?>" defer></script>

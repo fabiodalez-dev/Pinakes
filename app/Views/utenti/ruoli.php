@@ -55,7 +55,7 @@ require __DIR__ . '/../partials/workspace-header.php';
     <div class="pk-form-actions"><button type="submit" class="ui-button btn-primary"><?= __('Salva ruoli e permessi') ?></button></div>
   </form>
 </div>
-<style>
+<style<?= csp_nonce_attr() ?>>
 .roles-page { padding: 0 0 2.25rem; color: var(--text-primary, #1b1720); }
 .roles-page > p, .roles-page form > p { max-width: 75ch; margin: 1rem 0; }
 .roles-table-wrap { max-width: 100%; overflow-x: auto; margin: 2rem 0; }

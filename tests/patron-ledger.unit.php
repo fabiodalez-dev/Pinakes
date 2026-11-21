@@ -225,6 +225,20 @@ try {
     $check($ledger->lateFineNetCents($loan4) === 0, 'nothing standing on the loan after the undo');
     $check($ledger->chargeLateReturn($loan4) === 250 && $ledger->lateFineNetCents($loan4) === 250 && $ledger->balanceCents($u4) === 250, 'the next return of the loan charges its fine again');
 
+    echo "C3. Undoing a return keeps the trace of an earlier extension\n";
+    $u5 = $newUser('ext');
+    $loan5 = $newLoan($u5, $daysAgo(30), $daysAgo(10));
+    $extWaived = $ledger->waiveAccruedOnExtension($loan5, 'Proroga concordata', null);
+    $check($extWaived > 0 && $ledger->balanceCents($u5) === 0, 'the extension writes its fine and waives it');
+    $db->query("UPDATE prestiti SET data_scadenza = '" . $daysAgo(5) . "' WHERE id = {$loan5}");
+    $check((new LoanRepository($db))->close($loan5) === true, 'the extended loan comes back late');
+    $returnFine = $ledger->lateFineNetCents($loan5);
+    $returnRow = (int) round(100 * (float) $db->query("SELECT importo FROM movimenti_lettore WHERE chiave_idempotenza = 'late:{$loan5}'")->fetch_row()[0]);
+    $check($returnFine === 250 && $returnRow === 250, "the return charges the 5 days after the new due date, the extension pair nets to zero (got {$returnFine})");
+    $check($ledger->reverseLateFine($loan5, 'Restituzione annullata', null) === $returnFine, 'undoing the return reverses the return fine only');
+    $check($count("prestito_id = {$loan5} AND tipo = 'storno' AND chiave_idempotenza LIKE 'storno:waiver:%'") === 0, "the extension's waiver is not reversed (no storno:waiver row)");
+    $check($ledger->balanceCents($u5) === 0 && $ledger->lateFineNetCents($loan5) === 0, 'balance and net fine back to 0');
+
     echo "D. Debt block: PHP and SQL agree\n";
     $check(LoanEligibility::checkUser($db, $u1) === null && $sqlEligible($u1), 'no threshold: eligible in PHP and SQL');
     $setSetting('debt_block_threshold', '5,00');

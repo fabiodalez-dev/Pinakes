@@ -75,7 +75,7 @@ $spinner = '<span class="inline-block animate-spin rounded-full border-2 border-
                 <?php $coverTitle = html_entity_decode((string) ($cover['titolo'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>
                 <a class="pk-fan__book" href="<?= $e(book_url($cover)) ?>" title="<?= $e($coverTitle) ?>">
                     <span class="pk-book__blank" aria-hidden="true"><span class="pk-book__blank-title"><?= $e($coverTitle) ?></span><span class="pk-book__rule"></span></span>
-                    <img class="pk-book__img" src="<?= $e(absoluteUrl((string) $cover['copertina_url'])) ?>" alt="<?= $e($coverTitle) ?>" decoding="async" onerror="this.onerror=null;this.classList.add('is-missing')">
+                    <img class="pk-book__img" src="<?= $e(absoluteUrl((string) $cover['copertina_url'])) ?>" alt="<?= $e($coverTitle) ?>" decoding="async" data-pk-fallback-class="is-missing">
                     <span class="pk-book__spine" aria-hidden="true"></span>
                 </a>
             <?php endforeach; ?>

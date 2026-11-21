@@ -149,23 +149,22 @@ unset($workspaceHeader);
             </div>
             <?php else: ?><p class="text-sm"><a class="text-blue-700 underline" href="<?= $e(url('/admin/books/' . (int)$o['book_id'])) ?>"><?= __('Apri il libro richiesto') ?></a></p><?php endif; ?>
             <?php // The confirmation belongs on the buttons, not on the form: the
-                  // three actions share one <form>, so an onsubmit handler would
+                  // three actions share one <form>, so a form-level confirmation would
                   // also gate "Accetta proposta", which is reversible and merely
                   // tells the donor to bring the book. The other two are terminal —
                   // one creates a real inventory copy, the other closes the
                   // proposal for good — and manage() refuses any further action
                   // once the status is 'received' or 'rejected'. ?>
-            <?php $ask = [DesiderataPlugin::class, 'confirmJs']; ?>
             <div class="flex flex-wrap gap-2">
               <?php if ($o['status'] === 'pending'): ?><button name="action" value="accepted" class="btn btn-secondary" formnovalidate><?= __('Accetta proposta') ?></button><?php endif; ?>
-              <button name="action" value="received" class="btn btn-primary" onclick="<?= $e($ask(__('Registrare la copia ricevuta? Viene creata una copia fisica in inventario e la proposta si chiude.'))) ?>"><?= __('Libro arrivato: registra una copia') ?></button>
-              <button name="action" value="rejected" class="btn btn-secondary" formnovalidate onclick="<?= $e($ask(__('Rifiutare la proposta? La proposta si chiude e non potrà più essere accettata.'))) ?>"><?= __('Rifiuta proposta') ?></button>
+              <button name="action" value="received" class="btn btn-primary" data-pk-confirm="<?= $e(__('Registrare la copia ricevuta? Viene creata una copia fisica in inventario e la proposta si chiude.')) ?>"><?= __('Libro arrivato: registra una copia') ?></button>
+              <button name="action" value="rejected" class="btn btn-secondary" formnovalidate data-pk-confirm="<?= $e(__('Rifiutare la proposta? La proposta si chiude e non potrà più essere accettata.')) ?>"><?= __('Rifiuta proposta') ?></button>
             </div>
           </form>
           <?php elseif ($o['status'] === 'received'): ?><p class="text-sm"><a class="text-blue-700 underline" href="<?= $e(url('/admin/books/' . (int)$o['received_book_id'] . '#physical-copies')) ?>"><?= __('Visualizza la copia ricevuta') ?></a></p><?php endif; ?>
           <?php // The proposal holds the donor's name, e-mail and notes: once it is
                 // settled, deleting it is how those data leave the archive. ?>
-          <form method="post" action="<?= $e(url('/admin/desiderata/offers/' . $offerId) . $actionQuery) ?>" class="mt-3" onsubmit="return confirm(<?= $e(json_encode(__('Eliminare la proposta e i dati del donatore? L’operazione non è reversibile.'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT)) ?>);">
+          <form method="post" action="<?= $e(url('/admin/desiderata/offers/' . $offerId) . $actionQuery) ?>" class="mt-3" data-pk-confirm="<?= $e(__('Eliminare la proposta e i dati del donatore? L’operazione non è reversibile.')) ?>">
             <input type="hidden" name="csrf_token" value="<?= $e($token) ?>">
             <button name="action" value="delete" class="text-sm text-red-700 underline"><?= __('Elimina proposta e dati del donatore') ?></button>
           </form>
@@ -208,7 +207,7 @@ unset($workspaceHeader);
               <?php else: ?>
               <form method="post" action="<?= $e(url('/admin/desiderata/books/' . $bookId . '/received')) ?>">
                 <input type="hidden" name="csrf_token" value="<?= $e($token) ?>">
-                <button class="btn btn-primary" onclick="<?= $e(DesiderataPlugin::confirmJs(__('Registrare il libro come donato? Viene creata una copia fisica in inventario e la richiesta si chiude.'))) ?>"><?= __('Libro donato: registra la copia') ?></button>
+                <button class="btn btn-primary" data-pk-confirm="<?= $e(__('Registrare il libro come donato? Viene creata una copia fisica in inventario e la richiesta si chiude.')) ?>"><?= __('Libro donato: registra la copia') ?></button>
               </form>
               <?php endif; ?>
               <a class="text-blue-700 underline text-sm" href="<?= $e(url('/admin/books/edit/' . $bookId)) ?>"><?= __('Modifica richiesta') ?></a>
@@ -233,16 +232,14 @@ unset($workspaceHeader);
       // carries its own, more specific confirmation on the receipt button. The
       // generic one stays for every ordinary record.
       //
-      // Same rule as the buttons above: json_encode with the HEX flags, never
-      // htmlspecialchars, for anything that ends up inside an onclick — the
-      // attribute is HTML-decoded before the JS parser sees it.
-      $askJs = [DesiderataPlugin::class, 'confirmJs']; ?>
-<script>
+      // The confirmation travels as plain text in data-pk-confirm (read by
+      // pk-actions.js), so swapping it is a data change, never a code one. ?>
+<script<?= csp_nonce_attr() ?>>
 document.querySelectorAll('.dw-receipt-search').forEach(root => {
   const input=root.querySelector('input'), select=root.querySelector('select'), status=root.querySelector('[role="status"]');
   const receive=root.closest('form')?.querySelector('button[name="action"][value="received"]');
-  const genericAsk=(receive && receive.getAttribute('onclick')) || '';
-  const flaggedAsk=<?= json_encode($askJs(__('Questa scheda è una richiesta aperta della biblioteca: registrando la copia, quella richiesta risulterà soddisfatta da questa donazione. Procedere?')), JSON_HEX_TAG) ?>;
+  const genericAsk=(receive && receive.getAttribute('data-pk-confirm')) || '';
+  const flaggedAsk=<?= json_encode(__('Questa scheda è una richiesta aperta della biblioteca: registrando la copia, quella richiesta risulterà soddisfatta da questa donazione. Procedere?'), JSON_HEX_TAG) ?>;
   const flaggedNote=<?= json_encode(__('Attenzione: la scheda selezionata è una richiesta aperta della biblioteca e verrà chiusa dalla registrazione.'), JSON_HEX_TAG) ?>;
   const pickNote=<?= json_encode(__('Seleziona il libro corrispondente prima di registrare la copia.'), JSON_HEX_TAG) ?>;
   const flaggedTag=<?= json_encode(__('richiesta aperta'), JSON_HEX_TAG) ?>;
@@ -257,7 +254,7 @@ document.querySelectorAll('.dw-receipt-search').forEach(root => {
   const sync=(fallback) => {
     const option=select.selectedOptions[0];
     const flagged=!!option && option.dataset.desiderata==='1';
-    if(receive) receive.setAttribute('onclick', flagged?flaggedAsk:genericAsk);
+    if(receive) receive.setAttribute('data-pk-confirm', flagged?flaggedAsk:genericAsk);
     status.textContent = flagged ? flaggedNote
       : (option && option.value) ? pickNote
       : (fallback ?? (select.options.length>1 ? pickNote : ''));

@@ -174,7 +174,7 @@ class BookRatingBookHandler
                     <i class="fas fa-star text-yellow-500 mr-2"></i>
                     Rating Esterno (Goodreads)
                 </h3>
-                <button type="button" onclick="syncExternalRating(<?= $bookId ?>)"
+                <button type="button" data-sync-external-rating="<?= (int) $bookId ?>"
                         class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm">
                     <i class="fas fa-sync mr-2"></i>Sincronizza
                 </button>
@@ -225,12 +225,19 @@ class BookRatingBookHandler
             <?php endif; ?>
         </div>
 
-        <script>
-        function syncExternalRating(bookId) {
+        <?php
+        // CSP: no inline handlers (onclick=... is blocked by script-src-attr
+        // 'none'), and every inline <script> carries the response nonce.
+        ?>
+        <script<?= csp_nonce_attr() ?>>
+        document.addEventListener('click', function (event) {
+            var button = event.target.closest('[data-sync-external-rating]');
+            if (!button) return;
+            var bookId = parseInt(button.getAttribute('data-sync-external-rating'), 10);
             // Implementa chiamata AJAX per sincronizzare rating
             console.log('Sync rating per libro:', bookId);
             // TODO: Implementare endpoint API per sync manuale
-        }
+        });
         </script>
         <?php
     }

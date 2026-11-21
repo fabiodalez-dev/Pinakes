@@ -514,10 +514,11 @@ test.describe.serial('Emeroteca plugin (E2E)', () => {
     await page.goto(`${BASE}/admin/periodicals/${testataId}/issues`);
     const markForm = page.locator(`form:has(input[name="action"][value="mark_missing"]):has(input[name="annata_id"][value="${annataK}"])`);
     await expect(markForm.locator('button[type="submit"]')).toBeVisible({ timeout: 10000 });
-    page.once('dialog', (d) => d.accept().catch(() => {}));
+    // The form confirms through pk-actions.js (data-pk-confirm → SweetAlert2).
+    await markForm.locator('button[type="submit"]').click();
     await Promise.all([
       page.waitForEvent('load', { timeout: 15000 }),
-      markForm.locator('button[type="submit"]').click(),
+      page.locator('.swal2-confirm').click(),
     ]);
     const rows = dbQuery(
       `SELECT SUM(stato='mancante'), SUM(stato='atteso'), SUM(stato='posseduto') FROM emeroteca_fascicoli WHERE annata_id=${Number(annataK)}`,
@@ -948,10 +949,11 @@ test.describe.serial('Emeroteca plugin (E2E)', () => {
     const deleteForm = page.locator('tr', { hasText: 'Fornitore E2E rinnovato' })
       .first()
       .locator('form[method="POST"]');
-    page.once('dialog', (d) => d.accept().catch(() => {}));
+    // The form confirms through pk-actions.js (data-pk-confirm → SweetAlert2).
+    await deleteForm.locator('button[type="submit"]').click();
     await Promise.all([
       page.waitForEvent('load', { timeout: 15000 }),
-      deleteForm.locator('button[type="submit"]').click(),
+      page.locator('.swal2-confirm').click(),
     ]);
     expect(
       Number(dbQuery(`SELECT COUNT(*) FROM emeroteca_abbonamenti WHERE id=${Number(subscriptionId)}`).trim()),
@@ -1135,10 +1137,11 @@ test.describe.serial('Emeroteca plugin (E2E)', () => {
 
     // Keep the original title, drop the duplicate.
     await page.check(`input[name="target_id"][value="${testataId}"]`);
-    page.once('dialog', (d) => d.accept().catch(() => {}));
+    // The form confirms through pk-actions.js (data-pk-confirm → SweetAlert2).
+    await page.locator('form button[type="submit"]:has-text("Unisci le testate")').click();
     await Promise.all([
       page.waitForEvent('load', { timeout: 30000 }),
-      page.locator('form button[type="submit"]:has-text("Unisci le testate")').click(),
+      page.locator('.swal2-confirm').click(),
     ]);
 
     // The summary names what moved and what had to be renumbered.

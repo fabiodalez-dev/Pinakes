@@ -127,6 +127,21 @@ try {
     file_put_contents($tmpRoot . '/version.json', '{"version":"9.9.2"}');
     SchemaRepair::runOncePerVersion($db, $tmpRoot);
     $check($hasOclc(), 'a new version checks again');
+    // A live installer claim (fresh install in progress) blocks the repair;
+    // an expired one does not. No .installed file is needed in either case.
+    $check(!is_file($tmpRoot . '/.installed'), 'the temp root has .env-style install state, no .installed');
+    $db->query('ALTER TABLE libri DROP COLUMN oclc');
+    file_put_contents($tmpRoot . '/version.json', '{"version":"9.9.5"}');
+    file_put_contents($tmpRoot . '/storage/.install_in_progress', hash('sha256', 'owner'));
+    SchemaRepair::runOncePerVersion($db, $tmpRoot);
+    $check(!$hasOclc() && file_get_contents($tmpRoot . '/storage/.schema-repaired') === '9.9.2', 'a live install-in-progress claim skips the repair');
+    touch($tmpRoot . '/storage/.install_in_progress', time() - 43201);
+    SchemaRepair::runOncePerVersion($db, $tmpRoot);
+    $check($hasOclc() && file_get_contents($tmpRoot . '/storage/.schema-repaired') === '9.9.5', 'an expired claim no longer blocks it');
+    unlink($tmpRoot . '/storage/.install_in_progress');
+    file_put_contents($tmpRoot . '/version.json', '{"version":"9.9.2"}');
+    file_put_contents($tmpRoot . '/storage/.schema-repaired', '9.9.2');
+
     // Without a readable schema.sql the repair fails and leaves no marker.
     rename($tmpRoot . '/installer/database/schema.sql', $tmpRoot . '/installer/database/schema.sql.off');
     file_put_contents($tmpRoot . '/version.json', '{"version":"9.9.4"}');

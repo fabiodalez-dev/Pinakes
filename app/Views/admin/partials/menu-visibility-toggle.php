@@ -44,7 +44,7 @@ $menuToggleEnabled = (bool) ($menuToggle['enabled'] ?? true);
       <div class="flex items-center gap-4">
         <label class="flex items-center gap-3 cursor-pointer">
           <input type="checkbox" name="in_menu" value="1" <?= $menuToggleEnabled ? 'checked' : '' ?>
-            class="toggle-checkbox sr-only" onchange="document.getElementById('menuVisibilityForm').submit()">
+            class="toggle-checkbox sr-only" data-pk-action="submit-form">
           <div class="toggle-switch">
             <div class="toggle-slider"></div>
           </div>
@@ -57,7 +57,7 @@ $menuToggleEnabled = (bool) ($menuToggle['enabled'] ?? true);
   </form>
 </div>
 
-<style>
+<style<?= csp_nonce_attr() ?>>
   /* Toggle switch, as on the Events page */
   #menuVisibilityForm .toggle-switch {
     position: relative;

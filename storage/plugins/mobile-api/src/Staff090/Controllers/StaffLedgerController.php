@@ -183,6 +183,11 @@ final class StaffLedgerController
             if (!Permissions::can('loans.manage')) {
                 return ResponseEnvelope::error($response, 'not_permitted', __('Accesso negato.'), 403);
             }
+            // Separation of duties, checked before the idempotency memory for
+            // the same reason: no stored answer reaches an operator's own account.
+            if (\App\Support\SelfDealingGuard::blocks($userId)) {
+                return $this->ledgerError($response, \App\Support\SelfDealingGuard::ERROR, $userId);
+            }
             $db = $this->db;
 
             return (new StaffIdempotency($db))->run(

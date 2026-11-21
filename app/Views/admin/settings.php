@@ -379,7 +379,7 @@ php cron/automatic-notifications.php
 
               <div class="pk-form-actions flex gap-2">
                 <button type="submit" class="btn-primary"><i class="fas fa-save mr-2"></i><?= __("Salva Template") ?></button>
-                <button type="button" onclick="closeTemplateEditor()" class="btn-secondary"><i class="fas fa-times mr-2"></i><?= __("Annulla") ?></button>
+                <button type="button" data-pk-action="settings-close-template-editor" class="btn-secondary"><i class="fas fa-times mr-2"></i><?= __("Annulla") ?></button>
               </div>
             </form>
           </div>
@@ -389,8 +389,8 @@ php cron/automatic-notifications.php
   </div>
 </div>
 
-<script src="<?= htmlspecialchars(assetUrl('tinymce/tinymce.min.js'), ENT_QUOTES, 'UTF-8') ?>"></script>
-<script>
+<script<?= csp_nonce_attr() ?> src="<?= htmlspecialchars(assetUrl('tinymce/tinymce.min.js'), ENT_QUOTES, 'UTF-8') ?>"></script>
+<script<?= csp_nonce_attr() ?>>
 // Global __ function for JavaScript (MUST be defined before DOM elements use it)
 if (typeof window.__ === 'undefined') {
   window.__ = function(key) {
@@ -569,4 +569,7 @@ document.addEventListener('DOMContentLoaded', function() {
     toggleSmtpFields(); // Call on page load
   }
 });
+
+// Delegated actions (CSP script-src-attr 'none': no inline on* attributes).
+PinakesActions.register('settings-close-template-editor', () => closeTemplateEditor());
 </script>

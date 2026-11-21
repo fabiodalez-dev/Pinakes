@@ -35,6 +35,8 @@ class ViafAuthorityPlugin
     /** @phpstan-ignore property.onlyWritten */
     private HookManager $hookManager;
     private ?int $pluginId = null;
+    /** The Basic header requireAdminOrStaff() authenticated on this request, if any. */
+    private ?string $verifiedBasicHeader = null;
 
     /** VIAF AutoSuggest base URL */
     private const VIAF_SUGGEST_URL = 'https://viaf.org/viaf/AutoSuggest?query=';
@@ -438,7 +440,7 @@ class ViafAuthorityPlugin
 
         $server = $request->getServerParams();
         $remoteAddr = is_string($server['REMOTE_ADDR'] ?? null) ? (string) $server['REMOTE_ADDR'] : 'unknown';
-        if (RateLimiter::isLimited('viaf_suggest:' . $remoteAddr, 60, 60)) {
+        if (RateLimiter::isLimited('viaf_suggest:' . RateLimiter::clientKey($remoteAddr), 60, 60)) {
             return $this->json($response, ['error' => true, 'message' => __('Troppe richieste. Riprova più tardi.')], 429);
         }
 
@@ -911,7 +913,7 @@ class ViafAuthorityPlugin
         $viafUri = htmlspecialchars((string) ($row['viaf_uri'] ?? ''), ENT_QUOTES, 'UTF-8');
         $isniId  = htmlspecialchars((string) ($row['isni_id'] ?? ''), ENT_QUOTES, 'UTF-8');
         $html  = "<!DOCTYPE html><html><head><meta charset='utf-8'>";
-        $html .= "<style>body{font-family:sans-serif;padding:8px;font-size:13px;}h2{margin:0 0 6px;}p{margin:3px 0;color:#555;}a{color:#1a73e8;}</style></head><body>";
+        $html .= "<style" . csp_nonce_attr() . ">body{font-family:sans-serif;padding:8px;font-size:13px;}h2{margin:0 0 6px;}p{margin:3px 0;color:#555;}a{color:#1a73e8;}</style></head><body>";
         $html .= "<h2>{$name}</h2>";
         if ($viafId !== '') {
             $html .= "<p>VIAF: <a href='{$viafUri}' target='_blank' rel='noopener noreferrer'>{$viafId}</a></p>";
@@ -1066,10 +1068,13 @@ class ViafAuthorityPlugin
         ?ResponseInterface &$out,
         ?ServerRequestInterface $request = null
     ): bool {
+        $this->verifiedBasicHeader = null;
         // Session-based auth (browser/admin panel)
+        // The role is read from the database on this request (fails CLOSED on
+        // a lookup error or a demoted/suspended account), never taken from the
+        // login-time session snapshot — same contract as AdminAuthMiddleware.
         $user = $_SESSION['user'] ?? null;
-        $role = is_array($user) ? (string) ($user['tipo_utente'] ?? '') : '';
-        if ($user && in_array($role, ['admin', 'staff'], true)) {
+        if (is_array($user) && \App\Support\SessionRoleRevalidator::holdsActiveRole(['admin', 'staff'], $this->db)) {
             $out = $response;
             return true;
         }
@@ -1084,24 +1089,38 @@ class ViafAuthorityPlugin
             // Throttle credential guessing per client IP before any password
             // check (same limits as the resource-sync Basic gate): every
             // attempt counts, a success clears the counter.
-            $server = $request !== null ? $request->getServerParams() : $_SERVER;
-            $ip     = is_string($server['REMOTE_ADDR'] ?? null) ? (string) $server['REMOTE_ADDR'] : 'unknown';
-            $rlId   = 'viaf_basic:' . $ip;
-            if (RateLimiter::isLimited($rlId, 10, 300)) {
+            // Keyed on IP AND account (as NCIP): a success clears only that
+            // account's counter, never the guesses at another account.
+            $server  = $request !== null ? $request->getServerParams() : $_SERVER;
+            $ip      = is_string($server['REMOTE_ADDR'] ?? null) ? (string) $server['REMOTE_ADDR'] : 'unknown';
+            $decoded = base64_decode(substr($authHeader, 6), true);
+            $rlUser  = $decoded !== false ? explode(':', $decoded, 2)[0] : '';
+            // Two buckets: per IP+account (cleared by that account's success)
+            // and per IP for failures only (never cleared by a success, so
+            // spraying many accounts or spellings from one client is capped).
+            $rlId    = 'viaf_basic:' . RateLimiter::clientKey($ip) . ':' . RateLimiter::accountKey($rlUser);
+            $rlIpId  = 'viaf_basic_fail:' . RateLimiter::clientKey($ip);
+            if (RateLimiter::isLimited($rlIpId, 30, 300, false) || RateLimiter::isLimited($rlId, 10, 300)) {
                 $out = $this->json($response, ['error' => true, 'message' => __('Troppe richieste. Riprova più tardi.')], 429)
                     ->withHeader('Retry-After', '300');
                 return false;
             }
 
-            $decoded = base64_decode(substr($authHeader, 6), true);
             if ($decoded !== false && str_contains($decoded, ':')) {
                 [$email, $pass] = explode(':', $decoded, 2);
-                if ($this->authenticateBasic($email, $pass)) {
+                $request ??= \Slim\Psr7\Factory\ServerRequestFactory::createFromGlobals();
+                if ($this->authenticateBasic($email, $pass, $request)) {
                     RateLimiter::reset($rlId);
+                    // Remembered for validateCsrf() on this same request, so
+                    // the CSRF exemption never re-verifies the password
+                    // outside these throttles.
+                    $this->verifiedBasicHeader = $authHeader;
                     $out = $response;
                     return true;
                 }
             }
+
+            RateLimiter::isLimited($rlIpId, 30, 300); // count this failure for the IP
 
             // Wrong or malformed credentials: RFC 7235 401 with a fresh challenge.
             $out = $this->json($response, ['error' => true, 'message' => __('Accesso negato.')], 401)
@@ -1113,10 +1132,16 @@ class ViafAuthorityPlugin
         return false;
     }
 
-    private function authenticateBasic(string $email, string $pass): bool
+    /**
+     * Admin/staff Basic credentials, held to the same gates as the
+     * interactive login and NCIP: a verified email and the plugin
+     * 'login.validate' hook, on the 'viaf' channel, so a verification plugin
+     * cannot be bypassed through these endpoints.
+     */
+    private function authenticateBasic(string $email, string $pass, ServerRequestInterface $request): bool
     {
         $stmt = $this->db->prepare(
-            "SELECT password, tipo_utente FROM utenti
+            "SELECT password, tipo_utente, email_verificata FROM utenti
               WHERE email = ? AND stato = 'attivo' AND tipo_utente IN ('admin','staff')
               LIMIT 1"
         );
@@ -1130,10 +1155,14 @@ class ViafAuthorityPlugin
             // Constant-time dummy verify: "no such admin/staff email" must cost
             // the same bcrypt round as "wrong password", or the response time
             // enumerates accounts.
-            password_verify($pass, '$2y$12$FYWkjQ0krgMEuFnovQ3C6.vL6MZP/pdGGrLm.Q1PBhX29YNNu.Bfe');
+            \App\Support\PasswordTiming::equalize($pass);
             return false;
         }
-        return password_verify($pass, (string) $row['password']);
+        if (!password_verify($pass, (string) $row['password'])) {
+            return false;
+        }
+        return (int) ($row['email_verificata'] ?? 0) === 1
+            && (bool) \App\Support\Hooks::apply('login.validate', true, [$email, $request, 'viaf']);
     }
 
     /**
@@ -1198,23 +1227,18 @@ class ViafAuthorityPlugin
     }
 
     /**
-     * True only when the request carries an Authorization: Basic header whose
-     * credentials authenticate successfully (same check requireAdminOrStaff
-     * uses). Used to decide CSRF exemption server-side rather than trusting the
-     * raw header.
+     * True only when requireAdminOrStaff() already authenticated this very
+     * Authorization: Basic header on this request. Used to decide the CSRF
+     * exemption server-side rather than trusting the raw header, without a
+     * second password verify (and login.validate run) outside the
+     * viaf_basic throttles.
      */
     private function hasValidBasicAuth(ServerRequestInterface $request): bool
     {
         $authHeader = $request->getHeaderLine('Authorization');
-        if (!str_starts_with($authHeader, 'Basic ')) {
-            return false;
-        }
-        $decoded = base64_decode(substr($authHeader, 6), true);
-        if ($decoded === false || !str_contains($decoded, ':')) {
-            return false;
-        }
-        [$email, $pass] = explode(':', $decoded, 2);
-        return $this->authenticateBasic($email, $pass);
+        return str_starts_with($authHeader, 'Basic ')
+            && $this->verifiedBasicHeader !== null
+            && hash_equals($this->verifiedBasicHeader, $authHeader);
     }
 
     private function authorExists(int $id): bool

@@ -96,7 +96,13 @@ final class AuthController
             $hashToCheck = (string) ($row['password'] ?? $dummyHash);
             $passwordOk  = password_verify($password, $hashToCheck);
 
-            if (!$passwordOk || $row === null) {
+            // Same plugin hook as the web login (core AuthController): a
+            // plugin-provided check (2FA, reCAPTCHA, ...) must not be
+            // bypassable by logging in through the app instead. A refusal
+            // reads as a credentials failure, exactly as on the web form.
+            $customValidation = \App\Support\Hooks::apply('login.validate', true, [$email, $request, 'mobile']);
+
+            if (!$passwordOk || $row === null || !$customValidation) {
                 SecureLogger::warning('[MobileApi] login.invalid_credentials');
                 return ResponseEnvelope::error($response, 'invalid_credentials', __('Email o password non validi.'), 401);
             }

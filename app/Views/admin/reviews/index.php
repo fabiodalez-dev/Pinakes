@@ -136,7 +136,7 @@ unset($workspaceHeader);
         <!-- Recensioni Approvate (Collapsible) -->
         <div class="mb-6">
             <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl overflow-hidden">
-                <button onclick="toggleSection('approved')"
+                <button data-pk-action="reviews-toggle-section" data-section="approved"
                         class="w-full px-4 py-3 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
                     <div class="flex items-center gap-2">
                         <i class="fas fa-check-circle text-green-600"></i>
@@ -203,7 +203,7 @@ unset($workspaceHeader);
         <!-- Recensioni Rifiutate (Collapsible) -->
         <div class="mb-6">
             <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl overflow-hidden">
-                <button onclick="toggleSection('rejected')"
+                <button data-pk-action="reviews-toggle-section" data-section="rejected"
                         class="w-full px-4 py-3 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
                     <div class="flex items-center gap-2">
                         <i class="fas fa-times-circle text-red-600"></i>
@@ -269,7 +269,7 @@ unset($workspaceHeader);
     </div>
 </div>
 
-<script>
+<script<?= csp_nonce_attr() ?>>
 function toggleSection(section) {
     const sectionEl = document.getElementById(section + '-section');
     const iconEl = document.getElementById(section + '-icon');
@@ -463,4 +463,7 @@ function toggleSection(section) {
         run();
     }
 })();
+
+// Delegated actions (CSP script-src-attr 'none': no inline on* attributes).
+PinakesActions.register('reviews-toggle-section', (el) => toggleSection(el.dataset.section));
 </script>

@@ -14,7 +14,7 @@ $reservationsRoute = route_path('reservations');
 $profileRoute = route_path('profile');
 ?>
 
-<style>
+<style<?= csp_nonce_attr() ?>>
   .dashboard-hero {
     background: var(--primary-color);
     color: var(--white);

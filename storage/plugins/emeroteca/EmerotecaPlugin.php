@@ -639,6 +639,7 @@ class EmerotecaPlugin
         foreach (['testata_id'=>['fk_contributo_testata','emeroteca_testate'], 'fascicolo_id'=>['fk_contributo_fascicolo','emeroteca_fascicoli']] as $column=>[$name,$table]) {
             $rows=$this->contributionService()->rows("SELECT CONSTRAINT_NAME FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='emeroteca_contributi' AND COLUMN_NAME=? AND REFERENCED_TABLE_NAME=?",[$column,$table]);
             if ($rows===[]) {
+                self::assertIdentifier($column); self::assertIdentifier($name); self::assertIdentifier($table);
                 if (!$this->db->query("ALTER TABLE emeroteca_contributi ADD CONSTRAINT $name FOREIGN KEY ($column) REFERENCES $table(id) ON DELETE SET NULL")) { return false; }
             }
         }
@@ -699,6 +700,18 @@ class EmerotecaPlugin
     }
 
     /**
+     * Schema DDL interpolates identifiers (they cannot be bound). Every caller
+     * passes a literal from a static map today; this keeps a future caller
+     * from turning the helper into an injection sink.
+     */
+    private static function assertIdentifier(string $name): void
+    {
+        if (preg_match('/^[a-z_][a-z0-9_]*$/', $name) !== 1) {
+            throw new \InvalidArgumentException('Invalid SQL identifier: ' . substr($name, 0, 64));
+        }
+    }
+
+    /**
      * Add the given columns to the given table when missing. Idempotent:
      * each column is probed via information_schema before the ALTER.
      *
@@ -706,7 +719,9 @@ class EmerotecaPlugin
      */
     private function ensureAdditiveColumns(string $table, array $definitions): bool
     {
+        self::assertIdentifier($table);
         foreach ($definitions as $column => $ddl) {
+            self::assertIdentifier((string) $column);
             $stmt = $this->db->prepare(
                 'SELECT COUNT(*) AS c FROM information_schema.COLUMNS
                   WHERE TABLE_SCHEMA = DATABASE()
@@ -1252,6 +1267,11 @@ class EmerotecaPlugin
                 continue;
             }
             // Names come only from the static list above — no user input.
+            self::assertIdentifier($idx['table']);
+            self::assertIdentifier($idx['name']);
+            foreach (explode(',', $idx['columns']) as $idxCol) {
+                self::assertIdentifier(trim($idxCol));
+            }
             if ($this->db->query(
                 "ALTER TABLE {$idx['table']} ADD KEY {$idx['name']} ({$idx['columns']})"
             ) === false) {
@@ -1396,6 +1416,9 @@ class EmerotecaPlugin
                 continue;
             }
 
+            foreach (['table', 'name', 'column', 'ref_table', 'ref_col'] as $fkPart) {
+                self::assertIdentifier((string) $fk[$fkPart]);
+            }
             // Junction rows disappear with a deleted publisher; scalar references become NULL.
             $isPublisherLink = $fk['table'] === 'emeroteca_testate_editori';
             $cleanup = $isPublisherLink

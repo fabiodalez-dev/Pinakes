@@ -172,7 +172,7 @@ include $corePartials . '/catalog-hero.php';
       <?php endforeach; ?>
     </section>
 
-    <script>
+    <script<?= csp_nonce_attr() ?>>
       document.addEventListener('click', function (event) {
         var button = event.target.closest('.js-ai-copy');
         if (!button) { return; }

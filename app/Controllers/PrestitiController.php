@@ -394,6 +394,12 @@ class PrestitiController
                 $db->rollback();
                 return $response->withHeader('Location', url('/admin/loans/create') . '?error=user_not_found')->withStatus(302);
             }
+            // Separation of duties: an operator who is not an administrator
+            // never records a loan for their own account (SelfDealingGuard).
+            if (\App\Support\SelfDealingGuard::blocks($utente_id)) {
+                $db->rollback();
+                return $response->withHeader('Location', url('/admin/loans/create') . '?error=' . \App\Support\SelfDealingGuard::ERROR)->withStatus(302);
+            }
 
             // Idoneità utente (M7): esistenza + stato attivo + tessera in corso di
             // validità, verificati sotto il lock della riga utente. Il codice
@@ -847,6 +853,12 @@ class PrestitiController
         if (!$prestito) {
             return $response->withStatus(404);
         }
+        // An overdue loan with a fine accruing: moving its due date forward
+        // waives that fine (update()), so the form asks for the reason.
+        $extensionFine = ['days' => 0, 'cents' => 0, 'enabled' => false];
+        if ((int) ($prestito['attivo'] ?? 0) === 1 && in_array((string) ($prestito['stato'] ?? ''), ['in_corso', 'in_ritardo'], true)) {
+            $extensionFine = \App\Services\PatronLedger::forDb($db)->previewLateFine($id);
+        }
         ob_start();
         require __DIR__ . '/../Views/prestiti/modifica_prestito.php';
         $content = ob_get_clean();
@@ -1027,6 +1039,15 @@ class PrestitiController
             if ((int) $locked['libro_id'] !== $libroId) {
                 $db->rollback();
                 return $response->withHeader('Location', url('/admin/loans') . '?error=loan_update_failed')->withStatus(302);
+            }
+            // Separation of duties: an operator who is not an administrator
+            // neither edits their own loan (extension included) nor hands a
+            // loan to their own account.
+            $targetUserId = isset($updateData['utente_id']) ? (int) $updateData['utente_id'] : (int) $locked['utente_id'];
+            if (\App\Support\SelfDealingGuard::blocks((int) $locked['utente_id'])
+                || \App\Support\SelfDealingGuard::blocks($targetUserId)) {
+                $db->rollback();
+                return $response->withHeader('Location', url('/admin/loans') . '?error=' . \App\Support\SelfDealingGuard::ERROR)->withStatus(302);
             }
 
             // Snapshot AFTER the FOR UPDATE lock: taken earlier it could
@@ -1264,6 +1285,37 @@ class PrestitiController
                 }
             }
 
+            // #281 + separation of fines: moving the due date of an OVERDUE loan
+            // forward erases the late fine the return would have charged. The
+            // fine accrued up to today is written and waived (condono) with a
+            // mandatory reason, as a waiver at the return desk is, before the
+            // due date changes (the figure is computed from the stored one).
+            // A loan that is not overdue, or no fine accruing, is unchanged.
+            if ($newScadenza > $oldScadenza
+                && in_array((string) $locked['stato'], ['in_corso', 'in_ritardo'], true)
+                && \App\Support\LibraryCalendar::isPastDue($db, $oldScadenza, $locked['copia_id'] !== null ? (int) $locked['copia_id'] : null, \App\Support\DateHelper::today())) {
+                $extensionLedger = \App\Services\PatronLedger::forDb($db);
+                $accrued = $extensionLedger->previewLateFine($id);
+                if ($accrued['cents'] > 0) {
+                    $extensionReason = trim(is_scalar($data['waive_reason'] ?? null) ? (string) $data['waive_reason'] : '');
+                    if ($extensionReason === '') {
+                        $db->rollback();
+                        return $response->withHeader('Location', url('/admin/loans') . '?error=extension_reason_required&loan_id=' . $id)->withStatus(302);
+                    }
+                    // A waiver writes to the borrower's ledger: same borrower
+                    // scope as the ledger page and the return desk.
+                    if (!\App\Support\Permissions::mayActOnBorrower($db, (int) $locked['utente_id'], true)) {
+                        $db->rollback();
+                        return $response->withHeader('Location', url('/admin/loans') . '?error=user_not_found')->withStatus(302);
+                    }
+                    $extensionLedger->waiveAccruedOnExtension(
+                        $id,
+                        $extensionReason,
+                        $processedBy !== null ? (int) $processedBy : null
+                    );
+                }
+            }
+
             // update() del repository non tocca MAI i campi lifecycle (vedi il suo
             // docblock): qui passano solo utente/date/processed_by. I valori
             // effettivi (campo inviato oppure valore corrente) sono passati
@@ -1422,6 +1474,9 @@ class PrestitiController
             return $guard;
         }
         // CSRF validated by CsrfMiddleware
+        if (\App\Support\SelfDealingGuard::blocksLoan($db, $id)) {
+            return $response->withHeader('Location', url('/admin/loans') . '?error=' . \App\Support\SelfDealingGuard::ERROR)->withStatus(302);
+        }
         $repo = new \App\Models\LoanRepository($db);
         // false = prestito inesistente o non chiudibile (guardia di stato H1):
         // segnala invece di fingere il successo. L'audit loan.returned è
@@ -1615,13 +1670,24 @@ class PrestitiController
                 return $response->withHeader('Location', url('/admin/loans/returned/' . $id) . '?error=not_returnable')->withStatus(302);
             }
 
+            // Separation of duties: an operator who is not an administrator
+            // never records the return of their own loan (nor, with it, a
+            // waiver or a penalty on their own ledger).
+            if (\App\Support\SelfDealingGuard::blocks((int) $loan['utente_id'])) {
+                $db->rollback();
+                $selfUrl = $redirectTo !== null
+                    ? $redirectTo . (str_contains($redirectTo, '?') ? '&' : '?') . 'error=' . \App\Support\SelfDealingGuard::ERROR
+                    : '/admin/loans/returned/' . $id . '?error=' . \App\Support\SelfDealingGuard::ERROR;
+                return $response->withHeader('Location', url($selfUrl))->withStatus(302);
+            }
+
             // A loss/damage penalty or a fine waiver writes to the borrower's
             // ledger: it needs the same borrower scope as the ledger page
             // (PatronLedgerController), so a custom role cannot charge or waive
             // on an administrator's or a Staff account. A plain return of such a
             // loan still goes through: the copy has to come back.
             if (($waiveFine || $sanzione !== '0.00')
-                && !\App\Support\Permissions::mayActOnBorrower($db, (int) $loan['utente_id'])) {
+                && !\App\Support\Permissions::mayActOnBorrower($db, (int) $loan['utente_id'], true)) {
                 $db->rollback();
                 return $response->withHeader('Location', url('/admin/loans/returned/' . $id) . '?error=user_not_found')->withStatus(302);
             }
@@ -2085,23 +2151,36 @@ class PrestitiController
         $expectedBookByLoan = [];
         $bookIds = [];
         try {
-            $bookScan = $db->prepare("SELECT id, libro_id FROM prestiti WHERE id IN ($placeholders)");
+            $bookScan = $db->prepare("SELECT id, libro_id, utente_id, attivo, stato FROM prestiti WHERE id IN ($placeholders)");
             if ($bookScan === false) {
                 throw new \RuntimeException($db->error);
             }
             $bookScan->bind_param(str_repeat('i', count($ids)), ...$ids);
             $bookScan->execute();
             $bookResult = $bookScan->get_result();
+            $selfLoanId = 0;
             while ($row = $bookResult->fetch_assoc()) {
                 $loanId = (int) $row['id'];
                 $bookId = (int) $row['libro_id'];
                 $expectedBookByLoan[$loanId] = $bookId;
                 $bookIds[$bookId] = $bookId;
+                // Only loans the locked loop below would extend count: one of
+                // the operator's own CLOSED loans in the selection is ignored
+                // there, so it must not refuse the whole batch here.
+                $extendable = (int) $row['attivo'] === 1 && in_array((string) $row['stato'], ['in_corso', 'in_ritardo'], true);
+                if ($selfLoanId === 0 && $extendable && \App\Support\SelfDealingGuard::blocks((int) $row['utente_id'])) {
+                    $selfLoanId = $loanId;
+                }
             }
             $bookScan->close();
         } catch (\Throwable $e) {
             SecureLogger::error('Bulk loan extend failed while gathering the books: ' . $e->getMessage());
             return $response->withHeader('Location', $backUrl . '?error=bulk_extend_failed')->withStatus(302);
+        }
+        // Separation of duties: a selection holding one of the operator's own
+        // loans is refused as a whole (the list names it), as a conflict is.
+        if ($selfLoanId > 0) {
+            return $response->withHeader('Location', $backUrl . '?' . http_build_query(['error' => \App\Support\SelfDealingGuard::ERROR, 'loan_id' => $selfLoanId]))->withStatus(302);
         }
         sort($bookIds, SORT_NUMERIC);
 
@@ -2173,8 +2252,24 @@ class PrestitiController
                 // Borrower scope on the write: a custom role extends only loans
                 // of accounts in its scope; the others are skipped like an
                 // ineligible borrower.
-                if (!\App\Support\Permissions::mayActOnBorrower($db, (int) $loan['utente_id'])) {
+                if (!\App\Support\Permissions::mayActOnBorrower($db, (int) $loan['utente_id'], true)) {
                     continue;
+                }
+                // Re-checked under the lock: the loan may have been reassigned
+                // to the operator after the scan above.
+                if (\App\Support\SelfDealingGuard::blocks((int) $loan['utente_id'])) {
+                    $db->rollback();
+                    return $response->withHeader('Location', $backUrl . '?' . http_build_query(['error' => \App\Support\SelfDealingGuard::ERROR, 'loan_id' => (int) $loan['id']]))->withStatus(302);
+                }
+                // An overdue loan with a fine accruing cannot be pushed forward
+                // in bulk: that would erase the fine without the reason and the
+                // waiver update() records (#56). The whole batch is refused and
+                // the loan named, to be extended individually with a reason.
+                // Same figure as update(): overdue by the calendar, preview > 0.
+                if (\App\Support\LibraryCalendar::isPastDue($db, (string) $loan['data_scadenza'], $loan['copia_id'] !== null ? (int) $loan['copia_id'] : null, $today)
+                    && \App\Services\PatronLedger::forDb($db)->previewLateFine((int) $loan['id'], $today)['cents'] > 0) {
+                    $db->rollback();
+                    return $response->withHeader('Location', $backUrl . '?' . http_build_query(['error' => 'bulk_extend_fine_accruing', 'loan_id' => (int) $loan['id']]))->withStatus(302);
                 }
                 // null == a capacity/copy conflict: roll the WHOLE batch back so
                 // no partial extension is committed (same all-or-nothing contract
@@ -2364,6 +2459,13 @@ class PrestitiController
             $errorUrl = $redirectTo ?? url('/admin/loans');
             $separator = strpos($errorUrl, '?') === false ? '?' : '&';
             return $response->withHeader('Location', url($errorUrl . $separator . 'error=loan_not_found'))->withStatus(302);
+        }
+        // Separation of duties: an operator who is not an administrator never
+        // renews their own loan from the desk (SelfDealingGuard).
+        if (\App\Support\SelfDealingGuard::blocks((int) $loan['utente_id'])) {
+            $errorUrl = $redirectTo ?? url('/admin/loans');
+            $separator = strpos($errorUrl, '?') === false ? '?' : '&';
+            return $response->withHeader('Location', url($errorUrl . $separator . 'error=' . \App\Support\SelfDealingGuard::ERROR))->withStatus(302);
         }
 
         // Check if loan is active

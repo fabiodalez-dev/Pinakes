@@ -75,7 +75,10 @@ if find -L "$package_dir" -type l -print -quit | grep -q .; then
   exit 1
 fi
 
-for forbidden in .env .git .github tests node_modules phpstan.neon package.json package-lock.json; do
+# A package's own dev tree (sim-rating ships PHPUnit + php-parser in a nested
+# vendor/) and PHPMailer's standalone OAuth helper script are never runtime code.
+for forbidden in .env .git .github tests node_modules phpstan.neon package.json package-lock.json \
+  vendor/emleons/sim-rating/vendor vendor/phpmailer/phpmailer/get_oauth_token.php; do
   [ ! -e "$package_dir/$forbidden" ] || { echo "forbidden release path: $forbidden" >&2; exit 1; }
 done
 if find "$package_dir" -type f \( -name '*.pem' -o -name '*.key' -o -name 'id_rsa' -o -name '.npmrc' \) -print -quit | grep -q .; then

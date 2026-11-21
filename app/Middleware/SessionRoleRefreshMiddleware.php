@@ -48,6 +48,13 @@ class SessionRoleRefreshMiddleware implements MiddlewareInterface
     /** The request attribute this middleware publishes. */
     public const ATTRIBUTE = 'is_operator_session';
 
+    /**
+     * Whether the session may catalogue (Permissions 'catalog.manage'): every
+     * operator, plus reader accounts whose custom role grants cataloguing.
+     * Read from the database like ATTRIBUTE, never from the session.
+     */
+    public const CATALOG_ATTRIBUTE = 'can_manage_catalog';
+
     /** Roles that count as operator. Mirrors AdminAuthMiddleware::ALLOWED_ROLES. */
     private const OPERATOR_ROLES = ['admin', 'staff'];
 
@@ -67,9 +74,30 @@ class SessionRoleRefreshMiddleware implements MiddlewareInterface
 
     public function process(Request $request, RequestHandler $handler): Response
     {
+        $operator = $this->resolveOperator();
         return $handler->handle(
-            $request->withAttribute(self::ATTRIBUTE, $this->resolveOperator())
+            $request
+                ->withAttribute(self::ATTRIBUTE, $operator)
+                ->withAttribute(self::CATALOG_ATTRIBUTE, $operator || $this->resolveCataloguer())
         );
+    }
+
+    /**
+     * A non-operator account whose CURRENT role (re-read from the database)
+     * grants 'catalog.manage'. Any failure is "no".
+     */
+    private function resolveCataloguer(): bool
+    {
+        $userId = (int) ($_SESSION['user']['id'] ?? 0);
+        if ($userId <= 0) {
+            return false;
+        }
+        $db = $this->resolveDb();
+        if (!$db instanceof \mysqli) {
+            return false;
+        }
+        $viewer = \App\Support\Permissions::viewer($userId, $db);
+        return $viewer !== null && \App\Support\Permissions::can('catalog.manage', $viewer);
     }
 
     /**

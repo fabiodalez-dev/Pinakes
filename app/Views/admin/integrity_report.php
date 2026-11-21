@@ -32,10 +32,10 @@ ob_start();
 ?>
 
                 <div class="flex space-x-3">
-                    <button onclick="performMaintenance()" class="inline-flex items-center bg-gray-800 hover:bg-gray-700 text-white font-medium py-2 px-4 rounded-lg transition-colors">
+                    <button data-pk-action="integrity-maintenance" class="inline-flex items-center bg-gray-800 hover:bg-gray-700 text-white font-medium py-2 px-4 rounded-lg transition-colors">
                         <i class="fas fa-tools mr-2"></i><?= __("Esegui Manutenzione") ?>
                     </button>
-                    <button onclick="location.reload()" class="inline-flex items-center bg-gray-100 hover:bg-gray-200 text-gray-900 border border-gray-300 font-medium py-2 px-4 rounded-lg transition-colors">
+                    <button data-pk-action="reload" class="inline-flex items-center bg-gray-100 hover:bg-gray-200 text-gray-900 border border-gray-300 font-medium py-2 px-4 rounded-lg transition-colors">
                         <i class="fas fa-sync-alt mr-2"></i><?= __("Aggiorna") ?>
                     </button>
                 </div>
@@ -140,7 +140,7 @@ unset($workspaceHeader);
                                 </div>
                                 <?php if (!empty($suggestedUrl)): ?>
                                 <button
-                                    onclick="applyConfigFix(<?= htmlspecialchars(json_encode($issue['type'], JSON_HEX_TAG), ENT_QUOTES, 'UTF-8') ?>, <?= htmlspecialchars(json_encode($suggestedUrl, JSON_HEX_TAG), ENT_QUOTES, 'UTF-8') ?>)"
+                                    data-pk-action="integrity-apply-config-fix" data-issue-type="<?= htmlspecialchars((string) $issue['type'], ENT_QUOTES, 'UTF-8') ?>" data-fix-value="<?= htmlspecialchars((string) $suggestedUrl, ENT_QUOTES, 'UTF-8') ?>"
                                     class="inline-flex items-center px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-white text-sm font-medium rounded-lg transition-colors">
                                     <i class="fas fa-magic mr-2"></i><?= __("Applica Fix") ?>
                                 </button>
@@ -313,7 +313,7 @@ unset($workspaceHeader);
                     </div>
 
                     <div class="mt-6 flex flex-wrap gap-3">
-                        <button onclick="createMissingIndexes()" class="inline-flex items-center px-4 py-2 bg-gray-800 hover:bg-gray-700 text-white font-medium rounded-lg transition-colors">
+                        <button data-pk-action="integrity-create-indexes" class="inline-flex items-center px-4 py-2 bg-gray-800 hover:bg-gray-700 text-white font-medium rounded-lg transition-colors">
                             <i class="fas fa-bolt mr-2"></i><?= __("Crea Indici Automaticamente") ?>
                         </button>
                         <a href="<?= htmlspecialchars(url('/admin/maintenance/indexes-sql'), ENT_QUOTES, 'UTF-8') ?>" class="inline-flex items-center px-4 py-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-800 dark:text-white font-medium rounded-lg transition-colors">
@@ -393,7 +393,7 @@ unset($workspaceHeader);
                     </div>
 
                     <div class="mt-6">
-                        <button onclick="createMissingSystemTables()" class="inline-flex items-center px-4 py-2 bg-gray-800 hover:bg-gray-700 text-white font-medium rounded-lg transition-colors">
+                        <button data-pk-action="integrity-create-system-tables" class="inline-flex items-center px-4 py-2 bg-gray-800 hover:bg-gray-700 text-white font-medium rounded-lg transition-colors">
                             <i class="fas fa-plus-circle mr-2"></i><?= __("Crea Tabelle Mancanti") ?>
                         </button>
                     </div>
@@ -406,19 +406,19 @@ unset($workspaceHeader);
             <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4"><?= __("Azioni di Manutenzione") ?></h3>
 
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <button onclick="recalculateAvailability()" class="p-4 border-2 border-dashed border-blue-300 dark:border-blue-700 rounded-lg hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors">
+                <button data-pk-action="integrity-recalculate" class="p-4 border-2 border-dashed border-blue-300 dark:border-blue-700 rounded-lg hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors">
                     <i class="fas fa-calculator text-blue-500 text-2xl mb-2"></i>
                     <div class="font-medium text-gray-900 dark:text-white"><?= __('Ricalcola Disponibilità') ?></div>
                     <div class="text-sm text-gray-600 dark:text-gray-400 mt-1"><?= __('Aggiorna il conteggio delle copie disponibili') ?></div>
                 </button>
 
-                <button onclick="fixIssues()" class="p-4 border-2 border-dashed border-green-300 dark:border-green-700 rounded-lg hover:border-green-500 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors">
+                <button data-pk-action="integrity-fix-issues" class="p-4 border-2 border-dashed border-green-300 dark:border-green-700 rounded-lg hover:border-green-500 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors">
                     <i class="fas fa-wrench text-green-500 text-2xl mb-2"></i>
                     <div class="font-medium text-gray-900 dark:text-white"><?= __('Correggi Problemi') ?></div>
                     <div class="text-sm text-gray-600 dark:text-gray-400 mt-1"><?= __('Ripara automaticamente gli errori rilevati') ?></div>
                 </button>
 
-                <button onclick="performMaintenance()" class="p-4 border-2 border-dashed border-purple-300 dark:border-purple-700 rounded-lg hover:border-purple-500 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors">
+                <button data-pk-action="integrity-maintenance" class="p-4 border-2 border-dashed border-purple-300 dark:border-purple-700 rounded-lg hover:border-purple-500 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors">
                     <i class="fas fa-magic text-purple-500 text-2xl mb-2"></i>
                     <div class="font-medium text-gray-900 dark:text-white"><?= __('Manutenzione Completa') ?></div>
                     <div class="text-sm text-gray-600 dark:text-gray-400 mt-1"><?= __('Esegui tutte le operazioni di manutenzione') ?></div>
@@ -428,7 +428,7 @@ unset($workspaceHeader);
     </div>
 </div>
 
-<script>
+<script<?= csp_nonce_attr() ?>>
 // Shared translation constants
 const MAINT_PROCESSING = <?= json_encode(__("Elaborazione..."), JSON_HEX_TAG) ?>;
 const MAINT_DONE = <?= json_encode(__("Operazione completata"), JSON_HEX_TAG) ?>;
@@ -668,4 +668,12 @@ window.performMaintenance = performMaintenance;
 window.applyConfigFix = applyConfigFix;
 window.createMissingIndexes = createMissingIndexes;
 window.createMissingSystemTables = createMissingSystemTables;
+
+// Delegated actions (CSP script-src-attr 'none': no inline on* attributes).
+PinakesActions.register('integrity-maintenance', () => performMaintenance());
+PinakesActions.register('integrity-recalculate', () => recalculateAvailability());
+PinakesActions.register('integrity-fix-issues', () => fixIssues());
+PinakesActions.register('integrity-create-indexes', () => createMissingIndexes());
+PinakesActions.register('integrity-create-system-tables', () => createMissingSystemTables());
+PinakesActions.register('integrity-apply-config-fix', (el) => applyConfigFix(el.dataset.issueType || '', el.dataset.fixValue || ''));
 </script>

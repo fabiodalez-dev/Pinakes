@@ -160,7 +160,7 @@ test.describe.serial('Archives plugin — full regression (#103 phases 1–6)', 
         // DB state, not a pending one.
         await page.goto(`${BASE}/admin/plugins`);
         await page.waitForLoadState('domcontentloaded');
-        const activateBtn = page.locator(`button[onclick^="activatePlugin("]`).first();
+        const activateBtn = page.locator(`button[data-pk-action="plugins-activate"]`).first();
         if (await activateBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
             await activateBtn.click();
             await page.locator('.swal2-confirm').first().click();

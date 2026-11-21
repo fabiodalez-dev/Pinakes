@@ -102,6 +102,13 @@ try {
         agenda TEXT NULL, starts_at DATETIME NOT NULL, ends_at DATETIME NULL, location VARCHAR(255) NULL,
         video_url VARCHAR(500) NULL, status ENUM('scheduled','done','cancelled') NOT NULL DEFAULT 'scheduled',
         PRIMARY KEY (id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+    // setMemberStatus() purges the affinity lists of a member who leaves, is
+    // suspended or banned: shadow those tables so the purge stays session-local.
+    $db->query("CREATE TEMPORARY TABLE bookclub_affinity (
+        id INT NOT NULL AUTO_INCREMENT, club_id INT NOT NULL, user_a INT NOT NULL, user_b INT NOT NULL,
+        score TINYINT UNSIGNED NULL, computed_at DATETIME NOT NULL, PRIMARY KEY (id)) ENGINE=InnoDB");
+    $db->query("CREATE TEMPORARY TABLE bookclub_affinity_optin (
+        id INT NOT NULL AUTO_INCREMENT, club_id INT NOT NULL, user_id INT NOT NULL, PRIMARY KEY (id)) ENGINE=InnoDB");
     // createClub() copies the default (club_id IS NULL) workflow into a new
     // per-club row: without this shadow it would write that row into the
     // real bookclub_workflows table, keyed to a temporary club id.
@@ -260,7 +267,7 @@ try {
     $fail++;
     echo "  FAIL unexpected " . get_class($e) . ': ' . $e->getMessage() . "\n";
 } finally {
-    foreach (['bookclub_meetings', 'bookclub_members', 'bookclub_roles', 'bookclub_clubs', 'bookclub_workflows', 'utenti'] as $t) {
+    foreach (['bookclub_meetings', 'bookclub_members', 'bookclub_roles', 'bookclub_clubs', 'bookclub_workflows', 'bookclub_affinity', 'bookclub_affinity_optin', 'utenti'] as $t) {
         try { $db->query("DROP TEMPORARY TABLE IF EXISTS {$t}"); } catch (\Throwable) {}
     }
 }

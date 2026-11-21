@@ -295,3 +295,13 @@ Then trigger update process again.
 - [MySQL CHECK Constraints](https://dev.mysql.com/doc/refman/8.0/en/create-table-check-constraints.html)
 - [MySQL JSON Data Type](https://dev.mysql.com/doc/refman/8.0/en/json.html)
 - [Idempotent Migrations Best Practices](https://www.percona.com/blog/idempotent-mysql-migrations/)
+
+## Pending migrations
+
+A schema change that lands before the release that ships it waits in `pending/`
+(e.g. `pending/migrate_0.9.6.sql`). Neither the Updater nor the CI gate
+"migration version ≤ version.json" scans that folder, so `main` stays green
+while `version.json` still names the previous release. The release commit that
+bumps `version.json` moves every pending file up into this directory, where the
+Updater runs it. The code that needs the new schema must cope with the old one
+until then (for `api_keys`, `ApiKeyRepository::ensureTable()` heals the table).

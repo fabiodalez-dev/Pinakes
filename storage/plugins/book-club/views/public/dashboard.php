@@ -19,7 +19,7 @@ $breadcrumbItems = [
 include $corePartials . '/catalog-hero.php';
 ?>
 <?php $bookClubStyles = true; ?>
-<style>
+<style<?= csp_nonce_attr() ?>>
   /* Page-local helpers (my-clubs dashboard only). */
   .bc-club-accent{position:absolute;top:0;left:0;right:0;height:3px}
   .bc-link{color:var(--primary-text, var(--primary-color));font-weight:600;text-decoration:none}

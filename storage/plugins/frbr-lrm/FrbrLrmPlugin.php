@@ -244,11 +244,26 @@ class FrbrLrmPlugin
     }
 
     /**
+     * Schema DDL interpolates identifiers (they cannot be bound). Every caller
+     * passes a literal from a static map today; this keeps a future caller
+     * from turning the helper into an injection sink.
+     */
+    private static function assertIdentifier(string $name): void
+    {
+        if (preg_match('/^[a-z_][a-z0-9_]*$/', $name) !== 1) {
+            throw new \InvalidArgumentException('Invalid SQL identifier: ' . substr($name, 0, 64));
+        }
+    }
+
+    /**
      * Idempotently add a nullable FK column to `libri`. Uses INFORMATION_SCHEMA
      * to check both the column and the constraint so re-activation is safe.
      */
     private function addLibriColumnIfMissing(string $column, string $type, string $fkName, string $refTable): void
     {
+        self::assertIdentifier($column);
+        self::assertIdentifier($fkName);
+        self::assertIdentifier($refTable);
         $colExists = $this->scalar(
             "SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
               WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'libri' AND COLUMN_NAME = ?",

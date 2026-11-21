@@ -350,6 +350,12 @@ final class StaffImportsController
     public function errorsCsv(ServerRequestInterface $request, ResponseInterface $response, string $importId): ResponseInterface
     {
         try {
+            // catalog.manage covers catalogue imports only: a patron import's
+            // report (user rows) is served by /staff/user-imports/{id}/errors.csv
+            // behind its own capability, so it does not exist here.
+            if (!$this->isCatalogImport($importId)) {
+                return $this->notFound($response);
+            }
             $db = $this->db;
             $outcome = Delegation::run(static fn (): ResponseInterface => (new \App\Controllers\ImportHistoryController())->downloadErrors(
                 Delegation::request('GET', '/admin/imports/download-errors', [], ['import_id' => $importId]),
@@ -430,26 +436,57 @@ final class StaffImportsController
         ];
     }
 
+    /** import_logs.import_type values a catalogue import writes. */
+    private const CATALOG_IMPORT_TYPES = ['csv', 'librarything', 'marc'];
+
     /**
-     * Import history (import_logs): own imports, every import for an admin —
-     * the rule of ImportHistoryController.
+     * True when $importId is a catalogue import; an unknown id is left to
+     * downloadErrors(), which answers it with its own 404.
+     */
+    private function isCatalogImport(string $importId): bool
+    {
+        $stmt = $this->db->prepare('SELECT import_type FROM import_logs WHERE import_id = ? LIMIT 1');
+        if ($stmt === false) {
+            return false;
+        }
+        $stmt->bind_param('s', $importId);
+        $stmt->execute();
+        $res = $stmt->get_result();
+        $row = $res instanceof \mysqli_result ? $res->fetch_assoc() : null;
+        $stmt->close();
+
+        return $row === null || in_array((string) ($row['import_type'] ?? ''), self::CATALOG_IMPORT_TYPES, true);
+    }
+
+    /**
+     * Catalogue import history (import_logs): own imports, every import for an
+     * admin — the rule of ImportHistoryController. Patron imports ('users')
+     * are left out: they belong to /staff/user-imports and its capability,
+     * and errorsCsv() answers 404 for them, so listing them here offered an
+     * error report that could never be downloaded.
      *
      * @return list<array<string, mixed>>
      */
     private function history(int $userId, bool $isAdmin): array
     {
+        $types = self::CATALOG_IMPORT_TYPES;
         $sql = "SELECT il.import_id, il.import_type, il.file_name, il.user_id, il.total_rows, il.imported, il.updated,
                        il.failed, il.status, il.started_at, il.completed_at, u.nome, u.cognome
-                  FROM import_logs il LEFT JOIN utenti u ON u.id = il.user_id"
-            . ($isAdmin ? '' : ' WHERE il.user_id = ?')
+                  FROM import_logs il LEFT JOIN utenti u ON u.id = il.user_id
+                 WHERE il.import_type IN (" . implode(',', array_fill(0, count($types), '?')) . ')'
+            . ($isAdmin ? '' : ' AND il.user_id = ?')
             . ' ORDER BY il.started_at DESC LIMIT 50';
         $stmt = $this->db->prepare($sql);
         if ($stmt === false) {
             return [];
         }
+        $params = $types;
+        $bind = str_repeat('s', count($types));
         if (!$isAdmin) {
-            $stmt->bind_param('i', $userId);
+            $params[] = $userId;
+            $bind .= 'i';
         }
+        $stmt->bind_param($bind, ...$params);
         $stmt->execute();
         $result = $stmt->get_result();
         $rows = [];

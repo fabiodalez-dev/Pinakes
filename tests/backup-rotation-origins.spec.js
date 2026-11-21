@@ -126,7 +126,7 @@ test.describe.serial('Backup: origins, rotation and the legacy format', () => {
             (r) => r.url().endsWith('/admin/updates/backup') && r.request().method() === 'POST',
             { timeout: 120000 }
         );
-        await clickAndConfirm(page, page.locator('button[onclick="createBackup()"]'));
+        await clickAndConfirm(page, page.locator('button[data-pk-action="updates-create-backup"]'));
         const body = await (await response).json();
 
         expect(body.success, `backup failed: ${body.error || ''}`).toBeTruthy();
@@ -142,7 +142,7 @@ test.describe.serial('Backup: origins, rotation and the legacy format', () => {
         expect(after.length).toBe(before.length + 1);
 
         // And it must be visible as a row the operator can act on.
-        await page.locator('button[onclick="loadBackups()"]').click();
+        await page.locator('button[data-pk-action="updates-load-backups"]').click();
         await expect(page.locator(`[data-backup="${body.name}"][data-action="delete"]`)).toBeVisible({ timeout: 15000 });
     });
 
@@ -164,7 +164,7 @@ test.describe.serial('Backup: origins, rotation and the legacy format', () => {
             (r) => r.url().endsWith('/admin/updates/backup') && r.request().method() === 'POST',
             { timeout: 120000 }
         );
-        await clickAndConfirm(page, page.locator('button[onclick="createBackup()"]'));
+        await clickAndConfirm(page, page.locator('button[data-pk-action="updates-create-backup"]'));
         const body = await (await response).json();
         expect(body.success).toBeTruthy();
         created.push(body.name);
@@ -195,7 +195,7 @@ test.describe.serial('Backup: origins, rotation and the legacy format', () => {
 
         await page.goto(`${BASE}/admin/updates`);
         await page.waitForLoadState('networkidle');
-        await page.locator('button[onclick="loadBackups()"]').click();
+        await page.locator('button[data-pk-action="updates-load-backups"]').click();
 
         const btn = page.locator(`[data-backup="${name}"][data-action="download"]`);
         await expect(btn).toBeVisible({ timeout: 15000 });
@@ -215,7 +215,7 @@ test.describe.serial('Backup: origins, rotation and the legacy format', () => {
 
         await page.goto(`${BASE}/admin/updates`);
         await page.waitForLoadState('networkidle');
-        await page.locator('button[onclick="loadBackups()"]').click();
+        await page.locator('button[data-pk-action="updates-load-backups"]').click();
 
         await expect(page.locator(`[data-backup="${legacy}"][data-action="download"]`)).toBeVisible({ timeout: 15000 });
 
@@ -239,7 +239,7 @@ test.describe.serial('Backup: origins, rotation and the legacy format', () => {
 
         await page.goto(`${BASE}/admin/updates`);
         await page.waitForLoadState('networkidle');
-        await page.locator('button[onclick="loadBackups()"]').click();
+        await page.locator('button[data-pk-action="updates-load-backups"]').click();
 
         const [zipResponse] = await Promise.all([
             page.waitForResponse((r) => r.url().includes('/admin/updates/backup/delete') && r.request().method() === 'POST', { timeout: 30000 }),
@@ -249,7 +249,7 @@ test.describe.serial('Backup: origins, rotation and the legacy format', () => {
         expect((await zipResponse.json()).success).toBe(true);
         expect(fs.existsSync(path.join(BACKUP_DIR, zipName)), 'the archive is still on disk').toBeFalsy();
 
-        await page.locator('button[onclick="loadBackups()"]').click();
+        await page.locator('button[data-pk-action="updates-load-backups"]').click();
         await expect(page.locator(`[data-backup="${legacy}"][data-action="delete"]`)).toBeVisible({ timeout: 15000 });
 
         const [legacyResponse] = await Promise.all([

@@ -5,7 +5,7 @@
  * Included by both prestiti/index.php and prestiti/crea_prestito.php.
  */
 ?>
-<script>
+<script<?= csp_nonce_attr() ?>>
     window.copyScannerI18n = {
       title: <?= json_encode(__("Scansiona codice a barre"), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) ?>,
       instruction: <?= json_encode(__("Inquadra il codice a barre nella cornice"), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) ?>,

@@ -81,7 +81,7 @@ if ($periodicita !== '') {
 $checkboxClass = 'w-4 h-4 rounded border-gray-300 text-gray-900 focus:ring-gray-500';
 ?>
 <link rel="stylesheet" href="<?= $e(url('/plugins/emeroteca/assets/css/emeroteca.css?v=1.4.0')) ?>">
-<style>
+<style<?= csp_nonce_attr() ?>>
     /* The Kardex tiles keep the plugin stylesheet, which is scoped to
        .emeroteca-admin: here that scope wraps only the tile grid, so it must
        not bring its own page width and padding. */
@@ -437,7 +437,7 @@ unset($workspaceHeader);
                 <?php if ($nAttesi > 0): ?>
                   <div class="flex flex-wrap justify-end gap-4 mb-4">
                     <form method="POST" action="<?= $manageUrl ?>" class="inline"
-                          onsubmit="return confirm(<?= $e(json_encode(__('Sollecitare al fornitore tutti i fascicoli attesi già scaduti di questa annata?'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT)) ?>);">
+                          data-pk-confirm="<?= $e(__('Sollecitare al fornitore tutti i fascicoli attesi già scaduti di questa annata?')) ?>">
                       <input type="hidden" name="csrf_token" value="<?= $csrf ?>">
                       <input type="hidden" name="action" value="claim_overdue">
                       <input type="hidden" name="annata_id" value="<?= $annataId ?>">
@@ -446,7 +446,7 @@ unset($workspaceHeader);
                       </button>
                     </form>
                     <form method="POST" action="<?= $manageUrl ?>" class="inline"
-                          onsubmit="return confirm(<?= $e(json_encode(__('Marcare come mancanti tutti i fascicoli ancora attesi di questa annata?'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT)) ?>);">
+                          data-pk-confirm="<?= $e(__('Marcare come mancanti tutti i fascicoli ancora attesi di questa annata?')) ?>">
                       <input type="hidden" name="csrf_token" value="<?= $csrf ?>">
                       <input type="hidden" name="action" value="mark_missing">
                       <input type="hidden" name="annata_id" value="<?= $annataId ?>">
@@ -598,7 +598,7 @@ unset($workspaceHeader);
     </div>
   </div>
 </div>
-<script>
+<script<?= csp_nonce_attr() ?>>
     window.emerotecaScan = {
         lookupUrl: <?= json_encode(url('/admin/periodicals/scan-lookup'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>,
         testataId: <?= $testataId ?>,
@@ -613,6 +613,6 @@ unset($workspaceHeader);
 </script>
 <?php if ($hasScanner): ?>
     <?php include $scannerPartial; ?>
-    <script src="<?= $e(assetUrl('copy-scanner.bundle.js')) ?>" defer></script>
+    <script<?= csp_nonce_attr() ?> src="<?= $e(assetUrl('copy-scanner.bundle.js')) ?>" defer></script>
 <?php endif; ?>
-<script src="<?= $e(url('/plugins/emeroteca/assets/js/emeroteca-scan.js?v=1.4.0')) ?>" defer></script>
+<script<?= csp_nonce_attr() ?> src="<?= $e(url('/plugins/emeroteca/assets/js/emeroteca-scan.js?v=1.4.0')) ?>" defer></script>

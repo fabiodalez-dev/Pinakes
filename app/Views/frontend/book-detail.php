@@ -532,7 +532,7 @@ $pkHasDigitalFiles = $pkDigitalPlayer !== '' || str_contains($pkDigitalButtons, 
                          alt="<?= htmlspecialchars($coverAlt, ENT_QUOTES, 'UTF-8') ?>"
                          class="book-cover-large img-fluid pk-book__img<?= $pkHasCover ? '' : ' is-missing' ?>"
                          fetchpriority="high" decoding="async" data-pk-tone
-                         onerror="this.onerror=null;this.classList.add('is-missing')"
+                         data-pk-fallback-class="is-missing"
                          id="book-cover-image">
                     <div class="pk-book__spine" aria-hidden="true"></div>
                 </div>
@@ -1355,7 +1355,7 @@ $pkHasDigitalFiles = $pkDigitalPlayer !== '' || str_contains($pkDigitalButtons, 
             <?php unset($pkCardClass, $pkCardMeta); $book = $pkMainBook; ?>
         </div><!-- /.related-books-grid -->
         <noscript>
-            <style>
+            <style<?= csp_nonce_attr() ?>>
                 /* With JS off the inert script can't clip cards, so show them all
                    stacked — matching what assistive tech can reach. row-gap is
                    restored here because the base rule sets it to 0 for the
@@ -1370,7 +1370,7 @@ $pkHasDigitalFiles = $pkDigitalPlayer !== '' || str_contains($pkDigitalButtons, 
         </div><!-- /.related-books-wrap -->
     </div>
 </section>
-<script>
+<script<?= csp_nonce_attr() ?>>
 // Accessibility: the grid clips every row after the first with overflow:hidden
 // + grid-auto-rows:0, but clipped cards stay in the DOM. Take them out of the
 // tab order and the accessibility tree so keyboard/screen-reader users can't
@@ -1509,7 +1509,7 @@ foreach ($jsTranslationKeys as $key) {
     $jsTranslations[$key] = __($key);
 }
 ?>
-<script>
+<script<?= csp_nonce_attr() ?>>
 (function() {
   const newTranslations = <?= json_encode($jsTranslations, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG); ?>;
   window.APP_TRANSLATIONS = Object.assign(window.APP_TRANSLATIONS || {}, newTranslations);
@@ -1520,7 +1520,7 @@ foreach ($jsTranslationKeys as $key) {
 })();
 </script>
 <?php if ($isLoggedJs): ?>
-<script>
+<script<?= csp_nonce_attr() ?>>
 document.addEventListener('DOMContentLoaded', function() {
   const favBtn = document.getElementById('btn-fav');
   if (!favBtn) return;
@@ -1569,7 +1569,7 @@ document.addEventListener('DOMContentLoaded', function() {
 <?php endif; ?>
 
 <!-- Loan/Reserve request handler (works for all users) -->
-<script>
+<script<?= csp_nonce_attr() ?>>
 document.addEventListener('DOMContentLoaded', function() {
   // Loan/Reserve request enhancement - unified flow
   const requestBtn = document.getElementById('btn-request-loan');

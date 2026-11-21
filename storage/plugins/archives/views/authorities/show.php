@@ -12,12 +12,6 @@ declare(strict_types=1);
 $e = static fn(mixed $v): string => htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8');
 $v = static fn(string $k): string => $e((string) ($row[$k] ?? ''));
 
-/** Safely serialise a value as a JS literal inside an HTML double-quoted
- *  attribute — see views/show.php for the rationale.
- */
-$jsAttr = static fn(mixed $x): string =>
-    htmlspecialchars((string) json_encode($x, JSON_UNESCAPED_UNICODE), ENT_QUOTES, 'UTF-8');
-
 $typeBadge = [
     'person'    => 'bg-blue-100 text-blue-800',
     'corporate' => 'bg-amber-100 text-amber-800',
@@ -43,7 +37,7 @@ $id = (int) $row['id'];
     <div class="flex items-center gap-3 mb-2">
         <button type="button"
                 data-fallback-url="<?= $e(url('/admin/archives/authorities')) ?>"
-                onclick="if (document.referrer && document.referrer.indexOf(window.location.origin) === 0) { history.back(); } else { window.location.href = sessionStorage.getItem('archives_authorities_return_url') || this.getAttribute('data-fallback-url'); }"
+                data-pk-action="archives-authority-back"
                 class="btn-secondary text-xs px-3 py-1.5">
             &larr; <?= __("Indietro") ?>
         </button>
@@ -93,7 +87,7 @@ ob_start();
                 <input type="hidden" name="csrf_token" value="<?= $e(\App\Support\Csrf::ensureToken()) ?>">
                 <button type="button"
                         class="btn-danger"
-                        onclick="archivesSwalConfirm(<?= $jsAttr($archivesDeleteAuthId) ?>, <?= $jsAttr(__("Eliminare questo authority record? L'operazione è reversibile (soft-delete).")) ?>, <?= $jsAttr(__("Elimina")) ?>)">
+                        data-pk-action="archives-confirm" data-archives-form="<?= $e($archivesDeleteAuthId) ?>" data-archives-message="<?= $e(__("Eliminare questo authority record? L'operazione è reversibile (soft-delete).")) ?>" data-archives-label="<?= $e(__("Elimina")) ?>">
                     <?= __("Elimina") ?>
                 </button>
             </form>
@@ -193,7 +187,7 @@ unset($workspaceHeader);
                               class="inline">
                             <input type="hidden" name="csrf_token" value="<?= $e(\App\Support\Csrf::ensureToken()) ?>">
                             <button type="button" class="text-xs text-red-600 hover:underline"
-                                    onclick="archivesSwalConfirm(<?= $jsAttr($unlinkAutoreId) ?>, <?= $jsAttr(__('Rimuovere questo collegamento?')) ?>, <?= $jsAttr(__('scollega')) ?>)"><?= __("scollega") ?></button>
+                                    data-pk-action="archives-confirm" data-archives-form="<?= $e($unlinkAutoreId) ?>" data-archives-message="<?= $e(__('Rimuovere questo collegamento?')) ?>" data-archives-label="<?= $e(__('scollega')) ?>"><?= __("scollega") ?></button>
                         </form>
                     </li>
                 <?php endforeach; ?>
@@ -225,7 +219,7 @@ unset($workspaceHeader);
 
 <?php /* SweetAlert2 confirm helper (idempotent guard). See views/show.php for
           details — defined twice because each Slim response is a fresh page. */ ?>
-<script>
+<script<?= csp_nonce_attr() ?>>
 if (typeof window.archivesSwalConfirm !== 'function') {
     window.archivesSwalConfirm = function (formId, message, confirmLabel) {
         var form = document.getElementById(formId);
@@ -246,5 +240,26 @@ if (typeof window.archivesSwalConfirm !== 'function') {
             if (r && r.isConfirmed) form.submit();
         });
     };
+}
+// Buttons carry data-pk-action="archives-confirm" with the form id, the
+// message and the button label in data-archives-* (no inline handlers: the
+// CSP sends script-src-attr 'none').
+// "Indietro": back in history when we came from this site, else the list URL
+// the index page remembered, else the static fallback.
+if (window.PinakesActions && !window.PinakesActions.has('archives-authority-back')) {
+    window.PinakesActions.register('archives-authority-back', function (el) {
+        if (document.referrer && document.referrer.indexOf(window.location.origin) === 0) {
+            history.back();
+            return;
+        }
+        var stored = null;
+        try { stored = sessionStorage.getItem('archives_authorities_return_url'); } catch (e) { /* storage disabled */ }
+        window.location.href = stored || el.getAttribute('data-fallback-url');
+    });
+}
+if (window.PinakesActions && !window.PinakesActions.has('archives-confirm')) {
+    window.PinakesActions.register('archives-confirm', function (el) {
+        window.archivesSwalConfirm(el.dataset.archivesForm, el.dataset.archivesMessage, el.dataset.archivesLabel);
+    });
 }
 </script>

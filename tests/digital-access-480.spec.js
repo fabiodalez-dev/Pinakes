@@ -354,16 +354,16 @@ test.describe.serial('Digital Library access control (#480)', () => {
     await loginAdmin(page);
     const pluginId = db("SELECT id FROM plugins WHERE name='digital-library'");
     await page.goto(`${BASE}/admin/plugins`);
-    await page.locator(`button[onclick="deactivatePlugin(${pluginId})"]`).click();
+    await page.locator(`button[data-pk-action="plugins-deactivate"][data-plugin-id="${pluginId}"]`).click();
     await page.locator('.swal2-confirm').click();
     await expect(page.locator('.swal2-popup.swal2-icon-success')).toBeVisible();
     await page.locator('.swal2-confirm').click();
-    await expect(page.locator(`button[onclick="activatePlugin(${pluginId})"]`)).toBeVisible();
+    await expect(page.locator(`button[data-pk-action="plugins-activate"][data-plugin-id="${pluginId}"]`)).toBeVisible();
     expect(db("SELECT is_active FROM plugins WHERE name='digital-library'")).toBe('0');
 
     const prefix = `bulk480${RUN}c`;
     seedLegacy(prefix, 600); // more than three page visits would move (200 each)
-    await page.locator(`button[onclick="activatePlugin(${pluginId})"]`).click();
+    await page.locator(`button[data-pk-action="plugins-activate"][data-plugin-id="${pluginId}"]`).click();
     const activated = page.waitForResponse(r => r.url().endsWith(`/admin/plugins/${pluginId}/activate`));
     await page.locator('.swal2-confirm').click();
     expect((await activated).status()).toBe(200);

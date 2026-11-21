@@ -159,13 +159,25 @@ class AiController extends BaseController
             $user .= "\n\n" . __('Descrizione del libro:') . "\n" . $description;
         }
 
+        // No key, no call: check it before booking, or a generation that can
+        // never reach the provider would still use up one of the daily slots.
+        if ($this->ai->apiKey() === '') {
+            $this->flash('error', __('Il modulo IA non è configurato: chiedi all\'amministratore di Pinakes di impostare la chiave API.'));
+            return $this->redirect($response, $this->aiPath($slug));
+        }
+        // The attempt is booked against the daily cap before the paid call.
+        $attemptId = $this->ai->reserveAttempt($clubId, 'questions', (int) $clubBook['id'], $this->userId());
+        if ($attemptId === null) {
+            $this->flashReserveRefusal();
+            return $this->redirect($response, $this->aiPath($slug));
+        }
         $text = $this->ai->generate($system, $user);
         if ($text === null) {
             $this->flash('error', __('Generazione non riuscita: il servizio IA non ha risposto. Riprova più tardi.'));
             return $this->redirect($response, $this->aiPath($slug));
         }
 
-        if ($this->ai->saveOutput($clubId, 'questions', (int) $clubBook['id'], $text, $this->ai->model(), $this->userId()) !== null) {
+        if ($this->ai->completeAttempt($attemptId, $text)) {
             $this->flash('success', sprintf(__('Domande di discussione generate per «%s».'), $title));
         } else {
             $this->flash('error', __('Impossibile salvare il risultato generato.'));
@@ -204,18 +216,43 @@ class AiController extends BaseController
         );
         $user .= "\n\n" . __('Verbale:') . "\n" . mb_substr($minutes, 0, 6000);
 
+        // No key, no call: check it before booking, or a generation that can
+        // never reach the provider would still use up one of the daily slots.
+        if ($this->ai->apiKey() === '') {
+            $this->flash('error', __('Il modulo IA non è configurato: chiedi all\'amministratore di Pinakes di impostare la chiave API.'));
+            return $this->redirect($response, $this->aiPath($slug));
+        }
+        // The attempt is booked against the daily cap before the paid call.
+        $attemptId = $this->ai->reserveAttempt($clubId, 'minutes', (int) $meeting['id'], $this->userId());
+        if ($attemptId === null) {
+            $this->flashReserveRefusal();
+            return $this->redirect($response, $this->aiPath($slug));
+        }
         $text = $this->ai->generate($system, $user);
         if ($text === null) {
             $this->flash('error', __('Generazione non riuscita: il servizio IA non ha risposto. Riprova più tardi.'));
             return $this->redirect($response, $this->aiPath($slug));
         }
 
-        if ($this->ai->saveOutput($clubId, 'minutes', (int) $meeting['id'], $text, $this->ai->model(), $this->userId()) !== null) {
+        if ($this->ai->completeAttempt($attemptId, $text)) {
             $this->flash('success', sprintf(__('Riassunto del verbale generato per «%s».'), (string) $meeting['title']));
         } else {
             $this->flash('error', __('Impossibile salvare il risultato generato.'));
         }
         return $this->redirect($response, $this->aiPath($slug));
+    }
+
+    /**
+     * Why no slot was booked: the daily cap, or a lock timeout / database
+     * error, which must not tell a manager below the cap that it is reached.
+     */
+    private function flashReserveRefusal(): void
+    {
+        if ($this->ai->reserveRefusedByCap()) {
+            $this->flash('warning', sprintf(__('Limite di sicurezza raggiunto: massimo %d generazioni IA per club nelle ultime 24 ore. Riprova più tardi.'), AiService::MAX_OUTPUTS_PER_DAY));
+            return;
+        }
+        $this->flash('error', __('Impossibile completare l\'operazione. Riprova più tardi.'));
     }
 
     // ------------------------------------------------------------------

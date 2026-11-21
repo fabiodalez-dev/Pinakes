@@ -60,6 +60,15 @@ if (!ADMIN_EMAIL || !ADMIN_PASS) {
 
 test.describe.configure({ mode: 'serial' });
 
+// The receipt buttons confirm through pk-actions.js (data-pk-confirm), which
+// uses SweetAlert2 where the admin layout loads it: click, then confirm.
+async function clickAndConfirm(page, locator) {
+  await locator.click();
+  const confirm = page.locator('.swal2-confirm');
+  await confirm.waitFor({ state: 'visible', timeout: 15000 });
+  await confirm.click();
+}
+
 /** @type {any} */ let seeded;
 /** @type {any} */ let baseline;
 /** @type {number} */ let pluginId = 0;
@@ -325,7 +334,7 @@ test('T9 — mark as donated from the dashboard', async ({ page }) => {
 
   const receiptForm = page.locator(`#desiderata-dashboard form[action$="/admin/desiderata/books/${book.id}/received"]`);
   await expect(receiptForm, 'the wanted book must offer the receipt button').toHaveCount(1);
-  await receiptForm.getByRole('button', { name: 'Libro donato: registra la copia' }).click();
+  await clickAndConfirm(page, receiptForm.getByRole('button', { name: 'Libro donato: registra la copia' }));
   await page.waitForURL(/\/admin\/dashboard/);
 
   const state = fixture('state-extended');

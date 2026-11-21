@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Controllers;
 
+use App\Support\Permissions;
+use App\Support\SessionRoleRevalidator;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use Slim\Psr7\Response as SlimResponse;
@@ -33,7 +35,7 @@ use Slim\Psr7\Stream;
 class ProtectedUploadController
 {
     /**
-     * Private upload roots served without a per-file check, relative to public/uploads/.
+     * Allowed private upload roots, relative to public/uploads/. Check archive visibility first.
      * Digital Library files are NOT here: they are reached only through the digital/
      * branch, which asks DigitalAccess (issue #480).
      */
@@ -246,10 +248,110 @@ class ProtectedUploadController
         foreach (self::ALLOWED_ROOTS as $root) {
             $base = realpath($uploadsRoot . '/' . $root);
             if ($base !== false && str_starts_with($candidate, $base . DIRECTORY_SEPARATOR)) {
-                return $candidate;
+                if ($root === 'archives/documents') {
+                    $name = substr($candidate, strlen($base) + 1);
+                    $storedPath = '/uploads/' . $root . '/' . str_replace(DIRECTORY_SEPARATOR, '/', $name);
+                    return $this->archiveDocumentVisible($storedPath) ? $candidate : null;
+                }
+                // An archive link resolving into generic storage has no canonical archive record.
+                return str_starts_with($rel, 'storage/') ? $candidate : null;
             }
         }
         return null;
+    }
+
+    /**
+     * Whether an archive document may be served by its raw path.
+     *
+     * The public surfaces link /archives/{id}/documents/{fileId}, which checks
+     * that the unit is published and not deleted. This raw path used to skip
+     * that, so unpublishing or deleting a unit did not revoke a link someone
+     * already held. A file now opens here only while it belongs to a live,
+     * published unit (archival_unit_files, or the legacy document_path column).
+     * Operators who can open the archive back office keep access to its raw
+     * links, including those for unpublished units.
+     *
+     * Installs without the archives tables keep the old behaviour; a failing
+     * lookup refuses.
+     */
+    private function archiveDocumentVisible(string $storedPath): bool
+    {
+        if ($this->db === null) {
+            return false;
+        }
+        try {
+            $viewer = SessionRoleRevalidator::resolve($this->db);
+            if ($viewer['status'] === SessionRoleRevalidator::OK
+                && $viewer['stato'] === 'attivo'
+                && Permissions::allowsPath('/admin/archives')) {
+                return true;
+            }
+            $schema = $this->archiveSchema();
+            if (!$schema['units']) {
+                return true;
+            }
+            $live = 'u.deleted_at IS NULL' . ($schema['published'] ? ' AND u.published = 1' : '');
+            $parts = [];
+            $params = [];
+            if ($schema['legacy']) {
+                $parts[] = 'SELECT 1 FROM archival_units u WHERE BINARY u.document_path = ? AND ' . $live;
+                $params[] = $storedPath;
+            }
+            if ($schema['files']) {
+                $parts[] = 'SELECT 1 FROM archival_unit_files f'
+                    . ' JOIN archival_units u ON u.id = f.unit_id'
+                    . ' WHERE BINARY f.file_path = ? AND ' . $live;
+                $params[] = $storedPath;
+            }
+            if ($parts === []) {
+                return false;
+            }
+            $stmt = $this->db->prepare(implode(' UNION ALL ', $parts) . ' LIMIT 1');
+            if ($stmt === false) {
+                return false;
+            }
+            $stmt->bind_param(str_repeat('s', count($params)), ...$params);
+            $stmt->execute();
+            $res = $stmt->get_result();
+            $found = $res instanceof \mysqli_result && $res->fetch_row() !== null;
+            $stmt->close();
+            return $found;
+        } catch (\Throwable $e) {
+            \App\Support\SecureLogger::warning('[ProtectedUpload] archive document lookup failed', ['error' => $e->getMessage()]);
+            return false;
+        }
+    }
+
+    /** @return array{units: bool, legacy: bool, files: bool, published: bool} */
+    private function archiveSchema(): array
+    {
+        $db = $this->db;
+        if ($db === null) {
+            return ['units' => false, 'legacy' => false, 'files' => false, 'published' => false];
+        }
+        $res = $db->query(
+            "SELECT TABLE_NAME, COLUMN_NAME FROM information_schema.COLUMNS
+              WHERE TABLE_SCHEMA = DATABASE()
+                AND ((TABLE_NAME = 'archival_units' AND COLUMN_NAME IN ('id', 'document_path', 'published'))
+                  OR (TABLE_NAME = 'archival_unit_files' AND COLUMN_NAME = 'file_path'))"
+        );
+        $out = ['units' => false, 'legacy' => false, 'files' => false, 'published' => false];
+        if (!$res instanceof \mysqli_result) {
+            throw new \RuntimeException('information_schema lookup failed');
+        }
+        while ($row = $res->fetch_row()) {
+            if ($row[0] === 'archival_units' && $row[1] === 'id') {
+                $out['units'] = true;
+            } elseif ($row[0] === 'archival_units' && $row[1] === 'document_path') {
+                $out['legacy'] = true;
+            } elseif ($row[0] === 'archival_units' && $row[1] === 'published') {
+                $out['published'] = true;
+            } elseif ($row[0] === 'archival_unit_files') {
+                $out['files'] = true;
+            }
+        }
+        $res->free();
+        return $out;
     }
 
     /** Null when the viewer may open the file; otherwise the response that refuses it. */
