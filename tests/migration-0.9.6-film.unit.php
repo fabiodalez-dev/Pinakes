@@ -122,7 +122,10 @@ try {
     foreach ($expected as $name => $def) {
         $check($after[$name] === $def, "{$name} matches schema.sql (" . $def['COLUMN_TYPE'] . ', default ' . var_export($def['COLUMN_DEFAULT'], true) . ', after ' . $def['PREV'] . ')');
     }
-    $check($after['durata_minuti']['COLUMN_TYPE'] === 'smallint unsigned' && $after['interpreti']['COLUMN_TYPE'] === 'text'
+    // MariaDB reports the integer display width ("smallint(5) unsigned"),
+    // MySQL 8 does not: compare without it, the CI matrix runs both.
+    $type = static fn (string $column): string => (string) preg_replace('/^(\w*int)\(\d+\)/', '$1', $after[$column]['COLUMN_TYPE']);
+    $check($type('durata_minuti') === 'smallint unsigned' && $after['interpreti']['COLUMN_TYPE'] === 'text'
         && $after['sottotitoli']['COLUMN_TYPE'] === 'varchar(255)' && $after['classificazione_eta']['COLUMN_TYPE'] === 'varchar(50)'
         && $after['codice_regione']['COLUMN_TYPE'] === 'varchar(20)', 'column types are smallint unsigned / text / varchar(255) / varchar(50) / varchar(20)');
     $row = $db->query("SELECT titolo, durata_minuti, interpreti, sottotitoli, classificazione_eta, codice_regione FROM libri WHERE id = {$bookId}")->fetch_assoc();
