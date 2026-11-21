@@ -429,7 +429,7 @@ $selectedSeriesType = \App\Support\SeriesLabels::canonical($book['tipo_collana']
               <select id="fornitore_id" name="fornitore_id" class="form-input"<?= $supplierLocked ? ' disabled' : '' ?>>
                 <option value=""><?= __("Nessun fornitore") ?></option>
                 <?php foreach ($supplierOptions as $supplierId => $supplierName): ?>
-                  <option value="<?= (int) $supplierId ?>" <?= $currentSupplier === (int) $supplierId ? 'selected' : '' ?>><?= htmlspecialchars((string) ($supplierName), ENT_QUOTES, 'UTF-8') ?></option>
+                  <option value="<?= (int) $supplierId ?>" <?= $currentSupplier === (int) $supplierId ? 'selected' : '' ?>><?= htmlspecialchars((string) $supplierName, ENT_QUOTES, 'UTF-8') ?></option>
                 <?php endforeach; ?>
               </select>
               <p class="text-xs text-gray-500 mt-1">
@@ -584,6 +584,55 @@ $selectedSeriesType = \App\Support\SeriesLabels::canonical($book['tipo_collana']
           </div>
         </div>
       </div>
+      <?php
+      // Film and video (#539): shown when the media type is film/video, kept
+      // in the form (and posted) when hidden so switching type loses nothing.
+      $isFilmRecord = \App\Support\MediaLabels::resolveTipoMedia($book['formato'] ?? null, $book['tipo_media'] ?? null) === 'dvd';
+      ?>
+      <!-- Film / Video Section -->
+      <div class="card" id="film-details" <?= $isFilmRecord ? '' : 'hidden' ?>>
+        <div class="card-header">
+          <h2 class="form-section-title flex items-center gap-2">
+            <i class="fas fa-film text-gray-900"></i>
+            <?= __("Dettagli film") ?>
+          </h2>
+        </div>
+        <div class="card-body form-section">
+          <p class="text-xs text-gray-500 mb-3"><?= __("Il regista va inserito come autore principale, la casa di produzione o il distributore come editore e le lingue audio nel campo Lingua.") ?></p>
+          <div class="form-grid-3">
+            <div>
+              <label for="durata_minuti" class="form-label"><?= __("Durata (minuti)") ?></label>
+              <input id="durata_minuti" name="durata_minuti" type="number" min="1" max="<?= \App\Support\FilmFields::MAX_RUNTIME ?>" step="1" class="form-input" placeholder="<?= htmlspecialchars(__('es. 120'), ENT_QUOTES, 'UTF-8') ?>" value="<?php echo htmlspecialchars((string) ($book['durata_minuti'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>" />
+            </div>
+            <div>
+              <label for="classificazione_eta" class="form-label"><?= __("Classificazione per età") ?></label>
+              <input id="classificazione_eta" name="classificazione_eta" type="text" maxlength="50" class="form-input" placeholder="<?= htmlspecialchars(__('es. PG-13, 12+, FSK 12'), ENT_QUOTES, 'UTF-8') ?>" value="<?php echo htmlspecialchars((string) ($book['classificazione_eta'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>" />
+            </div>
+            <div>
+              <label for="codice_regione" class="form-label"><?= __("Codice regione") ?></label>
+              <input id="codice_regione" name="codice_regione" type="text" maxlength="20" class="form-input" placeholder="<?= htmlspecialchars(__('es. 2 (Europa), B'), ENT_QUOTES, 'UTF-8') ?>" value="<?php echo htmlspecialchars((string) ($book['codice_regione'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>" />
+            </div>
+          </div>
+          <div class="mt-4">
+            <label for="sottotitoli" class="form-label"><?= __("Sottotitoli") ?></label>
+            <input id="sottotitoli" name="sottotitoli" type="text" maxlength="255" class="form-input" placeholder="<?= htmlspecialchars(__('es. italiano, inglese, danese'), ENT_QUOTES, 'UTF-8') ?>" value="<?php echo htmlspecialchars((string) ($book['sottotitoli'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>" />
+          </div>
+          <div class="mt-4">
+            <label for="interpreti" class="form-label"><?= __("Interpreti") ?></label>
+            <textarea id="interpreti" name="interpreti" rows="3" maxlength="5000" class="form-input" placeholder="<?= htmlspecialchars(__('Un nome per riga, oppure separati da virgola'), ENT_QUOTES, 'UTF-8') ?>"><?php echo htmlspecialchars((string) ($book['interpreti'] ?? ''), ENT_QUOTES, 'UTF-8'); ?></textarea>
+          </div>
+        </div>
+      </div>
+      <script>
+      (function () {
+        const media = document.getElementById('tipo_media');
+        const card = document.getElementById('film-details');
+        if (!media || !card) { return; }
+        const sync = function () { card.hidden = media.value !== 'dvd'; };
+        media.addEventListener('change', sync);
+        sync();
+      })();
+      </script>
       <!-- Library Management Section -->
       <div class="card">
         <div class="card-header">
@@ -3256,6 +3305,25 @@ function initializeFormValidation() {
             return;
         }
 
+        // Running time (#539): the form is novalidate and the server reads an
+        // out-of-range value as "no running time", which would clear the stored
+        // one. An empty field stays allowed, to clear it on purpose.
+        const runtimeInput = form.querySelector('input[name="durata_minuti"]');
+        if (runtimeInput) {
+            const runtimeRaw = runtimeInput.value.trim();
+            const runtimeMax = <?= (int) \App\Support\FilmFields::MAX_RUNTIME ?>;
+            const runtimeBad = runtimeInput.validity.badInput
+                || (runtimeRaw !== '' && (!/^\d+$/.test(runtimeRaw) || Number(runtimeRaw) < 1 || Number(runtimeRaw) > runtimeMax));
+            if (runtimeBad) {
+                Swal.fire({
+                    icon: 'error',
+                    title: __('Durata non valida'),
+                    text: __('La durata deve essere un numero intero di minuti tra 1 e %d.', runtimeMax)
+                });
+                return;
+            }
+        }
+
         // Frontend hierarchy validation for Radice/Genere/Sottogenere
         const radSel = document.getElementById('radice_select');
         const genSel = document.getElementById('genere_select');
@@ -3334,6 +3402,11 @@ function initializeFormValidation() {
                 const response = await fetch(form.action, {
                     method: form.method || 'POST',
                     credentials: 'same-origin',
+                    // fetch follows the redirect to the record page itself; this
+                    // header (kept on the same-origin redirect) tells the layout
+                    // not to show and drop the flash messages on that hidden
+                    // load, so they appear on the page the browser opens next.
+                    headers: { 'X-Pinakes-Fetch-Submit': '1' },
                     body: formData
                 });
 

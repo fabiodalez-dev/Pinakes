@@ -172,9 +172,10 @@ class UnimarcLibriParser
     /**
      * Map a core libri_autori.ruolo to its UNIMARC $4 relator code.
      */
-    public static function relatorForRole(string $ruolo): string
+    public static function relatorForRole(string $ruolo, bool $isFilm = false): string
     {
         return match ($ruolo) {
+            'principale', 'co-autore' => $isFilm ? '300' : '070', // Director or author
             'traduttore'   => '730', // Translator
             'curatore'     => '340', // Editor
             'illustratore' => '440', // Illustrator
