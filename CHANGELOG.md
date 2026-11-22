@@ -2,6 +2,63 @@
 
 Full version-by-version history for Pinakes. The README shows only the last three releases; everything older lives here.
 
+## [0.9.6]
+
+A security release and film cataloguing. I ran a full security audit of 0.9.5 and this release fixes everything it confirmed, plus the hardening it flagged; every fix carries a regression test that fails on the old code ([#536](https://github.com/fabiodalez-dev/Pinakes/pull/536), [#537](https://github.com/fabiodalez-dev/Pinakes/pull/537), [#538](https://github.com/fabiodalez-dev/Pinakes/pull/538)). One migration, `migrate_0.9.6.sql`, prepares `api_keys` for hashed keys and adds the five film columns of `libri`; both blocks are guarded, so a second run or a table the schema check already repaired is left as it is.
+
+### Upgrade notes
+
+- **Existing public API keys keep working**, but they are now stored as a SHA-256 hash plus an 8-character prefix: the full key of an existing integration can no longer be displayed, and a new key is shown once at creation. The table is converted on the first API call or when the API settings page opens; going back to 0.9.5 after that needs the pre-upgrade database backup.
+- **HSTS is opt-in** (Settings → Advanced: one year, no subdomains, HTTPS only). HTTPS installs no longer send it unless the setting is on.
+- **`UPGRADE_PASSWORD` for `scripts/manual-upgrade.php` needs at least 10 characters**, and five wrong attempts lock the web form for a while.
+- **The rate limiter keeps its counters in `storage/cache/ratelimit`**, which the updater already requires to be writable.
+- **A root-docroot install that is already installed shows the "already installed" page** instead of the wizard; an admin whose session has no bound sign-in row uses the installer's own login form for `?force=1`.
+- **The book-club stats panel needs the `stats.view` permission.**
+- **Public API (`/api/public/books/*`)**: book objects no longer include `note_varie`, and review objects no longer include the reviewer's `utente.id`. An integration that read either field must stop relying on it.
+- **The manual upgrade's mandatory database backup needs the PHP function `proc_open`**: the credentials now reach `mysqldump` through a pipe, never a file. A host that disables `proc_open` gets a clear error and the upgrade stops before touching anything; use the admin updater there.
+- **Mobile API**: the staff loan write answers (edit, renew, approve, reject, pickup, create) now carry `late_fine` like the loan detail. Extending an overdue loan with a fine accruing needs `waive_reason` (422 `validation_error` on `waive_reason` without it), and a bulk extension that includes such a loan answers 409 `bulk_extend_fine_accruing`. The Pinakes app sends the reason from 1.15.0.
+- **Cron and maintenance scripts wait while an installation is in progress** (the installer's ownership marker in `storage/`), so a scheduled run can no longer create a table in the empty database the wizard is about to import into.
+
+### Security fixes
+
+- **The installer's reinstall door (`?force=1`) re-checks the account on every request**: admin, active, verified, with its sign-in row still bound. A demoted, suspended or deleted admin, or a revoked session, can no longer reach the step that rewrites `.env`. The installer login is rate limited, and "installed" also honours `.env`, so a failed finalisation no longer leaves the wizard open.
+- **Translation overrides are admin-only and filtered**, on upload and when loaded: staff could plant script in a translation that an admin page echoed. Every `__()` echo inside a script or an attribute is escaped for its context.
+- **Staff act only on reader accounts**: activation, approval, card renewal, and at the loan desk loans, returns with waivers or penalties, and reservations. Staff and custom-role operators can no longer approve, lend, return, renew, extend, reserve or record payments on their own account; admins are exempt. Moving an overdue loan with a fine accruing needs a reason and records the waived fine.
+- **A password set from the user editor revokes every session and token of that account**; changing your own there asks for the current one.
+- **Custom-role permissions are checked on the decoded path**, so `/%61dmin/…` and encoded separators no longer skip them.
+- **Rate-limit and manual-upgrade throttle state moved out of the host-shared temp directory** into private, per-install files that refuse symlinks. Basic-auth throttling on NCIP, OAI-PMH, ResourceSync and VIAF counts every spelling of one account together and caps failed attempts per IP.
+- **SSRF and redirects**: redirect hops are pinned to their port (80/443 only), shared, benchmarking, multicast and the remaining IPv6 special ranges are refused, and the language switch, login return URL and loan redirects share one local-path check.
+- **Private mode** no longer publishes the static sitemap or calendar file, and fails closed when its setting cannot be read.
+- **Strict Content Security Policy**: only the templates' own scripts carry the nonce, all inline event handlers moved to `data-pk-*` attributes, and the policy sends `script-src-attr 'none'`.
+- **Web requests get a database statement time limit** (`DB_STATEMENT_TIMEOUT`, 0 disables): never for the CLI, updates, backups, imports or exports, raised for the harvesting protocols.
+- **Smaller fixes**: anchored root `.htaccess` exemptions and a `scripts/.htaccess`, admin-only updater maintenance actions, encrypted settings bound to their key, capped search terms, LibraryThing staging with a hash check, an authenticated and capped image proxy, per-install cache keys, registration and activation links built from the canonical URL, and book-club fixes (pending members, ICS token rotation, approvals, rejoining after suspension).
+
+### Fixes
+
+- **A custom holiday typed with a leading zero** ("01") was refused as a date that does not exist.
+- **Two operators reassigning loans between the same two readers at once** could deadlock; the reader rows are now locked in a fixed order.
+- **The "Clear filters" button of the home page's empty grid did nothing**; it is now a link to the catalogue.
+- **The book-club AI daily limit** used a lock shared by every installation on the same MySQL server; it is now scoped to the database.
+- **The stocktake reports downloaded from the app** were cut by the database time limit that the same report in the browser is exempt from.
+
+### Films and video ([#539](https://github.com/fabiodalez-dev/Pinakes/issues/539))
+
+Films can be catalogued as films. Five nullable columns of `libri` (`durata_minuti`, `interpreti`, `sottotitoli`, `classificazione_eta`, `codice_regione`) are added by the 0.9.6 migration (`migrate_0.9.6.sql`, guarded so it is a no-op on a table that already has them); the schema check that runs after every update adds them too.
+
+- **The media type "DVD" is now "Film e video"** and covers every video carrier: DVD, Blu-ray, 4K Ultra HD and VHS are recognised in the format. The stored value stays `dvd`, so existing records, loan rules and statistics are unchanged.
+- **A film record speaks film.** The principal author reads as the director, the publisher as production / distribution, the description as the plot, the EAN as the barcode and the language as the audio languages, as a music record already reads artist and label.
+- **Running time, cast, subtitles, age rating and region code** have their own fields in a "Dettagli film" card of the book form, shown when the media type is film and video. Switching the type away keeps what was entered. The admin record and the public page show them, the public page in place of the page count.
+- **Explore films** opens a dedicated catalogue page with recent additions, the most borrowed films, films for children and teens, and dramas. Each shelf opens the catalogue record for its edition.
+- **The film citation dialog** can send its public RIS record to RefWorks or EndNote Web. The download includes the local record ID and the name of the catalogue.
+- **The public page describes a film to search engines** as a schema.org `Movie` with its director, studio, duration, cast and content rating.
+- **The reference of a film is a film.** The RIS download is `TY  - MPCT` (motion picture), with the carrier in `M3`, the barcode in `SN` and the cast, running time, age rating and subtitles as notes. APA, Chicago, Harvard, MLA and Oxford cite the director and the "[Film]" or carrier the style asks for. Books, articles and chapters are cited exactly as before.
+- **MARC 21 and UNIMARC exports describe a videorecording**: 300 / 215 "1 videodisc (95 min)" (videocassette for VHS), 306 playing time, 008/18-20 running time and 008/33 `v`, 041 `$j` subtitle languages, 511 / 323 cast, 521 / 333 age rating, 538 region and 546 subtitles; the director is `$e film director` (UNIMARC `$4 300`) and comes back as the principal author on import. A book's record is unchanged.
+- **The catalogue's media type filter is translated** in every language; it showed the Italian names.
+
+### GoodLib
+
+- **Z-Library links now go to `1lib.sk`.** It replaces `z-lib.gd` as the default and among the suggested mirrors. Installs that still have `z-lib.gd` saved switch automatically; a different mirror or custom domain chosen by the operator is kept. GoodLib 1.0.3.
+
 ## [0.9.5]
 
 A patch release for loans and reservations, from an audit of circulation with 120 new browser scenarios ([#533](https://github.com/fabiodalez-dev/Pinakes/pull/533)). No migration: one nullable column, `prenotazioni.prestito_promosso_id`, is added to existing installs by the schema check that runs after every update.

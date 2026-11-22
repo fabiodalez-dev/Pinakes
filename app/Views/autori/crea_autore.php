@@ -169,7 +169,7 @@ unset($workspaceHeader);
 </div>
 
 <!-- JavaScript for Enhanced UX -->
-<script>
+<script<?= csp_nonce_attr() ?>>
 document.addEventListener('DOMContentLoaded', function() {
 
     // Initialize form validation
@@ -256,7 +256,7 @@ function showAuthorPhotoPreview(blob, name, size) {
     reader.onload = function (e) {
         container.innerHTML =
             '<div class="inline-flex flex-col items-start gap-2">' +
-                '<img alt="' + <?= json_encode(__('Anteprima foto autore'), JSON_HEX_TAG) ?> + '" ' +
+                '<img alt="' + escapeHtml(<?= json_encode(__('Anteprima foto autore'), JSON_HEX_TAG) ?>) + '" ' +
                      'style="max-height:12rem;object-fit:contain;border:1px solid var(--border-color,#e5e7eb);border-radius:8px;" />' +
                 '<div class="flex items-center gap-2 text-sm text-gray-600">' +
                     '<i class="fas fa-check-circle text-green-500"></i><span></span>' +
@@ -373,7 +373,7 @@ function initializeSweetAlert() {
 </script>
 
 <!-- Custom Styles -->
-<style>
+<style<?= csp_nonce_attr() ?>>
 .fade-in {
   animation: fadeIn 0.5s ease-in-out;
 }

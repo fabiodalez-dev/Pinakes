@@ -72,6 +72,8 @@ final class SwaggerUiController
         // json_encode already emits the surrounding quotes, so the heredoc drops them below.
         $docUrl   = json_encode($openApiUrl, JSON_HEX_TAG | JSON_UNESCAPED_SLASHES) ?: '""';
 
+        $nonceAttr = csp_nonce_attr();
+
         return <<<HTML
 <!DOCTYPE html>
 <html lang="en">
@@ -80,7 +82,7 @@ final class SwaggerUiController
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{$title}</title>
   <link rel="stylesheet" type="text/css" href="{$cssUrl}">
-  <style>
+  <style{$nonceAttr}>
     html { box-sizing: border-box; overflow: -moz-scrollbars-vertical; overflow-y: scroll; }
     *, *:before, *:after { box-sizing: inherit; }
     body { margin: 0; background: #fafafa; }
@@ -109,8 +111,8 @@ final class SwaggerUiController
     <a href="{$openApiHref}">openapi.json</a>
   </div>
   <div id="swagger-ui"></div>
-  <script src="{$jsUrl}"></script>
-  <script>
+  <script{$nonceAttr} src="{$jsUrl}"></script>
+  <script{$nonceAttr}>
   (function () {
     'use strict';
     window.onload = function () {

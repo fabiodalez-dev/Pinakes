@@ -138,9 +138,10 @@ test.describe.serial('Patron types CRUD', () => {
 
   test('deleting a type moves its patrons back to the default type', async () => {
     await F.openCirculationTab(page);
-    page.once('dialog', (d) => d.accept());
-    await page.locator(`#circulation-types-table tr[data-type-code="${PREFIX}-stud"] [data-testid="delete-type"]`).click();
-    await page.waitForURL((u) => u.searchParams.get('tab') === 'circulation');
+    const row = page.locator(`#circulation-types-table tr[data-type-code="${PREFIX}-stud"]`);
+    await row.getByTestId('delete-type').click();
+    await page.locator('.swal2-confirm').click();
+    await expect(row).toHaveCount(0);
     expect(F.dbInt(`SELECT COUNT(*) FROM tipologie_lettore WHERE id=${typeA}`)).toBe(0);
     expect(F.dbQuery(`SELECT IFNULL(tipologia_id,'NULL') FROM utenti WHERE id=${patron.id}`)).toBe('NULL');
     await page.goto(`${F.BASE}/admin/users/details/${patron.id}`);

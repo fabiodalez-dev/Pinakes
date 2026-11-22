@@ -249,7 +249,7 @@ $activityPageUrl = static function (int $page) use ($activityBaseUrl, $activityP
     <?php endif; ?>
   </div>
 </div>
-<script>
+<script<?= csp_nonce_attr() ?>>
 (function () {
   'use strict';
   // Progressive enhancement: filters, search and pagination swap the feed

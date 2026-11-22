@@ -3661,12 +3661,11 @@ class ArchivesPlugin
             $offset = $startRecord - 1;
             $dataSql = 'SELECT * FROM archival_units WHERE deleted_at IS NULL AND published = 1 AND (' . $where['sql'] . ')'
                 . " ORDER BY FIELD(level,'fonds','series','file','item'), reference_code"
-                . ' LIMIT ' . $maximumRecords . ' OFFSET ' . $offset;
+                . ' LIMIT ? OFFSET ?';
             $dataStmt = $this->db->prepare($dataSql);
             if ($dataStmt !== false) {
-                if ($where['types'] !== '') {
-                    $dataStmt->bind_param($where['types'], ...$where['params']);
-                }
+                $dataParams = array_merge($where['params'], [(int) $maximumRecords, (int) $offset]);
+                $dataStmt->bind_param($where['types'] . 'ii', ...$dataParams);
                 $dataStmt->execute();
                 $r = $dataStmt->get_result();
                 if ($r instanceof \mysqli_result) {
@@ -7674,6 +7673,73 @@ class ArchivesPlugin
     }
 
     /**
+     * Public counterpart of fetchRelationsForEntity(), used by the anonymous
+     * RiC-O JSON-LD exports (attachRelationsToRicDoc). A relation is
+     * emitted only when BOTH endpoints are publicly visible: an archival
+     * unit must be live and published (published = 0 keeps a unit out of
+     * every public page, export and harvest surface), and an authority
+     * record, activity or place must not be soft-deleted. Otherwise a
+     * public agent/activity/place document would carry the IRI, predicate,
+     * qualifier, source reference and dates of a link to a hidden unit.
+     * The admin pages keep the unfiltered fetchRelationsForEntity().
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function fetchPublicRelationsForEntity(string $entityType, int $entityId): array
+    {
+        $rows = [];
+        $visible = static function (string $side): string {
+            return "(
+                (r.{$side}_type = 'archival_unit' AND EXISTS (
+                    SELECT 1 FROM archival_units v
+                     WHERE v.id = r.{$side}_id AND v.deleted_at IS NULL AND v.published = 1))
+             OR (r.{$side}_type = 'authority_record' AND EXISTS (
+                    SELECT 1 FROM authority_records v
+                     WHERE v.id = r.{$side}_id AND v.deleted_at IS NULL))
+             OR (r.{$side}_type = 'archive_activity' AND EXISTS (
+                    SELECT 1 FROM archive_activities v
+                     WHERE v.id = r.{$side}_id AND v.deleted_at IS NULL))
+             OR (r.{$side}_type = 'archive_place' AND EXISTS (
+                    SELECT 1 FROM archive_places v
+                     WHERE v.id = r.{$side}_id AND v.deleted_at IS NULL))
+            )";
+        };
+        $stmt = $this->db->prepare(
+            'SELECT r.* FROM archive_relations r
+              WHERE ((r.source_type = ? AND r.source_id = ?)
+                  OR (r.target_type = ? AND r.target_id = ?))
+                AND ' . $visible('source') . '
+                AND ' . $visible('target') . '
+              ORDER BY r.id'
+        );
+        if ($stmt === false) {
+            if ($this->db->errno === 1146) {
+                return $rows;  // pre-Phase-4 install — degrade silently
+            }
+            throw new \RuntimeException(
+                '[Archives] fetchPublicRelationsForEntity prepare failed: ' . $this->db->error
+            );
+        }
+        $stmt->bind_param('sisi', $entityType, $entityId, $entityType, $entityId);
+        if (!$stmt->execute()) {
+            $err = $stmt->error;
+            $stmt->close();
+            throw new \RuntimeException(
+                '[Archives] fetchPublicRelationsForEntity execute failed: ' . $err
+            );
+        }
+        $result = $stmt->get_result();
+        if ($result instanceof \mysqli_result) {
+            while ($row = $result->fetch_assoc()) {
+                $rows[] = $row;
+            }
+            $result->free();
+        }
+        $stmt->close();
+        return $rows;
+    }
+
+    /**
      * RiC-CM Phase 3 (v0.7.9): for one archival unit, fetch every
      * linked activity with its title + type so buildUnit can embed
      * the ric:relationHasTarget label inline. Same silent-degrade /
@@ -7766,7 +7832,7 @@ class ArchivesPlugin
         RicJsonLdBuilder $builder
     ): array {
         try {
-            $relations = $this->fetchRelationsForEntity($entityType, $entityId);
+            $relations = $this->fetchPublicRelationsForEntity($entityType, $entityId);
         } catch (\RuntimeException $e) {
             SecureLogger::error('[Archives] attachRelationsToRicDoc fetch failed: ' . $e->getMessage());
             return $doc;
@@ -10736,9 +10802,8 @@ class ArchivesPlugin
             $bindVals[] = $untilSql;
         }
         $whereClause = implode(' AND ', $where);
-        $limitSql    = 'LIMIT ' . $pageSize . ' OFFSET ' . $cursor;
         $countSql    = "SELECT COUNT(*) AS cnt FROM archival_units WHERE $whereClause";
-        $dataSql     = "SELECT * FROM archival_units WHERE $whereClause ORDER BY id $limitSql";
+        $dataSql     = "SELECT * FROM archival_units WHERE $whereClause ORDER BY id LIMIT ? OFFSET ?";
 
         $totalCount = 0;
         if (!empty($bindVals)) {
@@ -10769,24 +10834,18 @@ class ArchivesPlugin
         }
 
         $rows = [];
-        if (!empty($bindVals)) {
-            $dataStmt = $this->db->prepare($dataSql);
-            if ($dataStmt !== false) {
-                $dataStmt->bind_param($bindTypes, ...$bindVals);
-                $dataStmt->execute();
-                $dr = $dataStmt->get_result();
-                if ($dr instanceof \mysqli_result) {
-                    while ($r = $dr->fetch_assoc()) { $rows[] = $r; }
-                    $dr->free();
-                }
-                $dataStmt->close();
-            }
-        } else {
-            $dr = $this->db->query($dataSql);
+        // LIMIT/OFFSET are bound too, so the data query is always prepared.
+        $dataStmt = $this->db->prepare($dataSql);
+        if ($dataStmt !== false) {
+            $dataVals = array_merge($bindVals, [(int) $pageSize, (int) $cursor]);
+            $dataStmt->bind_param($bindTypes . 'ii', ...$dataVals);
+            $dataStmt->execute();
+            $dr = $dataStmt->get_result();
             if ($dr instanceof \mysqli_result) {
                 while ($r = $dr->fetch_assoc()) { $rows[] = $r; }
                 $dr->free();
             }
+            $dataStmt->close();
         }
 
         $verbElement = $identifiersOnly ? 'ListIdentifiers' : 'ListRecords';

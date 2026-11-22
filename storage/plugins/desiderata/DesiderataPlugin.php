@@ -128,6 +128,7 @@ class DesiderataPlugin
         // Nullable for existing/browser offers. A device retry is scoped to the
         // authenticated account, never to a donor email supplied by the client.
         foreach (['mobile_user_id' => 'INT NULL', 'mobile_request_id' => 'CHAR(36) NULL', 'mobile_request_hash' => 'CHAR(64) NULL'] as $column => $definition) {
+            self::assertIdentifier($column);
             $check = $this->db->query("SHOW COLUMNS FROM desiderata_offers LIKE '$column'");
             if ($check === false) { $this->fail('cannot inspect donation request fields'); }
             if ($check->num_rows === 0 && $this->db->query("ALTER TABLE desiderata_offers ADD COLUMN $column $definition") === false) {
@@ -140,6 +141,18 @@ class DesiderataPlugin
             $this->fail('cannot index donation requests');
         }
     }
+    /**
+     * Schema DDL interpolates identifiers (they cannot be bound). Every caller
+     * passes a literal today; this keeps a future caller from turning the
+     * column loop into an injection sink.
+     */
+    private static function assertIdentifier(string $name): void
+    {
+        if (preg_match('/^[a-z_][a-z0-9_]*$/', $name) !== 1) {
+            throw new \InvalidArgumentException('Invalid SQL identifier: ' . substr($name, 0, 64));
+        }
+    }
+
     /** @return never */
     private function fail(string $what): void
     {
@@ -400,17 +413,6 @@ class DesiderataPlugin
         }
     }
     public static function e(mixed $value): string { return htmlspecialchars((string)$value, ENT_QUOTES, 'UTF-8'); }
-    /**
-     * The body of an `onclick` confirmation, built the one way that is safe
-     * there: json_encode with the HEX flags, never htmlspecialchars of a JS
-     * string — the attribute is HTML-decoded before the script is parsed, so an
-     * entity-escaped quote would break straight back out into the code. The
-     * result still goes through e() when it is printed into the attribute.
-     */
-    public static function confirmJs(string $text): string
-    {
-        return 'return confirm(' . json_encode($text, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT) . ');';
-    }
     public function bookField(?array $book, ?int $id): void
     {
         $hasCopies = false;
@@ -1708,10 +1710,14 @@ class DesiderataPlugin
                 return;
             }
             $mailer = $this->emailService ?? new \App\Support\EmailService($this->db);
+            // $link came from absoluteUrl(), i.e. from a visitor's Host header:
+            // the emailed copy is rebuilt on a host the operator configured, and
+            // left out when there is none.
+            $mailLink = \App\Support\TrustedLink::fromAppUrl($link);
             foreach ($recipients as $recipient) {
                 $locale = $notifications->resolveRecipientLocale($recipient['email']);
                 $body = '<p>' . self::e($this->inLocale($locale, $message)) . '</p>'
-                    . '<p><a href="' . self::e($link) . '">' . self::e($link) . '</a></p>';
+                    . ($mailLink !== null ? '<p><a href="' . self::e($mailLink) . '">' . self::e($mailLink) . '</a></p>' : '');
                 $mailer->sendEmail(
                     $recipient['email'],
                     (string) $this->inLocale($locale, $title),
@@ -1861,7 +1867,11 @@ class DesiderataPlugin
         // this list IS the operator's backlog. An empty one here would read as
         // "no proposals to judge" when the truth is "the query failed", so a
         // half-finished activation must say so instead of hiding the queue.
-        $offersResult = $this->db->query('SELECT * FROM desiderata_offers ORDER BY id DESC LIMIT 31 OFFSET ' . $offersOffset);
+        $offersStmt = $this->db->prepare('SELECT * FROM desiderata_offers ORDER BY id DESC LIMIT 31 OFFSET ?');
+        if ($offersStmt === false) { $this->fail('cannot read the donation proposals'); }
+        $offersStmt->bind_param('i', $offersOffset);
+        $offersResult = $offersStmt->execute() ? $offersStmt->get_result() : false;
+        $offersStmt->close();
         if ($offersResult === false) { $this->fail('cannot read the donation proposals'); }
         $offers = $offersResult->fetch_all(MYSQLI_ASSOC);
         $more = count($offers) > 30; $offers = array_slice($offers, 0, 30);

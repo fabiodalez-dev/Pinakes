@@ -65,10 +65,10 @@ final class StaffCirculationOpenApi
     {
         $t = 'staff-circulation';
         $loanId = ['parameters' => [O::path('id', 'Loan id')]];
-        $loan = O::ok('The loan as it is now.', O::ref('StaffLoan'));
+        $loan = O::ok('The loan as it is now, with late_fine as GET /staff/loans/{id} returns it.', ['allOf' => [O::ref('StaffLoan'), O::ref('StaffLoanLateFine')]]);
         $approvalErrors = O::notFound() + O::conflict('`conflict` (state changed, no copy, deadline passed — `message` is the server text) or `not_eligible` (user not eligible).');
         $returnBody = ['outcome' => ['type' => 'string', 'enum' => CirculationOutcome::RETURN_OUTCOMES, 'default' => 'restituito'],
-            'notes' => ['type' => 'string'], 'penalty' => ['type' => 'number', 'minimum' => 0, 'maximum' => 99999999.99, 'description' => 'Only for perso / danneggiato.'],
+            'notes' => ['type' => 'string'], 'penalty' => ['type' => 'number', 'minimum' => 0, 'maximum' => 999999.99, 'description' => 'Only for perso / danneggiato. Capped at the patron ledger maximum (999,999.99).'],
             'waive_fine' => ['type' => 'boolean', 'default' => false, 'description' => 'Mobile API 1.10.0: waive the late fine this return charges (the amount GET /staff/loans/{id} shows in late_fine.accruing_cents). Requires waive_reason.'],
             'waive_reason' => ['type' => 'string', 'maxLength' => 255, 'description' => 'Mandatory with waive_fine (422 validation_error, meta.field waive_reason).']];
         $returnErrors = O::invalid() + O::conflict('`not_returnable`, `concurrent_retry` (retry once).');
@@ -99,7 +99,7 @@ final class StaffCirculationOpenApi
                     O::query('to', 'string', 'data_prestito <= (Y-m-d).'),
                 ], O::paging())]),
                 'post' => O::op($t, 'staffCreateLoan', 'Create a loan through the admin loan form', [
-                    '201' => O::ok('Created.', O::ref('StaffLoan')),
+                    '201' => O::ok('Created, with late_fine as GET /staff/loans/{id} returns it.', ['allOf' => [O::ref('StaffLoan'), O::ref('StaffLoanLateFine')]]),
                 ] + $idemResponses + O::notFound() + O::conflict('`duplicate`, `not_eligible` (meta.reason), `max_loans_reached`, `not_available` (meta.reason), `concurrent_retry`.'), [
                     'parameters'  => [$idemHeader],
                     'requestBody' => O::body('LoanCreate'),
@@ -126,7 +126,7 @@ final class StaffCirculationOpenApi
                 'put' => O::op($t, 'staffUpdateLoan', 'Edit borrower or dates (merged over the current row)', [
                     '200' => $loan,
                 ] + O::notFound() + O::invalid() + O::conflict('`loan_closed`, `concurrent_retry`, `not_available`, `not_eligible`, `duplicate`, `max_loans_reached`.'), $loanId + [
-                    'requestBody' => O::inlineBody(['user_id' => ['type' => 'integer'], 'loaned_at' => ['type' => 'string', 'format' => 'date'], 'due_at' => ['type' => 'string', 'format' => 'date']]),
+                    'requestBody' => O::inlineBody(['user_id' => ['type' => 'integer'], 'loaned_at' => ['type' => 'string', 'format' => 'date'], 'due_at' => ['type' => 'string', 'format' => 'date'], 'waive_reason' => ['type' => 'string', 'maxLength' => 255, 'description' => 'Required when due_at moves an overdue loan forward while a late fine is accruing: the fine accrued so far is recorded and waived with this reason (422 validation_error, meta.field waive_reason, meta.reason extension_reason_required).']]),
                 ]),
             ],
             '/staff/loans/{id}/approve' => ['post' => O::op($t, 'staffApproveLoan', 'Approve a pending request', ['200' => $loan] + $approvalErrors, $loanId)],
@@ -274,7 +274,7 @@ final class StaffCirculationOpenApi
                 'book' => O::object(['id' => $i, 'title' => $s, 'cover_url' => $ns]),
                 'held' => $b, 'deletable' => $b,
                 'consultation_only' => ['type' => 'boolean', 'description' => 'Kept for in-house consultation, never lent (Pinakes 0.9.0). False with features.consultation_only off.'],
-                'on_loan' => ['oneOf' => [['type' => 'null'], O::object(['loan_id' => $i, 'user_name' => $s, 'due_at' => $nd])]],
+                'on_loan' => ['oneOf' => [['type' => 'null'], O::object(['loan_id' => $i, 'user_name' => ['type' => ['string', 'null'], 'description' => 'Null unless the caller holds loans.manage.'], 'due_at' => $nd])]],
                 'created_at' => $ns, 'updated_at' => $ns,
             ]),
             'LoanCreate' => ['type' => 'object', 'required' => ['user_id', 'book_id'], 'properties' => [

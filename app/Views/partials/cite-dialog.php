@@ -45,6 +45,13 @@ $citeEsc = static fn (string $value): string => htmlspecialchars($value, ENT_QUO
     <h2 id="cite-dialog-title"><?= $citeEsc($citeTitle !== '' ? __('Cita «%s»', $citeTitle) : __('Cita')) ?></h2>
     <button type="button" id="cite-close" aria-label="<?= $citeEsc(__('Chiudi')) ?>">&times;</button>
   </div>
+  <?php if (!empty($citeExports)): ?>
+  <div class="flex flex-wrap gap-2 mb-3">
+    <?php foreach ($citeExports as $label => $href): ?>
+    <a class="pk-btn pk-btn--ghost pk-btn--sm" href="<?= $citeEsc($href) ?>"<?= str_starts_with($href, 'https://') ? ' target="_blank" rel="noopener noreferrer"' : '' ?>><?= $citeEsc($label) ?></a>
+    <?php endforeach; ?>
+  </div>
+  <?php endif; ?>
   <label class="text-sm text-gray-600" for="cite-style"><?= $citeEsc(__('Formato')) ?></label>
   <select id="cite-style">
     <option value=""><?= $citeEsc(__('Tutti i formati')) ?></option>
@@ -66,7 +73,7 @@ $citeEsc = static fn (string $value): string => htmlspecialchars($value, ENT_QUO
   <p id="cite-status" role="status" aria-live="polite"></p>
 </dialog>
 
-<style>
+<style<?= csp_nonce_attr() ?>>
   /* The site's reset zeroes every margin, and margin:auto is what centres a
      modal dialog: restore it, and scroll inside rather than off screen. */
   #cite-dialog { margin: auto; overflow: auto; width: min(40rem, calc(100vw - 2rem)); max-height: calc(100vh - 4rem); padding: 1.25rem; border: 0; border-radius: .75rem; box-shadow: 0 20px 50px rgba(0,0,0,.25); }
@@ -81,7 +88,7 @@ $citeEsc = static fn (string $value): string => htmlspecialchars($value, ENT_QUO
   #cite-status:empty { display: none; }
   #cite-status.is-error { color: #b91c1c; }
 </style>
-<script>
+<script<?= csp_nonce_attr() ?>>
 (function () {
   var dialog = document.getElementById('cite-dialog');
   var opener = document.getElementById('cite-open');

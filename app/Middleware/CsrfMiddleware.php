@@ -18,6 +18,42 @@ use App\Support\SecureLogger;
  */
 class CsrfMiddleware implements MiddlewareInterface
 {
+    /**
+     * Login double-submit cookie names. Over HTTPS the `__Host-` prefix makes
+     * the browser refuse the cookie unless it was set by this exact host with
+     * Secure, Path=/ and no Domain — so a sibling subdomain cannot plant a
+     * matching value and force a login CSRF. A `__Host-` cookie cannot exist
+     * on plain HTTP, so HTTP installs keep the legacy name.
+     */
+    public const LOGIN_COOKIE_HTTPS = '__Host-csrf_login';
+    public const LOGIN_COOKIE_HTTP = 'csrf_login';
+
+    /**
+     * Whether the request reached the user over HTTPS. Mirrors the detection
+     * that has always decided the cookie's Secure flag (native HTTPS, or a
+     * TLS-terminating proxy's X-Forwarded-Proto / X-Forwarded-Ssl), so the
+     * writer (AuthController::loginForm) and the reader (process()) always
+     * agree on which cookie name is in play.
+     *
+     * @param array<string, mixed> $server $_SERVER-shaped array
+     */
+    public static function isHttpsRequest(array $server): bool
+    {
+        $https = $server['HTTPS'] ?? '';
+        $forwardedProto = strtolower((string) ($server['HTTP_X_FORWARDED_PROTO'] ?? ''));
+        $forwardedSsl = strtolower((string) ($server['HTTP_X_FORWARDED_SSL'] ?? ''));
+
+        return (!empty($https) && strtolower((string) $https) !== 'off')
+            || $forwardedProto === 'https'
+            || $forwardedSsl === 'on';
+    }
+
+    /** @param array<string, mixed> $server */
+    public static function loginCookieName(array $server): string
+    {
+        return self::isHttpsRequest($server) ? self::LOGIN_COOKIE_HTTPS : self::LOGIN_COOKIE_HTTP;
+    }
+
     public function process(Request $request, RequestHandler $handler): Response
     {
         $method = $request->getMethod();
@@ -75,11 +111,17 @@ class CsrfMiddleware implements MiddlewareInterface
                 // ri-autenticando dopo che la sessione server-side è scaduta.
                 // Invece di saltare del tutto il CSRF (che esporrebbe a login-CSRF),
                 // si valida col pattern double-submit cookie: il token del form
-                // deve combaciare col cookie 'csrf_login' impostato quando la
+                // deve combaciare col cookie di login ('__Host-csrf_login' su
+                // HTTPS, 'csrf_login' su HTTP) impostato quando la
                 // pagina di login è stata servita. Il cookie è SameSite=Lax, quindi
                 // una POST di login forgiata cross-site non lo trasporta → bloccata.
                 if ($csrfValidation['reason'] === 'session_expired' && $this->isLoginRequest($request)) {
-                    $cookieToken = $request->getCookieParams()['csrf_login'] ?? '';
+                    // Only the name that matches the current scheme counts:
+                    // on HTTPS a plain `csrf_login` (which any sibling
+                    // subdomain could set) is never accepted.
+                    $serverParams = $request->getServerParams();
+                    $cookieName = self::loginCookieName($serverParams !== [] ? $serverParams : $_SERVER);
+                    $cookieToken = $request->getCookieParams()[$cookieName] ?? '';
                     if (
                         is_string($token) && $token !== ''
                         && is_string($cookieToken) && $cookieToken !== ''

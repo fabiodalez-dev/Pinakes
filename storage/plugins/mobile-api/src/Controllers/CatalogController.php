@@ -47,6 +47,16 @@ final class CatalogController
     /** Placeholder cover when a title has none (kept relative for the app). */
     private const PLACEHOLDER_COVER = '/uploads/copertine/placeholder.jpg';
 
+    /**
+     * Search budget per request. Every word of `q` adds a relevance block
+     * (ISBN/title/author/publisher/keywords/description CASEs) evaluated on every
+     * candidate row, so a token holder must not choose that count freely.
+     */
+    private const MAX_QUERY_LENGTH = 256;
+    /** Cap of the author / publisher / language filter values. */
+    private const MAX_FILTER_LENGTH = 200;
+    private const RELEVANCE_WORD_LIMIT = 12;
+
     private mysqli $db;
 
     /**
@@ -81,6 +91,13 @@ final class CatalogController
 
             $limit = $this->clampLimit($params['limit'] ?? null);
             $query = isset($params['q']) ? trim(Input::str($params['q'])) : '';
+            if (mb_strlen($query, 'UTF-8') > self::MAX_QUERY_LENGTH) {
+                $query = trim(mb_substr($query, 0, self::MAX_QUERY_LENGTH, 'UTF-8'));
+            }
+            // buildFilters() re-reads q: hand it the capped value, not the raw one.
+            if (isset($params['q'])) {
+                $params['q'] = $query;
+            }
             $requestedSort = isset($params['sort']) ? trim(Input::str($params['sort'])) : null;
             // Relevance is the default for a text query and can be selected
             // explicitly by mobile clients. Facet-only browsing keeps the
@@ -92,7 +109,7 @@ final class CatalogController
                    'order' => 'relevance_score DESC, l.titolo ASC, l.id ASC', 'field' => 'relevance_score']
                 : $this->sortSpec($requestedSort);
             $relevance = $useRelevance
-                ? SearchIndexBuilder::buildRelevanceOrder($this->db, $query, 'l.')
+                ? SearchIndexBuilder::buildRelevanceOrder($this->db, $query, 'l.', self::RELEVANCE_WORD_LIMIT)
                 : null;
 
             $cursor = CursorCodec::decode(isset($params['cursor']) ? Input::str($params['cursor']) : null);
@@ -630,6 +647,27 @@ final class CatalogController
     // ─── Filters ─────────────────────────────────────────────────────────────
 
     /**
+     * A free-text filter value (author, publisher, language), trimmed and cut
+     * to MAX_FILTER_LENGTH characters (the 200-character cut FrontendController
+     * applies to archive-hook queries), so an oversized value cannot inflate
+     * the LIKE/exact-match conditions built from it.
+     *
+     * @param array<string, mixed> $params
+     */
+    private static function filterParam(array $params, string $key): string
+    {
+        if (!isset($params[$key])) {
+            return '';
+        }
+        $value = trim(Input::str($params[$key]));
+        if (mb_strlen($value, 'UTF-8') > self::MAX_FILTER_LENGTH) {
+            $value = trim(mb_substr($value, 0, self::MAX_FILTER_LENGTH, 'UTF-8'));
+        }
+
+        return $value;
+    }
+
+    /**
      * Build the WHERE fragment for the search filters supported by the spec:
      *   q, author, publisher, genre (cascade id, matched at any level),
      *   language, available (bool).
@@ -665,7 +703,7 @@ final class CatalogController
             // inside buildSearchCondition, so they are unaffected.)
         }
 
-        $author = isset($params['author']) ? trim(Input::str($params['author'])) : '';
+        $author = self::filterParam($params, 'author');
         if ($author !== '') {
             if (is_numeric($author)) {
                 $conditions[] = "EXISTS (SELECT 1 FROM libri_autori la_a
@@ -687,7 +725,7 @@ final class CatalogController
             }
         }
 
-        $publisher = isset($params['publisher']) ? trim(Input::str($params['publisher'])) : '';
+        $publisher = self::filterParam($params, 'publisher');
         if ($publisher !== '') {
             $hasJunction = \App\Support\SchemaInfo::hasLibriEditori($this->db);
             if (is_numeric($publisher)) {
@@ -747,7 +785,7 @@ final class CatalogController
             $types .= str_repeat('i', count($family) * 2);
         }
 
-        $language = isset($params['language']) ? trim(Input::str($params['language'])) : '';
+        $language = self::filterParam($params, 'language');
         if ($language !== '') {
             // libri.lingua is unnormalized free text (#282): tolerate case /
             // surrounding whitespace so a value taken from /catalog/languages

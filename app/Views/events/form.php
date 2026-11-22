@@ -5,7 +5,7 @@ use App\Support\Csrf;
 $isEdit = isset($event) && $event;
 $pageTitle = $isEdit ? __("Modifica Evento") : __("Crea Nuovo Evento");
 ?>
-<style>
+<style<?= csp_nonce_attr() ?>>
 /* Fix Flatpickr input heights for events form */
 #event_date + input.form-input,
 #event_time + input.form-input,
@@ -391,7 +391,7 @@ unset($workspaceHeader);
 </div>
 
 <!-- Initialize Uppy, TinyMCE, and Flatpickr -->
-<script>
+<script<?= csp_nonce_attr() ?>>
 document.addEventListener('DOMContentLoaded', function() {
 
   // Initialize Flatpickr for date

@@ -175,17 +175,22 @@ test.describe.serial('Closures added after the loan', () => {
     try { db(`DELETE FROM calendario_chiusure WHERE id IN (${ids(created.closures)})`); } catch { /* */ }
     try { db(`DELETE FROM festivita_personalizzate WHERE id IN (${ids(created.customs)})`); } catch { /* */ }
     if (prev.ready) {
-      const cols = prev.closureColumns.map((c) => `\`${c}\``);
-      const set = cols.filter((c) => c !== '`id`').map((c) => `c.${c}=b.${c}`).join(', ');
-      db(`UPDATE calendario_chiusure c JOIN ${prev.closureBackup} b ON b.id=c.id SET ${set}`);
-      db(`INSERT INTO calendario_chiusure (${cols.join(', ')}) SELECT ${cols.map((c) => `b.${c}`).join(', ')} FROM ${prev.closureBackup} b LEFT JOIN calendario_chiusure c ON c.id=b.id WHERE c.id IS NULL`);
-      db(`UPDATE festivita_personalizzate SET attiva=1 WHERE id IN (${prev.activeCustomIds.join(',') || '0'})`);
-      db("DELETE FROM system_settings WHERE category='calendar' AND setting_key LIKE 'holiday\\_%'");
-      for (const [key, value] of prev.holidaySettings) {
-        db(`INSERT INTO system_settings (category, setting_key, setting_value) VALUES ('calendar', UNHEX('${key}'), UNHEX('${value}'))`);
+      // The feature switches come back even when a restore above throws:
+      // a leaked switch would change every later suite.
+      try {
+        const cols = prev.closureColumns.map((c) => `\`${c}\``);
+        const set = cols.filter((c) => c !== '`id`').map((c) => `c.${c}=b.${c}`).join(', ');
+        db(`UPDATE calendario_chiusure c JOIN ${prev.closureBackup} b ON b.id=c.id SET ${set}`);
+        db(`INSERT INTO calendario_chiusure (${cols.join(', ')}) SELECT ${cols.map((c) => `b.${c}`).join(', ')} FROM ${prev.closureBackup} b LEFT JOIN calendario_chiusure c ON c.id=b.id WHERE c.id IS NULL`);
+        db(`UPDATE festivita_personalizzate SET attiva=1 WHERE id IN (${prev.activeCustomIds.join(',') || '0'})`);
+        db("DELETE FROM system_settings WHERE category='calendar' AND setting_key LIKE 'holiday\\_%'");
+        for (const [key, value] of prev.holidaySettings) {
+          db(`INSERT INTO system_settings (category, setting_key, setting_value) VALUES ('calendar', UNHEX('${key}'), UNHEX('${value}'))`);
+        }
+        for (const [category, key] of SETTINGS) F.restoreSettingState(category, key, prev.settings[key]);
+      } finally {
+        await ft.restoreFeatures(prev.features);
       }
-      for (const [category, key] of SETTINGS) F.restoreSettingState(category, key, prev.settings[key]);
-      await ft.writeFeatures(prev.features);
     }
     restoreLoans(db, loanSnap, F.ADMIN_EMAIL);
     db(`DROP TABLE IF EXISTS ${prev.closureBackup}`);

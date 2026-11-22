@@ -104,9 +104,9 @@ class ExtensionsRepo
     {
         $limit = max(1, min(200, $limit));
         return $this->rows(
-            $this->sprintSelect() . ' WHERE s.club_id = ? ORDER BY s.starts_at DESC, s.id DESC LIMIT ' . $limit,
-            'i',
-            [$clubId]
+            $this->sprintSelect() . ' WHERE s.club_id = ? ORDER BY s.starts_at DESC, s.id DESC LIMIT ?',
+            'ii',
+            [$clubId, $limit]
         );
     }
 

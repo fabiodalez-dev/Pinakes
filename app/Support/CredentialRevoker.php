@@ -62,12 +62,39 @@ final class CredentialRevoker
             $keepRowId > 0 ? $keepRowId : null
         );
 
+        // The device being kept may be an unbound session pinned to the old
+        // password (RememberMeService::UNBOUND_CREDENTIAL_KEY): re-pin it to the
+        // new one, or the person who just changed it would be signed out.
+        if ($keepCurrentDevice && (int) ($_SESSION['user']['id'] ?? 0) === $userId
+            && ($_SESSION['user']['auth_via'] ?? '') !== 'mobile_token'
+            && RememberMeService::currentPin() !== null) {
+            $stmt = $db->prepare('SELECT password FROM utenti WHERE id = ? LIMIT 1');
+            if ($stmt !== false) {
+                $stmt->bind_param('i', $userId);
+                $stmt->execute();
+                $current = $stmt->get_result()->fetch_assoc();
+                $stmt->close();
+                RememberMeService::pinIfUnbound((string) ($current['password'] ?? ''));
+            }
+        }
+
+        // An authenticated change made from the app keeps the app's own token,
+        // the mobile counterpart of the browser session kept above: the
+        // Mobile API's AppAuthMiddleware mirrors the bearer token's row id into
+        // the request-scoped session user. Every other device is signed out.
+        $keepTokenId = 0;
+        if ($keepCurrentDevice && (int) ($_SESSION['user']['id'] ?? 0) === $userId
+            && ($_SESSION['user']['auth_via'] ?? '') === 'mobile_token') {
+            $keepTokenId = (int) ($_SESSION['user']['mobile_token_id'] ?? 0);
+        }
         $mobile = self::revokeRows(
             $db,
             'mobile_app_tokens',
-            'UPDATE mobile_app_tokens SET revoked_at = NOW() WHERE user_id = ? AND revoked_at IS NULL',
+            $keepTokenId > 0
+                ? 'UPDATE mobile_app_tokens SET revoked_at = UTC_TIMESTAMP() WHERE user_id = ? AND revoked_at IS NULL AND id <> ?'
+                : 'UPDATE mobile_app_tokens SET revoked_at = UTC_TIMESTAMP() WHERE user_id = ? AND revoked_at IS NULL',
             $userId,
-            null
+            $keepTokenId > 0 ? $keepTokenId : null
         );
 
         // A leaked feed URL must not survive the recovery of the account either.
@@ -85,7 +112,7 @@ final class CredentialRevoker
             'sessions_revoked' => $sessions,
             'mobile_tokens_revoked' => $mobile,
             'calendar_feeds_revoked' => $calendar,
-            'kept_current_device' => $keepRowId > 0,
+            'kept_current_device' => $keepRowId > 0 || $keepTokenId > 0,
         ]);
 
         return ['sessions' => $sessions, 'mobile' => $mobile, 'calendar' => $calendar];

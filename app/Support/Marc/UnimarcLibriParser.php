@@ -39,7 +39,8 @@ class UnimarcLibriParser
 
         $doc = new \DOMDocument();
         $prev = libxml_use_internal_errors(true);
-        $loaded = $doc->loadXML($xml);
+        // LIBXML_NONET: never fetch a DTD or entity over the network (as SruClient).
+        $loaded = $doc->loadXML($xml, LIBXML_NONET);
         libxml_clear_errors();
         libxml_use_internal_errors($prev);
         if (!$loaded) {
@@ -171,9 +172,10 @@ class UnimarcLibriParser
     /**
      * Map a core libri_autori.ruolo to its UNIMARC $4 relator code.
      */
-    public static function relatorForRole(string $ruolo): string
+    public static function relatorForRole(string $ruolo, bool $isFilm = false): string
     {
         return match ($ruolo) {
+            'principale', 'co-autore' => $isFilm ? '300' : '070', // Director or author
             'traduttore'   => '730', // Translator
             'curatore'     => '340', // Editor
             'illustratore' => '440', // Illustrator

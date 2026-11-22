@@ -65,6 +65,25 @@ $check($unmapped === [], 'PrestitiController codes all mapped (unmapped: ' . imp
 $unmappedRes = array_values(array_filter($reservations, static fn (string $c): bool => !isset(CirculationOutcome::RESERVATION[$c])));
 $check($unmappedRes === [], 'ReservationsAdminController codes all mapped (unmapped: ' . implode(', ', $unmappedRes) . ')');
 
+// Per action, not only in the union: PUT /staff/loans/{id} maps through UPDATE
+// alone, so a code update() emits but only RENEW knows still became a 500
+// (review of PR #536, F022: the borrower-scope refusal ?error=loan_not_found).
+$methodCodes = static function (string $src, string $method): array {
+    $start = strpos($src, 'public function ' . $method . '(');
+    if ($start === false) {
+        return [];
+    }
+    $next = strpos($src, "\n    public function ", $start + 1);
+    $body = substr($src, $start, $next === false ? null : $next - $start);
+    preg_match_all('/error=([a-z_]+)/', $body, $m);
+    return array_values(array_unique($m[1]));
+};
+$prestitiSrcA = (string) file_get_contents($core . '/Controllers/PrestitiController.php');
+$updateCodes = $methodCodes($prestitiSrcA, 'update');
+$unmappedUpdate = array_values(array_filter($updateCodes, static fn (string $c): bool => !isset(CirculationOutcome::UPDATE[$c])));
+$check(in_array('loan_not_found', $updateCodes, true) && $unmappedUpdate === [],
+    'every code PrestitiController::update() emits is in UPDATE (unmapped: ' . implode(', ', $unmappedUpdate) . ')');
+
 // Eligibility codes travel as `?error=' . $eligibilityError`: read them from LoanEligibility.
 $elig = (string) file_get_contents($core . '/Support/LoanEligibility.php');
 preg_match_all("/return\\s+'([a-z_]+)'/", $elig, $em);
@@ -105,6 +124,7 @@ $expect = [
     ['CREATE', 'libro_in_prestito', 409, 'not_available', null, 'libro_in_prestito'],
     ['CREATE', 'duplicate_submission', 500, 'internal_error', null, null],
     ['UPDATE', 'loan_closed', 409, 'loan_closed', null, null],
+    ['UPDATE', 'loan_not_found', 404, 'not_found', null, null],
     ['UPDATE', 'future_start_out', 422, 'validation_error', 'loaned_at', null],
     ['UPDATE', 'concurrent_retry', 409, 'concurrent_retry', null, null],
     ['UPDATE', 'loan_copy_conflict', 409, 'not_available', null, 'loan_copy_conflict'],

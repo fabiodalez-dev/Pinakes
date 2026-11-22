@@ -143,7 +143,7 @@ unset($workspaceHeader);
           <div class="flex items-center gap-4">
             <label class="flex items-center gap-3 cursor-pointer">
               <input type="checkbox" name="events_enabled" value="1" <?= $eventsEnabled ? 'checked' : '' ?>
-                class="toggle-checkbox sr-only" onchange="document.getElementById('visibilityForm').submit()">
+                class="toggle-checkbox sr-only" data-pk-action="submit-form" data-pk-target="#visibilityForm">
               <div class="toggle-switch">
                 <div class="toggle-slider"></div>
               </div>
@@ -162,7 +162,7 @@ unset($workspaceHeader);
         <div class="flex-1">
           <p class="text-sm text-green-800 font-medium"><?= HtmlHelper::e($_SESSION['success_message']) ?></p>
         </div>
-        <button onclick="this.parentElement.remove()" class="btn-icon btn-secondary text-green-600 hover:text-green-800" aria-label="<?= htmlspecialchars(__('Chiudi'), ENT_QUOTES, 'UTF-8') ?>">
+        <button type="button" data-pk-action="dismiss" data-pk-target="parent" class="btn-icon btn-secondary text-green-600 hover:text-green-800" aria-label="<?= htmlspecialchars(__('Chiudi'), ENT_QUOTES, 'UTF-8') ?>">
           <i class="fas fa-times"></i>
         </button>
       </div>
@@ -175,7 +175,7 @@ unset($workspaceHeader);
         <div class="flex-1">
           <p class="text-sm text-red-800 font-medium"><?= HtmlHelper::e($_SESSION['error_message']) ?></p>
         </div>
-        <button onclick="this.parentElement.remove()" class="btn-icon btn-secondary text-red-600 hover:text-red-800" aria-label="<?= htmlspecialchars(__('Chiudi'), ENT_QUOTES, 'UTF-8') ?>">
+        <button type="button" data-pk-action="dismiss" data-pk-target="parent" class="btn-icon btn-secondary text-red-600 hover:text-red-800" aria-label="<?= htmlspecialchars(__('Chiudi'), ENT_QUOTES, 'UTF-8') ?>">
           <i class="fas fa-times"></i>
         </button>
       </div>
@@ -265,8 +265,10 @@ unset($workspaceHeader);
                       <i class="fas fa-external-link-alt"></i>
                       <?= __("Visualizza") ?>
                     </a>
-                    <button
-                      onclick="confirmDelete(<?= (int)$event['id'] ?>, <?= htmlspecialchars((string) json_encode($event['title'], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE), ENT_QUOTES, 'UTF-8') ?>)"
+                    <button type="button"
+                      data-pk-action="events-delete"
+                      data-event-id="<?= (int)$event['id'] ?>"
+                      data-event-title="<?= htmlspecialchars((string) ($event['title'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
                       class="inline-flex items-center gap-2 px-4 py-2 bg-white border border-red-300 text-red-700 rounded-lg hover:bg-red-50 transition-colors text-sm font-semibold">
                       <i class="fas fa-trash"></i>
                       <?= __("Elimina") ?>
@@ -330,7 +332,7 @@ unset($workspaceHeader);
   </div>
 </div>
 
-<style>
+<style<?= csp_nonce_attr() ?>>
   /* Toggle Switch Styles */
   .toggle-switch {
     position: relative;
@@ -368,10 +370,14 @@ unset($workspaceHeader);
   }
 </style>
 
-<script>
+<script<?= csp_nonce_attr() ?>>
+  window.PinakesActions.register('events-delete', (el) => confirmDelete(parseInt(el.dataset.eventId, 10), el.dataset.eventTitle || ''));
+
   function confirmDelete(eventId, eventTitle) {
     window.SwalApp.confirmDelete({
-      title: <?= json_encode(__("Sei sicuro di voler eliminare l'evento"), JSON_HEX_TAG) ?> + ' "' + eventTitle + '"?',
+      // Plain text: confirmDelete escapes it for the Swal title (HTML) and shows
+      // it as is in the native confirm() fallback.
+      titleText: <?= json_encode(__("Sei sicuro di voler eliminare l'evento"), JSON_HEX_TAG) ?> + ' "' + eventTitle + '"?',
       text:  <?= json_encode(__("Questa azione non può essere annullata."), JSON_HEX_TAG) ?>
     }).then((r) => {
       if (!r.isConfirmed) return;

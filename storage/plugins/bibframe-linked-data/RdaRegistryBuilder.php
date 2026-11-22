@@ -90,7 +90,7 @@ class RdaRegistryBuilder
         $expressionId = !empty($book['espressione_id']) ? (int) $book['espressione_id'] : null;
         $operaId      = !empty($book['opera_id']) ? (int) $book['opera_id'] : null;
 
-        if ($expressionId !== null && $this->tableExists('espressioni')) {
+        if ($expressionId !== null && $this->frbrTableExists('espressioni')) {
             $expr = $this->buildExpressionNode($expressionId);
             if ($expr !== null) {
                 $doc['rdam:expressionManifested'] = $expr;
@@ -98,7 +98,7 @@ class RdaRegistryBuilder
             }
         }
         // No Expression, but maybe a direct Work link.
-        if ($operaId !== null && $this->tableExists('opere')) {
+        if ($operaId !== null && $this->frbrTableExists('opere')) {
             $work = $this->buildWorkNode($operaId);
             if ($work !== null) {
                 // Manifestation embeds an anonymous Expression that carries the Work.
@@ -118,7 +118,7 @@ class RdaRegistryBuilder
      */
     public function buildWork(int $operaId): ?array
     {
-        if (!$this->tableExists('opere')) {
+        if (!$this->frbrTableExists('opere')) {
             return null;
         }
         $node = $this->buildWorkNode($operaId);
@@ -135,7 +135,7 @@ class RdaRegistryBuilder
      */
     public function buildExpression(int $espressioneId): ?array
     {
-        if (!$this->tableExists('espressioni')) {
+        if (!$this->frbrTableExists('espressioni')) {
             return null;
         }
         $node = $this->buildExpressionNode($espressioneId);
@@ -228,6 +228,29 @@ class RdaRegistryBuilder
         $row = $stmt->get_result()->fetch_assoc();
         $stmt->close();
         return is_array($row) ? trim((string) ($row['nome'] ?? '')) : '';
+    }
+
+    private ?bool $frbrActive = null;
+
+    /**
+     * Work/Expression data belongs to the frbr-lrm plugin: its tables survive
+     * a deactivation, so their existence alone does not mean the library
+     * publishes them. Gate on the plugin being active as well.
+     */
+    private function frbrTableExists(string $table): bool
+    {
+        if ($this->frbrActive === null) {
+            $this->frbrActive = false;
+            $stmt = $this->db->prepare("SELECT is_active FROM plugins WHERE name = 'frbr-lrm' LIMIT 1");
+            if ($stmt !== false) {
+                if ($stmt->execute()) {
+                    $row = $stmt->get_result()->fetch_row();
+                    $this->frbrActive = is_array($row) && (int) $row[0] === 1;
+                }
+                $stmt->close();
+            }
+        }
+        return $this->frbrActive && $this->tableExists($table);
     }
 
     /** Cache table-existence checks per request. @var array<string,bool> */

@@ -1,1 +1,8 @@
-[]
+[
+  {
+    "id": "GHSA-fc5q-39xc-vjpf",
+    "package": "picomatch",
+    "expires": "2026-12-02",
+    "reason": "Tailwind's build-time dependencies use picomatch for repository-controlled file patterns. No fixed release is available through 4.0.7. Remove this exception when a fixed release is available and update the frontend lockfile. The production audit must remain clean."
+  }
+]

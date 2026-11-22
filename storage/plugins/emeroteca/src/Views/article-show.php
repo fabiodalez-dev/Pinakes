@@ -123,7 +123,7 @@ ob_start();
       </div>
       <?php if ($isAdmin): ?>
       <div class="flex gap-3 w-full lg:w-auto">
-        <form method="post" action="<?= $e(url('/admin/periodicals/articles/' . $id . '/delete')) ?>" onsubmit="return confirm(<?= $e(json_encode(__('Eliminare questo articolo e il suo PDF?'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT)) ?>);" class="flex-1 lg:flex-none">
+        <form method="post" action="<?= $e(url('/admin/periodicals/articles/' . $id . '/delete')) ?>" data-pk-confirm="<?= $e(__('Eliminare questo articolo e il suo PDF?')) ?>" class="flex-1 lg:flex-none">
           <input type="hidden" name="csrf_token" value="<?= $e(\App\Support\Csrf::ensureToken()) ?>">
           <input type="hidden" name="revision" value="<?= (int) ($row['revision'] ?? 0) ?>">
           <button type="submit" class="<?= $btnDanger ?> w-full">
@@ -160,7 +160,7 @@ unset($workspaceHeader);
       <div class="card overflow-hidden">
         <div class="p-4 flex items-center justify-center bg-gray-50">
           <img src="<?= $e($cover) ?>"
-               onerror="this.onerror=null;this.src=(window.BASE_PATH||'')+'/uploads/copertine/placeholder.jpg'"
+               data-pk-fallback-src="<?= $e(url('/uploads/copertine/placeholder.jpg')) ?>"
                alt="<?= $e(sprintf(__('Immagine di «%s»'), $value('titolo'))) ?>"
                class="max-h-80 object-contain rounded-lg shadow" />
         </div>

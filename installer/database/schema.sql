@@ -46,7 +46,9 @@ CREATE TABLE `email_delivery_outbox` (
 /*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `api_keys` (
   `id` int NOT NULL AUTO_INCREMENT,
-  `api_key` varchar(64) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `api_key` varchar(64) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `key_hash` char(64) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `key_prefix` varchar(16) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `name` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
   `description` text COLLATE utf8mb4_unicode_ci,
   `is_active` tinyint(1) DEFAULT '1',
@@ -55,6 +57,7 @@ CREATE TABLE `api_keys` (
   `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   UNIQUE KEY `api_key` (`api_key`),
+  UNIQUE KEY `uniq_key_hash` (`key_hash`),
   KEY `idx_api_key` (`api_key`),
   KEY `idx_is_active` (`is_active`)
 ) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -505,6 +508,11 @@ CREATE TABLE `libri` (
   `rda_content_type` varchar(10) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'RDA content type override (LC code), NULL = derived from tipo_media',
   `rda_media_type` varchar(10) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'RDA media type override (LC code), NULL = derived from tipo_media',
   `rda_carrier_type` varchar(10) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'RDA carrier type override (LC code), NULL = derived from tipo_media',
+  `durata_minuti` smallint unsigned DEFAULT NULL COMMENT 'Running time in minutes (film/video, MARC 306)',
+  `interpreti` text COLLATE utf8mb4_unicode_ci COMMENT 'Cast / performers (film/video, MARC 511)',
+  `sottotitoli` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Subtitle languages (film/video, MARC 546)',
+  `classificazione_eta` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Age rating as printed (film/video, MARC 521)',
+  `codice_regione` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'DVD/Blu-ray region code (MARC 538)',
   `peso` float DEFAULT NULL,
   `dimensioni` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `physical_description` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Physical description (LibraryThing)',

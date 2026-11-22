@@ -172,8 +172,9 @@ function createLab(prefix) {
           db(`INSERT INTO system_settings (category, setting_key, setting_value) VALUES ('calendar', UNHEX('${key}'), UNHEX('${value}'))`);
         }
         for (const key of LOAN_SETTINGS) F.restoreSettingState('loans', key, prev.settings[key]);
-        await ft.writeFeatures(prev.features);
       },
+      // Its own step: runAll still runs it when a restore above throws.
+      async () => { if (prev.ready) await ft.restoreFeatures(prev.features); },
       () => { restoreLoans(db, loanSnap, F.ADMIN_EMAIL); },
       () => { db(`DROP TABLE IF EXISTS ${prev.closureBackup}`); },
       () => {

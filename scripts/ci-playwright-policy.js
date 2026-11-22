@@ -308,7 +308,7 @@ function checkPolicy() {
       'gh release create',
       '--draft',
       '.uploader.login == "github-actions[bot]"',
-      'gh release edit',
+      'gh api -X PATCH "repos/${GITHUB_REPOSITORY}/releases/${release_id}"',
       '.immutable == true',
     ]) {
       if (!releaseWorkflow.includes(contract)) {

@@ -44,6 +44,59 @@ class RememberMeService
     public const SESSION_ROW_KEY = 'remember_session_id';
 
     /**
+     * Fallback for a sign-in whose user_sessions row could not be written: the
+     * session then has no row for CredentialRevoker to revoke, so it carries a
+     * fingerprint of the password hash it was opened with instead, and
+     * SessionRoleRevalidator ends it once the password changes.
+     */
+    public const UNBOUND_CREDENTIAL_KEY = 'unbound_credential_fp';
+
+    public static function credentialFingerprint(string $passwordHash): string
+    {
+        return hash('sha256', 'pinakes-session-credential|' . $passwordHash);
+    }
+
+    /**
+     * The pin stored in the session: the account id and the fingerprint of its
+     * password hash. The id keeps a pin from being checked against another
+     * account (a Mobile API request carries its token's user in the same
+     * session for the length of one request).
+     */
+    public static function pinValue(int $userId, string $passwordHash): string
+    {
+        return $userId . ':' . self::credentialFingerprint($passwordHash);
+    }
+
+    /**
+     * The pin lives INSIDE $_SESSION['user']: whatever replaces the session's
+     * user (a sign-in, a Mobile API request for its length) replaces or restores
+     * the pin with it, so a pin can never be left over from another account.
+     */
+    public static function currentPin(): ?string
+    {
+        $pin = $_SESSION['user'][self::UNBOUND_CREDENTIAL_KEY] ?? null;
+        return is_string($pin) ? $pin : null;
+    }
+
+    public static function storePin(string $pin): void
+    {
+        if (isset($_SESSION['user']) && is_array($_SESSION['user'])) {
+            $_SESSION['user'][self::UNBOUND_CREDENTIAL_KEY] = $pin;
+        }
+    }
+
+    /** Pin the current session to $passwordHash when it has no bound row. */
+    public static function pinIfUnbound(string $passwordHash): void
+    {
+        $userId = (int) ($_SESSION['user']['id'] ?? 0);
+        if (!empty($_SESSION[self::SESSION_ROW_KEY]) || $passwordHash === '' || $userId <= 0) {
+            unset($_SESSION['user'][self::UNBOUND_CREDENTIAL_KEY]);
+            return;
+        }
+        self::storePin(self::pinValue($userId, $passwordHash));
+    }
+
+    /**
      * True when the bound row belongs to an ordinary sign-in rather than a
      * remembered one. The session knows how it was opened; the row does not,
      * and the two kinds must not be treated alike — a remembered row's expiry
@@ -228,7 +281,7 @@ class RememberMeService
             return null;
         }
 
-        $token = $_COOKIE[self::COOKIE_NAME] ?? null;
+        $token = self::cookieToken();
         if ($token === null || strlen($token) !== self::TOKEN_LENGTH * 2) {
             return null;
         }
@@ -279,7 +332,7 @@ class RememberMeService
             return;
         }
 
-        $token = $_COOKIE[self::COOKIE_NAME] ?? null;
+        $token = self::cookieToken();
         if ($token !== null) {
             $tokenHash = hash('sha256', $token);
 
@@ -309,7 +362,7 @@ class RememberMeService
 
         // Get current token hash to preserve current session
         $currentTokenHash = null;
-        $token = $_COOKIE[self::COOKIE_NAME] ?? null;
+        $token = self::cookieToken();
         if ($token !== null) {
             $currentTokenHash = hash('sha256', $token);
         }
@@ -453,7 +506,7 @@ class RememberMeService
 
         // Pre-compute current token hash to avoid N+1 queries
         $currentTokenHash = null;
-        $token = $_COOKIE[self::COOKIE_NAME] ?? null;
+        $token = self::cookieToken();
         if ($token !== null) {
             $currentTokenHash = hash('sha256', $token);
         }
@@ -579,6 +632,19 @@ class RememberMeService
         $this->clearCookie();
     }
 
+    /**
+     * The remember-me cookie value, or null when absent or not a string.
+     *
+     * A client can send `remember_token[]=x`, which PHP turns into an array;
+     * strlen()/hash() on it would raise a TypeError (HTTP 500). Treat any
+     * non-string value exactly like a missing cookie.
+     */
+    private static function cookieToken(): ?string
+    {
+        $token = $_COOKIE[self::COOKIE_NAME] ?? null;
+        return is_string($token) ? $token : null;
+    }
+
     private function clearCookie(): void
     {
         // The note that lets concurrent sign-ins share one session is keyed by
@@ -586,7 +652,7 @@ class RememberMeService
         // id that a later request could still be pointed at — bounded by the
         // note's own short life, but there is no reason to rely on that when
         // every path that retires the cookie comes through here.
-        $token = (string) ($_COOKIE[self::COOKIE_NAME] ?? '');
+        $token = (string) self::cookieToken();
         if ($token !== '') {
             RememberMeSessionRegistry::forget($token);
         }

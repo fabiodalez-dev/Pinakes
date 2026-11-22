@@ -14,6 +14,8 @@ ob_start();
 ?>
 
       <?php if (!empty($_GET['updated'])): ?><div class="mt-3 p-3 bg-green-50 text-green-700 rounded border border-green-200" role="alert"><?= __("Prenotazione aggiornata.") ?></div><?php endif; ?>
+      <?php $reservationListError = (string) ($_GET['error'] ?? ''); ?>
+      <?php if ($reservationListError === 'not_found'): ?><div class="mt-3 p-3 bg-red-50 text-red-700 rounded border border-red-200" role="alert"><?= __("Prenotazione non trovata o non modificabile con il tuo ruolo.") ?></div><?php elseif ($reservationListError === 'book_not_found'): ?><div class="mt-3 p-3 bg-red-50 text-red-700 rounded border border-red-200" role="alert"><?= __("Libro non trovato.") ?></div><?php endif; ?>
     <?php
 $workspaceHeader['context'] = (string) ob_get_clean();
 ob_start();
@@ -95,7 +97,7 @@ unset($workspaceHeader);
   </div>
 </div>
 
-<style>
+<style<?= csp_nonce_attr() ?>>
 .autocomplete-suggestions { position:absolute; z-index:40; background:#fff; border:1px solid #e5e7eb; border-radius:0.5rem; margin-top:0.25rem; width:100%; display:none; max-height:16rem; overflow-y:auto; box-shadow:0 5px 20px rgba(0,0,0,0.1); }
 .autocomplete-suggestions.show { display:block; }
 .autocomplete-suggestions li { padding:0.5rem 0.75rem; border-bottom:1px solid #f1f5f9; cursor:pointer; font-size:0.875rem; display:flex; align-items:center; gap:0.5rem; }
@@ -103,7 +105,7 @@ unset($workspaceHeader);
 .autocomplete-suggestions li:hover { background:#f8fafc; }
 </style>
 
-<script>
+<script<?= csp_nonce_attr() ?>>
 document.addEventListener('DOMContentLoaded', function(){
   async function fetchJSON(url){ const r = await fetch(url); if (!r.ok) throw new Error(r.status); return r.json(); }
   function setupAutocomplete(inputId, suggestId, fetchUrl, onPick){

@@ -280,7 +280,7 @@ unset($workspaceHeader);
                         <img src="<?php echo htmlspecialchars(url($book['copertina_url']), ENT_QUOTES, 'UTF-8'); ?>"
                              alt="<?php echo App\Support\HtmlHelper::e($book['titolo'] . ' - Copertina'); ?>"
                              class="w-10 h-14 object-cover rounded shadow-sm"
-                             onerror="this.onerror=null;this.src=(window.BASE_PATH||'')+'/uploads/copertine/placeholder.jpg'">
+                             data-pk-fallback-src="<?= htmlspecialchars(url('/uploads/copertine/placeholder.jpg'), ENT_QUOTES, 'UTF-8') ?>">
                       <?php endif; ?>
                       <div>
                         <a href="<?= htmlspecialchars(url('/admin/books/' . (int)$book['id']), ENT_QUOTES, 'UTF-8') ?>" class="text-sm font-medium text-gray-900 hover:text-blue-600 transition-colors">
@@ -465,7 +465,7 @@ unset($workspaceHeader);
 </section>
 
 <!-- Chart.js is loaded from vendor.bundle.js (window.Chart) -->
-<script>
+<script<?= csp_nonce_attr() ?>>
 document.addEventListener('DOMContentLoaded', function() {
   const workspaceColors = getComputedStyle(document.body);
   const chartAccent = workspaceColors.getPropertyValue('--workspace-accent').trim() || '#d70161';
@@ -563,7 +563,7 @@ document.addEventListener('DOMContentLoaded', function() {
     loansByStatusWrapper.innerHTML = `
       <div class="flex h-full w-full flex-col items-center justify-center gap-3 text-slate-400">
         <i class="fas fa-chart-pie text-4xl"></i>
-        <p class="text-sm"><?= htmlspecialchars(__("Nessun prestito disponibile per generare il grafico"), ENT_QUOTES, 'UTF-8') ?></p>
+        <p class="text-sm">${<?= json_encode(htmlspecialchars(__("Nessun prestito disponibile per generare il grafico"), ENT_QUOTES, 'UTF-8'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) ?>}</p>
       </div>
     `;
   } else if (loansByStatusCanvas) {

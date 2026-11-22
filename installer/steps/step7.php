@@ -19,18 +19,61 @@ if (!isset($_SESSION['installation_finalized'])) {
         // Create .htaccess if missing
         $installer->createHtaccess();
 
-        // Create lock file to prevent re-installation
-        $installer->createLockFile();
+        // Create lock file to prevent re-installation. Without it the site is
+        // live (.env exists) but not locked: never report success in that state.
+        if (!$installer->createLockFile()) {
+            throw new \RuntimeException(__("Impossibile creare il file .installed nella root del progetto. Verifica i permessi di scrittura della cartella."));
+        }
 
-        // Set secure file permissions (no more 777!)
-        $permissionsResult = $installer->setSecurePermissions();
-        $_SESSION['permissions_result'] = $permissionsResult;
+        // The install is locked: this session no longer needs its binding.
+        $installer->releaseInstallOwnership();
+
+        // Set secure file permissions (no more 777!). Best-effort: the install
+        // is already complete and locked, so a failure here is not fatal.
+        try {
+            $permissionsResult = $installer->setSecurePermissions();
+            $_SESSION['permissions_result'] = $permissionsResult;
+        } catch (\Throwable $permissionsError) {
+            $_SESSION['permissions_result'] = null;
+        }
 
         $_SESSION['installation_finalized'] = true;
 
-    } catch (Exception $e) {
+    } catch (\Throwable $e) {
         $error = __("Errore durante la finalizzazione:") . " " . $e->getMessage();
     }
+} elseif (!$installer->hasLockFile()) {
+    // Finalised earlier in this session, but .installed is gone (removed or
+    // never persisted): the retry link lands here, so write the lock again.
+    if ($installer->createLockFile()) {
+        $installer->releaseInstallOwnership();
+    } else {
+        $error = __("Impossibile creare il file .installed nella root del progetto. Verifica i permessi di scrittura della cartella.");
+    }
+}
+
+// Never show the success page while the lock file is missing.
+if (!isset($error) && !$installer->hasLockFile()) {
+    $error = __("Il file .installed non è presente nella root del progetto: l'installazione non è protetta.");
+}
+
+if (isset($error)) {
+    renderHeader(7, __('Errore durante la finalizzazione'));
+    ?>
+    <h2 class="step-title"><?= __("Installazione non completata") ?></h2>
+    <div class="alert alert-error">
+        <i class="fas fa-exclamation-triangle"></i>
+        <?= htmlspecialchars($error, ENT_QUOTES, 'UTF-8') ?>
+    </div>
+    <p class="step-description">
+        <?= __("Correggi il problema indicato e riprova: l'installazione verrà finalizzata solo quando il file .installed sarà stato creato.") ?>
+    </p>
+    <div style="margin-top: 30px; text-align: center;">
+        <a href="index.php?step=7&amp;force" class="btn btn-primary"><?= __("Riprova la finalizzazione") ?></a>
+    </div>
+    <?php
+    renderFooter();
+    return;
 }
 
 // Get admin info from session

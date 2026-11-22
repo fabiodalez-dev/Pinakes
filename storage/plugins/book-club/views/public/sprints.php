@@ -124,7 +124,9 @@ include $corePartials . '/catalog-hero.php';
         $startTs = (int) strtotime((string) $sprint['starts_at']);
         $endTs = $startTs + (int) $sprint['duration_min'] * 60;
         $joined = is_array($sprint['mine'] ?? null);
-        $isCreator = $userId !== null && (int) ($sprint['created_by'] ?? 0) === $userId;
+        // Same rule as SprintController::cancel(): the creator's right to
+        // cancel lasts only while they are an active member of the club.
+        $isCreator = $isMember && $userId !== null && (int) ($sprint['created_by'] ?? 0) === $userId;
         $participants = is_array($sprint['participants'] ?? null) ? $sprint['participants'] : [];
       ?>
       <article class="bc-card">
@@ -172,7 +174,7 @@ include $corePartials . '/catalog-hero.php';
             <?php endif; ?>
             <?php if (($isCreator || $canManage) && ($status === 'scheduled' || $status === 'running')): ?>
               <form method="post" action="<?= $e($base . '/' . $sprintId . '/cancel') ?>"
-                    onsubmit="return confirm(<?= $e(json_encode(__('Annullare questo sprint?'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP)) ?>);">
+                    data-pk-confirm="<?= $e(__('Annullare questo sprint?')) ?>">
                 <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
                 <button type="submit" class="bc-btn bc-btn-danger bc-btn-sm">
                   <i class="fas fa-ban"></i><?= $e(__('Annulla')) ?>

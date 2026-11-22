@@ -69,6 +69,15 @@ final class LiteSpeedCacheMiddleware implements MiddlewareInterface
             }
         }
 
+        // The cached copy whitelists by hash exactly the inline blocks the
+        // live response allowed: those stamped with this request's nonce by
+        // the templates. Without that nonce there is no way to tell the
+        // templates' blocks from injected ones, so the page is not shared.
+        $requestNonce = ContentSecurityPolicy::nonceFromHeader($response->getHeaderLine('Content-Security-Policy'));
+        if ($requestNonce === null) {
+            return $response->withHeader('X-LiteSpeed-Cache-Control', 'no-cache');
+        }
+
         $ttl = LiteSpeedCache::ttlFor($page);
         $html = (string) $response->getBody();
         $stableHtml = ContentSecurityPolicy::removeNonceAttributes($html);
@@ -80,7 +89,8 @@ final class LiteSpeedCacheMiddleware implements MiddlewareInterface
             'upgrade-insecure-requests'
         );
         $csp = ContentSecurityPolicy::headerForCachedHtml(
-            $stableHtml,
+            $html,
+            $requestNonce,
             $upgradeInsecureRequests
         );
 

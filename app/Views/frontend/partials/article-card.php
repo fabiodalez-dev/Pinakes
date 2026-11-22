@@ -40,7 +40,7 @@ $acMeta = $articleCard['meta'] ?? [];
                     <div class="pk-book__blank-foot"><div class="pk-book__rule"></div><div class="pk-book__brand"><?= $acEscape($articleCard['badge'] ?? __('Articolo')) ?></div></div>
                 </div>
                 <?php if ($acCover !== '' && !str_contains($acCover, 'placeholder')): ?>
-                <img class="book-image pk-book__img" data-pk-tone src="<?= $acEscape($acCover) ?>" alt="" loading="lazy" decoding="async" onerror="this.onerror=null;this.classList.add('is-missing')">
+                <img class="book-image pk-book__img" data-pk-tone src="<?= $acEscape($acCover) ?>" alt="" loading="lazy" decoding="async" data-pk-fallback-class="is-missing">
                 <?php endif; ?>
                 <div class="pk-book__spine"></div>
                 <div class="pk-book__gloss"></div>

@@ -23,7 +23,7 @@ $breadcrumbItems = [['label' => __('Home'), 'href' => url('/')], ['label' => __(
 include $corePartials . '/catalog-hero.php';
 ?>
 <?php $bookClubStyles = true; ?>
-<style>
+<style<?= csp_nonce_attr() ?>>
   /* Page-local helpers (directory page only). */
   .bc-club-card{display:block;position:relative;overflow:hidden;height:100%;color:inherit;text-decoration:none;transition:border-color .2s ease}
   .bc-club-card:hover,.bc-club-card:focus-visible{border-color:var(--primary-color);color:inherit}

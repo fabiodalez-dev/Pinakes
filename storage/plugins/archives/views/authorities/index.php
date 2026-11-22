@@ -22,7 +22,7 @@ $typeLabel = [
     'family'    => __('Famiglia (genealogica)'),
 ];
 ?>
-<script>
+<script<?= csp_nonce_attr() ?>>
     // Remember this URL (with any query/filter state) so the detail page
     // can fall back to it when document.referrer is not same-origin
     // (e.g. external referrer stripping, opened in a new tab).

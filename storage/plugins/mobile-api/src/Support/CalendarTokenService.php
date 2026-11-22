@@ -39,7 +39,7 @@ final class CalendarTokenService
                 'rotated_at' => $row['rotated_at'] ?? null,
             ];
         }
-        $token = \App\Support\SettingsEncryption::decrypt($row['token_enc']);
+        $token = \App\Support\SettingsEncryption::decrypt($row['token_enc'], self::TABLE, 'user:' . $userId);
         $valid = is_string($token) && preg_match('/^[a-f0-9]{64}$/D', $token) === 1
             && hash_equals($row['token_hash'], hash('sha256', $token));
 
@@ -60,7 +60,7 @@ final class CalendarTokenService
     {
         $token = bin2hex(random_bytes(32));
         $hash = hash('sha256', $token);
-        $enc = \App\Support\SettingsEncryption::encrypt($token);
+        $enc = \App\Support\SettingsEncryption::encrypt($token, self::TABLE, 'user:' . $userId);
 
         $stmt = $this->db->prepare(
             'INSERT INTO ' . self::TABLE . ' (user_id, token_hash, token_enc, created_at, rotated_at, revoked_at)

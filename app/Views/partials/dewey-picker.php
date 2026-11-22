@@ -60,7 +60,7 @@ $deweyValue = (string) ($deweyValue ?? '');
     </div>
   </div>
 </details>
-<script>
+<script<?= csp_nonce_attr() ?>>
 // Initialize Dewey with chip-based selection
 async function initializeDewey(initialValue) {
   const container = document.getElementById('dewey_levels_container');
@@ -170,7 +170,7 @@ async function initializeDewey(initialValue) {
 
     // Reset navigazione
     container.innerHTML = '';
-    breadcrumb.innerHTML = `<i class="fas fa-home"></i> <span>${<?= json_encode(__("Nessuna selezione"), JSON_HEX_TAG) ?>}</span>`;
+    breadcrumb.innerHTML = `<i class="fas fa-home"></i> <span>${<?= json_encode(htmlspecialchars(__("Nessuna selezione"), ENT_QUOTES, 'UTF-8'), JSON_HEX_TAG) ?>}</span>`;
     loadLevel(null, 0);
   };
 
@@ -563,7 +563,7 @@ async function initializeDewey(initialValue) {
   }
 }
 </script>
-<style>
+<style<?= csp_nonce_attr() ?>>
   /* The suggestion list of the Dewey box: the look of the Choices.js dropdown
      in admin-ui.css (white, grey border, highlighted row #dbeafe). */
   #dewey_suggest { position: absolute; z-index: 100; left: 0; right: 0; top: 100%; margin: 4px 0 0; padding: 0; list-style: none; background: #fff; border: 1px solid #d1d5db; border-radius: .375rem; box-shadow: 0 4px 6px -1px rgba(0,0,0,.1), 0 2px 4px -1px rgba(0,0,0,.06); max-height: 18rem; overflow-y: auto; }

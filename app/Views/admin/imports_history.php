@@ -41,7 +41,7 @@ ob_start();
 ?>
 
         <div class="flex items-center gap-3">
-          <button onclick="location.reload()" class="px-4 py-2 bg-gray-800 text-white hover:bg-gray-700 rounded-lg transition-colors duration-200 inline-flex items-center">
+          <button data-pk-action="reload" class="px-4 py-2 bg-gray-800 text-white hover:bg-gray-700 rounded-lg transition-colors duration-200 inline-flex items-center">
             <i class="fas fa-sync-alt mr-2"></i>
             <?= __("Aggiorna") ?>
           </button>
@@ -291,7 +291,7 @@ unset($workspaceHeader);
   </div>
 </div>
 
-<script>
+<script<?= csp_nonce_attr() ?>>
 // Auto-refresh per import in processing
 <?php if ($processingImports > 0): ?>
   setTimeout(() => {

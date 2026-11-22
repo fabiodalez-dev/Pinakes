@@ -58,7 +58,7 @@ unset($workspaceHeader);
         <div class="flex-1">
           <p class="text-green-800 font-medium"><?php echo htmlspecialchars($_SESSION['success_message']); unset($_SESSION['success_message']); ?></p>
         </div>
-        <button onclick="this.parentElement.remove()" class="btn-icon btn-secondary text-green-600 hover:text-green-800" aria-label="<?= htmlspecialchars(__('Chiudi'), ENT_QUOTES, 'UTF-8') ?>">
+        <button type="button" data-pk-action="dismiss" data-pk-target="parent" class="btn-icon btn-secondary text-green-600 hover:text-green-800" aria-label="<?= htmlspecialchars(__('Chiudi'), ENT_QUOTES, 'UTF-8') ?>">
           <i class="fas fa-times"></i>
         </button>
       </div>
@@ -70,7 +70,7 @@ unset($workspaceHeader);
         <div class="flex-1">
           <p class="text-red-800 font-medium"><?php echo htmlspecialchars($_SESSION['error_message']); unset($_SESSION['error_message']); ?></p>
         </div>
-        <button onclick="this.parentElement.remove()" class="btn-icon btn-secondary text-red-600 hover:text-red-800" aria-label="<?= htmlspecialchars(__('Chiudi'), ENT_QUOTES, 'UTF-8') ?>">
+        <button type="button" data-pk-action="dismiss" data-pk-target="parent" class="btn-icon btn-secondary text-red-600 hover:text-red-800" aria-label="<?= htmlspecialchars(__('Chiudi'), ENT_QUOTES, 'UTF-8') ?>">
           <i class="fas fa-times"></i>
         </button>
       </div>
@@ -370,7 +370,7 @@ unset($workspaceHeader);
                 </h2>
                 <p class="text-sm text-gray-600 mt-1"><?= __("Visualizza e esporta l'elenco dei libri per posizione fisica") ?></p>
               </div>
-              <button onclick="exportCollocationCSV()" class="w-full md:w-auto px-4 py-2 bg-gray-100 text-gray-900 hover:bg-gray-200 rounded-lg transition-colors inline-flex items-center justify-center border border-gray-300">
+              <button type="button" data-pk-action="collocation-export-csv" class="w-full md:w-auto px-4 py-2 bg-gray-100 text-gray-900 hover:bg-gray-200 rounded-lg transition-colors inline-flex items-center justify-center border border-gray-300">
                 <i class="fas fa-file-csv mr-2"></i>
                 <?= __("Esporta CSV") ?>
               </button>
@@ -434,8 +434,8 @@ unset($workspaceHeader);
   </div>
 </div>
 
-<script src="<?= htmlspecialchars(assetUrl('vendor/sortablejs/Sortable.min.js'), ENT_QUOTES, 'UTF-8') ?>"></script>
-<script>
+<script<?= csp_nonce_attr() ?> src="<?= htmlspecialchars(assetUrl('vendor/sortablejs/Sortable.min.js'), ENT_QUOTES, 'UTF-8') ?>"></script>
+<script<?= csp_nonce_attr() ?>>
 // Global __ function for JavaScript inline handlers (onsubmit, onclick, etc.)
 if (typeof window.__ === 'undefined') {
   window.__ = function(key) {
@@ -692,6 +692,8 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 // Export CSV function (global scope)
+window.PinakesActions.register('collocation-export-csv', () => exportCollocationCSV());
+
 function exportCollocationCSV() {
   const scaffaleId = document.getElementById('filter-scaffale').value;
   const mensolaId = document.getElementById('filter-mensola').value;
@@ -710,7 +712,7 @@ function exportCollocationCSV() {
 }
 </script>
 
-<style>
+<style<?= csp_nonce_attr() ?>>
 .fade-in {
   animation: fadeIn 0.3s ease-in;
 }

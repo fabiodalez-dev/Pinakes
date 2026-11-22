@@ -90,7 +90,7 @@ const BNF_TEST_ISBN = '2070360024';
 async function openZ39Modal(page) {
   await page.goto(`${BASE}/admin/plugins`, { waitUntil: 'domcontentloaded' });
   const configBtn = page.locator(
-    'button[onclick*="openZ39ServerModal"], button:has-text("Configura Z39"), button:has-text("Configure Z39")'
+    'button[data-pk-action="plugins-open-z39"], button:has-text("Configura Z39"), button:has-text("Configure Z39")'
   ).first();
   const visible = await configBtn.isVisible({ timeout: 5000 }).catch(() => false);
   if (!visible) return false;

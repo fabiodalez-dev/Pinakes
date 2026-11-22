@@ -40,7 +40,7 @@ async function loginAsAdmin(page) {
 async function openZ39Modal(page) {
   await page.goto(`${BASE}/admin/plugins`);
   await page.waitForLoadState('networkidle');
-  const configBtn = page.locator('button[onclick*="openZ39ServerModal"]').first();
+  const configBtn = page.locator('button[data-pk-action="plugins-open-z39"]').first();
   await expect(configBtn).toBeVisible({ timeout: 10000 });
   await configBtn.click();
   await expect(page.locator('#z39ServerModal')).toBeVisible({ timeout: 8000 });
@@ -95,7 +95,7 @@ test.describe.serial('DBC danMARC2 preset', () => {
   });
 
   test('4 Removed and saved, it is gone: the configuration is as it was', async () => {
-    await dbcRow(page).locator('button[onclick*="remove"]').click();
+    await dbcRow(page).locator('button[data-pk-action="plugins-remove-z39-row"]').click();
     await expect(dbcRow(page)).toHaveCount(0);
     await saveModal(page);
     await openZ39Modal(page);

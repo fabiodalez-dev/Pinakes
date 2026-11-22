@@ -18,7 +18,7 @@ $forgotPasswordRoute = route_path('forgot_password');
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="robots" content="noindex,follow">
     <title><?= __('Accesso') ?> - <?= htmlspecialchars($appName, ENT_QUOTES, 'UTF-8') ?></title>
-    <script>window.BASE_PATH = <?= json_encode(\App\Support\HtmlHelper::getBasePath(), JSON_HEX_TAG | JSON_HEX_AMP) ?>;</script>
+    <script<?= csp_nonce_attr() ?>>window.BASE_PATH = <?= json_encode(\App\Support\HtmlHelper::getBasePath(), JSON_HEX_TAG | JSON_HEX_AMP) ?>;</script>
     <link rel="icon" type="image/x-icon" href="<?= htmlspecialchars(url('/favicon.ico'), ENT_QUOTES, 'UTF-8') ?>">
     
     <link href="<?= htmlspecialchars(assetUrl('vendor.css'), ENT_QUOTES, 'UTF-8') ?>" rel="stylesheet">
@@ -205,7 +205,7 @@ $forgotPasswordRoute = route_path('forgot_password');
   </div>
 </div>
 
-<script>
+<script<?= csp_nonce_attr() ?>>
 // Auto-refresh CSRF token ogni 10 minuti per evitare scadenza
 // Utile per utenti mobile che tengono aperta la pagina a lungo
 (function() {
@@ -256,7 +256,7 @@ document.querySelector('form').addEventListener('submit', function(e) {
         return false;
     }
     submitBtn.disabled = true;
-    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>' + <?= json_encode(__('Accesso in corso...'), JSON_HEX_TAG) ?>;
+    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>' + <?= json_encode(htmlspecialchars(__('Accesso in corso...'), ENT_QUOTES, 'UTF-8'), JSON_HEX_TAG) ?>;
 });
 </script>
 

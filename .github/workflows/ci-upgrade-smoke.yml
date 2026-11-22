@@ -162,7 +162,9 @@ jobs:
           # The pre-immutability v0.7.63 release can technically have both its
           # ZIP and sidecar replaced. Its GitHub provenance attestation pins the
           # archive digest and source repository independently of those assets.
-          gh attestation verify "${RELEASE_DIR}/${ARCHIVE_NAME}" --repo "$GH_REPO"
+          gh attestation verify "${RELEASE_DIR}/${ARCHIVE_NAME}" --repo "$GH_REPO" \
+            --signer-workflow "${GH_REPO}/.github/workflows/release.yml" \
+            --source-ref "refs/tags/${RELEASE_TAG}"
           ARCHIVE_PATH="${RELEASE_DIR}/${ARCHIVE_NAME}" EXPECTED_ROOT="pinakes-${RELEASE_TAG}" python3 <<'PY'
           import os
           import stat
@@ -621,6 +623,23 @@ jobs:
             check_col prestiti pickup_notification_last_attempt_at
           else
             echo "  ↳ prestiti.pickup_notification_sent not expected before stable 0.7.64"
+          fi
+          # v0.9.6 — public API keys stored as SHA-256 + display prefix.
+          EXPECT_096=$(TARGET_VERSION="$TARGET_VERSION" php -r '
+            echo version_compare((string) getenv("TARGET_VERSION"), "0.9.6", ">=") ? "yes" : "no";
+          ')
+          if [ "$BASELINE_SKIPPED" = "true" ] || [ "$EXPECT_096" = "yes" ]; then
+            check_col api_keys key_hash
+            check_col api_keys key_prefix
+            # v0.9.6 — film/video cataloguing (#539): migrate_0.9.6.sql adds
+            # them (the Updater's SchemaRepair would too, from schema.sql).
+            check_col libri durata_minuti
+            check_col libri interpreti
+            check_col libri sottotitoli
+            check_col libri classificazione_eta
+            check_col libri codice_regione
+          else
+            echo "  ↳ api_keys.key_hash and the film columns not expected before 0.9.6"
           fi
 
           [ "$FAILED" -eq 0 ] || exit 1

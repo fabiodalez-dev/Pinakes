@@ -678,8 +678,11 @@ class NcipServerPlugin
 
     private function requireAdminOrStaff(): bool
     {
-        return isset($_SESSION['user']) &&
-            in_array($_SESSION['user']['tipo_utente'] ?? '', ['admin', 'staff'], true);
+        // Decide on the role read from the database on this request, not on
+        // the login-time session snapshot: a lookup failure or a demoted /
+        // suspended account fails CLOSED (same contract as AdminAuthMiddleware).
+        return isset($_SESSION['user'])
+            && \App\Support\SessionRoleRevalidator::holdsActiveRole(['admin', 'staff'], $this->db);
     }
 
     /**
@@ -2974,8 +2977,16 @@ class NcipServerPlugin
 
         $server = $request->getServerParams();
         $remoteAddr = is_string($server['REMOTE_ADDR'] ?? null) ? (string) $server['REMOTE_ADDR'] : 'unknown';
-        $rateKey = 'ncip_basic:' . $remoteAddr . ':' . strtolower($email);
-        if (RateLimiter::isLimited($rateKey, 10, 900)) {
+        // Per IP+account (cleared by that account's success), plus a
+        // failures-only bucket per IP that no success clears, so spraying
+        // many accounts (or spellings of one) from one client is capped.
+        $rateKey = 'ncip_basic:' . RateLimiter::clientKey($remoteAddr) . ':' . RateLimiter::accountKey($email);
+        $ipFailKey = 'ncip_basic_fail:' . RateLimiter::clientKey($remoteAddr);
+        $failed = static function () use ($ipFailKey): ?array {
+            RateLimiter::isLimited($ipFailKey, 30, 900);
+            return null;
+        };
+        if (RateLimiter::isLimited($ipFailKey, 30, 900, false) || RateLimiter::isLimited($rateKey, 10, 900)) {
             SecureLogger::warning('[NCIP] Basic auth rate limit exceeded', [
                 'remote_addr' => $remoteAddr,
                 'email_hash'  => hash('sha256', strtolower($email)),
@@ -2984,7 +2995,7 @@ class NcipServerPlugin
         }
 
         $stmt = $this->db->prepare(
-            "SELECT id, nome, email, password, tipo_utente
+            "SELECT id, nome, email, password, tipo_utente, email_verificata
                FROM utenti
               WHERE email = ? AND stato = 'attivo' LIMIT 1"
         );
@@ -2999,12 +3010,28 @@ class NcipServerPlugin
         $user = $res->fetch_assoc();
         $stmt->close();
 
-        if (!is_array($user)) { return null; }
+        if (!is_array($user)) {
+            // An unknown or inactive email spends the same password verify as
+            // a wrong password, or the response time tells which emails are
+            // active accounts (CWE-208).
+            \App\Support\PasswordTiming::equalize($password);
+            return $failed();
+        }
         if (!password_verify($password, (string) ($user['password'] ?? ''))) {
-            return null;
+            return $failed();
+        }
+        // Same gates as the interactive login (core AuthController): a
+        // verified email, and the plugin 'login.validate' hook (2FA,
+        // reCAPTCHA, ...), so a future verification plugin also covers NCIP.
+        // The 'ncip' channel lets a hook skip browser-only checks (a CAPTCHA
+        // an NCIP client cannot answer) without exempting the login.
+        if ((int) ($user['email_verificata'] ?? 0) !== 1
+            || !\App\Support\Hooks::apply('login.validate', true, [$email, $request, 'ncip'])) {
+            return $failed();
         }
 
         RateLimiter::reset($rateKey);
+        unset($user['email_verificata']);
 
         return $user;
     }

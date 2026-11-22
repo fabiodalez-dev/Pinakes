@@ -168,7 +168,7 @@ foreach ($posts as $post) {
           </div>
           <?php if ($canManage && $post['deleted_at'] === null): ?>
             <form method="post" action="<?= $e(url(\App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/discussions/posts/' . $postId . '/delete')) ?>"
-                  onsubmit="return confirm(<?= $e(json_encode(__('Rimuovere questo messaggio?'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP)) ?>);">
+                  data-pk-confirm="<?= $e(__('Rimuovere questo messaggio?')) ?>">
               <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
               <button type="submit" class="bc-btn bc-btn-danger bc-btn-sm" title="<?= $e(__('Rimuovi messaggio')) ?>"><i class="fas fa-trash-alt"></i></button>
             </form>
@@ -220,7 +220,7 @@ foreach ($posts as $post) {
               </div>
               <?php if ($canManage && $reply['deleted_at'] === null): ?>
                 <form method="post" action="<?= $e(url(\App\Support\RouteTranslator::route('book_club') . '/' . $slug . '/discussions/posts/' . $replyId . '/delete')) ?>"
-                      onsubmit="return confirm(<?= $e(json_encode(__('Rimuovere questo messaggio?'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP)) ?>);">
+                      data-pk-confirm="<?= $e(__('Rimuovere questo messaggio?')) ?>">
                   <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
                   <button type="submit" class="bc-btn bc-btn-danger bc-btn-sm" title="<?= $e(__('Rimuovi messaggio')) ?>"><i class="fas fa-trash-alt"></i></button>
                 </form>

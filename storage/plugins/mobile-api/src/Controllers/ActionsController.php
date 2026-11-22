@@ -1476,7 +1476,7 @@ final class ActionsController
         }
 
         $stmt = $this->db->prepare(
-            'UPDATE mobile_app_tokens SET revoked_at = NOW()
+            'UPDATE mobile_app_tokens SET revoked_at = UTC_TIMESTAMP()
               WHERE user_id = ? AND id <> ? AND revoked_at IS NULL'
         );
         if ($stmt === false) {

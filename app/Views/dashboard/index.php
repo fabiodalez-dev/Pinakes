@@ -231,7 +231,7 @@ unset($workspaceHeader);
                     <img src="<?= htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>"
                          alt="<?= App\Support\HtmlHelper::e($loan['titolo'] ?? 'Copertina libro'); ?>"
                          class="w-20 h-28 object-cover rounded-lg shadow-sm"
-                         onerror="this.onerror=null;this.src=(window.BASE_PATH||'')+'/uploads/copertine/placeholder.jpg'">
+                         data-pk-fallback-src="<?= htmlspecialchars(url('/uploads/copertine/placeholder.jpg'), ENT_QUOTES, 'UTF-8') ?>">
                   </div>
                   <div class="flex-1 min-w-0">
                     <h3 class="font-semibold text-gray-900 mb-2 line-clamp-2"><?= App\Support\HtmlHelper::e($loan['titolo'] ?? ''); ?></h3>
@@ -323,7 +323,7 @@ unset($workspaceHeader);
                     <img src="<?= htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>"
                          alt="<?= App\Support\HtmlHelper::e($loan['titolo'] ?? 'Copertina libro'); ?>"
                          class="w-20 h-28 object-cover rounded-lg shadow-sm"
-                         onerror="this.onerror=null;this.src=(window.BASE_PATH||'')+'/uploads/copertine/placeholder.jpg'">
+                         data-pk-fallback-src="<?= htmlspecialchars(url('/uploads/copertine/placeholder.jpg'), ENT_QUOTES, 'UTF-8') ?>">
                   </div>
                   <div class="flex-1 min-w-0">
                     <h3 class="font-semibold text-gray-900 mb-2 line-clamp-2"><?= App\Support\HtmlHelper::e($loan['titolo'] ?? ''); ?></h3>
@@ -421,7 +421,7 @@ unset($workspaceHeader);
                     <img src="<?= htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>"
                          alt="<?= App\Support\HtmlHelper::e($loan['titolo'] ?? 'Copertina libro'); ?>"
                          class="w-20 h-28 object-cover rounded-lg shadow-sm"
-                         onerror="this.onerror=null;this.src=(window.BASE_PATH||'')+'/uploads/copertine/placeholder.jpg'">
+                         data-pk-fallback-src="<?= htmlspecialchars(url('/uploads/copertine/placeholder.jpg'), ENT_QUOTES, 'UTF-8') ?>">
                   </div>
                   <div class="flex-1 min-w-0">
                     <h3 class="font-semibold text-gray-900 mb-2 line-clamp-2"><?= App\Support\HtmlHelper::e($loan['titolo'] ?? ''); ?></h3>
@@ -559,7 +559,7 @@ unset($workspaceHeader);
                     <img src="<?= htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>"
                          alt="<?= App\Support\HtmlHelper::e($res['titolo'] ?? 'Copertina libro'); ?>"
                          class="w-20 h-28 object-cover rounded-lg shadow-sm"
-                         onerror="this.onerror=null;this.src=(window.BASE_PATH||'')+'/uploads/copertine/placeholder.jpg'">
+                         data-pk-fallback-src="<?= htmlspecialchars(url('/uploads/copertine/placeholder.jpg'), ENT_QUOTES, 'UTF-8') ?>">
                   </div>
                   <div class="flex-1 min-w-0">
                     <h3 class="font-semibold text-gray-900 mb-2 line-clamp-2"><?= App\Support\HtmlHelper::e($res['titolo'] ?? ''); ?></h3>
@@ -756,7 +756,7 @@ if (!empty($isAdminOrStaff)) {
                 <div class="pk-workspace-book__cover" data-cover-missing="<?= $hasWorkspaceCover ? 'false' : 'true' ?>">
                   <img src="<?= htmlspecialchars($coverUrl, ENT_QUOTES, 'UTF-8') ?>"
                        alt="<?= App\Support\HtmlHelper::e($libro['titolo'] ?? '') ?>"
-                       onerror="this.onerror=null;this.parentElement.dataset.coverMissing='true';this.src=(window.BASE_PATH||'')+'/uploads/copertine/placeholder.jpg'">
+                       data-pk-fallback-src="<?= htmlspecialchars(url('/uploads/copertine/placeholder.jpg'), ENT_QUOTES, 'UTF-8') ?>" data-cover-fallback-flag>
                   <div class="pk-workspace-book__blank" aria-hidden="true">
                     <span class="pk-workspace-book__blank-title"><?= App\Support\HtmlHelper::e($libro['titolo'] ?? '') ?></span>
                     <span class="pk-workspace-book__blank-author"><?= App\Support\HtmlHelper::e($libro['autore'] ?? '') ?></span>
@@ -793,7 +793,7 @@ unset($loanActionTranslations);
 ?>
 
 <!-- Custom Styles for Enhanced UI -->
-<style>
+<style<?= csp_nonce_attr() ?>>
 .fade-in {
   animation: fadeIn 0.5s ease-in-out;
 }
@@ -860,7 +860,7 @@ unset($loanActionTranslations);
 </style>
 
 <!-- FullCalendar (local) -->
-<script src="<?= htmlspecialchars(assetUrl('fullcalendar.min.js'), ENT_QUOTES, 'UTF-8') ?>"></script>
+<script<?= csp_nonce_attr() ?> src="<?= htmlspecialchars(assetUrl('fullcalendar.min.js'), ENT_QUOTES, 'UTF-8') ?>"></script>
 <?php
 // Prepare calendar events JSON - show only START and END events, not duration
 $calendarEventsJson = [];
@@ -919,7 +919,25 @@ foreach ($calendarEvents as $event) {
     }
 }
 ?>
-<script>
+<script<?= csp_nonce_attr() ?>>
+// "Last books" covers: when a cover fails, pk-actions.js swaps in the
+// placeholder (data-pk-fallback-src) and marks the image as done; flag the
+// wrapper too so the CSS shows the title/author blank instead.
+(function () {
+    function flagMissingCovers() {
+        document.querySelectorAll('img[data-cover-fallback-flag][data-pk-fallback-done="1"]').forEach(function (img) {
+            if (img.parentElement) img.parentElement.dataset.coverMissing = 'true';
+        });
+    }
+    document.addEventListener('error', function (event) {
+        if (event.target instanceof HTMLImageElement && event.target.hasAttribute('data-cover-fallback-flag')) {
+            flagMissingCovers();
+        }
+    }, true);
+    document.addEventListener('DOMContentLoaded', flagMissingCovers);
+    window.addEventListener('load', flagMissingCovers);
+})();
+
 // XSS protection helper
 function escapeHtml(str) {
     return String(str ?? '')
@@ -1000,11 +1018,11 @@ document.addEventListener('DOMContentLoaded', function() {
                         title: escapeHtml(info.event.title),
                         html: `
                             <div class="text-left">
-                                <p><strong>${<?= json_encode(__("Tipo"), JSON_HEX_TAG) ?>}:</strong> ${escapeHtml(typeLabel)}</p>
-                                <p><strong>${<?= json_encode(__("Utente"), JSON_HEX_TAG) ?>}:</strong> ${escapeHtml(props.user)}</p>
-                                <p><strong>${<?= json_encode(__("Stato"), JSON_HEX_TAG) ?>}:</strong> ${escapeHtml(statusLabel)}</p>
-                                <p><strong>${<?= json_encode(__("Dal"), JSON_HEX_TAG) ?>}:</strong> ${formatDateLocale(start)}</p>
-                                <p><strong>${<?= json_encode(__("Al"), JSON_HEX_TAG) ?>}:</strong> ${formatDateLocale(end)}</p>
+                                <p><strong>${escapeHtml(<?= json_encode(__("Tipo"), JSON_HEX_TAG) ?>)}:</strong> ${escapeHtml(typeLabel)}</p>
+                                <p><strong>${escapeHtml(<?= json_encode(__("Utente"), JSON_HEX_TAG) ?>)}:</strong> ${escapeHtml(props.user)}</p>
+                                <p><strong>${escapeHtml(<?= json_encode(__("Stato"), JSON_HEX_TAG) ?>)}:</strong> ${escapeHtml(statusLabel)}</p>
+                                <p><strong>${escapeHtml(<?= json_encode(__("Dal"), JSON_HEX_TAG) ?>)}:</strong> ${escapeHtml(formatDateLocale(start))}</p>
+                                <p><strong>${escapeHtml(<?= json_encode(__("Al"), JSON_HEX_TAG) ?>)}:</strong> ${escapeHtml(formatDateLocale(end))}</p>
                             </div>
                         `,
                         icon: 'info',

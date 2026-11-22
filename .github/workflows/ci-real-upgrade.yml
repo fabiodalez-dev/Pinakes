@@ -161,7 +161,11 @@ jobs:
           gh api -H "Accept: application/octet-stream" "repos/${GH_REPO}/releases/assets/${zip_id}" > "${release_dir}/${zip_name}"
           gh api -H "Accept: application/octet-stream" "repos/${GH_REPO}/releases/assets/${sum_id}" > "${release_dir}/${sum_name}"
           (cd "${release_dir}" && sha256sum -c "${sum_name}")
-          gh attestation verify "${release_dir}/${zip_name}" --repo "${GH_REPO}"
+          # Only provenance signed by release.yml for this exact tag passes: any
+          # other workflow of the repository could also write an attestation.
+          gh attestation verify "${release_dir}/${zip_name}" --repo "${GH_REPO}" \
+            --signer-workflow "${GH_REPO}/.github/workflows/release.yml" \
+            --source-ref "refs/tags/${tag}"
           echo "BASELINE_ZIP=${release_dir}/${zip_name}" >> "${GITHUB_ENV}"
 
       - name: Unpack both installs
@@ -256,6 +260,7 @@ jobs:
           E2E_BASE_URL: ${{ env.UPGRADE_URL }}
           E2E_DB_NAME: pinakes_upgrade
           E2E_412_UPGRADE_PHASE: upgrade
+          E2E_INSTALL_ROOT: ${{ env.UPGRADE_ROOT }}
           E2E_ZIP_PATH: ${{ env.CANDIDATE_ZIP }}
           PLAYWRIGHT_JSON_OUTPUT_FILE: test-results/upgrade-upgrade.json
         run: |

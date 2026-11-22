@@ -197,18 +197,16 @@ final class HttpClient
         // rebind between the caller's check and connect cannot reach a different
         // address. Only the host the URL targets is pinned, on its effective port.
         if (isset($options['pin_ip']) && is_string($options['pin_ip']) && $options['pin_ip'] !== '' && \extension_loaded('curl')) {
-            $pinHost = strtolower((string) parse_url($url, PHP_URL_HOST));
+            // Pin the same normalised host the redirect check compares
+            // (trailing dot stripped), under BOTH spellings: "x" and "x." are
+            // distinct CURLOPT_RESOLVE keys, so pinning only the raw spelling
+            // let a same-host redirect to the other one re-enter DNS.
+            $pinHost = strtolower(rtrim((string) parse_url($url, PHP_URL_HOST), '.'));
             $pinPort = (int) (parse_url($url, PHP_URL_PORT) ?? ($scheme === 'https' ? 443 : 80));
             if ($pinHost !== '') {
                 $ports = $pinnedPorts !== [] ? $pinnedPorts : [$pinPort];
-                $curlPin = str_contains($options['pin_ip'], ':')
-                    ? '[' . $options['pin_ip'] . ']'
-                    : $options['pin_ip'];
                 $guzzleOptions['curl'] = [
-                    CURLOPT_RESOLVE => array_map(
-                        static fn(int $port): string => "$pinHost:$port:$curlPin",
-                        $ports
-                    ),
+                    CURLOPT_RESOLVE => self::curlResolveEntries($pinHost, $ports, $options['pin_ip']),
                 ];
             }
         }
@@ -297,6 +295,31 @@ final class HttpClient
             return self::FAILURE_TOO_LARGE;
         }
         return self::FAILURE_CONNECT;
+    }
+
+    /**
+     * CURLOPT_RESOLVE entries pinning $host (already lower-cased, trailing dot
+     * stripped) to $ip on every port, for both the bare and the
+     * trailing-dot spelling of the name.
+     *
+     * @param list<int> $ports
+     * @return list<string>
+     */
+    private static function curlResolveEntries(string $host, array $ports, string $ip): array
+    {
+        $curlPin = str_contains($ip, ':') ? '[' . $ip . ']' : $ip;
+        $spellings = [$host];
+        // An IP literal (incl. bracketed IPv6) has no trailing-dot alias.
+        if (filter_var(trim($host, '[]'), FILTER_VALIDATE_IP) === false) {
+            $spellings[] = $host . '.';
+        }
+        $entries = [];
+        foreach ($spellings as $name) {
+            foreach ($ports as $port) {
+                $entries[] = "$name:$port:$curlPin";
+            }
+        }
+        return $entries;
     }
 
     private static function client(): Client

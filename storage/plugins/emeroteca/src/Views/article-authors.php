@@ -69,7 +69,7 @@ foreach ($chips as $chip) {
 <?php if (!$pickerFits): ?><p class="text-xs text-gray-500 mt-1" id="article-authors-text-only"><?= __('Questo articolo ha più di 20 autori o un nome più lungo di 255 caratteri: gli autori si modificano qui come testo.') ?></p><?php endif; ?>
 </div>
 </div>
-<script>
+<script<?= csp_nonce_attr() ?>>
 document.addEventListener('DOMContentLoaded', function () {
   const select = document.getElementById('article-authors-select');
   const picker = document.getElementById('article-authors-picker');

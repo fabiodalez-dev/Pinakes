@@ -27,7 +27,7 @@ $reservationsRoute = route_path('reservations');
 ob_start();
 ?>
 
-<style>
+<style<?= csp_nonce_attr() ?>>
 .error-404-container {
     min-height: calc(100vh - 400px);
     display: flex;
@@ -224,7 +224,7 @@ ob_start();
         <?php endif; ?>
 
         <div class="error-404-actions">
-            <button onclick="history.back()" class="error-404-btn error-404-btn-secondary">
+            <button type="button" data-pk-action="back" class="error-404-btn error-404-btn-secondary">
                 <i class="fas fa-arrow-left"></i>
                 <?= __('Torna Indietro') ?>
             </button>

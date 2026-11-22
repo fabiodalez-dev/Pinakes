@@ -12,7 +12,7 @@ use App\Support\HtmlHelper;
 $pageTitle = __('Editor Classificazione Dewey');
 ?>
 
-<style>
+<style<?= csp_nonce_attr() ?>>
     .dewey-tree { font-family: ui-monospace, monospace; font-size: 14px; }
     .dewey-node { border-left: 2px solid #e5e7eb; margin-left: 20px; padding-left: 12px; }
     .dewey-node.level-1 { border-left: none; margin-left: 0; padding-left: 0; }
@@ -168,7 +168,7 @@ unset($workspaceHeader);
     </div>
 </div>
 
-<script>
+<script<?= csp_nonce_attr() ?>>
 (function() {
     'use strict';
 
@@ -271,7 +271,7 @@ unset($workspaceHeader);
         saveBtn.disabled = true;
         treeContainer.innerHTML = `<div class="text-center text-gray-500 py-8">
             <i class="fas fa-spinner fa-spin text-2xl mb-2"></i>
-            <p><?= __('Caricamento...') ?></p>
+            <p>${escapeHtml(<?= json_encode(__('Caricamento...'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) ?>)}</p>
         </div>`;
 
         try {
@@ -300,7 +300,7 @@ unset($workspaceHeader);
             console.error('Load error:', error);
             treeContainer.innerHTML = `<div class="text-center text-red-500 py-8">
                 <i class="fas fa-exclamation-circle text-2xl mb-2"></i>
-                <p><?= __('Errore di connessione.') ?></p>
+                <p>${escapeHtml(<?= json_encode(__('Errore di connessione.'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) ?>)}</p>
             </div>`;
         }
     }
@@ -308,7 +308,7 @@ unset($workspaceHeader);
     function renderTree() {
         treeContainer.innerHTML = '';
         if (!deweyData || !deweyData.length) {
-            treeContainer.innerHTML = '<p class="text-gray-500"><?= __('Nessun dato.') ?></p>';
+            treeContainer.innerHTML = '<p class="text-gray-500">' + escapeHtml(<?= json_encode(__('Nessun dato.'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) ?>) + '</p>';
             return;
         }
 
@@ -333,13 +333,13 @@ unset($workspaceHeader);
             <span class="dewey-code">${escapeHtml(node.code)}</span>
             <span class="dewey-name">${escapeHtml(node.name)}</span>
             <div class="dewey-actions">
-                <button class="dewey-btn dewey-btn-edit" data-action="edit" title="<?= htmlspecialchars(__('Modifica'), ENT_QUOTES, 'UTF-8') ?>">
+                <button class="dewey-btn dewey-btn-edit" data-action="edit" title="${escapeHtml(<?= json_encode(__('Modifica'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) ?>)}">
                     <i class="fas fa-pen"></i>
                 </button>
-                <button class="dewey-btn dewey-btn-add" data-action="add" title="<?= htmlspecialchars(__('Aggiungi decimale'), ENT_QUOTES, 'UTF-8') ?>">
+                <button class="dewey-btn dewey-btn-add" data-action="add" title="${escapeHtml(<?= json_encode(__('Aggiungi decimale'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) ?>)}">
                     <i class="fas fa-plus"></i>
                 </button>
-                ${canDelete ? `<button class="dewey-btn dewey-btn-delete" data-action="delete" title="<?= htmlspecialchars(__('Elimina'), ENT_QUOTES, 'UTF-8') ?>">
+                ${canDelete ? `<button class="dewey-btn dewey-btn-delete" data-action="delete" title="${escapeHtml(<?= json_encode(__('Elimina'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) ?>)}">
                     <i class="fas fa-trash"></i>
                 </button>` : ''}
             </div>
@@ -381,18 +381,18 @@ unset($workspaceHeader);
     function showEditModal(node) {
         modalContent.innerHTML = `
             <div class="p-6">
-                <h3 class="text-lg font-semibold mb-4"><?= __('Modifica') ?> ${escapeHtml(node.code)}</h3>
+                <h3 class="text-lg font-semibold mb-4">${escapeHtml(<?= json_encode(__('Modifica'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) ?>)} ${escapeHtml(node.code)}</h3>
                 <div class="mb-4">
-                    <label class="block text-sm font-medium text-gray-700 mb-1"><?= __('Nome') ?></label>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">${escapeHtml(<?= json_encode(__('Nome'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) ?>)}</label>
                     <input type="text" id="edit-name" value="${escapeHtml(node.name)}"
                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
                 </div>
                 <div class="flex justify-end gap-3">
                     <button class="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg" data-action="close-modal">
-                        <?= __('Annulla') ?>
+                        ${escapeHtml(<?= json_encode(__('Annulla'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) ?>)}
                     </button>
                     <button class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700" data-action="save-edit" data-code="${escapeHtml(node.code)}">
-                        <?= __('Salva') ?>
+                        ${escapeHtml(<?= json_encode(__('Salva'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) ?>)}
                     </button>
                 </div>
             </div>
@@ -416,24 +416,24 @@ unset($workspaceHeader);
 
         modalContent.innerHTML = `
             <div class="p-6">
-                <h3 class="text-lg font-semibold mb-4"><?= __('Aggiungi decimale sotto') ?> ${escapeHtml(parentCode)}</h3>
+                <h3 class="text-lg font-semibold mb-4">${escapeHtml(<?= json_encode(__('Aggiungi decimale sotto'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) ?>)} ${escapeHtml(parentCode)}</h3>
                 <div class="mb-4">
-                    <label class="block text-sm font-medium text-gray-700 mb-1"><?= __('Codice') ?></label>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">${escapeHtml(<?= json_encode(__('Codice'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) ?>)}</label>
                     <input type="text" id="add-code" value="${suggestedCode}" placeholder="es. ${exampleCode}"
                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
-                    <p class="text-xs text-gray-500 mt-1"><?= __('Deve iniziare con') ?> ${baseCode}. (<?= __('classe principale') ?>)</p>
+                    <p class="text-xs text-gray-500 mt-1">${escapeHtml(<?= json_encode(__('Deve iniziare con'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) ?>)} ${baseCode}. (${escapeHtml(<?= json_encode(__('classe principale'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) ?>)})</p>
                 </div>
                 <div class="mb-4">
-                    <label class="block text-sm font-medium text-gray-700 mb-1"><?= __('Nome') ?></label>
-                    <input type="text" id="add-name" placeholder="<?= htmlspecialchars(__('Nome della classificazione'), ENT_QUOTES, 'UTF-8') ?>"
+                    <label class="block text-sm font-medium text-gray-700 mb-1">${escapeHtml(<?= json_encode(__('Nome'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) ?>)}</label>
+                    <input type="text" id="add-name" placeholder="${escapeHtml(<?= json_encode(__('Nome della classificazione'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) ?>)}"
                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
                 </div>
                 <div class="flex justify-end gap-3">
                     <button class="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg" data-action="close-modal">
-                        <?= __('Annulla') ?>
+                        ${escapeHtml(<?= json_encode(__('Annulla'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) ?>)}
                     </button>
                     <button class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700" data-action="save-add" data-code="${escapeHtml(parentCode)}">
-                        <?= __('Aggiungi') ?>
+                        ${escapeHtml(<?= json_encode(__('Aggiungi'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) ?>)}
                     </button>
                 </div>
             </div>
@@ -493,7 +493,7 @@ unset($workspaceHeader);
         // Check code starts with parent base (first 3 digits of the main class)
         const baseCode = parentCode.includes('.') ? parentCode.split('.')[0] : parentCode;
         if (!code.startsWith(baseCode)) {
-            Swal.fire(<?= json_encode(__('Errore'), JSON_HEX_TAG) ?>, `<?= __('Il codice deve iniziare con le stesse tre cifre della classe principale') ?> (${baseCode})`, 'error');
+            Swal.fire(<?= json_encode(__('Errore'), JSON_HEX_TAG) ?>, `${escapeHtml(<?= json_encode(__('Il codice deve iniziare con le stesse tre cifre della classe principale'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) ?>)} (${baseCode})`, 'error');
             return;
         }
 
@@ -567,7 +567,7 @@ unset($workspaceHeader);
 
     async function saveData() {
         saveBtn.disabled = true;
-        saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i><?= __('Salvataggio...') ?>';
+        saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>' + escapeHtml(<?= json_encode(__('Salvataggio...'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) ?>);
 
         try {
             const response = await fetch(`${BASE_PATH}/api/dewey-editor/save/${currentLocale}`, {
@@ -605,7 +605,7 @@ unset($workspaceHeader);
             });
         }
 
-        saveBtn.innerHTML = '<i class="fas fa-save mr-2"></i><?= __('Salva Modifiche') ?>';
+        saveBtn.innerHTML = '<i class="fas fa-save mr-2"></i>' + escapeHtml(<?= json_encode(__('Salva Modifiche'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) ?>);
         saveBtn.disabled = !hasChanges;
     }
 
@@ -688,7 +688,7 @@ unset($workspaceHeader);
                 return;
             }
 
-            let html = '<div class="p-6"><h3 class="text-lg font-semibold mb-4"><?= htmlspecialchars(__('Backup disponibili'), ENT_QUOTES, 'UTF-8') ?></h3>';
+            let html = '<div class="p-6"><h3 class="text-lg font-semibold mb-4">' + escapeHtml(<?= json_encode(__('Backup disponibili'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) ?>) + '</h3>';
             html += '<div class="space-y-2 max-h-64 overflow-y-auto">';
             result.backups.forEach(b => {
                 // Sanitize values for safe HTML insertion
@@ -702,12 +702,12 @@ unset($workspaceHeader);
                     </div>
                     <button class="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700"
                             data-filename="${safeFilename}" data-action="restore">
-                        <?= htmlspecialchars(__('Ripristina'), ENT_QUOTES, 'UTF-8') ?>
+                        ${escapeHtml(<?= json_encode(__('Ripristina'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) ?>)}
                     </button>
                 </div>`;
             });
             html += '</div>';
-            html += '<div class="mt-4 flex justify-end"><button class="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg" data-action="close-modal"><?= htmlspecialchars(__('Chiudi'), ENT_QUOTES, 'UTF-8') ?></button></div></div>';
+            html += '<div class="mt-4 flex justify-end"><button class="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg" data-action="close-modal">' + escapeHtml(<?= json_encode(__('Chiudi'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) ?>) + '</button></div></div>';
 
             // Safe: html built from escapeHtml/encodeURIComponent-sanitized values above
             modalContent.innerHTML = html;
@@ -823,7 +823,7 @@ unset($workspaceHeader);
         if (matchCount === 0) {
             treeContainer.innerHTML = `<div class="dewey-no-results flex flex-col items-center justify-center text-gray-500 py-8">
                 <i class="fas fa-search text-2xl mb-2"></i>
-                <p><?= __('Nessun risultato trovato per la ricerca.') ?></p>
+                <p>${escapeHtml(<?= json_encode(__('Nessun risultato trovato per la ricerca.'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) ?>)}</p>
             </div>`;
         }
     }

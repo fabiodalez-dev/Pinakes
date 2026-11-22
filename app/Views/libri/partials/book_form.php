@@ -429,7 +429,7 @@ $selectedSeriesType = \App\Support\SeriesLabels::canonical($book['tipo_collana']
               <select id="fornitore_id" name="fornitore_id" class="form-input"<?= $supplierLocked ? ' disabled' : '' ?>>
                 <option value=""><?= __("Nessun fornitore") ?></option>
                 <?php foreach ($supplierOptions as $supplierId => $supplierName): ?>
-                  <option value="<?= (int) $supplierId ?>" <?= $currentSupplier === (int) $supplierId ? 'selected' : '' ?>><?= htmlspecialchars((string) ($supplierName), ENT_QUOTES, 'UTF-8') ?></option>
+                  <option value="<?= (int) $supplierId ?>" <?= $currentSupplier === (int) $supplierId ? 'selected' : '' ?>><?= htmlspecialchars((string) $supplierName, ENT_QUOTES, 'UTF-8') ?></option>
                 <?php endforeach; ?>
               </select>
               <p class="text-xs text-gray-500 mt-1">
@@ -527,7 +527,7 @@ $selectedSeriesType = \App\Support\SeriesLabels::canonical($book['tipo_collana']
               <?php endforeach; ?>
             </div>
           </div>
-          <script>
+          <script<?= csp_nonce_attr() ?>>
           (function () {
             const derived = <?= json_encode($rdaDerivedByMedia, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
             const prefix = <?= json_encode(__('Automatico: %s'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
@@ -584,6 +584,55 @@ $selectedSeriesType = \App\Support\SeriesLabels::canonical($book['tipo_collana']
           </div>
         </div>
       </div>
+      <?php
+      // Film and video (#539): shown when the media type is film/video, kept
+      // in the form (and posted) when hidden so switching type loses nothing.
+      $isFilmRecord = \App\Support\MediaLabels::resolveTipoMedia($book['formato'] ?? null, $book['tipo_media'] ?? null) === 'dvd';
+      ?>
+      <!-- Film / Video Section -->
+      <div class="card" id="film-details" <?= $isFilmRecord ? '' : 'hidden' ?>>
+        <div class="card-header">
+          <h2 class="form-section-title flex items-center gap-2">
+            <i class="fas fa-film text-gray-900"></i>
+            <?= __("Dettagli film") ?>
+          </h2>
+        </div>
+        <div class="card-body form-section">
+          <p class="text-xs text-gray-500 mb-3"><?= __("Il regista va inserito come autore principale, la casa di produzione o il distributore come editore e le lingue audio nel campo Lingua.") ?></p>
+          <div class="form-grid-3">
+            <div>
+              <label for="durata_minuti" class="form-label"><?= __("Durata (minuti)") ?></label>
+              <input id="durata_minuti" name="durata_minuti" type="number" min="1" max="<?= \App\Support\FilmFields::MAX_RUNTIME ?>" step="1" class="form-input" placeholder="<?= htmlspecialchars(__('es. 120'), ENT_QUOTES, 'UTF-8') ?>" value="<?php echo htmlspecialchars((string) ($book['durata_minuti'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>" />
+            </div>
+            <div>
+              <label for="classificazione_eta" class="form-label"><?= __("Classificazione per età") ?></label>
+              <input id="classificazione_eta" name="classificazione_eta" type="text" maxlength="50" class="form-input" placeholder="<?= htmlspecialchars(__('es. PG-13, 12+, FSK 12'), ENT_QUOTES, 'UTF-8') ?>" value="<?php echo htmlspecialchars((string) ($book['classificazione_eta'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>" />
+            </div>
+            <div>
+              <label for="codice_regione" class="form-label"><?= __("Codice regione") ?></label>
+              <input id="codice_regione" name="codice_regione" type="text" maxlength="20" class="form-input" placeholder="<?= htmlspecialchars(__('es. 2 (Europa), B'), ENT_QUOTES, 'UTF-8') ?>" value="<?php echo htmlspecialchars((string) ($book['codice_regione'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>" />
+            </div>
+          </div>
+          <div class="mt-4">
+            <label for="sottotitoli" class="form-label"><?= __("Sottotitoli") ?></label>
+            <input id="sottotitoli" name="sottotitoli" type="text" maxlength="255" class="form-input" placeholder="<?= htmlspecialchars(__('es. italiano, inglese, danese'), ENT_QUOTES, 'UTF-8') ?>" value="<?php echo htmlspecialchars((string) ($book['sottotitoli'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>" />
+          </div>
+          <div class="mt-4">
+            <label for="interpreti" class="form-label"><?= __("Interpreti") ?></label>
+            <textarea id="interpreti" name="interpreti" rows="3" maxlength="5000" class="form-input" placeholder="<?= htmlspecialchars(__('Un nome per riga, oppure separati da virgola'), ENT_QUOTES, 'UTF-8') ?>"><?php echo htmlspecialchars((string) ($book['interpreti'] ?? ''), ENT_QUOTES, 'UTF-8'); ?></textarea>
+          </div>
+        </div>
+      </div>
+      <script<?= csp_nonce_attr() ?>>
+      (function () {
+        const media = document.getElementById('tipo_media');
+        const card = document.getElementById('film-details');
+        if (!media || !card) { return; }
+        const sync = function () { card.hidden = media.value !== 'dvd'; };
+        media.addEventListener('change', sync);
+        sync();
+      })();
+      </script>
       <!-- Library Management Section -->
       <div class="card">
         <div class="card-header">
@@ -731,12 +780,12 @@ $selectedSeriesType = \App\Support\SeriesLabels::canonical($book['tipo_collana']
                 <?php // A cover whose file is gone shows no empty frame, but keeps "Rimuovi": it is the only way to clear the dead path. ?>
                 <div class="inline-flex flex-col items-start space-y-2" data-current-cover>
                   <div class="relative group">
-                    <img src="<?php echo htmlspecialchars(url($currentCover), ENT_QUOTES, 'UTF-8'); ?>" alt="Copertina attuale" class="max-h-48 object-contain border border-gray-200 rounded-lg shadow-sm" onerror="this.dataset.error='true'; this.style.display='none'; var box = this.closest('[data-current-cover]'); box.querySelector('[data-cover-caption]').hidden = true; box.querySelector('[data-cover-missing]').hidden = false;" />
+                    <img src="<?php echo htmlspecialchars(url($currentCover), ENT_QUOTES, 'UTF-8'); ?>" alt="Copertina attuale" class="max-h-48 object-contain border border-gray-200 rounded-lg shadow-sm" data-current-cover-img />
                   </div>
                   <div class="flex items-center gap-2">
                     <span class="text-xs text-gray-500" data-cover-caption><?= __("Copertina attuale") ?></span>
                     <span class="text-xs text-gray-500" data-cover-missing hidden><?= __("File della copertina non trovato") ?></span>
-                    <button type="button" onclick="removeCoverImage()" class="text-xs text-red-600 hover:text-red-800 hover:underline flex items-center gap-1">
+                    <button type="button" data-pk-action="book-cover-remove" class="text-xs text-red-600 hover:text-red-800 hover:underline flex items-center gap-1">
                       <i class="fas fa-trash"></i>
                       <?= __('Rimuovi') ?>
                     </button>
@@ -744,6 +793,31 @@ $selectedSeriesType = \App\Support\SeriesLabels::canonical($book['tipo_collana']
                 </div>
               <?php endif; ?>
             </div>
+            <?php if (!empty($currentCover)): ?>
+            <script<?= csp_nonce_attr() ?>>
+              // Missing cover file: hide the image and swap the caption for the
+              // "not found" note (was an inline onerror, forbidden by the CSP).
+              (function () {
+                var img = document.querySelector('img[data-current-cover-img]');
+                if (!img) return;
+                var done = false;
+                var markMissing = function () {
+                  if (done) return;
+                  done = true;
+                  img.dataset.error = 'true';
+                  img.style.display = 'none';
+                  var box = img.closest('[data-current-cover]');
+                  if (!box) return;
+                  var caption = box.querySelector('[data-cover-caption]');
+                  var missing = box.querySelector('[data-cover-missing]');
+                  if (caption) caption.hidden = true;
+                  if (missing) missing.hidden = false;
+                };
+                img.addEventListener('error', markMissing);
+                if (img.complete && img.naturalWidth === 0 && img.getAttribute('src')) markMissing();
+              })();
+            </script>
+            <?php endif; ?>
           </div>
         </div>
       </div>
@@ -825,7 +899,7 @@ $selectedSeriesType = \App\Support\SeriesLabels::canonical($book['tipo_collana']
         <button type="button"
                 class="w-full card-header flex items-center justify-between cursor-pointer hover:bg-gray-50 transition-colors text-left border-0 bg-transparent"
                 style="display: flex; width: 100%;"
-                onclick="toggleLibraryThingAccordion()"
+                data-pk-action="book-lt-accordion"
                 aria-expanded="false"
                 aria-controls="librarything-accordion-content">
           <div>
@@ -1117,7 +1191,7 @@ $selectedSeriesType = \App\Support\SeriesLabels::canonical($book['tipo_collana']
   via the body class, so no other page is affected. Degrades to the old
   behaviour where IntersectionObserver is unavailable.
 -->
-<style>
+<style<?= csp_nonce_attr() ?>>
   body.book-actions-visible #scroll-to-top {
     opacity: 0 !important;
     pointer-events: none !important;
@@ -1126,7 +1200,7 @@ $selectedSeriesType = \App\Support\SeriesLabels::canonical($book['tipo_collana']
     visibility: hidden !important;
   }
 </style>
-<script>
+<script<?= csp_nonce_attr() ?>>
 (function() {
   var actions = document.getElementById('bookFormActions');
   if (!actions || typeof IntersectionObserver === 'undefined') {
@@ -1140,9 +1214,9 @@ $selectedSeriesType = \App\Support\SeriesLabels::canonical($book['tipo_collana']
 </script>
 <!-- CSS and JavaScript Libraries - partial-specific assets only (vendor.css/vendor.bundle.js loaded by layout) -->
 <link rel="stylesheet" href="<?= htmlspecialchars(assetUrl('star-rating/dist/star-rating.min.css'), ENT_QUOTES, 'UTF-8') ?>">
-<script src="<?= htmlspecialchars(assetUrl('star-rating/dist/star-rating.min.js'), ENT_QUOTES, 'UTF-8') ?>"></script>
+<script<?= csp_nonce_attr() ?> src="<?= htmlspecialchars(assetUrl('star-rating/dist/star-rating.min.js'), ENT_QUOTES, 'UTF-8') ?>"></script>
 
-<script>
+<script<?= csp_nonce_attr() ?>>
 const FORM_MODE = <?php echo json_encode($mode, JSON_HEX_TAG); ?>;
 const INITIAL_BOOK = <?php echo $initialDataJsonRaw; ?>;
 const CSRF_TOKEN = <?php echo json_encode($csrfToken, JSON_HEX_TAG); ?>;
@@ -1192,6 +1266,10 @@ const i18nTranslations = Object.assign({}, window.i18nTranslations || {}, <?= js
     'Codice mancante' => __("Codice mancante"),
     'Inserisci un codice ISBN o EAN per continuare.' => __("Inserisci un codice ISBN o EAN per continuare.")
 ], JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) ?>);
+
+// Delegated actions (the CSP forbids inline on* attributes).
+window.PinakesActions.register('book-cover-remove', () => removeCoverImage());
+window.PinakesActions.register('book-lt-accordion', () => toggleLibraryThingAccordion());
 
 // LibraryThing accordion toggle
 function toggleLibraryThingAccordion() {
@@ -1419,9 +1497,9 @@ function displayImagePreview(file) {
                         <i class="fas fa-check-circle text-green-500"></i>
                         <span>${escapeHtml(file.name)} (${(file.size / 1024).toFixed(1)} KB)</span>
                     </div>
-                    <button type="button" onclick="removeCoverImage()" class="text-xs text-red-600 hover:text-red-800 hover:underline flex items-center gap-1">
+                    <button type="button" data-pk-action="book-cover-remove" class="text-xs text-red-600 hover:text-red-800 hover:underline flex items-center gap-1">
                         <i class="fas fa-trash"></i>
-                        <?= __('Rimuovi') ?>
+                        ${escapeHtml(<?= json_encode(__('Rimuovi'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) ?>)}
                     </button>
                 </div>
             </div>
@@ -1462,7 +1540,7 @@ async function removeCoverImage() {
     container.innerHTML = `
         <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-sm text-yellow-800 flex items-center gap-2" role="alert">
             <i class="fas fa-info-circle"></i>
-            <span>${<?= json_encode(__("La copertina verrà rimossa al salvataggio del libro"), JSON_HEX_TAG) ?>}</span>
+            <span>${escapeHtml(<?= json_encode(__("La copertina verrà rimossa al salvataggio del libro"), JSON_HEX_TAG) ?>)}</span>
         </div>
     `;
 }
@@ -1502,7 +1580,7 @@ function initializeChoicesJS() {
             placeholderValue: <?= json_encode(__("Cerca autori esistenti o aggiungine di nuovi..."), JSON_HEX_TAG) ?>,
             noChoicesText: <?= json_encode(__("Nessun autore trovato, premi Invio per aggiungerne uno nuovo"), JSON_HEX_TAG) ?>,
             itemSelectText: <?= json_encode(__("Clicca per selezionare"), JSON_HEX_TAG) ?>,
-            addItemText: (value) => `${<?= json_encode(__('Aggiungi'), JSON_HEX_TAG) ?>} <b>"${value}"</b> ${<?= json_encode(__('come nuovo autore'), JSON_HEX_TAG) ?>}`,
+            addItemText: (value) => `${escapeHtml(<?= json_encode(__('Aggiungi'), JSON_HEX_TAG) ?>)} <b>"${value}"</b> ${escapeHtml(<?= json_encode(__('come nuovo autore'), JSON_HEX_TAG) ?>)}`,
             maxItemText: (maxItemCount) => <?= json_encode(__("Solo %d autori possono essere aggiunti"), JSON_HEX_TAG) ?>.replace('%d', maxItemCount),
             shouldSort: false,
             searchResultLimit: -1,
@@ -2221,7 +2299,7 @@ function initializePublishersChoices() {
             placeholderValue: <?= json_encode(__("Cerca editori esistenti o aggiungine di nuovi..."), JSON_HEX_TAG) ?>,
             noChoicesText: <?= json_encode(__("Nessun editore trovato, premi Invio per aggiungerne uno nuovo"), JSON_HEX_TAG) ?>,
             itemSelectText: <?= json_encode(__("Clicca per selezionare"), JSON_HEX_TAG) ?>,
-            addItemText: (value) => `${<?= json_encode(__('Aggiungi'), JSON_HEX_TAG) ?>} <b>"${value}"</b> ${<?= json_encode(__('come nuovo editore'), JSON_HEX_TAG) ?>}`,
+            addItemText: (value) => `${escapeHtml(<?= json_encode(__('Aggiungi'), JSON_HEX_TAG) ?>)} <b>"${value}"</b> ${escapeHtml(<?= json_encode(__('come nuovo editore'), JSON_HEX_TAG) ?>)}`,
             shouldSort: false,
             searchResultLimit: -1,
             searchFloor: 1,
@@ -2734,7 +2812,7 @@ function initializeCollocationFilters() {
       if (window.Toast && posizioneInput.value) {
         window.Toast.fire({
           icon: 'success',
-          title: `${<?= json_encode(__("Posizione generata:"), JSON_HEX_TAG) ?>} ${posizioneInput.value}`
+          title: `${escapeHtml(<?= json_encode(__("Posizione generata:"), JSON_HEX_TAG) ?>)} ${escapeHtml(posizioneInput.value)}`
         });
       }
     });
@@ -3041,24 +3119,24 @@ function setupEnhancedAutocomplete(inputId, suggestId, fetchUrl, onSelect, onEmp
 async function handleDuplicateBook(existingBook) {
     const result = await Swal.fire({
         icon: 'warning',
-        title: __('Libro Già Esistente'),
+        title: escapeHtml(__('Libro Già Esistente')),
         html: `
-            <p class="mb-4">${__('Esiste già un libro con lo stesso identificatore (ISBN/EAN).')}</p>
+            <p class="mb-4">${escapeHtml(__('Esiste già un libro con lo stesso identificatore (ISBN/EAN).'))}</p>
             <div class="bg-gray-100 p-4 rounded-lg mb-4 text-left">
-                <p class="font-semibold mb-2"><i class="fas fa-book mr-2"></i>${__('Libro Esistente:')}</p>
-                <p class="text-gray-700 mb-1"><strong>${__('ID:')}</strong> #${existingBook.id}</p>
-                <p class="text-gray-700 mb-1"><strong>${__('Titolo:')}</strong> ${escapeHtml(existingBook.title)}</p>
-                ${existingBook.isbn13 ? `<p class="text-gray-700 mb-1"><strong>${__('ISBN-13:')}</strong> ${escapeHtml(existingBook.isbn13)}</p>` : ''}
-                ${existingBook.ean ? `<p class="text-gray-700 mb-1"><strong>${__('EAN:')}</strong> ${escapeHtml(existingBook.ean)}</p>` : ''}
-                ${existingBook.location ? `<p class="text-gray-700 mb-1"><strong>${__('Collocazione:')}</strong> <span class="inline-flex items-center px-2 py-1 bg-blue-100 text-blue-800 rounded-md text-sm"><i class="fas fa-map-marker-alt mr-1"></i>${escapeHtml(existingBook.location)}</span></p>` : `<p class="text-gray-700 mb-1"><strong>${__('Collocazione:')}</strong> <span class="text-gray-400">${__('Non specificata')}</span></p>`}
+                <p class="font-semibold mb-2"><i class="fas fa-book mr-2"></i>${escapeHtml(__('Libro Esistente:'))}</p>
+                <p class="text-gray-700 mb-1"><strong>${escapeHtml(__('ID:'))}</strong> #${existingBook.id}</p>
+                <p class="text-gray-700 mb-1"><strong>${escapeHtml(__('Titolo:'))}</strong> ${escapeHtml(existingBook.title)}</p>
+                ${existingBook.isbn13 ? `<p class="text-gray-700 mb-1"><strong>${escapeHtml(__('ISBN-13:'))}</strong> ${escapeHtml(existingBook.isbn13)}</p>` : ''}
+                ${existingBook.ean ? `<p class="text-gray-700 mb-1"><strong>${escapeHtml(__('EAN:'))}</strong> ${escapeHtml(existingBook.ean)}</p>` : ''}
+                ${existingBook.location ? `<p class="text-gray-700 mb-1"><strong>${escapeHtml(__('Collocazione:'))}</strong> <span class="inline-flex items-center px-2 py-1 bg-blue-100 text-blue-800 rounded-md text-sm"><i class="fas fa-map-marker-alt mr-1"></i>${escapeHtml(existingBook.location)}</span></p>` : `<p class="text-gray-700 mb-1"><strong>${escapeHtml(__('Collocazione:'))}</strong> <span class="text-gray-400">${escapeHtml(__('Non specificata'))}</span></p>`}
             </div>
-            <p class="text-sm text-gray-600">${__('Vuoi aumentare il numero di copie di questo libro?')}</p>
+            <p class="text-sm text-gray-600">${escapeHtml(__('Vuoi aumentare il numero di copie di questo libro?'))}</p>
         `,
         showCancelButton: true,
         showDenyButton: true,
-        confirmButtonText: '<i class="fas fa-plus mr-2"></i>' + __('Aumenta Copie'),
-        denyButtonText: '<i class="fas fa-eye mr-2"></i>' + __('Visualizza Libro'),
-        cancelButtonText: __('Annulla'),
+        confirmButtonText: '<i class="fas fa-plus mr-2"></i>' + escapeHtml(__('Aumenta Copie')),
+        denyButtonText: '<i class="fas fa-eye mr-2"></i>' + escapeHtml(__('Visualizza Libro')),
+        cancelButtonText: escapeHtml(__('Annulla')),
         confirmButtonColor: '#10b981',
         denyButtonColor: '#3b82f6',
         reverseButtons: true
@@ -3076,19 +3154,19 @@ async function handleDuplicateBook(existingBook) {
 // Increase copies of existing book
 async function increaseCopies(book) {
     const { value: copiesToAdd } = await Swal.fire({
-        title: __('Aumenta Copie'),
+        title: escapeHtml(__('Aumenta Copie')),
         html: `
-            <p class="mb-4">${__('Quante copie vuoi aggiungere a "%s"?').replace('%s', escapeHtml(book.title))}</p>
+            <p class="mb-4">${escapeHtml(__('Quante copie vuoi aggiungere a "%s"?')).replace('%s', escapeHtml(book.title))}</p>
             <input type="number" id="copiesToAdd" class="swal2-input" value="1" min="1" max="100" style="width: 150px;">
         `,
         focusConfirm: false,
         showCancelButton: true,
-        confirmButtonText: __('Aggiungi'),
-        cancelButtonText: __('Annulla'),
+        confirmButtonText: escapeHtml(__('Aggiungi')),
+        cancelButtonText: escapeHtml(__('Annulla')),
         preConfirm: () => {
             const value = parseInt(document.getElementById('copiesToAdd').value);
             if (!value || value < 1) {
-                Swal.showValidationMessage(__('Inserisci un numero valido di copie'));
+                Swal.showValidationMessage(escapeHtml(__('Inserisci un numero valido di copie')));
                 return false;
             }
             return value;
@@ -3098,7 +3176,7 @@ async function increaseCopies(book) {
     if (copiesToAdd) {
         // Show loading
         Swal.fire({
-            title: __('Aggiornamento in corso...'),
+            title: escapeHtml(__('Aggiornamento in corso...')),
             text: __('Attendere prego'),
             allowOutsideClick: false,
             showConfirmButton: false,
@@ -3124,9 +3202,9 @@ async function increaseCopies(book) {
             if (data.code === 'SESSION_EXPIRED' || data.code === 'CSRF_INVALID') {
                 await Swal.fire({
                     icon: 'error',
-                    title: __('Errore di sicurezza'),
+                    title: escapeHtml(__('Errore di sicurezza')),
                     text: data.error || __('Errore di sicurezza'),
-                    confirmButtonText: __('OK')
+                    confirmButtonText: escapeHtml(__('OK'))
                 });
                 setTimeout(() => window.location.reload(), 2000);
                 return;
@@ -3136,9 +3214,9 @@ async function increaseCopies(book) {
             if (!response.ok || data.error) {
                 await Swal.fire({
                     icon: 'error',
-                    title: __('Errore'),
+                    title: escapeHtml(__('Errore')),
                     text: data.error || data.message || __('Errore durante l\'aggiornamento delle copie'),
-                    confirmButtonText: __('OK')
+                    confirmButtonText: escapeHtml(__('OK'))
                 });
                 return;
             }
@@ -3146,13 +3224,13 @@ async function increaseCopies(book) {
             if (data.success) {
                 await Swal.fire({
                     icon: 'success',
-                    title: __('Copie Aggiunte!'),
+                    title: escapeHtml(__('Copie Aggiunte!')),
                     html: `
-                        <p class="mb-2">${__('Hai aggiunto %s copie a "%s"').replace('%s', copiesToAdd).replace('%s', escapeHtml(book.title))}</p>
-                        <p class="text-sm text-gray-600">${__('Copie in circolazione')}: ${data.copie_totali}</p>
-                        <p class="text-sm text-gray-600">${__('Copie disponibili:')}: ${data.copie_disponibili}</p>
+                        <p class="mb-2">${escapeHtml(__('Hai aggiunto %s copie a "%s"')).replace('%s', copiesToAdd).replace('%s', escapeHtml(book.title))}</p>
+                        <p class="text-sm text-gray-600">${escapeHtml(__('Copie in circolazione'))}: ${data.copie_totali}</p>
+                        <p class="text-sm text-gray-600">${escapeHtml(__('Copie disponibili:'))}: ${data.copie_disponibili}</p>
                     `,
-                    confirmButtonText: __('OK')
+                    confirmButtonText: escapeHtml(__('OK'))
                 });
                 // Redirect to book list
                 window.location.href = window.BASE_PATH + '/admin/books';
@@ -3160,7 +3238,7 @@ async function increaseCopies(book) {
                 const error = data;
                 Swal.fire({
                     icon: 'error',
-                    title: __('Errore'),
+                    title: escapeHtml(__('Errore')),
                     text: error.message || __('Impossibile aggiornare le copie.')
                 });
             }
@@ -3168,7 +3246,7 @@ async function increaseCopies(book) {
             console.error('Error increasing copies:', error);
             Swal.fire({
                 icon: 'error',
-                title: __('Errore'),
+                title: escapeHtml(__('Errore')),
                 text: __('Si è verificato un errore di rete.')
             });
         }
@@ -3225,6 +3303,25 @@ function initializeFormValidation() {
                 text: __('ISSN deve essere nel formato XXXX-XXXX (8 cifre, l\'ultima può essere X).')
             });
             return;
+        }
+
+        // Running time (#539): the form is novalidate and the server reads an
+        // out-of-range value as "no running time", which would clear the stored
+        // one. An empty field stays allowed, to clear it on purpose.
+        const runtimeInput = form.querySelector('input[name="durata_minuti"]');
+        if (runtimeInput) {
+            const runtimeRaw = runtimeInput.value.trim();
+            const runtimeMax = <?= (int) \App\Support\FilmFields::MAX_RUNTIME ?>;
+            const runtimeBad = runtimeInput.validity.badInput
+                || (runtimeRaw !== '' && (!/^\d+$/.test(runtimeRaw) || Number(runtimeRaw) < 1 || Number(runtimeRaw) > runtimeMax));
+            if (runtimeBad) {
+                Swal.fire({
+                    icon: 'error',
+                    title: __('Durata non valida'),
+                    text: __('La durata deve essere un numero intero di minuti tra 1 e %d.', runtimeMax)
+                });
+                return;
+            }
         }
 
         // Frontend hierarchy validation for Radice/Genere/Sottogenere
@@ -3305,6 +3402,11 @@ function initializeFormValidation() {
                 const response = await fetch(form.action, {
                     method: form.method || 'POST',
                     credentials: 'same-origin',
+                    // fetch follows the redirect to the record page itself; this
+                    // header (kept on the same-origin redirect) tells the layout
+                    // not to show and drop the flash messages on that hidden
+                    // load, so they appear on the page the browser opens next.
+                    headers: { 'X-Pinakes-Fetch-Submit': '1' },
                     body: formData
                 });
 
@@ -3481,32 +3583,32 @@ function showAlternativesPanel(alternatives) {
 
         // Show key fields from this source (using data-* attributes for event delegation)
         if (sourceData.title && typeof sourceData.title === 'string') {
-            html += `<div><span class="font-medium">${<?= json_encode(__("Titolo:"), JSON_HEX_TAG) ?>}</span> ${escapeHtml(sourceData.title)}
-                <button type="button" class="ml-2 text-gray-800 hover:underline apply-alt-value" data-field="titolo" data-value="${escapeAttr(sourceData.title)}">${<?= json_encode(__("Usa"), JSON_HEX_TAG) ?>}</button></div>`;
+            html += `<div><span class="font-medium">${escapeHtml(<?= json_encode(__("Titolo:"), JSON_HEX_TAG) ?>)}</span> ${escapeHtml(sourceData.title)}
+                <button type="button" class="ml-2 text-gray-800 hover:underline apply-alt-value" data-field="titolo" data-value="${escapeAttr(sourceData.title)}">${escapeHtml(<?= json_encode(__("Usa"), JSON_HEX_TAG) ?>)}</button></div>`;
         }
         if (sourceData.publisher && typeof sourceData.publisher === 'string') {
-            html += `<div><span class="font-medium">${<?= json_encode(__("Editore:"), JSON_HEX_TAG) ?>}</span> ${escapeHtml(sourceData.publisher)}
-                <button type="button" class="ml-2 text-gray-800 hover:underline apply-alt-publisher" data-publisher="${escapeAttr(sourceData.publisher)}">${<?= json_encode(__("Usa"), JSON_HEX_TAG) ?>}</button></div>`;
+            html += `<div><span class="font-medium">${escapeHtml(<?= json_encode(__("Editore:"), JSON_HEX_TAG) ?>)}</span> ${escapeHtml(sourceData.publisher)}
+                <button type="button" class="ml-2 text-gray-800 hover:underline apply-alt-publisher" data-publisher="${escapeAttr(sourceData.publisher)}">${escapeHtml(<?= json_encode(__("Usa"), JSON_HEX_TAG) ?>)}</button></div>`;
         }
         // Show cover only if it's not an SBN/LibraryThing cover (requires API key)
         // Also sanitize URL to prevent javascript: and other unsafe protocols
         const safeImage = sanitizeUrl(sourceData.image);
         if (safeImage && !safeImage.includes('librarything.com/devkey')) {
-            html += `<div><span class="font-medium">${<?= json_encode(__("Copertina:"), JSON_HEX_TAG) ?>}</span>
-                <a href="${escapeAttr(safeImage)}" target="_blank" rel="noopener noreferrer" class="text-gray-800 hover:underline">${<?= json_encode(__("Vedi"), JSON_HEX_TAG) ?>}</a>
-                <button type="button" class="ml-2 text-gray-800 hover:underline apply-alt-cover" data-cover="${escapeAttr(safeImage)}">${<?= json_encode(__("Usa"), JSON_HEX_TAG) ?>}</button></div>`;
+            html += `<div><span class="font-medium">${escapeHtml(<?= json_encode(__("Copertina:"), JSON_HEX_TAG) ?>)}</span>
+                <a href="${escapeAttr(safeImage)}" target="_blank" rel="noopener noreferrer" class="text-gray-800 hover:underline">${escapeHtml(<?= json_encode(__("Vedi"), JSON_HEX_TAG) ?>)}</a>
+                <button type="button" class="ml-2 text-gray-800 hover:underline apply-alt-cover" data-cover="${escapeAttr(safeImage)}">${escapeHtml(<?= json_encode(__("Usa"), JSON_HEX_TAG) ?>)}</button></div>`;
         }
         if (sourceData.description && typeof sourceData.description === 'string') {
             const shortDesc = sourceData.description.substring(0, 100) + (sourceData.description.length > 100 ? '...' : '');
-            html += `<div><span class="font-medium">${<?= json_encode(__("Descrizione:"), JSON_HEX_TAG) ?>}</span> ${escapeHtml(shortDesc)}
-                <button type="button" class="ml-2 text-gray-800 hover:underline apply-alt-value" data-field="descrizione" data-value="${escapeAttr(sourceData.description)}">${<?= json_encode(__("Usa"), JSON_HEX_TAG) ?>}</button></div>`;
+            html += `<div><span class="font-medium">${escapeHtml(<?= json_encode(__("Descrizione:"), JSON_HEX_TAG) ?>)}</span> ${escapeHtml(shortDesc)}
+                <button type="button" class="ml-2 text-gray-800 hover:underline apply-alt-value" data-field="descrizione" data-value="${escapeAttr(sourceData.description)}">${escapeHtml(<?= json_encode(__("Usa"), JSON_HEX_TAG) ?>)}</button></div>`;
         }
 
         html += `</div></div>`;
     }
 
     if (html === '') {
-        html = `<p class="text-gray-500">${<?= json_encode(__("Nessuna alternativa disponibile"), JSON_HEX_TAG) ?>}</p>`;
+        html = `<p class="text-gray-500">${escapeHtml(<?= json_encode(__("Nessuna alternativa disponibile"), JSON_HEX_TAG) ?>)}</p>`;
     }
 
     content.innerHTML = html;
@@ -4350,8 +4452,8 @@ function displayScrapedCover(imageUrl) {
                 <div class="text-gray-400 mb-2">
                     <i class="fas fa-image text-3xl"></i>
                 </div>
-                <p class="text-sm text-gray-600 mb-2">${<?= json_encode(__("Anteprima non disponibile"), JSON_HEX_TAG) ?>}</p>
-                <p class="text-xs text-gray-500 mb-3">${<?= json_encode(__("L'immagine verrà scaricata al salvataggio"), JSON_HEX_TAG) ?>}</p>
+                <p class="text-sm text-gray-600 mb-2">${escapeHtml(<?= json_encode(__("Anteprima non disponibile"), JSON_HEX_TAG) ?>)}</p>
+                <p class="text-xs text-gray-500 mb-3">${escapeHtml(<?= json_encode(__("L'immagine verrà scaricata al salvataggio"), JSON_HEX_TAG) ?>)}</p>
                 <a href="${escapeAttr(imageSrc)}" target="_blank" rel="noopener noreferrer" class="text-xs text-gray-700 hover:text-gray-900 underline break-all">${escapeHtml(imageUrl)}</a>
             </div>
         `;
@@ -4367,11 +4469,11 @@ function displayScrapedCover(imageUrl) {
             <div class="flex items-center gap-4">
                 <div class="flex items-center gap-2 text-sm text-gray-600">
                     <i class="fas fa-globe text-gray-600"></i>
-                    <span>${<?= json_encode(__("Copertina recuperata automaticamente"), JSON_HEX_TAG) ?>}</span>
+                    <span>${escapeHtml(<?= json_encode(__("Copertina recuperata automaticamente"), JSON_HEX_TAG) ?>)}</span>
                 </div>
-                <button type="button" onclick="removeCoverImage()" class="text-xs text-red-600 hover:text-red-800 hover:underline flex items-center gap-1">
+                <button type="button" data-pk-action="book-cover-remove" class="text-xs text-red-600 hover:text-red-800 hover:underline flex items-center gap-1">
                     <i class="fas fa-trash"></i>
-                    <?= __('Rimuovi') ?>
+                    ${escapeHtml(<?= json_encode(__('Rimuovi'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) ?>)}
                 </button>
             </div>
         </div>
@@ -4418,7 +4520,7 @@ function convertItalianDateToISO(italianDate) {
 </script>
 
 <!-- Static style block: the response middleware attaches the CSP nonce. -->
-<style>
+<style<?= csp_nonce_attr() ?>>
     .fade-in {
         animation: fadeIn 0.5s ease-in-out;
     }
@@ -4493,7 +4595,7 @@ function convertItalianDateToISO(italianDate) {
 </style>
 
 <!-- TinyMCE is loaded by layout.php; only initialize here -->
-<script>
+<script<?= csp_nonce_attr() ?>>
 // Initialize TinyMCE for book description (iframe editor with toolbar)
 let tinyMceInitAttempts = 0;
 const TINYMCE_MAX_RETRIES = 8;
@@ -4501,12 +4603,18 @@ if (typeof window.TINYMCE_BASE === 'undefined') {
     window.TINYMCE_BASE = <?= json_encode(assetUrl("tinymce"), JSON_HEX_TAG | JSON_HEX_AMP) ?>;
 }
 const TINYMCE_BASE = window.TINYMCE_BASE;
+// Captured while this nonced block runs: the fallback loader below is created
+// later, when document.currentScript is already null.
+const BOOK_FORM_CSP_NONCE = (document.currentScript && document.currentScript.nonce) || '';
 
 function initBookTinyMCE() {
     if (!window.tinymce) {
         if (!document.getElementById('tinymce-fallback-loader')) {
             const s = document.createElement('script');
             s.id = 'tinymce-fallback-loader';
+            if (BOOK_FORM_CSP_NONCE) {
+                s.nonce = BOOK_FORM_CSP_NONCE;
+            }
             s.src = `${TINYMCE_BASE}/tinymce.min.js`;
             document.head.appendChild(s);
         }

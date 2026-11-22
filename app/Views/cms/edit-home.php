@@ -294,7 +294,7 @@ unset($workspaceHeader);
                            value="<?php echo HtmlHelper::e($feature['content'] ?? $defaultFeatures[$num]['icon']); ?>"
                            class="block flex-1 rounded-lg border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-2 px-3"
                            placeholder="<?= htmlspecialchars(__('fas fa-users'), ENT_QUOTES, 'UTF-8') ?>">
-                    <button type="button" onclick="openIconPicker('feature<?php echo $num; ?>_icon')"
+                    <button type="button" data-pk-action="cms-open-icon-picker" data-icon-input="feature<?php echo (int) $num; ?>_icon"
                             class="inline-flex items-center gap-1 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg hover:bg-gray-700 transition-colors">
                       <i class="fas fa-icons"></i>
                       <?= __("Scegli") ?>
@@ -545,7 +545,7 @@ unset($workspaceHeader);
           <!-- Basic SEO Accordion Item -->
           <div class="pk-cms-accordion">
             <button type="button" class="pk-cms-accordion__trigger w-full py-3 flex items-center justify-between transition-colors"
-                    onclick="toggleAccordion('seo-basic')" aria-expanded="false" aria-controls="seo-basic-content">
+                    data-pk-action="cms-toggle-accordion" data-accordion="seo-basic" aria-expanded="false" aria-controls="seo-basic-content">
               <span class="font-medium text-gray-900 flex items-center gap-2">
                 <i class="fas fa-globe text-blue-600"></i>
                 <?= __("SEO Base (Meta Tags)") ?>
@@ -599,7 +599,7 @@ unset($workspaceHeader);
           <!-- Open Graph Accordion Item -->
           <div class="pk-cms-accordion">
             <button type="button" class="pk-cms-accordion__trigger w-full py-3 flex items-center justify-between transition-colors"
-                    onclick="toggleAccordion('seo-og')" aria-expanded="false" aria-controls="seo-og-content">
+                    data-pk-action="cms-toggle-accordion" data-accordion="seo-og" aria-expanded="false" aria-controls="seo-og-content">
               <span class="font-medium text-gray-900 flex items-center gap-2">
                 <i class="fab fa-facebook text-blue-600"></i>
                 <?= __("Open Graph (Facebook, LinkedIn)") ?>
@@ -688,7 +688,7 @@ unset($workspaceHeader);
           <!-- Twitter Card Accordion Item -->
           <div class="pk-cms-accordion">
             <button type="button" class="pk-cms-accordion__trigger w-full py-3 flex items-center justify-between transition-colors"
-                    onclick="toggleAccordion('seo-twitter')" aria-expanded="false" aria-controls="seo-twitter-content">
+                    data-pk-action="cms-toggle-accordion" data-accordion="seo-twitter" aria-expanded="false" aria-controls="seo-twitter-content">
               <span class="font-medium text-gray-900 flex items-center gap-2">
                 <i class="fab fa-twitter text-blue-400"></i>
                 <?= __("Twitter Cards (X)") ?>
@@ -783,7 +783,7 @@ unset($workspaceHeader);
   </form>
 </div>
 
-<script>
+<script<?= csp_nonce_attr() ?>>
 document.addEventListener('DOMContentLoaded', function() {
 
     // Hero covers: "latest" or up to four picked books, searched by
@@ -940,7 +940,7 @@ document.addEventListener('DOMContentLoaded', function() {
         <!-- Header -->
         <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
             <h3 class="text-lg font-semibold text-gray-900"><?= __("Scegli Icona Font Awesome") ?></h3>
-            <button onclick="closeIconPicker()" class="btn-icon btn-secondary text-gray-400 hover:text-gray-600 transition-colors" aria-label="<?= htmlspecialchars(__('Chiudi'), ENT_QUOTES, 'UTF-8') ?>">
+            <button data-pk-action="cms-close-icon-picker" class="btn-icon btn-secondary text-gray-400 hover:text-gray-600 transition-colors" aria-label="<?= htmlspecialchars(__('Chiudi'), ENT_QUOTES, 'UTF-8') ?>">
                 <i class="fas fa-times text-xl"></i>
             </button>
         </div>
@@ -950,7 +950,7 @@ document.addEventListener('DOMContentLoaded', function() {
             <div class="relative">
                 <input type="text" id="iconSearch" placeholder="<?= htmlspecialchars(__('Cerca icona (es. book)'), ENT_QUOTES, 'UTF-8') ?>"
                        class="w-full rounded-lg border-gray-300 focus:border-gray-500 focus:ring-gray-500 pl-10 pr-4 py-2 text-sm"
-                       oninput="filterIcons(this.value)">
+                       data-pk-action="cms-filter-icons" data-pk-on="input">
                 <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" aria-hidden="true"></i>
             </div>
             <p class="mt-2 text-xs text-gray-500"><?= __("Clicca su un'icona per selezionarla") ?></p>
@@ -968,7 +968,7 @@ document.addEventListener('DOMContentLoaded', function() {
             <p class="text-xs text-gray-500">
                 <span id="iconCount">0</span> <?= __("icone disponibili") ?>
             </p>
-            <button onclick="closeIconPicker()"
+            <button data-pk-action="cms-close-icon-picker"
                     class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-sm font-medium">
                 <?= __("Chiudi") ?>
             </button>
@@ -976,7 +976,7 @@ document.addEventListener('DOMContentLoaded', function() {
     </div>
 </div>
 
-<script>
+<script<?= csp_nonce_attr() ?>>
 // Font Awesome Solid Icons (most common)
 const fontAwesomeIcons = [
     'star', 'heart', 'user', 'users', 'home', 'search', 'cog', 'bell', 'envelope', 'calendar',
@@ -1103,13 +1103,17 @@ document.addEventListener('keydown', function(e) {
     }
 });
 
+// Delegated actions (CSP script-src-attr 'none': no inline on* attributes).
+PinakesActions.register('cms-open-icon-picker', (el) => openIconPicker(el.dataset.iconInput));
+PinakesActions.register('cms-close-icon-picker', () => closeIconPicker());
+PinakesActions.register('cms-filter-icons', (el) => filterIcons(el.value));
 </script>
 
 <!-- Load Sortable.js before the script that uses it -->
-<script src="<?= htmlspecialchars(assetUrl('vendor/sortablejs/Sortable.min.js'), ENT_QUOTES, 'UTF-8') ?>"></script>
+<script<?= csp_nonce_attr() ?> src="<?= htmlspecialchars(assetUrl('vendor/sortablejs/Sortable.min.js'), ENT_QUOTES, 'UTF-8') ?>"></script>
 <!-- TinyMCE -->
-<script src="<?= htmlspecialchars(assetUrl('tinymce/tinymce.min.js'), ENT_QUOTES, 'UTF-8') ?>"></script>
-<script>
+<script<?= csp_nonce_attr() ?> src="<?= htmlspecialchars(assetUrl('tinymce/tinymce.min.js'), ENT_QUOTES, 'UTF-8') ?>"></script>
+<script<?= csp_nonce_attr() ?>>
 // Accordion toggle function
 function toggleAccordion(id) {
   const content = document.getElementById(id + '-content');
@@ -1125,6 +1129,7 @@ function toggleAccordion(id) {
     icon.classList.remove('rotate-180');
   }
 }
+PinakesActions.register('cms-toggle-accordion', (el) => toggleAccordion(el.dataset.accordion));
 
 document.addEventListener('DOMContentLoaded', function() {
   if (typeof window.__ === 'undefined') {

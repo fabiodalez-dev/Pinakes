@@ -8,8 +8,9 @@
 // `html:` template. A copy code like `');window.x=1//<img src=x onerror=…>` then
 // ran in another admin's browser on click of the copy edit/delete button.
 //
-// The fix json_encode()s the values for the onclick handlers and escapeHtml()s
-// the SweetAlert body. This spec seeds a copy carrying a live payload straight
+// The values now travel in escaped data-copy-* attributes read through dataset
+// (no inline handlers: the CSP forbids them) and the SweetAlert body is
+// escapeHtml()ed. This spec seeds a copy carrying a live payload straight
 // into the DB, opens the REAL book-detail page, clicks the buttons, and asserts
 // nothing executes — while the pure-PHP encoding is covered by
 // tests/xss-copy-fields-encoding.unit.php.
@@ -94,16 +95,17 @@ test.describe('Per-copy field XSS hardening', () => {
     await page.goto(`${BASE}/admin/books/${bookId}`);
     await page.waitForLoadState('domcontentloaded');
 
-    const delBtn = page.locator(`button[onclick^="confirmDeleteCopy(${copyId},"]`);
-    const editBtn = page.locator(`button[onclick^="openEditCopyModal(${copyId},"]`);
+    const delBtn = page.locator(`button[data-pk-action="book-copy-delete"][data-copy-id="${copyId}"]`);
+    const editBtn = page.locator(`button[data-pk-action="book-copy-edit"][data-copy-id="${copyId}"]`);
     await expect(delBtn).toHaveCount(1);
 
-    // Structural: the fix emits a json-encoded string (double-quote delimited),
-    // never the old single-quoted `confirmDeleteCopy(id, '…')` breakout form.
-    const delOnclick = await delBtn.getAttribute('onclick');
-    expect(delOnclick).toMatch(new RegExp(`^confirmDeleteCopy\\(${copyId},\\s*"`));
-    const editOnclick = await editBtn.getAttribute('onclick');
-    expect(editOnclick).toMatch(new RegExp(`^openEditCopyModal\\(${copyId},`));
+    // Structural: the values travel as data (data-copy-* attributes read through
+    // dataset), never as code in an inline handler (the CSP forbids those). The
+    // attribute must hand back the exact payload.
+    expect(await delBtn.getAttribute('onclick')).toBeNull();
+    expect(await editBtn.getAttribute('onclick')).toBeNull();
+    expect(await delBtn.getAttribute('data-copy-inventario')).toBe(invPayload);
+    expect(await editBtn.getAttribute('data-copy-note')).toBe(notePayload);
 
     // Behavioural — DELETE path: onclick must not break out, and the SweetAlert
     // body must escape the code (no injected <img> onerror).

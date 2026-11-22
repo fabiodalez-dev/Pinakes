@@ -193,7 +193,7 @@ unset($workspaceHeader);
   </div>
 </div>
 
-<script>
+<script<?= csp_nonce_attr() ?>>
 window.i18nLocale = <?= json_encode(\App\Support\I18n::getLocale(), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
 window.__ = function(key) { return key; };
 
@@ -318,13 +318,13 @@ document.addEventListener('DOMContentLoaded', function() {
         render: function(data) {
           const id = parseInt(data, 10);
           return `<div class="flex items-center justify-center gap-0.5">
-            <a href="${window.BASE_PATH || ''}/admin/authors/${id}" class="btn-icon btn-secondary w-7 h-7 inline-flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded transition-all" title="${<?= json_encode(__('Visualizza'), JSON_HEX_TAG) ?>}" aria-label="${<?= json_encode(__('Visualizza'), JSON_HEX_TAG) ?>}">
+            <a href="${window.BASE_PATH || ''}/admin/authors/${id}" class="btn-icon btn-secondary w-7 h-7 inline-flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded transition-all" title="${<?= json_encode(htmlspecialchars(__('Visualizza'), ENT_QUOTES, 'UTF-8'), JSON_HEX_TAG) ?>}" aria-label="${<?= json_encode(htmlspecialchars(__('Visualizza'), ENT_QUOTES, 'UTF-8'), JSON_HEX_TAG) ?>}">
               <i class="fas fa-eye text-xs"></i>
             </a>
-            <a href="${window.BASE_PATH || ''}/admin/authors/edit/${id}" class="btn-icon btn-secondary w-7 h-7 inline-flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded transition-all" title="${<?= json_encode(__('Modifica'), JSON_HEX_TAG) ?>}" aria-label="${<?= json_encode(__('Modifica'), JSON_HEX_TAG) ?>}">
+            <a href="${window.BASE_PATH || ''}/admin/authors/edit/${id}" class="btn-icon btn-secondary w-7 h-7 inline-flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded transition-all" title="${<?= json_encode(htmlspecialchars(__('Modifica'), ENT_QUOTES, 'UTF-8'), JSON_HEX_TAG) ?>}" aria-label="${<?= json_encode(htmlspecialchars(__('Modifica'), ENT_QUOTES, 'UTF-8'), JSON_HEX_TAG) ?>}">
               <i class="fas fa-edit text-xs"></i>
             </a>
-            <button onclick="deleteAuthor(${id})" class="btn-icon btn-danger-outline w-7 h-7 inline-flex items-center justify-center text-gray-500 hover:text-red-600 hover:bg-red-50 rounded transition-all" title="${<?= json_encode(__('Elimina'), JSON_HEX_TAG) ?>}" aria-label="${<?= json_encode(__('Elimina'), JSON_HEX_TAG) ?>}">
+            <button type="button" data-pk-action="authors-delete" data-author-id="${id}" class="btn-icon btn-danger-outline w-7 h-7 inline-flex items-center justify-center text-gray-500 hover:text-red-600 hover:bg-red-50 rounded transition-all" title="${<?= json_encode(htmlspecialchars(__('Elimina'), ENT_QUOTES, 'UTF-8'), JSON_HEX_TAG) ?>}" aria-label="${<?= json_encode(htmlspecialchars(__('Elimina'), ENT_QUOTES, 'UTF-8'), JSON_HEX_TAG) ?>}">
               <i class="fas fa-trash text-xs"></i>
             </button>
           </div>`;
@@ -374,13 +374,13 @@ document.addEventListener('DOMContentLoaded', function() {
     if (nome) filters.push({ key: 'search_nome', label: `"${escapeHtml(nome)}"`, icon: 'fa-search' });
 
     const naz = document.getElementById('search_nazionalita').value;
-    if (naz) filters.push({ key: 'search_nazionalita', label: `${<?= json_encode(__("Nazionalità") . ": ", JSON_HEX_TAG) ?>}${escapeHtml(naz)}`, icon: 'fa-flag' });
+    if (naz) filters.push({ key: 'search_nazionalita', label: `${escapeHtml(<?= json_encode(__("Nazionalità") . ": ", JSON_HEX_TAG) ?>)}${escapeHtml(naz)}`, icon: 'fa-flag' });
 
     const libri = document.getElementById('filter_libri_count').value;
-    if (libri) filters.push({ key: 'filter_libri_count', label: `${<?= json_encode(__("Libri") . ": ", JSON_HEX_TAG) ?>}${libri}`, icon: 'fa-book' });
+    if (libri) filters.push({ key: 'filter_libri_count', label: `${escapeHtml(<?= json_encode(__("Libri") . ": ", JSON_HEX_TAG) ?>)}${libri}`, icon: 'fa-book' });
 
     const pseudo = document.getElementById('search_pseudonimo').value;
-    if (pseudo) filters.push({ key: 'search_pseudonimo', label: `${<?= json_encode(__("Pseudonimo") . ": ", JSON_HEX_TAG) ?>}${escapeHtml(pseudo)}`, icon: 'fa-id-card' });
+    if (pseudo) filters.push({ key: 'search_pseudonimo', label: `${escapeHtml(<?= json_encode(__("Pseudonimo") . ": ", JSON_HEX_TAG) ?>)}${escapeHtml(pseudo)}`, icon: 'fa-id-card' });
 
     if (filters.length === 0) {
       container.classList.add('hidden');
@@ -539,25 +539,25 @@ document.addEventListener('DOMContentLoaded', function() {
 
       // Build options for the select
       let optionsHtml = result.data.map(a =>
-        `<option value="${a.id}">${escapeHtml(a.nome)}${a.libri_count ? ` (${a.libri_count} ${<?= json_encode(__("libri"), JSON_HEX_TAG) ?>})` : ''}</option>`
+        `<option value="${a.id}">${escapeHtml(a.nome)}${a.libri_count ? ` (${a.libri_count} ${escapeHtml(<?= json_encode(__("libri"), JSON_HEX_TAG) ?>)})` : ''}</option>`
       ).join('');
 
       const { value: formValues } = await Swal.fire({
         title: <?= json_encode(__("Unisci autori"), JSON_HEX_TAG) ?>,
         html: `
           <div class="text-left">
-            <p class="text-sm text-gray-600 mb-4">${<?= json_encode(__("Stai per unire"), JSON_HEX_TAG) ?>} ${ids.length} ${<?= json_encode(__("autori. Tutti i libri verranno assegnati all'autore risultante."), JSON_HEX_TAG) ?>}</p>
+            <p class="text-sm text-gray-600 mb-4">${escapeHtml(<?= json_encode(__("Stai per unire"), JSON_HEX_TAG) ?>)} ${ids.length} ${escapeHtml(<?= json_encode(__("autori. Tutti i libri verranno assegnati all'autore risultante."), JSON_HEX_TAG) ?>)}</p>
             <div class="mb-4">
-              <label class="block text-sm font-medium text-gray-700 mb-1">${<?= json_encode(__("Autore principale"), JSON_HEX_TAG) ?>}</label>
+              <label class="block text-sm font-medium text-gray-700 mb-1">${escapeHtml(<?= json_encode(__("Autore principale"), JSON_HEX_TAG) ?>)}</label>
               <select id="swal-primary-author" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
                 ${optionsHtml}
               </select>
-              <p class="text-xs text-gray-500 mt-1">${<?= json_encode(__("I libri degli altri autori verranno assegnati a questo"), JSON_HEX_TAG) ?>}</p>
+              <p class="text-xs text-gray-500 mt-1">${escapeHtml(<?= json_encode(__("I libri degli altri autori verranno assegnati a questo"), JSON_HEX_TAG) ?>)}</p>
             </div>
             <div class="mb-4">
-              <label class="block text-sm font-medium text-gray-700 mb-1">${<?= json_encode(__("Nuovo nome (opzionale)"), JSON_HEX_TAG) ?>}</label>
-              <input id="swal-new-name" type="text" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="${<?= json_encode(__("Lascia vuoto per mantenere il nome attuale"), JSON_HEX_TAG) ?>}">
-              <p class="text-xs text-gray-500 mt-1">${<?= json_encode(__("Se compilato, l'autore principale verrà rinominato"), JSON_HEX_TAG) ?>}</p>
+              <label class="block text-sm font-medium text-gray-700 mb-1">${escapeHtml(<?= json_encode(__("Nuovo nome (opzionale)"), JSON_HEX_TAG) ?>)}</label>
+              <input id="swal-new-name" type="text" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="${<?= json_encode(htmlspecialchars(__("Lascia vuoto per mantenere il nome attuale"), ENT_QUOTES, 'UTF-8'), JSON_HEX_TAG) ?>}">
+              <p class="text-xs text-gray-500 mt-1">${escapeHtml(<?= json_encode(__("Se compilato, l'autore principale verrà rinominato"), JSON_HEX_TAG) ?>)}</p>
             </div>
           </div>
         `,
@@ -673,6 +673,7 @@ document.addEventListener('DOMContentLoaded', function() {
   });
 
   // Single delete
+  window.PinakesActions.register('authors-delete', (el) => window.deleteAuthor(parseInt(el.dataset.authorId, 10)));
   window.deleteAuthor = function(id) {
     Swal.fire({
       title: <?= json_encode(__("Sei sicuro?"), JSON_HEX_TAG) ?>,
@@ -702,7 +703,7 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 
-<style>
+<style<?= csp_nonce_attr() ?>>
 .entity-table-wrap { overflow-x: auto; }
 .line-clamp-1 { display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
 

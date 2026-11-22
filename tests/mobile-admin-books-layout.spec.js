@@ -48,8 +48,18 @@ async function expectNoSideways(page) {
 async function pastTheEdge(page) {
   return page.evaluate(() => {
     const vw = window.innerWidth; const out = [];
+    // A wide table inside a horizontal scroll box (overflow-x auto/scroll that
+    // itself fits the screen) scrolls on purpose: its cells are reachable, not
+    // cut off. Only text that overflows the page itself counts.
+    const inScrollBox = (el) => {
+      for (let a = el.parentElement; a && a.tagName !== 'MAIN'; a = a.parentElement) {
+        if (/^(auto|scroll)$/.test(getComputedStyle(a).overflowX) && a.getBoundingClientRect().right <= vw + 1) return true;
+      }
+      return false;
+    };
     for (const el of document.querySelectorAll('main *')) {
       if (el.children.length || !(el.textContent || '').trim()) continue;
+      if (inScrollBox(el)) continue;
       const r = el.getBoundingClientRect();
       if (r.width && r.height && r.right > vw + 1) out.push(`${el.tagName.toLowerCase()} "${el.textContent.trim().slice(0, 60)}" right=${Math.round(r.right)}`);
     }

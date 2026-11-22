@@ -6,6 +6,7 @@ namespace App\Middleware;
 use App\Support\ConfigStore;
 use App\Support\HtmlHelper;
 use App\Support\RouteTranslator;
+use App\Support\SecureLogger;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use Psr\Http\Server\MiddlewareInterface;
@@ -82,6 +83,47 @@ class PrivateModeMiddleware implements MiddlewareInterface
         '/_pinakes/litespeed-purge',
     ];
 
+    /** @var callable(): mixed */
+    private $settingReader;
+
+    /** One log line per request, however many times the check runs. */
+    private static bool $readFailureLogged = false;
+
+    /**
+     * @param (callable(): mixed)|null $settingReader returns the raw
+     *        advanced.private_mode value and THROWS when the settings cannot be
+     *        read. Injectable for tests; defaults to ConfigStore::getStrict().
+     */
+    public function __construct(?callable $settingReader = null)
+    {
+        $this->settingReader = $settingReader
+            ?? static fn (): mixed => ConfigStore::getStrict('advanced.private_mode', '0');
+    }
+
+    /**
+     * Fail closed: an absent or explicit '0' setting means public (as before),
+     * but a settings read that FAILED (DB unreachable, query error) means
+     * private for this request. The login, password-reset and asset routes
+     * stay reachable, so an administrator can still sign in.
+     */
+    private function isPrivateModeOn(): bool
+    {
+        try {
+            $value = ($this->settingReader)();
+        } catch (\Throwable $e) {
+            if (!self::$readFailureLogged) {
+                self::$readFailureLogged = true;
+                SecureLogger::warning('[PrivateMode] settings read failed; treating private mode as ON for this request', [
+                    'exception' => get_class($e),
+                ]);
+            }
+            return true;
+        }
+        // ConfigStore stores the flag as '1'/'0' (string); a boolean true can
+        // reach here after an in-request ConfigStore::set().
+        return $value === true || (is_scalar($value) && (string) $value === '1');
+    }
+
     public function process(Request $request, RequestHandler $handler): Response
     {
         // Authenticated users are never restricted by this middleware.
@@ -89,8 +131,8 @@ class PrivateModeMiddleware implements MiddlewareInterface
             return $handler->handle($request);
         }
 
-        // Feature is opt-in and off by default.
-        if ((string) ConfigStore::get('advanced.private_mode', '0') !== '1') {
+        // Feature is opt-in and off by default (but fails closed on a read error).
+        if (!$this->isPrivateModeOn()) {
             return $handler->handle($request);
         }
 

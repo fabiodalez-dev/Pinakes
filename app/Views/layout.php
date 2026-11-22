@@ -30,8 +30,12 @@ $htmlLang = substr($currentLocale, 0, 2);
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title><?= htmlspecialchars($appName, ENT_QUOTES, 'UTF-8') ?> - <?= htmlspecialchars(__("Library Management System"), ENT_QUOTES, 'UTF-8') ?></title>
   <meta name="csrf-token" content="<?php echo App\Support\Csrf::ensureToken(); ?>" />
+  <?php // Read by libraries that create <style> at runtime (FullCalendar looks
+        // for meta[name="csp-nonce"]). The admin area is never shared-cached,
+        // so the per-request value never outlives its response. ?>
+  <meta name="csp-nonce" content="<?= htmlspecialchars(csp_nonce(), ENT_QUOTES, 'UTF-8') ?>" />
   <link rel="icon" type="image/x-icon" href="<?= htmlspecialchars(url('/favicon.ico'), ENT_QUOTES, 'UTF-8') ?>">
-  <script>window.BASE_PATH = <?= json_encode(\App\Support\HtmlHelper::getBasePath(), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;</script>
+  <script<?= csp_nonce_attr() ?>>window.BASE_PATH = <?= json_encode(\App\Support\HtmlHelper::getBasePath(), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;</script>
   <link rel="stylesheet" href="<?= htmlspecialchars(assetUrl('vendor.css'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($vendorCssVersion, ENT_QUOTES, 'UTF-8') ?>" />
   <link rel="stylesheet" href="<?= htmlspecialchars(assetUrl('flatpickr-custom.css'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($appVersion, ENT_QUOTES, 'UTF-8') ?>" />
   <?php $mainCssVersion = (string) (@filemtime(__DIR__ . '/../../public/assets/main.css') ?: $appVersion); ?>
@@ -50,8 +54,9 @@ $htmlLang = substr($currentLocale, 0, 2);
   // head, like the frontend layout: at the end of the body this blocking request held back
   // the deferred bundles (SweetAlert among them) while the page above it was already
   // clickable, so an early click on a confirm button fell back to window.confirm(). ?>
-  <script src="<?= htmlspecialchars(\App\Support\TranslationScript::url(I18n::getLocale()), ENT_QUOTES, 'UTF-8') ?>"></script>
-  <script>
+  <script<?= csp_nonce_attr() ?> src="<?= htmlspecialchars(\App\Support\TranslationScript::url(I18n::getLocale()), ENT_QUOTES, 'UTF-8') ?>"></script>
+  <script<?= csp_nonce_attr() ?> src="<?= htmlspecialchars(assetUrl('js/pk-actions.js'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($appVersion, ENT_QUOTES, 'UTF-8') ?>"></script>
+  <script<?= csp_nonce_attr() ?>>
     (function () {
       if (typeof window.__ !== 'function') {
         window.__ = function (message, ...args) {
@@ -102,7 +107,7 @@ $htmlLang = substr($currentLocale, 0, 2);
   }
   ?>
 
-  <style>
+  <style<?= csp_nonce_attr() ?>>
     /* Mobile fixes */
     @media (max-width: 1024px) {
       #notifications-badge {
@@ -758,7 +763,7 @@ $htmlLang = substr($currentLocale, 0, 2);
                   class="absolute left-1/2 -translate-x-1/2 md:left-auto md:right-0 md:translate-x-0 mt-2 w-[calc(100vw-2rem)] md:w-96 max-w-md bg-white border border-gray-200 rounded-2xl shadow-2xl hidden z-[100]">
                   <div class="p-4 border-b border-gray-200 flex items-center justify-between">
                     <h3 class="text-lg font-semibold text-gray-900"><?= __("Notifiche") ?></h3>
-                    <button onclick="markAllNotificationsAsRead()"
+                    <button type="button" data-pk-action="admin-notifications-read-all"
                       class="text-xs text-gray-900 hover:text-gray-700 font-medium">
                       <?= __("Segna tutte come lette") ?>
                     </button>
@@ -846,7 +851,7 @@ $htmlLang = substr($currentLocale, 0, 2);
                       <hr class="my-2 border-gray-200">
                       <form method="post" action="<?= htmlspecialchars(route_path('logout'), ENT_QUOTES, 'UTF-8') ?>" style="display:contents;">
                         <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(\App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8') ?>">
-                        <a href="<?= htmlspecialchars(route_path('logout'), ENT_QUOTES, 'UTF-8') ?>" onclick="event.preventDefault();this.closest('form').submit();"
+                        <a href="<?= htmlspecialchars(route_path('logout'), ENT_QUOTES, 'UTF-8') ?>" data-pk-action="submit-form"
                           class="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-red-50 transition-colors text-red-600 no-underline">
                           <i class="fas fa-sign-out-alt w-4 h-4"></i>
                           <span class="text-sm"><?= __("Esci") ?></span>
@@ -901,7 +906,7 @@ $htmlLang = substr($currentLocale, 0, 2);
       <main id="workspace-content" tabindex="-1">
         <div class="pk-workspace-page" data-workspace-page>
         <!-- Flash Messages -->
-        <?php if (isset($_SESSION['error_message']) || isset($_SESSION['success_message'])): ?>
+        <?php if (!flash_deferred() && (isset($_SESSION['error_message']) || isset($_SESSION['success_message']))): ?>
           <div class="px-4 sm:px-6 lg:px-8 pt-6">
             <?php if (isset($_SESSION['error_message'])): ?>
               <div class="mb-6 p-4 rounded-xl border border-red-200 bg-red-50 text-red-700" role="alert">
@@ -934,7 +939,7 @@ $htmlLang = substr($currentLocale, 0, 2);
   </div>
 
   <!-- Scripts -->
-  <script>
+  <script<?= csp_nonce_attr() ?>>
     window.i18nTranslations = window.i18nTranslations || {};
     window.userIsAdminOrStaff = <?= json_encode($isBuiltInOperator, JSON_HEX_TAG) ?>;
 
@@ -956,13 +961,13 @@ $htmlLang = substr($currentLocale, 0, 2);
       return translated;
     };
   </script>
-  <script src="<?= htmlspecialchars(assetUrl('vendor.bundle.js'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($vendorBundleVersion, ENT_QUOTES, 'UTF-8') ?>" defer></script>
-  <script src="<?= htmlspecialchars(assetUrl('flatpickr-init.js'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($appVersion, ENT_QUOTES, 'UTF-8') ?>" defer></script>
-  <script src="<?= htmlspecialchars(assetUrl('main.bundle.js'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($mainBundleVersion, ENT_QUOTES, 'UTF-8') ?>" defer></script>
-  <script src="<?= htmlspecialchars(assetUrl('js/csrf-helper.js'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($appVersion, ENT_QUOTES, 'UTF-8') ?>" defer></script>
-  <script src="<?= htmlspecialchars(assetUrl('js/swal-config.js'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($appVersion, ENT_QUOTES, 'UTF-8') ?>" defer></script>
-  <script src="<?= htmlspecialchars(assetUrl('tinymce/tinymce.min.js'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($appVersion, ENT_QUOTES, 'UTF-8') ?>" defer></script>
-  <script>
+  <script<?= csp_nonce_attr() ?> src="<?= htmlspecialchars(assetUrl('vendor.bundle.js'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($vendorBundleVersion, ENT_QUOTES, 'UTF-8') ?>" defer></script>
+  <script<?= csp_nonce_attr() ?> src="<?= htmlspecialchars(assetUrl('flatpickr-init.js'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($appVersion, ENT_QUOTES, 'UTF-8') ?>" defer></script>
+  <script<?= csp_nonce_attr() ?> src="<?= htmlspecialchars(assetUrl('main.bundle.js'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($mainBundleVersion, ENT_QUOTES, 'UTF-8') ?>" defer></script>
+  <script<?= csp_nonce_attr() ?> src="<?= htmlspecialchars(assetUrl('js/csrf-helper.js'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($appVersion, ENT_QUOTES, 'UTF-8') ?>" defer></script>
+  <script<?= csp_nonce_attr() ?> src="<?= htmlspecialchars(assetUrl('js/swal-config.js'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($appVersion, ENT_QUOTES, 'UTF-8') ?>" defer></script>
+  <script<?= csp_nonce_attr() ?> src="<?= htmlspecialchars(assetUrl('tinymce/tinymce.min.js'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($appVersion, ENT_QUOTES, 'UTF-8') ?>" defer></script>
+  <script<?= csp_nonce_attr() ?>>
 
     function escapeHtml(value) {
       const div = document.createElement('div');
@@ -1057,7 +1062,7 @@ $htmlLang = substr($currentLocale, 0, 2);
           }
 
           // Show loading state
-          resultsDiv.innerHTML = `<div class="p-4 text-center"><i class="fas fa-spinner fa-spin text-gray-400"></i> <span class="ml-2 text-sm text-gray-500">${window.__('Ricerca in corso...')}</span></div>`;
+          resultsDiv.innerHTML = `<div class="p-4 text-center"><i class="fas fa-spinner fa-spin text-gray-400"></i> <span class="ml-2 text-sm text-gray-500">${escapeHtml(window.__('Ricerca in corso...'))}</span></div>`;
           resultsDiv.classList.remove('hidden');
 
           searchTimeout = setTimeout(async () => {
@@ -1147,14 +1152,14 @@ $htmlLang = substr($currentLocale, 0, 2);
                 });
               } else {
                 const label = window.__('Nessun risultato trovato per');
-                html = `<div class="p-4 text-center"><i class="fas fa-search text-gray-300 text-2xl mb-2"></i><div class="text-sm text-gray-500 dark:text-gray-400">${label} "<span class="font-medium">${escapeHtml(query)}</span>"</div></div>`;
+                html = `<div class="p-4 text-center"><i class="fas fa-search text-gray-300 text-2xl mb-2"></i><div class="text-sm text-gray-500 dark:text-gray-400">${escapeHtml(label)} "<span class="font-medium">${escapeHtml(query)}</span>"</div></div>`;
               }
 
               resultsDiv.innerHTML = html;
               resultsDiv.classList.remove('hidden');
             } catch (error) {
               console.error('Search error:', error);
-              resultsDiv.innerHTML = `<div class="p-4 text-center text-red-500"><i class="fas fa-exclamation-triangle mr-2"></i>${window.__('Errore durante la ricerca')}</div>`;
+              resultsDiv.innerHTML = `<div class="p-4 text-center text-red-500"><i class="fas fa-exclamation-triangle mr-2"></i>${escapeHtml(window.__('Errore durante la ricerca'))}</div>`;
             }
           }, 300);
         });
@@ -1374,7 +1379,7 @@ $htmlLang = substr($currentLocale, 0, 2);
           }
 
           // Show loading state
-          mobileSearchResults.innerHTML = `<div class="p-4 text-center"><i class="fas fa-spinner fa-spin text-gray-400"></i> <span class="ml-2 text-sm text-gray-500">${window.__('Ricerca in corso...')}</span></div>`;
+          mobileSearchResults.innerHTML = `<div class="p-4 text-center"><i class="fas fa-spinner fa-spin text-gray-400"></i> <span class="ml-2 text-sm text-gray-500">${escapeHtml(window.__('Ricerca in corso...'))}</span></div>`;
           mobileSearchResults.classList.remove('hidden');
 
           mobileSearchTimeout = setTimeout(async () => {
@@ -1460,13 +1465,13 @@ $htmlLang = substr($currentLocale, 0, 2);
                     </a>`;
                 });
               } else {
-                html = `<div class="p-4 text-center text-sm text-gray-500">${window.__('Nessun risultato trovato')}</div>`;
+                html = `<div class="p-4 text-center text-sm text-gray-500">${escapeHtml(window.__('Nessun risultato trovato'))}</div>`;
               }
 
               mobileSearchResults.innerHTML = html;
             } catch (error) {
               console.error('Search error:', error);
-              mobileSearchResults.innerHTML = `<div class="p-4 text-center text-sm text-red-500">${window.__('Errore durante la ricerca')}</div>`;
+              mobileSearchResults.innerHTML = `<div class="p-4 text-center text-sm text-red-500">${escapeHtml(window.__('Errore durante la ricerca'))}</div>`;
             }
           }, 300);
         });
@@ -1537,7 +1542,31 @@ $htmlLang = substr($currentLocale, 0, 2);
             }
 
             const isUnread = !notif.is_read;
-            const hasLink = Boolean(notif.link) && !/^javascript:/i.test(String(notif.link));
+            // Allow-list, not a javascript: deny-list: a leading space or
+            // control character would slip past /^javascript:/ and still run
+            // once assigned to window.location. Only an app-relative path
+            // ('/x', never '//host') or an absolute http(s) URL on
+            // this same origin is followed.
+            const isSafeNotificationLink = (value) => {
+              const s = String(value || '');
+              // Browsers drop tabs/newlines inside a URL ('/\t/evil' becomes
+              // '//evil') and read '\\' as '/': refuse any of them outright.
+              if (/[\u0000-\u0020\u007F\\]/.test(s)) {
+                return false;
+              }
+              if (s.startsWith('/')) {
+                return !s.startsWith('//');
+              }
+              if (!/^https?:\/\//i.test(s)) {
+                return false;
+              }
+              try {
+                return new URL(s).origin === window.location.origin;
+              } catch (e) {
+                return false;
+              }
+            };
+            const hasLink = Boolean(notif.link) && isSafeNotificationLink(notif.link);
             const basePath = window.BASE_PATH || '';
             const link = String(notif.link || '');
             const rawLink = hasLink
@@ -1560,7 +1589,7 @@ $htmlLang = substr($currentLocale, 0, 2);
                     <i class="${iconClass}"></i>
                   </div>
                   <div class="flex-1 min-w-0">
-                    <div class="text-xs text-gray-500 font-medium uppercase tracking-wide mb-2">${notif.relative_time || formatNotificationTime(notif.created_at)}</div>
+                    <div class="text-xs text-gray-500 font-medium uppercase tracking-wide mb-2">${escapeHtml(notif.relative_time || formatNotificationTime(notif.created_at))}</div>
                     <p class="text-sm font-semibold text-gray-900 group-hover:text-gray-800 transition-colors">
                       ${escapeHtml(notif.title || '')}
                       ${isUnread ? '<span class="ml-1 inline-block w-2 h-2 bg-blue-500 rounded-full"></span>' : ''}
@@ -1649,6 +1678,7 @@ $htmlLang = substr($currentLocale, 0, 2);
         console.error('Error marking notifications as read:', error);
       }
     }
+    window.PinakesActions.register('admin-notifications-read-all', () => markAllNotificationsAsRead());
 
     // Format notification time
     function formatNotificationTime(dateString) {
@@ -1959,7 +1989,7 @@ $htmlLang = substr($currentLocale, 0, 2);
     }
   </script>
 
-  <script>
+  <script<?= csp_nonce_attr() ?>>
     (function () {
       const nativeAlert = typeof window.alert === 'function' ? window.alert.bind(window) : null;
       const alertTitle = <?= json_encode(__('Avviso'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
@@ -2114,7 +2144,7 @@ $htmlLang = substr($currentLocale, 0, 2);
   </div>
 </div>
 
-<script>
+<script<?= csp_nonce_attr() ?>>
 // .pk-stack-table (workspace-ui.css): each cell carries its column name as
 // text, shown above the value when the table stacks as cards on a phone. Rows added later
 // by the page (live scans, paged lists) are labelled as they arrive.

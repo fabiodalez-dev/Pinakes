@@ -98,7 +98,8 @@ final class SessionPolicy
 
         return isset($cookies[session_name()])
             || isset($cookies['remember_token'])
-            || isset($cookies['csrf_login']);
+            || isset($cookies[\App\Middleware\CsrfMiddleware::LOGIN_COOKIE_HTTP])
+            || isset($cookies[\App\Middleware\CsrfMiddleware::LOGIN_COOKIE_HTTPS]);
     }
 
     /**

@@ -10,13 +10,33 @@ use App\Support\HtmlHelper;
 
 class SearchController
 {
-    /** Public AJAX safeguards; the paginated catalog search remains uncapped. */
+    /**
+     * Public AJAX safeguards. SearchIndexBuilder also caps every query at
+     * ExactSearch::MAX_FILTER_TERMS terms, whichever is lower wins.
+     */
     private const AJAX_RELEVANCE_WORD_LIMIT = 24;
     private const AJAX_BOOK_RESULT_LIMIT = 50;
 
+    /** Longest search text these anonymous endpoints accept (rest is dropped). */
+    private const MAX_QUERY_CHARS = 200;
+
+    /**
+     * The `q` parameter, trimmed and cut to MAX_QUERY_CHARS: these endpoints
+     * are public and every extra word costs SQL on the shared database.
+     */
+    private static function searchQuery(Request $request): string
+    {
+        $raw = $request->getQueryParams()['q'] ?? '';
+        if (!is_scalar($raw)) {
+            return '';
+        }
+
+        return trim(mb_substr(trim((string) $raw), 0, self::MAX_QUERY_CHARS, 'UTF-8'));
+    }
+
     public function authors(Request $request, Response $response, mysqli $db): Response
     {
-        $q = trim((string)($request->getQueryParams()['q'] ?? ''));
+        $q = self::searchQuery($request);
         $rows = [];
         // Display name = "Pseudonimo (Nome)" when a pseudonym is set (issue #237),
         // and each query word may match either the real name or the pseudonym so an
@@ -27,9 +47,16 @@ class SearchController
         // otherwise create a second author literally called "Pen name (Real
         // name)". Pickers that bind on the id simply ignore the extra key.
         // Life dates tell homonyms apart in the staff article-author picker, but
-        // this route is public: only operator sessions (re-validated by
-        // SessionRoleRefreshMiddleware) receive them, as on the admin-only /api/autori.
-        $lifeDates = $this->isOperatorSession($request) ? ', data_nascita, data_morte' : '';
+        // this route is public: only cataloguing sessions (operators, or a
+        // custom role with 'catalog.manage', re-validated by
+        // SessionRoleRefreshMiddleware) receive them, as on /api/autori.
+        $isOperator = $this->isCatalogueSession($request);
+        $lifeDates = $isOperator ? ', data_nascita, data_morte' : '';
+        // The route is public. Only an operator session (the staff book form's
+        // Choices.js initial load) gets the unbounded list; anyone else gets a
+        // capped result set, and nothing at all for an empty query — the same
+        // as /api/search/editori — instead of the whole authority file.
+        $limitSql = $isOperator ? '' : ' LIMIT ' . self::AJAX_BOOK_RESULT_LIMIT;
         $select = "id, nome{$lifeDates}, {$label}";
         // Every word must match (AND); a quoted group is matched with its
         // exact spelling, accents included (#501).
@@ -39,7 +66,7 @@ class SearchController
             $params = $cond['params'];
             $types = $cond['types'];
             $sql = "SELECT {$select} FROM autori WHERE " . implode(' AND ', $conditions)
-                . " ORDER BY " . \App\Support\AuthorName::preferredSql('autori');
+                . " ORDER BY " . \App\Support\AuthorName::preferredSql('autori') . $limitSql;
             $stmt = $db->prepare($sql);
             $stmt->bind_param($types, ...$params);
             $stmt->execute();
@@ -49,8 +76,8 @@ class SearchController
                 $r['nome'] = HtmlHelper::decode((string) $r['nome']);
                 $rows[] = $r;
             }
-        } else {
-            // Return all authors (for Choices.js initial load)
+        } elseif ($isOperator) {
+            // Return all authors (for the cataloguing Choices.js initial load)
             $res = $db->query("SELECT {$select} FROM autori ORDER BY " . \App\Support\AuthorName::preferredSql('autori'));
             while ($r = $res->fetch_assoc()) {
                 $r['label'] = HtmlHelper::decode($r['label']);
@@ -64,7 +91,7 @@ class SearchController
 
     public function publishers(Request $request, Response $response, mysqli $db): Response
     {
-        $q = trim((string)($request->getQueryParams()['q'] ?? ''));
+        $q = self::searchQuery($request);
         $rows = [];
         // Every word must match (AND); a quoted group is matched with its
         // exact spelling, accents included (#501).
@@ -89,7 +116,7 @@ class SearchController
 
     public function users(Request $request, Response $response, mysqli $db): Response
     {
-        $q = trim((string)($request->getQueryParams()['q'] ?? ''));
+        $q = self::searchQuery($request);
         $rows=[];
         // Quoted value = exact spelling, accents included (#501). The full
         // name in either order is searched too, so "Mario Rossi" — what the
@@ -127,7 +154,7 @@ class SearchController
 
     public function books(Request $request, Response $response, mysqli $db): Response
     {
-        $q = trim((string)($request->getQueryParams()['q'] ?? ''));
+        $q = self::searchQuery($request);
         $rows=[];
         $cond = \App\Support\SearchIndexBuilder::buildSearchCondition($db, 'l.search_index', $q);
         if ($cond !== null) {
@@ -195,6 +222,16 @@ class SearchController
     }
 
     /**
+     * Operators and custom-role cataloguers: the book form's author picker
+     * needs the full list for them, or they create duplicate authors.
+     */
+    private function isCatalogueSession(Request $request): bool
+    {
+        return $this->isOperatorSession($request)
+            || $request->getAttribute(\App\Middleware\SessionRoleRefreshMiddleware::CATALOG_ATTRIBUTE, false) === true;
+    }
+
+    /**
      * Is the current session an operator one (admin or staff)?
      *
      * /api/search/unified takes no AUTHORISING middleware — unlike its sibling
@@ -230,7 +267,7 @@ class SearchController
 
     public function unifiedSearch(Request $request, Response $response, mysqli $db): Response
     {
-        $q = trim((string)($request->getQueryParams()['q'] ?? ''));
+        $q = self::searchQuery($request);
         $results = [];
 
         if ($q !== '') {
@@ -273,7 +310,7 @@ class SearchController
 
     public function searchPreview(Request $request, Response $response, mysqli $db): Response
     {
-        $q = trim((string)($request->getQueryParams()['q'] ?? ''));
+        $q = self::searchQuery($request);
         $results = [];
 
         if ($q !== '') {
@@ -607,7 +644,7 @@ class SearchController
 
     public function genres(Request $request, Response $response, mysqli $db): Response
     {
-        $q = trim((string)($request->getQueryParams()['q'] ?? ''));
+        $q = self::searchQuery($request);
         $rows=[];
         $search = \App\Support\ExactSearch::filterCondition(['nome'], $q);
         if ($search !== null) {
@@ -626,7 +663,7 @@ class SearchController
 
     public function locations(Request $request, Response $response, mysqli $db): Response
     {
-        $q = trim((string)($request->getQueryParams()['q'] ?? ''));
+        $q = self::searchQuery($request);
         $rows = [];
         $search = \App\Support\ExactSearch::filterCondition(['s.nome', 's.codice', 'CAST(m.numero_livello AS CHAR)'], $q);
         if ($search !== null) {

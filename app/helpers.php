@@ -75,6 +75,31 @@ if (!function_exists('url')) {
     }
 }
 
+if (!function_exists('csp_nonce')) {
+    /**
+     * The Content-Security-Policy nonce of the current request.
+     * For JS that needs it as a value (e.g. `script.nonce = ...` via
+     * json_encode). In HTML start tags use csp_nonce_attr() instead.
+     */
+    function csp_nonce(): string
+    {
+        return App\Support\ContentSecurityPolicy::requestNonce();
+    }
+}
+
+if (!function_exists('csp_nonce_attr')) {
+    /**
+     * ` nonce="..."`, already escaped, for the app's own inline and external
+     * <script>/<style> start tags: `<script<?= csp_nonce_attr() ?>>`.
+     * Never stamp it on markup that comes from stored content: a tag without
+     * the nonce is exactly what the CSP is there to block.
+     */
+    function csp_nonce_attr(): string
+    {
+        return App\Support\ContentSecurityPolicy::nonceAttribute();
+    }
+}
+
 if (!function_exists('route_path')) {
     /**
      * Resolve a localized route path using RouteTranslator
@@ -208,6 +233,19 @@ if (!function_exists('book_path')) {
         }
 
         return '/' . $authorSlug . '/' . $bookSlug . '/' . $bookId;
+    }
+}
+
+if (!function_exists('flash_deferred')) {
+    /**
+     * True on a page load that fetch() made while following a form's redirect
+     * (the book form sends X-Pinakes-Fetch-Submit). Nobody sees that load, so
+     * the flash messages stay in the session for the page the browser opens
+     * next instead of being shown and dropped here.
+     */
+    function flash_deferred(): bool
+    {
+        return ($_SERVER['HTTP_X_PINAKES_FETCH_SUBMIT'] ?? '') === '1';
     }
 }
 

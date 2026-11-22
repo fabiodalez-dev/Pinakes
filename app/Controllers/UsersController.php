@@ -389,6 +389,19 @@ class UsersController
         }
         if (!\App\Support\UserRoleAssignment::canEdit($original)) { return $response->withStatus(403); }
 
+        // Replacing one's OWN password here must prove the current one, exactly as
+        // the profile's change-password form does: an unattended or hijacked operator
+        // session must not be able to lock the owner out of the account.
+        $passwordChanged = !empty($data['password']);
+        if ($passwordChanged && $currentUserId === $id) {
+            $currentPassword = (string) ($data['current_password'] ?? '');
+            $storedHash = (string) ($original['password'] ?? '');
+            if ($currentPassword === '' || $storedHash === '' || !password_verify($currentPassword, $storedHash)) {
+                $_SESSION['error_message'] = __('Per cambiare la tua password inserisci la password attuale, oppure usa la pagina del tuo profilo.');
+                return $response->withHeader('Location', url('/admin/users/edit/' . $id . '?error=wrong_current_password'))->withStatus(302);
+            }
+        }
+
         $nome = trim(strip_tags((string) ($data['nome'] ?? '')));
         $cognome = trim(strip_tags((string) ($data['cognome'] ?? '')));
         $email = trim(strip_tags((string) ($data['email'] ?? '')));
@@ -516,7 +529,7 @@ class UsersController
         $dataTokenReset = $original['data_token_reset'] ?? null;
 
         $sendSetupEmail = false;
-        if (!empty($data['password'])) {
+        if ($passwordChanged) {
             $newPassword = (string) $data['password'];
 
             // Validate password complexity (max 72 — bcrypt silently truncates beyond)
@@ -537,6 +550,14 @@ class UsersController
             }
 
             $passwordHash = password_hash($newPassword, PASSWORD_DEFAULT);
+            $tokenReset = null;
+            $dataTokenReset = null;
+        }
+
+        // An outstanding password-reset link was mailed to the PREVIOUS
+        // address and stays valid for up to 2 hours: once the administrator
+        // moves the account to another mailbox, that link must stop working.
+        if (strtolower(trim((string) ($original['email'] ?? ''))) !== strtolower(trim((string) $email))) {
             $tokenReset = null;
             $dataTokenReset = null;
         }
@@ -586,10 +607,19 @@ class UsersController
             );
             // A failed type assignment must also undo the account fields,
             // password and privileges saved by this same form.
-            \App\Support\DbAtomic::run($db, static function () use ($stmt, $db, $id, $patronTypeId, $originalPatronType): void {
+            // A new password ends every persistent credential the old one
+            // authorised (remember-me sessions, Mobile API tokens, calendar feed),
+            // in the same unit as the hash write, like the profile change and the
+            // email reset do (CredentialRevoker). Only the browser of an operator
+            // editing their own account keeps its session.
+            $selfEdit = $currentUserId === $id;
+            \App\Support\DbAtomic::run($db, static function () use ($stmt, $db, $id, $patronTypeId, $originalPatronType, $passwordChanged, $selfEdit): void {
                 $stmt->execute();
                 if ($patronTypeId !== $originalPatronType) {
                     \App\Support\PatronTypeAssignment::save($db, $id, $patronTypeId);
+                }
+                if ($passwordChanged) {
+                    \App\Support\CredentialRevoker::revokeAll($db, $id, $selfEdit);
                 }
             }, 'Users.update');
         } catch (\Throwable $e) {
@@ -728,7 +758,10 @@ class UsersController
 
             if ($loanResult['count'] > 0) {
                 // Cannot delete user with loan history - mark as suspended instead
-                $updateStmt = $db->prepare("UPDATE utenti SET stato = 'sospeso', note_utente = CONCAT(IFNULL(note_utente, ''), '\n[ELIMINATO IL ', NOW(), ']') WHERE id = ?");
+                // The pending email-verification token goes too, as in
+                // update(): a stale verification link must not be able to
+                // re-activate an account the administrator has "deleted".
+                $updateStmt = $db->prepare("UPDATE utenti SET stato = 'sospeso', token_verifica_email = NULL, data_token_verifica = NULL, note_utente = CONCAT(IFNULL(note_utente, ''), '\n[ELIMINATO IL ', NOW(), ']') WHERE id = ?");
                 $updateStmt->bind_param("i", $id);
                 $updateStmt->execute();
                 $updateStmt->close();
@@ -794,6 +827,11 @@ class UsersController
         // Leftovers of earlier photos whose unlink failed go with the account.
         \App\Support\PatronPhoto::sweepOrphans($id, null);
 
+        // The account's approved reviews (and the reviewer name they print)
+        // are gone with it: drop the cached public reviews block instead of
+        // letting it show the name until the TTL runs out.
+        \App\Support\ContentCache::reviewsChanged();
+
         // Audit logging for user deletion
         \App\Support\SecureLogger::info('User deleted', [
             'deleted_user_id' => $id,
@@ -826,6 +864,8 @@ class UsersController
         // record and loan history. A custom users manager sees only the accounts it may edit.
         if (!in_array($_SESSION['user']['tipo_utente'] ?? '', ['admin', 'staff'], true)
             && !\App\Support\UserRoleAssignment::canEdit($utente)) { return $response->withStatus(403); }
+        // The approval forms are shown only to someone the handlers will accept.
+        $canChangeAccountState = self::canChangeAccountState($utente);
 
         $customFieldValues = \App\Support\RegistrationFields::labelledValuesForUser($db, $id);
 
@@ -965,10 +1005,20 @@ class UsersController
             return $response->withHeader('Location', url('/admin/users?error=user_not_found'))->withStatus(302);
         }
 
-        if (!in_array($_SESSION['user']['tipo_utente'] ?? '', ['admin', 'staff'], true)
-            && !\App\Support\UserRoleAssignment::canEdit($user)) { return $response->withStatus(403); }
+        if (!self::canChangeAccountState($user)) { return $response->withStatus(403); }
+        $detailsUrl = url("/admin/users/details/{$userId}");
         if ($user['stato'] !== 'sospeso') {
-            return $response->withHeader('Location', url("/admin/users/details/{$userId}?error=not_suspended"))->withStatus(302);
+            return $response->withHeader('Location', $detailsUrl . '?error=not_suspended')->withStatus(302);
+        }
+
+        // The activation email carries a token link, which may only be built on
+        // a host the operator configured (TrustedLink). Without one the email
+        // would be suppressed after the account had already left 'sospeso',
+        // leaving a reader who can neither verify nor be activated directly.
+        // So refuse before touching the account: it stays 'sospeso' and
+        // "Attiva utente" remains available.
+        if (\App\Support\TrustedLink::build('/') === null) {
+            return $response->withHeader('Location', url("/admin/users/details/{$userId}?error=no_trusted_host"))->withStatus(302);
         }
 
         // Genera nuovo token di verifica (valido 7 giorni)
@@ -976,35 +1026,89 @@ class UsersController
         $db->query("SET SESSION time_zone = '+00:00'");
         $tokenExpiry = gmdate('Y-m-d H:i:s', time() + (7 * 24 * 60 * 60)); // 7 giorni
 
-        // Aggiorna utente: stato = attivo, nuovo token verifica
+        $previousToken = $user['token_verifica_email'];
+        $previousExpiry = $user['data_token_verifica'];
+        $previousVerified = $user['email_verificata'];
+        $previousRole = $user['tipo_utente'];
+        // canChangeAccountState() also decided on ruolo_id and accesso_digitale.
+        $previousStaffRole = $user['ruolo_id'] === null ? null : (int) $user['ruolo_id'];
+        $previousDigital = (int) ($user['accesso_digitale'] ?? 0);
+        // Claim this approval only while the account still matches what was read.
         $stmt = $db->prepare("
             UPDATE utenti
             SET stato = 'attivo',
                 token_verifica_email = ?,
                 data_token_verifica = ?,
                 updated_at = NOW()
-            WHERE id = ?
+            WHERE id = ? AND stato = 'sospeso' AND tipo_utente <=> ?
+                AND ruolo_id <=> ? AND accesso_digitale = ?
+                AND email_verificata <=> ? AND token_verifica_email <=> ? AND data_token_verifica <=> ?
         ");
-        $stmt->bind_param('ssi', $token, $tokenExpiry, $userId);
+        $stmt->bind_param('ssisiiiss', $token, $tokenExpiry, $userId, $previousRole, $previousStaffRole, $previousDigital, $previousVerified, $previousToken, $previousExpiry);
 
-        if (!$stmt->execute()) {
-            $stmt->close();
-            return $response->withHeader('Location', url("/admin/users/details/{$userId}?error=db_error"))->withStatus(302);
-        }
+        $saved = $stmt->execute();
+        $claimed = $stmt->affected_rows === 1;
         $stmt->close();
-
-        // Card validity from the patron type, when it sets one.
-        \App\Support\PatronTypeAssignment::applyCardDurationOnApproval($db, $userId);
+        if (!$saved || !$claimed) {
+            // The row was read as suspended a moment ago; a claim that matches
+            // nothing means another request changed it in between.
+            return $response->withHeader('Location', $detailsUrl . ($saved ? '?error=state_changed' : '?error=db_error'))->withStatus(302);
+        }
 
         // Invia email di attivazione con link di verifica
         $notifier = new NotificationService($db);
-        $notifier->sendUserActivationWithVerification($userId, $token);
+        $emailSent = $notifier->sendUserActivationWithVerification($userId, $token);
 
-        // Redirect con messaggio di successo
-        return $response->withHeader(
-            'Location',
-            "/admin/users/details/{$userId}?success=approved_email_sent"
-        )->withStatus(302);
+        if (!$emailSent) {
+            // Restore any earlier verification link. Only undo the change
+            // while this attempt still owns the token and verification state.
+            $rollbackState = (int) $previousVerified === 0 ? 'sospeso' : 'attivo';
+            try {
+                $revert = $db->prepare("
+                    UPDATE utenti
+                    SET stato = ?,
+                        token_verifica_email = ?,
+                        data_token_verifica = ?,
+                        updated_at = NOW()
+                    WHERE id = ? AND stato = 'attivo' AND email_verificata <=> ?
+                        AND token_verifica_email = ?
+                ");
+                $revert->bind_param('sssiis', $rollbackState, $previousToken, $previousExpiry, $userId, $previousVerified, $token);
+                $restored = $revert->execute();
+                $stillOwned = $revert->affected_rows === 1;
+                $revert->close();
+            } catch (\Throwable $e) {
+                \App\Support\SecureLogger::error('[Users] could not restore the previous activation state', [
+                    'user_id' => $userId,
+                    'error' => $e->getMessage(),
+                ]);
+                $restored = false;
+                $stillOwned = false;
+            }
+            if (!$restored && $rollbackState === 'sospeso') {
+                // The undo itself failed: the account is left active with an
+                // unverified address and a link that was never mailed. Neither
+                // approval action can be retried from here (both require
+                // 'sospeso'), so the admin must be told exactly that.
+                \App\Support\SecureLogger::error('[Users] approval left active and unverified: the verification email failed and the approval could not be undone', [
+                    'user_id' => $userId,
+                ]);
+                return $response->withHeader('Location', $detailsUrl . '?error=approval_rollback_failed')->withStatus(302);
+            }
+            if (!$restored || !$stillOwned) {
+                // Zero rows matched: another request changed the account while
+                // the email was being sent. It is neither "not suspended" nor an
+                // approval of ours, so card validity is left alone too.
+                return $response->withHeader('Location', $detailsUrl . ($restored ? '?error=state_changed' : '?error=db_error'))->withStatus(302);
+            }
+            if ($rollbackState === 'sospeso') {
+                return $response->withHeader('Location', $detailsUrl . '?error=approval_email_failed')->withStatus(302);
+            }
+        }
+
+        // Only a completed approval changes the patron's card validity.
+        \App\Support\PatronTypeAssignment::applyCardDurationOnApproval($db, $userId);
+        return $response->withHeader('Location', $detailsUrl . ($emailSent ? '?success=approved_email_sent' : '?success=approved_email_not_sent'))->withStatus(302);
     }
 
     /**
@@ -1030,13 +1134,19 @@ class UsersController
             return $response->withHeader('Location', url('/admin/users?error=user_not_found'))->withStatus(302);
         }
 
-        if (!in_array($_SESSION['user']['tipo_utente'] ?? '', ['admin', 'staff'], true)
-            && !\App\Support\UserRoleAssignment::canEdit($user)) { return $response->withStatus(403); }
+        if (!self::canChangeAccountState($user)) { return $response->withStatus(403); }
+        $detailsUrl = url("/admin/users/details/{$userId}");
         if ($user['stato'] !== 'sospeso') {
-            return $response->withHeader('Location', url("/admin/users/details/{$userId}?error=not_suspended"))->withStatus(302);
+            return $response->withHeader('Location', $detailsUrl . '?error=not_suspended')->withStatus(302);
         }
 
-        // Attiva direttamente: stato = attivo, email_verificata = 1, rimuovi token
+        // Attiva direttamente: stato = attivo, email_verificata = 1, rimuovi token.
+        // Only while the account is still the suspended one read above (same
+        // compare-and-set as approveAndSendActivation): a concurrent approval or
+        // role change in between must not be overwritten.
+        $previousRole = $user['tipo_utente'];
+        $previousStaffRole = $user['ruolo_id'] === null ? null : (int) $user['ruolo_id'];
+        $previousDigital = (int) ($user['accesso_digitale'] ?? 0);
         $stmt = $db->prepare("
             UPDATE utenti
             SET stato = 'attivo',
@@ -1044,15 +1154,17 @@ class UsersController
                 token_verifica_email = NULL,
                 data_token_verifica = NULL,
                 updated_at = NOW()
-            WHERE id = ?
+            WHERE id = ? AND stato = 'sospeso' AND tipo_utente <=> ?
+                AND ruolo_id <=> ? AND accesso_digitale = ?
         ");
-        $stmt->bind_param('i', $userId);
+        $stmt->bind_param('isii', $userId, $previousRole, $previousStaffRole, $previousDigital);
 
-        if (!$stmt->execute()) {
-            $stmt->close();
-            return $response->withHeader('Location', url("/admin/users/details/{$userId}?error=db_error"))->withStatus(302);
-        }
+        $saved = $stmt->execute();
+        $claimed = $stmt->affected_rows === 1;
         $stmt->close();
+        if (!$saved || !$claimed) {
+            return $response->withHeader('Location', $detailsUrl . ($saved ? '?error=state_changed' : '?error=db_error'))->withStatus(302);
+        }
 
         // Card validity from the patron type, when it sets one.
         \App\Support\PatronTypeAssignment::applyCardDurationOnApproval($db, $userId);
@@ -1062,10 +1174,7 @@ class UsersController
         $notifier->sendUserAccountApproved($userId);
 
         // Redirect con messaggio di successo
-        return $response->withHeader(
-            'Location',
-            "/admin/users/details/{$userId}?success=activated_directly"
-        )->withStatus(302);
+        return $response->withHeader('Location', $detailsUrl . '?success=activated_directly')->withStatus(302);
     }
 
     /**
@@ -1085,12 +1194,18 @@ class UsersController
         if (!$user) {
             return $response->withHeader('Location', url('/admin/users?error=user_not_found'))->withStatus(302);
         }
-        if (!in_array($_SESSION['user']['tipo_utente'] ?? '', ['admin', 'staff'], true)
-            && !\App\Support\UserRoleAssignment::canEdit($user)) {
+        // An operator account (admin, staff) holds no library card: there is
+        // nothing to renew and nothing is written, so every caller gets the same
+        // "not renewable" answer (the Mobile API maps it to 409 card_not_renewable).
+        if (!in_array((string) ($user['tipo_utente'] ?? ''), ['standard', 'premium'], true)) {
+            $_SESSION['error_message'] = __('Impossibile rinnovare la tessera di questo account.');
+            return $response->withHeader('Location', url('/admin/users/details/' . $id))->withStatus(302);
+        }
+        if (!self::canChangeAccountState($user)) {
             return $response->withStatus(403);
         }
         try {
-            $expiry = \App\Support\PatronTypeAssignment::renewCard($db, $id);
+            $expiry = \App\Support\PatronTypeAssignment::renewCard($db, $id, self::canChangeAccountState(...));
         } catch (\Throwable $e) {
             \App\Support\SecureLogger::error('[Users] card renewal failed for user ' . $id, ['error' => $e->getMessage()]);
             $expiry = null;
@@ -1282,6 +1397,37 @@ class UsersController
             ->withHeader('Pragma', 'no-cache')
             ->withHeader('Expires', '0')
             ->withBody(new \Slim\Psr7\Stream($stream));
+    }
+
+    /**
+     * May the current user change the activation state of $target — approve it,
+     * activate it, renew its card?
+     *
+     * Administrators may act on any account. Everyone else who reaches these
+     * handlers (Staff, and custom roles holding users.manage) may act only on
+     * reader accounts. An operator account in 'sospeso' is usually an
+     * administrator's lockout, and lifting it would hand the account back to
+     * whoever holds its password; update() and delete() already reserve every
+     * other change to an operator account to administrators.
+     *
+     * "Operator" is UserRoleAssignment::canEdit()'s definition: a standard or
+     * premium account an administrator gave a custom role (ruolo_id) or
+     * digital access is an operator too, so Staff may not lift its suspension
+     * either.
+     */
+    private static function canChangeAccountState(array $target): bool
+    {
+        $callerRole = (string) ($_SESSION['user']['tipo_utente'] ?? '');
+        if ($callerRole === 'admin') {
+            return true;
+        }
+        if (!in_array($target['tipo_utente'] ?? '', ['standard', 'premium'], true)) {
+            return false;
+        }
+        if ($callerRole === 'staff') {
+            return empty($target['ruolo_id']) && empty($target['accesso_digitale']);
+        }
+        return \App\Support\UserRoleAssignment::canEdit($target);
     }
 
     private function guardAdminStaff(Response $response): ?Response

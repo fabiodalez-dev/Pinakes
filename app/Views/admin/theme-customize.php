@@ -175,7 +175,7 @@ unset($workspaceHeader);
                                            class="flex-1 px-3 py-2 border rounded-lg bg-gray-50 font-mono text-sm"
                                            readonly>
                                     <button type="button"
-                                            onclick="autoDetectButtonTextColor()"
+                                            data-pk-action="theme-auto-button-text"
                                             class="btn-icon btn-secondary px-3 py-2 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg"
                                             title="<?= htmlspecialchars(__("Auto"), ENT_QUOTES, 'UTF-8') ?>" aria-label="<?= htmlspecialchars(__("Auto"), ENT_QUOTES, 'UTF-8') ?>">
                                         <i class="fas fa-magic"></i>
@@ -269,7 +269,7 @@ unset($workspaceHeader);
                             </button>
 
                             <button type="button"
-                                    onclick="resetToDefaults()"
+                                    data-pk-action="theme-reset-defaults"
                                     class="w-full px-6 py-3 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 font-medium">
                                 <i class="fas fa-undo mr-2"></i>
                                 <?= __("Ripristina") ?>
@@ -282,7 +282,7 @@ unset($workspaceHeader);
     </div>
 </div>
 
-<script>
+<script<?= csp_nonce_attr() ?>>
 document.querySelectorAll('input[type="color"]').forEach(input => {
     const id = input.id;
     const textInput = document.getElementById(id + '-text') ||
@@ -345,16 +345,18 @@ function checkContrast() {
         const warning = document.getElementById('contrast-warning');
         const info = document.getElementById('contrast-info');
 
-        let html = `<p><strong><?= __("Contrasto") ?>:</strong> ${ratio}:1</p>`;
+        // Translations are emitted as HTML-escaped JS strings: raw PHP inside these
+        // literals would let a translated quote or backtick end the string and run.
+        let html = `<p><strong>${<?= json_encode(htmlspecialchars(__("Contrasto"), ENT_QUOTES, 'UTF-8'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>}:</strong> ${ratio}:1</p>`;
 
         if (passAA) {
-            html += '<p class="text-green-700 font-medium"><i class="fas fa-check-circle mr-1"></i> <?= __("WCAG AA Conforme") ?></p>';
+            html += '<p class="text-green-700 font-medium"><i class="fas fa-check-circle mr-1"></i> ' + <?= json_encode(htmlspecialchars(__("WCAG AA Conforme"), ENT_QUOTES, 'UTF-8'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?> + '</p>';
             warning.className = 'bg-green-50 border border-green-200 rounded-lg p-4';
         } else if (ratio >= 3.0) {
-            html += '<p class="text-yellow-700 font-medium"><?= __("AA Testo Grande") ?></p>';
+            html += '<p class="text-yellow-700 font-medium">' + <?= json_encode(htmlspecialchars(__("AA Testo Grande"), ENT_QUOTES, 'UTF-8'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?> + '</p>';
             warning.className = 'bg-yellow-50 border border-yellow-200 rounded-lg p-4';
         } else {
-            html += '<p class="text-red-700 font-medium"><i class="fas fa-times-circle mr-1"></i> <?= __("Insufficiente") ?></p>';
+            html += '<p class="text-red-700 font-medium"><i class="fas fa-times-circle mr-1"></i> ' + <?= json_encode(htmlspecialchars(__("Insufficiente"), ENT_QUOTES, 'UTF-8'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?> + '</p>';
             warning.className = 'bg-red-50 border border-red-200 rounded-lg p-4';
         }
 
@@ -423,4 +425,8 @@ function resetToDefaults() {
 }
 
 checkContrast();
+
+// Delegated actions (CSP script-src-attr 'none': no inline on* attributes).
+PinakesActions.register('theme-auto-button-text', () => autoDetectButtonTextColor());
+PinakesActions.register('theme-reset-defaults', () => resetToDefaults());
 </script>

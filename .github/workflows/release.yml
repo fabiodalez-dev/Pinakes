@@ -154,6 +154,9 @@ jobs:
     needs: build
     runs-on: ubuntu-24.04
     timeout-minutes: 15
+    # The "release" environment only admits refs/tags/v* deployments, so its
+    # secrets and this job's write token are unreachable from any other ref.
+    environment: release
     permissions:
       contents: write # Create the GitHub Release and upload its assets.
       id-token: write # Sign the artifact provenance with GitHub OIDC.
@@ -212,7 +215,16 @@ jobs:
           if [[ "$TAG_NAME" == *-* ]]; then
             release_flags+=(--prerelease)
           fi
-          gh release create "$TAG_NAME" "${assets[@]}" "${release_flags[@]}" --repo "$GITHUB_REPOSITORY"
+          # Remember exactly which draft this run created: resolving it later by
+          # tag name could pick another run's draft for the same tag.
+          draft_url=$(gh release create "$TAG_NAME" "${assets[@]}" "${release_flags[@]}" --repo "$GITHUB_REPOSITORY" | tail -n 1)
+          draft_id=$(gh api "repos/${GITHUB_REPOSITORY}/releases?per_page=100" --paginate \
+            --jq ".[] | select(.draft == true and .html_url == \"${draft_url}\") | .id")
+          test "$(printf '%s\n' "$draft_id" | grep -c .)" = "1" || {
+            echo "Could not identify the draft this run created ($draft_url)" >&2
+            exit 1
+          }
+          echo "RELEASE_DRAFT_ID=$draft_id" >> "$GITHUB_ENV"
           resolved_tag_sha=$(gh api "repos/${GITHUB_REPOSITORY}/commits/${TAG_NAME}" --jq '.sha')
           test "$resolved_tag_sha" = "$GITHUB_SHA" || {
             echo "Release tag moved during draft creation: $resolved_tag_sha != $GITHUB_SHA" >&2
@@ -230,10 +242,14 @@ jobs:
             echo "Release tag moved before verification: $resolved_tag_sha != $GITHUB_SHA" >&2
             exit 1
           }
-          release_id=$(gh api "repos/${GITHUB_REPOSITORY}/releases?per_page=100" \
-            --jq ".[] | select(.tag_name == \"${TAG_NAME}\" and .draft == true) | .id" | head -n 1)
+          release_id=${RELEASE_DRAFT_ID:-}
           test -n "$release_id" || {
-            echo "Could not resolve the draft release for $TAG_NAME" >&2
+            echo "The draft id recorded at creation is missing for $TAG_NAME" >&2
+            exit 1
+          }
+          draft_state=$(gh api "repos/${GITHUB_REPOSITORY}/releases/${release_id}" --jq '"\(.tag_name) \(.draft)"')
+          test "$draft_state" = "${TAG_NAME} true" || {
+            echo "Release $release_id is no longer the draft for $TAG_NAME ($draft_state)" >&2
             exit 1
           }
 
@@ -293,24 +309,24 @@ jobs:
             }
           done
 
-          publish_flags=(--draft=false)
+          publish_fields=(-F draft=false)
           if [[ "$TAG_NAME" == *-* ]]; then
-            publish_flags+=(--prerelease)
+            publish_fields+=(-F prerelease=true -f make_latest=false)
           else
-            publish_flags+=(--latest)
+            publish_fields+=(-F prerelease=false -f make_latest=true)
           fi
           resolved_tag_sha=$(gh api "repos/${GITHUB_REPOSITORY}/commits/${TAG_NAME}" --jq '.sha')
           test "$resolved_tag_sha" = "$GITHUB_SHA" || {
             echo "Release tag moved before publication: $resolved_tag_sha != $GITHUB_SHA" >&2
             exit 1
           }
-          gh release edit "$TAG_NAME" "${publish_flags[@]}" --repo "$GITHUB_REPOSITORY"
+          gh api -X PATCH "repos/${GITHUB_REPOSITORY}/releases/${release_id}" "${publish_fields[@]}" >/dev/null
 
           # Digest checks are only a point-in-time guarantee unless GitHub locks
           # the published release. create-release.sh checks the repository policy
           # before pushing the tag; this postcondition also protects direct tag
           # pushes and fails loudly if the setting was disabled mid-run.
-          published_release=$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${TAG_NAME}")
+          published_release=$(gh api "repos/${GITHUB_REPOSITORY}/releases/${release_id}")
           resolved_tag_sha=$(gh api "repos/${GITHUB_REPOSITORY}/commits/${TAG_NAME}" --jq '.sha')
           if [[ "$resolved_tag_sha" != "$GITHUB_SHA" ]]; then
             echo "Immutable release tag resolves to $resolved_tag_sha, expected $GITHUB_SHA" >&2
@@ -320,7 +336,7 @@ jobs:
             # The normal local entry point prevents this state before tag push.
             # A direct tag push can bypass that preflight, so hide the mutable
             # release again immediately rather than leave it installable.
-            gh release edit "$TAG_NAME" --draft=true --repo "$GITHUB_REPOSITORY" || true
+            gh api -X PATCH "repos/${GITHUB_REPOSITORY}/releases/${release_id}" -F draft=true >/dev/null || true
             echo "Published release $TAG_NAME was not immutable and was returned to draft" >&2
             exit 1
           fi

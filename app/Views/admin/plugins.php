@@ -31,7 +31,7 @@ $workspaceHeader['context'] = (string) ob_get_clean();
 ob_start();
 ?>
 
-            <button onclick="openUploadModal()"
+            <button data-pk-action="plugins-open-upload"
                 class="inline-flex items-center px-6 py-3 bg-gray-800 text-white rounded-xl hover:bg-gray-700 transition-all duration-200 shadow-md hover:shadow-lg">
                 <i class="fas fa-upload mr-2"></i>
                 <?= __("Carica Plugin") ?>
@@ -76,7 +76,7 @@ unset($workspaceHeader);
                     </div>
                     <h3 class="text-lg font-medium text-gray-900 mb-2"><?= __("Nessun plugin installato") ?></h3>
                     <p class="text-gray-600 mb-6"><?= __("Inizia caricando il tuo primo plugin") ?></p>
-                    <button onclick="openUploadModal()"
+                    <button data-pk-action="plugins-open-upload"
                         class="inline-flex items-center px-6 py-3 bg-gray-800 text-white rounded-xl hover:bg-gray-700 transition-all duration-200">
                         <i class="fas fa-upload mr-2"></i>
                         <?= __("Carica Plugin") ?>
@@ -91,6 +91,12 @@ unset($workspaceHeader);
                     $openLibrarySettings = $isOpenLibrary ? ($pluginSettings[$plugin['id']] ?? []) : [];
                     $apiBookScraperSettings = $isApiBookScraper ? ($pluginSettings[$plugin['id']] ?? []) : [];
                     $goodlibSettings = $isGoodLib ? ($pluginSettings[$plugin['id']] ?? []) : [];
+                    // z-lib.gd, the former Z-Library default, no longer serves the
+                    // site: show its replacement, as GoodLibPlugin::RETIRED_DOMAINS does.
+                    $goodlibZlibDomain = strtolower(trim((string) ($goodlibSettings['zlib_domain'] ?? '')));
+                    if ($goodlibZlibDomain === '' || $goodlibZlibDomain === 'z-lib.gd') {
+                        $goodlibZlibDomain = '1lib.sk';
+                    }
                     $hasGoogleKey = $isOpenLibrary && !empty($openLibrarySettings['google_books_api_key_exists'] ?? false);
                     $hasApiConfig = $isApiBookScraper && !empty($apiBookScraperSettings['api_endpoint'] ?? false) && !empty($apiBookScraperSettings['api_key_exists'] ?? false);
                     $isApiEnabled = $isApiBookScraper && !empty($apiBookScraperSettings['enabled'] ?? false);
@@ -214,7 +220,7 @@ unset($workspaceHeader);
                                             data-plugin-name="<?= HtmlHelper::e(__($plugin['display_name'])) ?>"
                                             data-plugin-type="open-library" data-has-key="1"
                                             data-settings-url="<?= htmlspecialchars(url('/admin/plugins/' . (int) $plugin['id'] . '/settings'), ENT_QUOTES, 'UTF-8') ?>"
-                                            onclick="openPluginSettingsModal(this)">
+                                            data-pk-action="plugins-open-settings">
                                             <i class="fas fa-check-circle mr-1"></i>
                                             <?= __("Google Books Configurato") ?>
                                         </button>
@@ -225,7 +231,7 @@ unset($workspaceHeader);
                                             data-plugin-name="<?= HtmlHelper::e(__($plugin['display_name'])) ?>"
                                             data-plugin-type="open-library" data-has-key="0"
                                             data-settings-url="<?= htmlspecialchars(url('/admin/plugins/' . (int) $plugin['id'] . '/settings'), ENT_QUOTES, 'UTF-8') ?>"
-                                            onclick="openPluginSettingsModal(this)">
+                                            data-pk-action="plugins-open-settings">
                                             <i class="fas fa-exclamation-triangle mr-1"></i>
                                             <?= __("Configura Google Books") ?>
                                         </button>
@@ -240,7 +246,7 @@ unset($workspaceHeader);
                                         data-settings-url="<?= htmlspecialchars(url('/admin/plugins') . '/' . (int) $plugin['id'] . '/settings', ENT_QUOTES, 'UTF-8') ?>"
                                         data-api-endpoint="<?= HtmlHelper::e($apiBookScraperSettings['api_endpoint'] ?? '') ?>"
                                         data-timeout="<?= HtmlHelper::e($apiBookScraperSettings['timeout'] ?? '10') ?>"
-                                        data-enabled="<?= $isApiEnabled ? '1' : '0' ?>" onclick="openApiBookScraperModal(this)">
+                                        data-enabled="<?= $isApiEnabled ? '1' : '0' ?>" data-pk-action="plugins-open-api-scraper">
                                         <i class="fas <?= $hasApiConfig ? 'fa-cog' : 'fa-exclamation-triangle' ?> mr-1"></i>
                                         <?= __("Configura API") ?>
                                     </button>
@@ -259,7 +265,7 @@ unset($workspaceHeader);
                                         data-enable-server="<?= ($z39Settings['server_enabled'] ?? 'false') === 'true' ? '1' : '0' ?>"
                                         data-enable-client="<?= ($z39Settings['enable_client'] ?? '0') === '1' ? '1' : '0' ?>"
                                         data-servers="<?= HtmlHelper::e($z39Settings['servers'] ?? '[]') ?>"
-                                        onclick="openZ39ServerModal(this)">
+                                        data-pk-action="plugins-open-z39">
                                         <i class="fas fa-globe mr-1"></i>
                                         <?= __("Configura Z39.50") ?>
                                         <?php if ($z39ServerCount > 0): ?>
@@ -286,8 +292,8 @@ unset($workspaceHeader);
                                         data-goodlib-frontend="<?= ($goodlibSettings['show_frontend'] ?? '1') === '1' ? '1' : '0' ?>"
                                         data-goodlib-admin="<?= ($goodlibSettings['show_admin'] ?? '1') === '1' ? '1' : '0' ?>"
                                         data-goodlib-anna-domain="<?= HtmlHelper::e($goodlibSettings['anna_domain'] ?? 'annas-archive.gd') ?>"
-                                        data-goodlib-zlib-domain="<?= HtmlHelper::e($goodlibSettings['zlib_domain'] ?? 'z-lib.gd') ?>"
-                                        onclick="openGoodLibModal(this)">
+                                        data-goodlib-zlib-domain="<?= htmlspecialchars($goodlibZlibDomain, ENT_QUOTES, 'UTF-8') ?>"
+                                        data-pk-action="plugins-open-goodlib">
                                         <i class="fas fa-cog mr-1"></i>
                                         <?= __("Configura Fonti") ?>
                                     </button>
@@ -308,13 +314,13 @@ unset($workspaceHeader);
                                     </a>
                                 <?php endif; ?>
                                 <?php if ($plugin['is_active']): ?>
-                                    <button onclick="deactivatePlugin(<?= (int)$plugin['id'] ?>)"
+                                    <button data-pk-action="plugins-deactivate" data-plugin-id="<?= (int)$plugin['id'] ?>"
                                         class="inline-flex items-center px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-all duration-200 text-sm font-medium">
                                         <i class="fas fa-pause mr-1"></i>
                                         <?= __("Disattiva") ?>
                                     </button>
                                 <?php else: ?>
-                                    <button onclick="activatePlugin(<?= (int)$plugin['id'] ?>)"
+                                    <button data-pk-action="plugins-activate" data-plugin-id="<?= (int)$plugin['id'] ?>"
                                         class="inline-flex items-center px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-700 transition-all duration-200 text-sm font-medium">
                                         <i class="fas fa-check mr-1"></i>
                                         <?= __("Attiva plugin") ?>
@@ -325,7 +331,7 @@ unset($workspaceHeader);
                                     data-plugin-id="<?= (int)$plugin['id'] ?>"
                                     data-plugin-name="<?= HtmlHelper::e(__($plugin['display_name'])) ?>"
                                     aria-label="<?= HtmlHelper::e(__('Disinstalla plugin')) ?>"
-                                    onclick="uninstallPlugin(this.dataset.pluginId, this.dataset.pluginName)"
+                                    data-pk-action="plugins-uninstall"
                                     class="btn-icon btn-danger-outline px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-all duration-200 text-sm font-medium">
                                     <i class="fas fa-trash"></i>
                                 </button>
@@ -345,7 +351,7 @@ unset($workspaceHeader);
         <!-- Modal Header -->
         <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
             <h3 class="text-xl font-semibold text-gray-900"><?= __("Carica Plugin") ?></h3>
-            <button onclick="closeUploadModal()" class="btn-icon btn-secondary p-2 hover:bg-gray-100 rounded-lg transition-colors" aria-label="<?= htmlspecialchars(__('Chiudi'), ENT_QUOTES, 'UTF-8') ?>">
+            <button data-pk-action="plugins-close-upload" class="btn-icon btn-secondary p-2 hover:bg-gray-100 rounded-lg transition-colors" aria-label="<?= htmlspecialchars(__('Chiudi'), ENT_QUOTES, 'UTF-8') ?>">
                 <i class="fas fa-times text-gray-500"></i>
             </button>
         </div>
@@ -378,7 +384,7 @@ unset($workspaceHeader);
                 <div id="uppy-dashboard"></div>
 
                 <div class="mt-6 flex justify-end gap-3">
-                    <button type="button" onclick="closeUploadModal()"
+                    <button type="button" data-pk-action="plugins-close-upload"
                         class="px-6 py-3 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition-all duration-200 font-medium">
                         <?= __("Annulla") ?>
                     </button>
@@ -400,7 +406,7 @@ unset($workspaceHeader);
         <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
             <h3 id="pluginSettingsTitle" class="text-lg font-semibold text-gray-900"><?= __("Google Books API") ?></h3>
             <button id="pluginSettingsCloseButton" type="button"
-                class="btn-icon btn-secondary p-2 hover:bg-gray-100 rounded-lg transition-colors" onclick="closePluginSettingsModal()" aria-label="<?= htmlspecialchars(__('Chiudi'), ENT_QUOTES, 'UTF-8') ?>">
+                class="btn-icon btn-secondary p-2 hover:bg-gray-100 rounded-lg transition-colors" data-pk-action="plugins-close-settings" aria-label="<?= htmlspecialchars(__('Chiudi'), ENT_QUOTES, 'UTF-8') ?>">
                 <i class="fas fa-times text-gray-500"></i>
             </button>
         </div>
@@ -428,7 +434,7 @@ unset($workspaceHeader);
                     <?= __("Aggiungi la tua API key per interrogare Google Books quando importi un ISBN. Google viene utilizzato prima di Open Library, ma dopo Scraping Pro.") ?>
                 </p>
             </div>
-            <form id="pluginSettingsForm" class="mt-6 space-y-4" onsubmit="saveGoogleBooksKey(event)">
+            <form id="pluginSettingsForm" class="mt-6 space-y-4">
                 <input type="hidden" id="pluginSettingsPluginId">
                 <input type="hidden" id="pluginSettingsUrl">
                 <div>
@@ -451,7 +457,7 @@ unset($workspaceHeader);
                     <div class="flex gap-3">
                         <button type="button"
                             class="px-4 py-2 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition-all text-sm font-medium"
-                            onclick="closePluginSettingsModal()">
+                            data-pk-action="plugins-close-settings">
                             <?= __("Chiudi") ?>
                         </button>
                         <button type="submit"
@@ -477,11 +483,11 @@ unset($workspaceHeader);
                 API Book Scraper - <?= __("Configurazione") ?>
             </h3>
             <button type="button" class="btn-icon btn-secondary p-2 hover:bg-gray-100 rounded-lg transition-colors"
-                onclick="closeApiBookScraperModal()" aria-label="<?= htmlspecialchars(__('Chiudi'), ENT_QUOTES, 'UTF-8') ?>">
+                data-pk-action="plugins-close-api-scraper" aria-label="<?= htmlspecialchars(__('Chiudi'), ENT_QUOTES, 'UTF-8') ?>">
                 <i class="fas fa-times text-gray-500"></i>
             </button>
         </div>
-        <form id="apiBookScraperForm" class="pk-settings-dialog__form" onsubmit="saveApiBookScraperSettings(event)">
+        <form id="apiBookScraperForm" class="pk-settings-dialog__form">
             <div class="pk-settings-dialog__body space-y-5">
             <input type="hidden" id="apiScraperPluginId">
             <input type="hidden" id="apiScraperSettingsUrl">
@@ -520,7 +526,7 @@ unset($workspaceHeader);
                     <input type="password" id="apiKeyInput" autocomplete="off"
                         class="block w-full rounded-xl border-gray-300 focus:border-blue-500 focus:ring-blue-500 text-sm py-3 px-4 pr-10 font-mono"
                         placeholder="your-api-key-here">
-                    <button type="button" onclick="toggleApiKeyVisibility()"
+                    <button type="button" data-pk-action="plugins-toggle-api-key"
                         aria-label="<?= htmlspecialchars(__('Mostra/nascondi chiave'), ENT_QUOTES, 'UTF-8') ?>"
                         class="btn-icon btn-secondary pk-input-toggle absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700">
                         <i id="apiKeyIcon" class="fas fa-eye"></i>
@@ -562,7 +568,7 @@ unset($workspaceHeader);
 
             </div>
             <div class="pk-settings-dialog__footer flex items-center justify-end gap-3">
-                <button type="button" onclick="closeApiBookScraperModal()"
+                <button type="button" data-pk-action="plugins-close-api-scraper"
                     class="px-6 py-3 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition-all text-sm font-medium">
                     <?= __("Annulla") ?>
                 </button>
@@ -586,11 +592,11 @@ unset($workspaceHeader);
                 Z39.50/SRU - <?= __("Configurazione") ?>
             </h3>
             <button type="button" class="btn-icon btn-secondary p-2 hover:bg-gray-100 rounded-lg transition-colors"
-                onclick="closeZ39ServerModal()" aria-label="<?= htmlspecialchars(__('Chiudi'), ENT_QUOTES, 'UTF-8') ?>">
+                data-pk-action="plugins-close-z39" aria-label="<?= htmlspecialchars(__('Chiudi'), ENT_QUOTES, 'UTF-8') ?>">
                 <i class="fas fa-times text-gray-500"></i>
             </button>
         </div>
-        <form id="z39ServerForm" class="pk-settings-dialog__form" onsubmit="saveZ39ServerSettings(event)">
+        <form id="z39ServerForm" class="pk-settings-dialog__form">
             <div class="pk-settings-dialog__body space-y-5">
             <input type="hidden" id="z39PluginId">
             <input type="hidden" id="z39SettingsUrl">
@@ -648,7 +654,7 @@ unset($workspaceHeader);
                         <?= __("Server SRU aggiuntivi per Copy Cataloging. SBN Italia è già integrato (vedi sopra).") ?>
                     </p>
                     <div class="flex flex-col sm:flex-row gap-2 w-full">
-                        <select id="z39PresetServers" onchange="addPresetServer(this.value); this.value='';"
+                        <select id="z39PresetServers" data-pk-action="plugins-add-preset"
                             class="text-sm rounded-lg border-gray-300 focus:ring-indigo-500 focus:border-indigo-500 w-full sm:w-auto sm:flex-1 max-w-full">
                             <option value=""><?= __("+ Aggiungi da preset...") ?></option>
                             <optgroup label="[IT] Italia">
@@ -687,7 +693,7 @@ unset($workspaceHeader);
                                 <option value="nlp">NLP - National Library of Poland (PL)</option>
                             </optgroup>
                         </select>
-                        <button type="button" onclick="addZ39ServerRow()"
+                        <button type="button" data-pk-action="plugins-add-z39-row"
                             class="inline-flex items-center justify-center px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm font-medium transition-colors whitespace-nowrap w-full sm:w-auto">
                             <i class="fas fa-plus mr-1"></i> <?= __("Personalizzato") ?>
                         </button>
@@ -713,7 +719,7 @@ unset($workspaceHeader);
 
             </div>
             <div class="pk-settings-dialog__footer flex items-center justify-end gap-3">
-                <button type="button" onclick="closeZ39ServerModal()"
+                <button type="button" data-pk-action="plugins-close-z39"
                     class="px-6 py-3 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition-all text-sm font-medium">
                     <?= __("Annulla") ?>
                 </button>
@@ -737,7 +743,7 @@ unset($workspaceHeader);
                 </span>
                 <?= __("GoodLib — Fonti Esterne") ?>
             </h3>
-            <button onclick="closeGoodLibModal()" class="btn-icon btn-secondary p-2 hover:bg-gray-100 rounded-lg transition-colors" aria-label="<?= htmlspecialchars(__('Chiudi'), ENT_QUOTES, 'UTF-8') ?>">
+            <button data-pk-action="plugins-close-goodlib" class="btn-icon btn-secondary p-2 hover:bg-gray-100 rounded-lg transition-colors" aria-label="<?= htmlspecialchars(__('Chiudi'), ENT_QUOTES, 'UTF-8') ?>">
                 <i class="fas fa-times text-gray-500"></i>
             </button>
         </div>
@@ -823,7 +829,7 @@ unset($workspaceHeader);
                 <div class="space-y-3">
                     <div class="min-w-0">
                         <label for="goodlib_anna_domain_select" class="text-sm font-medium text-gray-700 block mb-1"><?= __("Anna's Archive") ?></label>
-                        <select id="goodlib_anna_domain_select" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-indigo-500 focus:border-indigo-500" onchange="toggleGoodLibCustomDomain('anna')">
+                        <select id="goodlib_anna_domain_select" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-indigo-500 focus:border-indigo-500" data-pk-action="plugins-goodlib-domain" data-source="anna">
                             <option value="annas-archive.gd">annas-archive.gd</option>
                             <option value="annas-archive.gl">annas-archive.gl</option>
                             <option value="annas-archive.pk">annas-archive.pk</option>
@@ -839,11 +845,10 @@ unset($workspaceHeader);
                     </div>
                     <div class="min-w-0">
                         <label for="goodlib_zlib_domain_select" class="text-sm font-medium text-gray-700 block mb-1"><?= __("Z-Library") ?></label>
-                        <select id="goodlib_zlib_domain_select" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-indigo-500 focus:border-indigo-500" onchange="toggleGoodLibCustomDomain('zlib')">
-                            <option value="z-lib.gd">z-lib.gd</option>
+                        <select id="goodlib_zlib_domain_select" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-indigo-500 focus:border-indigo-500" data-pk-action="plugins-goodlib-domain" data-source="zlib">
+                            <option value="1lib.sk">1lib.sk</option>
                             <option value="z-lib.gl">z-lib.gl</option>
                             <option value="z-lib.fm">z-lib.fm</option>
-                            <option value="1lib.sk">1lib.sk</option>
                             <option value="z-library.ec">z-library.ec</option>
                             <option value="zliba.ru">zliba.ru</option>
                             <option value="__custom__"><?= __("Dominio personalizzato...") ?></option>
@@ -860,21 +865,21 @@ unset($workspaceHeader);
             </div>
         </div>
         <div class="pk-settings-dialog__footer flex justify-end gap-3">
-            <button onclick="closeGoodLibModal()" class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors">
+            <button data-pk-action="plugins-close-goodlib" class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors">
                 <?= __("Annulla") ?>
             </button>
-            <button onclick="saveGoodLibSettings()" id="goodlibSaveBtn" class="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-gray-800 rounded-lg hover:bg-gray-700 transition-colors">
+            <button data-pk-action="plugins-save-goodlib" id="goodlibSaveBtn" class="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-gray-800 rounded-lg hover:bg-gray-700 transition-colors">
                 <i class="fas fa-save mr-1"></i><?= __("Salva") ?>
             </button>
         </div>
     </div>
 </div>
 
-<script>
+<script<?= csp_nonce_attr() ?>>
     const csrfToken = <?= json_encode(\App\Support\Csrf::ensureToken(), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
     const GOODLIB_DOMAIN_PRESETS = {
         anna: ['annas-archive.gd', 'annas-archive.gl', 'annas-archive.pk'],
-        zlib: ['z-lib.gd', 'z-lib.gl', 'z-lib.fm', '1lib.sk', 'z-library.ec', 'zliba.ru'],
+        zlib: ['1lib.sk', 'z-lib.gl', 'z-lib.fm', 'z-library.ec', 'zliba.ru'],
     };
 
     /**
@@ -1135,30 +1140,33 @@ unset($workspaceHeader);
         // Search indexes beyond ISBN (title, author, any: copy cataloguing)
         // have no input of their own: they ride on the row and are saved back.
         row.dataset.indexes = JSON.stringify(server.indexes && typeof server.indexes === 'object' ? server.indexes : {});
+        // Translations enter this template literal as JSON strings passed through
+        // escapeHtml(): raw PHP here would let a translated backtick or placeholder
+        // opener run as script, and an unescaped quote would close the attribute.
         row.innerHTML = `
         <div class="grid grid-cols-1 md:grid-cols-12 gap-4">
             <div class="md:col-span-3">
-                <label class="block text-xs font-medium text-gray-500 mb-1"><?= __("Nome Server") ?></label>
-                <input type="text" name="server_name[]" value="${safeName}" placeholder="<?= htmlspecialchars(__('es. SBN Nazionale'), ENT_QUOTES, 'UTF-8') ?>" class="w-full rounded-lg border-gray-300 text-sm focus:ring-indigo-500 focus:border-indigo-500">
+                <label class="block text-xs font-medium text-gray-500 mb-1">${escapeHtml(<?= json_encode(__("Nome Server"), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>)}</label>
+                <input type="text" name="server_name[]" value="${safeName}" placeholder="${escapeHtml(<?= json_encode(__('es. SBN Nazionale'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>)}" class="w-full rounded-lg border-gray-300 text-sm focus:ring-indigo-500 focus:border-indigo-500">
             </div>
             <div class="md:col-span-3">
-                <label class="block text-xs font-medium text-gray-500 mb-1"><?= __("URL Endpoint SRU") ?></label>
+                <label class="block text-xs font-medium text-gray-500 mb-1">${escapeHtml(<?= json_encode(__("URL Endpoint SRU"), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>)}</label>
                 <input type="url" name="server_url[]" value="${safeUrl}" placeholder="http://opac.sbn.it/sru" class="w-full rounded-lg border-gray-300 text-sm focus:ring-indigo-500 focus:border-indigo-500 font-mono">
             </div>
             <div class="md:col-span-1">
-                <label class="block text-xs font-medium text-gray-500 mb-1"><?= __("Database") ?></label>
+                <label class="block text-xs font-medium text-gray-500 mb-1">${escapeHtml(<?= json_encode(__("Database"), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>)}</label>
                 <input type="text" name="server_db[]" value="${safeDb}" placeholder="nopac" class="w-full rounded-lg border-gray-300 text-sm focus:ring-indigo-500 focus:border-indigo-500">
             </div>
             <div class="md:col-span-1">
-                <label class="block text-xs font-medium text-gray-500 mb-1"><?= __("Versione SRU") ?></label>
+                <label class="block text-xs font-medium text-gray-500 mb-1">${escapeHtml(<?= json_encode(__("Versione SRU"), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>)}</label>
                 <input type="text" name="server_version[]" value="${safeVersion}" placeholder="1.1" class="w-full rounded-lg border-gray-300 text-sm focus:ring-indigo-500 focus:border-indigo-500 font-mono">
             </div>
             <div class="md:col-span-2">
-                <label class="block text-xs font-medium text-gray-500 mb-1"><?= __("Indice ISBN") ?></label>
-                <input type="text" name="server_isbn_index[]" value="${safeIsbnIndex}" placeholder="<?= htmlspecialchars(__('es. bath.isbn'), ENT_QUOTES, 'UTF-8') ?>" class="w-full rounded-lg border-gray-300 text-sm focus:ring-indigo-500 focus:border-indigo-500 font-mono">
+                <label class="block text-xs font-medium text-gray-500 mb-1">${escapeHtml(<?= json_encode(__("Indice ISBN"), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>)}</label>
+                <input type="text" name="server_isbn_index[]" value="${safeIsbnIndex}" placeholder="${escapeHtml(<?= json_encode(__('es. bath.isbn'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>)}" class="w-full rounded-lg border-gray-300 text-sm focus:ring-indigo-500 focus:border-indigo-500 font-mono">
             </div>
             <div class="md:col-span-2">
-                <label class="block text-xs font-medium text-gray-500 mb-1"><?= __("Sintassi") ?></label>
+                <label class="block text-xs font-medium text-gray-500 mb-1">${escapeHtml(<?= json_encode(__("Sintassi"), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>)}</label>
                 <select name="server_syntax[]" class="w-full rounded-lg border-gray-300 text-sm focus:ring-indigo-500 focus:border-indigo-500">
                     <option value="marcxml" ${safeSyntax === 'marcxml' ? 'selected' : ''}>MARCXML</option>
                     <option value="unimarcxchange" ${safeSyntax === 'unimarcxchange' ? 'selected' : ''}>UNIMARC/MARCXchange</option>
@@ -1173,11 +1181,11 @@ unset($workspaceHeader);
         <div class="mt-2 flex items-center gap-2">
             <label class="text-xs text-gray-500 flex items-center gap-2">
                 <input type="checkbox" name="server_quote_terms[]" value="1" ${quoteTerms} class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
-                <?= __("Racchiudi il termine di ricerca tra virgolette CQL (es. BnF)") ?>
+                ${escapeHtml(<?= json_encode(__("Racchiudi il termine di ricerca tra virgolette CQL (es. BnF)"), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>)}
             </label>
         </div>
         <div class="absolute top-2 right-2 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-            <button type="button" aria-label="<?= htmlspecialchars(__('Elimina server'), ENT_QUOTES, 'UTF-8') ?>" onclick="this.closest('.z39-server-row').remove(); checkEmptyServers();" class="btn-icon btn-danger-outline text-red-500 hover:text-red-700 p-2">
+            <button type="button" aria-label="${escapeHtml(<?= json_encode(__('Elimina server'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>)}" data-pk-action="plugins-remove-z39-row" class="btn-icon btn-danger-outline text-red-500 hover:text-red-700 p-2">
                 <i class="fas fa-trash"></i>
             </button>
         </div>
@@ -1406,7 +1414,7 @@ unset($workspaceHeader);
         formData.append('plugin_file', selectedFile.data);
 
         this.disabled = true;
-        this.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>' + <?= json_encode(__("Installazione in corso..."), JSON_HEX_TAG) ?>;
+        this.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>' + <?= json_encode(htmlspecialchars(__("Installazione in corso..."), ENT_QUOTES, 'UTF-8'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
 
         try {
             const response = await fetch(window.BASE_PATH + '/admin/plugins/upload', {
@@ -1442,7 +1450,7 @@ unset($workspaceHeader);
             });
         } finally {
             this.disabled = false;
-            this.innerHTML = '<i class="fas fa-upload mr-2"></i>' + <?= json_encode(__("Installa Plugin"), JSON_HEX_TAG) ?>;
+            this.innerHTML = '<i class="fas fa-upload mr-2"></i>' + <?= json_encode(htmlspecialchars(__("Installa Plugin"), ENT_QUOTES, 'UTF-8'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
         }
     });
 
@@ -1556,7 +1564,7 @@ unset($workspaceHeader);
         const escapedName = escapeHtml(pluginName);
         const result = await Swal.fire({
             title: <?= json_encode(__("Conferma Disinstallazione"), JSON_HEX_TAG) ?>,
-            html: <?= json_encode(__("Sei sicuro di voler disinstallare"), JSON_HEX_TAG) ?> + ' <strong>' + escapedName + '</strong>?<br><br><span class="text-sm text-red-600">' + <?= json_encode(__("Questa azione eliminerà tutti i dati del plugin e non può essere annullata."), JSON_HEX_TAG) ?> + '</span>',
+            html: escapeHtml(<?= json_encode(__("Sei sicuro di voler disinstallare"), JSON_HEX_TAG) ?>) + ' <strong>' + escapedName + '</strong>?<br><br><span class="text-sm text-red-600">' + escapeHtml(<?= json_encode(__("Questa azione eliminerà tutti i dati del plugin e non può essere annullata."), JSON_HEX_TAG) ?>) + '</span>',
             icon: 'error',
             showCancelButton: true,
             confirmButtonText: <?= json_encode(__("Sì, disinstalla"), JSON_HEX_TAG) ?>,
@@ -1736,9 +1744,9 @@ unset($workspaceHeader);
         const apiKeyHelper = document.getElementById('apiKeyHelper');
         if (apiKeyHelper) {
             if (hasConfig) {
-                apiKeyHelper.innerHTML = '<i class="fas fa-info-circle mr-1"></i>' + <?= json_encode(__("Lascia vuoto per mantenere la chiave esistente. Inserisci un nuovo valore per aggiornarla."), JSON_HEX_TAG) ?>;
+                apiKeyHelper.innerHTML = '<i class="fas fa-info-circle mr-1"></i>' + <?= json_encode(htmlspecialchars(__("Lascia vuoto per mantenere la chiave esistente. Inserisci un nuovo valore per aggiornarla."), ENT_QUOTES, 'UTF-8'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
             } else {
-                apiKeyHelper.innerHTML = '<i class="fas fa-shield-alt mr-1"></i>' + <?= json_encode(__("L'API key viene criptata con AES-256-GCM prima di essere salvata."), JSON_HEX_TAG) ?>;
+                apiKeyHelper.innerHTML = '<i class="fas fa-shield-alt mr-1"></i>' + <?= json_encode(htmlspecialchars(__("L'API key viene criptata con AES-256-GCM prima di essere salvata."), ENT_QUOTES, 'UTF-8'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
             }
         }
 
@@ -1897,7 +1905,7 @@ unset($workspaceHeader);
         document.getElementById('goodlib_frontend').checked = btn.dataset.goodlibFrontend === '1';
         document.getElementById('goodlib_admin').checked = btn.dataset.goodlibAdmin === '1';
         setGoodLibDomainField('anna', btn.dataset.goodlibAnnaDomain || 'annas-archive.gd');
-        setGoodLibDomainField('zlib', btn.dataset.goodlibZlibDomain || 'z-lib.gd');
+        setGoodLibDomainField('zlib', btn.dataset.goodlibZlibDomain || '1lib.sk');
         modal.classList.remove('hidden');
     }
 
@@ -1932,7 +1940,7 @@ unset($workspaceHeader);
             });
             const data = await resp.json();
             if (data.success) {
-                const configBtn = document.querySelector('[data-plugin-id="' + pluginId + '"][onclick="openGoodLibModal(this)"]');
+                const configBtn = document.querySelector('[data-plugin-id="' + pluginId + '"][data-pk-action="plugins-open-goodlib"]');
                 if (configBtn) {
                     configBtn.dataset.goodlibAnna = document.getElementById('goodlib_anna').checked ? '1' : '0';
                     configBtn.dataset.goodlibZlib = document.getElementById('goodlib_zlib').checked ? '1' : '0';
@@ -1965,4 +1973,32 @@ unset($workspaceHeader);
     document.getElementById('goodlibModal')?.addEventListener('click', function(e) {
         if (e.target === this) closeGoodLibModal();
     });
+
+    // Delegated actions (CSP script-src-attr 'none': no inline on* attributes).
+    PinakesActions.register('plugins-open-upload', () => openUploadModal());
+    PinakesActions.register('plugins-close-upload', () => closeUploadModal());
+    PinakesActions.register('plugins-open-settings', (el) => openPluginSettingsModal(el));
+    PinakesActions.register('plugins-close-settings', () => closePluginSettingsModal());
+    PinakesActions.register('plugins-open-api-scraper', (el) => openApiBookScraperModal(el));
+    PinakesActions.register('plugins-close-api-scraper', () => closeApiBookScraperModal());
+    PinakesActions.register('plugins-toggle-api-key', () => toggleApiKeyVisibility());
+    PinakesActions.register('plugins-open-z39', (el) => openZ39ServerModal(el));
+    PinakesActions.register('plugins-close-z39', () => closeZ39ServerModal());
+    PinakesActions.register('plugins-add-z39-row', () => addZ39ServerRow());
+    PinakesActions.register('plugins-add-preset', (el) => { addPresetServer(el.value); el.value = ''; });
+    PinakesActions.register('plugins-remove-z39-row', (el) => {
+        const row = el.closest('.z39-server-row');
+        if (row) row.remove();
+        checkEmptyServers();
+    });
+    PinakesActions.register('plugins-open-goodlib', (el) => openGoodLibModal(el));
+    PinakesActions.register('plugins-close-goodlib', () => closeGoodLibModal());
+    PinakesActions.register('plugins-goodlib-domain', (el) => toggleGoodLibCustomDomain(el.dataset.source));
+    PinakesActions.register('plugins-save-goodlib', () => saveGoodLibSettings());
+    PinakesActions.register('plugins-activate', (el) => activatePlugin(parseInt(el.dataset.pluginId, 10)));
+    PinakesActions.register('plugins-deactivate', (el) => deactivatePlugin(parseInt(el.dataset.pluginId, 10)));
+    PinakesActions.register('plugins-uninstall', (el) => uninstallPlugin(el.dataset.pluginId, el.dataset.pluginName));
+    document.getElementById('pluginSettingsForm')?.addEventListener('submit', saveGoogleBooksKey);
+    document.getElementById('apiBookScraperForm')?.addEventListener('submit', saveApiBookScraperSettings);
+    document.getElementById('z39ServerForm')?.addEventListener('submit', saveZ39ServerSettings);
 </script>

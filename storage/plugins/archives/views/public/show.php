@@ -402,8 +402,8 @@ $parent = $breadcrumb !== [] ? $breadcrumb[count($breadcrumb) - 1] : null;
 </div>
 
 <?php if ($hasAudio): ?>
-<script src="<?= $e(url('/assets/vendor/green-audio-player/js/green-audio-player.min.js')) ?>"></script>
-<script>
+<script<?= csp_nonce_attr() ?> src="<?= $e(url('/assets/vendor/green-audio-player/js/green-audio-player.min.js')) ?>"></script>
+<script<?= csp_nonce_attr() ?>>
     (function() {
         var players = document.querySelectorAll('.green-audio-player');
         if (!players.length || typeof GreenAudioPlayer === 'undefined') return;

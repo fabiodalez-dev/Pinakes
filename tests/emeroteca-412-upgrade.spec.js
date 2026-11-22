@@ -71,7 +71,7 @@ async function activate(page) {
     await page.goto(BASE + '/admin/periodicals');
 }
 
-test('Emeroteca 412 real upgrade, phase from E2E_412_UPGRADE_PHASE', async ({ page }) => {
+test('Emeroteca 412 real upgrade, phase from E2E_412_UPGRADE_PHASE', async ({ page, request }) => {
     // The install step extracts and migrates a full package: minutes, not seconds.
     test.setTimeout(phase === 'upgrade' ? 600_000 : 60_000);
     await login(page);
@@ -94,6 +94,12 @@ test('Emeroteca 412 real upgrade, phase from E2E_412_UPGRADE_PHASE', async ({ pa
         await fileInput.setInputFiles(zip);
         const submit = page.locator('#manual-update-submit-btn');
         await expect(submit).toBeEnabled({ timeout: 10_000 });
+        // The old release can carry a static copy even with private mode on.
+        // Seed it before install and check the file itself before any request
+        // to the upgraded app has a chance to run first-request housekeeping.
+        const sitemap = path.join(process.env.E2E_INSTALL_ROOT, 'public/sitemap.xml');
+        fs.writeFileSync(sitemap, '<urlset/>');
+        db("INSERT INTO system_settings (category, setting_key, setting_value) VALUES ('advanced','private_mode','1') ON DUPLICATE KEY UPDATE setting_value='1'");
         const uploaded = page.waitForResponse(r => r.url().includes('/admin/updates/upload') && r.request().method() === 'POST', { timeout: 120_000 });
         const installed = page.waitForResponse(r => r.url().includes('/admin/updates/install-manual') && r.request().method() === 'POST', { timeout: 540_000 });
         await submit.click();
@@ -109,6 +115,10 @@ test('Emeroteca 412 real upgrade, phase from E2E_412_UPGRADE_PHASE', async ({ pa
         const body = JSON.parse(raw);
         expect(response.status(), 'install HTTP status').toBe(200);
         expect(body.success, `install failed: ${body.error || 'no error message'}`).toBe(true);
+        expect(fs.existsSync(sitemap), 'upgrade removes the carried-over sitemap from the document root').toBe(false);
+        const anonymous = await request.get(BASE + '/sitemap.xml', { maxRedirects: 0 });
+        expect(anonymous.status()).toBe(302);
+        expect(anonymous.headers().location).toContain('error=private_mode');
         return;
     }
 

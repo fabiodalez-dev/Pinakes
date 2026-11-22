@@ -1,4 +1,4 @@
-<style>
+<style<?= csp_nonce_attr() ?>>
   .profile-container {
     max-width: 1000px;
     margin: 5rem auto;
@@ -593,7 +593,7 @@
   </div>
 </div>
 
-<script>
+<script<?= csp_nonce_attr() ?>>
 (function() {
   const csrfToken = <?= json_encode(App\Support\Csrf::ensureToken(), JSON_HEX_TAG) ?>;
   const translations = {
@@ -639,7 +639,7 @@
         let html = '<div class="sessions-header">';
         html += '<span style="font-size: 0.875rem; color: #6b7280;">' + data.sessions.length + ' ' + translations.activeSessions + '</span>';
         if (data.sessions.length > 1) {
-          html += '<button type="button" class="ui-button btn-danger btn-secondary" onclick="revokeAllSessions()">';
+          html += '<button type="button" class="ui-button btn-danger btn-secondary" data-pk-action="profile-revoke-all-sessions">';
           html += '<i class="fas fa-sign-out-alt"></i> ' + translations.revokeAll + '</button>';
         }
         html += '</div>';
@@ -671,10 +671,10 @@
           html += '</span>';
           html += '</div>';
           if (!isCurrent) {
-            // Validate session.id is a positive integer before using in onclick
+            // Validate session.id is a positive integer before using it in markup
             const sessionId = parseInt(session.id, 10);
             if (!isNaN(sessionId) && sessionId > 0) {
-              html += '<button type="button" class="btn-danger" onclick="revokeSession(' + sessionId + ')">';
+              html += '<button type="button" class="btn-danger" data-pk-action="profile-revoke-session" data-session-id="' + sessionId + '">';
               html += '<i class="fas fa-times"></i> ' + translations.revoke + '</button>';
             }
           }
@@ -694,6 +694,8 @@
       });
   }
 
+  window.PinakesActions.register('profile-revoke-session', (el) => window.revokeSession(parseInt(el.dataset.sessionId, 10)));
+  window.PinakesActions.register('profile-revoke-all-sessions', () => window.revokeAllSessions());
   window.revokeSession = async function(sessionId) {
     const r = await window.SwalApp.confirmDelete({
       text: translations.confirmRevoke,

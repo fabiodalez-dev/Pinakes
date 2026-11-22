@@ -459,7 +459,7 @@ test.describe.serial('Books cluster SweetAlerts', () => {
 
     await page.goto(`${BASE}/admin/books/${bookId}`);
     await page.waitForLoadState('domcontentloaded');
-    // The renewal form (onsubmit=confirmRenewal) is rendered for an active, non-late loan.
+    // The renewal form (submit guarded by confirmRenewal) is rendered for an active, non-late loan.
     const renewForm = page.locator(`form[action*="/admin/loans/renew/${loanId}"]`);
     await renewForm.waitFor({ state: 'attached', timeout: 10000 });
     await renewForm.locator('button[type="submit"]').click();

@@ -58,7 +58,7 @@ $attachmentKinds = ['ebook' => __('Edizione digitale'), 'supplement' => __('Rece
 </ul>
 </section>
 
-<script>
+<script<?= csp_nonce_attr() ?>>
 (function () {
     // The listeners are document-wide: bound once, however many times the list is rendered.
     if (window.digitalAttachmentsBound) return;

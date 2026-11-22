@@ -881,8 +881,10 @@ class ReservationManager
                 'libro_isbn' => $book['isbn'] ?: 'N/A',
                 'data_inizio' => $notificationService->formatEmailDate((string) $reservation['data_inizio_richiesta'], false, $recipientLocale),
                 'data_fine' => $notificationService->formatEmailDate($this->noticeDueDate($reservation), false, $recipientLocale),
-                'book_url' => absoluteUrl($bookLink),
-                'profile_url' => absoluteUrl(RouteTranslator::route('profile'))
+                // Emailed links: TrustedLink, never the request Host; null
+                // becomes a plain-text pointer (EmailService).
+                'book_url' => \App\Support\TrustedLink::fromAppUrl($bookLink),
+                'profile_url' => \App\Support\TrustedLink::build(RouteTranslator::route('profile'))
             ];
             $success = $notificationService->sendReservationBookAvailable(
                 $reservation['email'],

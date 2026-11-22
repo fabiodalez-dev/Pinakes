@@ -84,7 +84,7 @@ $pdfAdminUrl = $e(url('/admin/periodicals/issue/' . $fid . '/pdf'));
 $checkboxClass = 'w-4 h-4 rounded border-gray-300 text-gray-900 focus:ring-gray-500';
 ?>
 <link rel="stylesheet" href="<?= $e(url('/plugins/emeroteca/assets/css/emeroteca.css?v=1.4.0')) ?>">
-<style>
+<style<?= csp_nonce_attr() ?>>
     /* The spoglio table keeps the plugin's stacked-rows layout on phones,
        which is scoped to .emeroteca-admin: that scope wraps only the table,
        so it must not bring its own page width and padding. */
@@ -524,7 +524,7 @@ unset($workspaceHeader);
 
     <div class="mt-8 pt-6 border-t border-gray-200 flex justify-end">
       <form method="POST" action="<?= $deleteAction ?>"
-            onsubmit="return confirm(<?= $e(json_encode(__('Eliminare questo fascicolo e il suo spoglio?'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT)) ?>);">
+            data-pk-confirm="<?= $e(__('Eliminare questo fascicolo e il suo spoglio?')) ?>">
         <input type="hidden" name="csrf_token" value="<?= $csrf ?>">
         <button type="submit" class="btn-danger">
           <i class="fas fa-trash mr-2" aria-hidden="true"></i><?= __("Elimina fascicolo") ?>
@@ -534,7 +534,7 @@ unset($workspaceHeader);
   </div>
 </div>
 
-<script>
+<script<?= csp_nonce_attr() ?>>
 // Spoglio: add/remove article rows (vanilla JS, no libraries).
 (function () {
     var body = document.getElementById('emt-spoglio-body');
@@ -558,4 +558,4 @@ unset($workspaceHeader);
     });
 })();
 </script>
-<script src="<?= $e(url('/plugins/emeroteca/assets/js/emeroteca-upload.js?v=1.3.0')) ?>" defer></script>
+<script<?= csp_nonce_attr() ?> src="<?= $e(url('/plugins/emeroteca/assets/js/emeroteca-upload.js?v=1.3.0')) ?>" defer></script>

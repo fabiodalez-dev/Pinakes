@@ -23,6 +23,14 @@ final class ConfigStore
      * keys) retry the connect and pay the full timeout N times.
      */
     private static bool $connectionFailed = false;
+
+    /**
+     * True when the last load of the database settings failed (connection
+     * error, query error) and the defaults are being served instead. Callers
+     * that must fail closed on a read failure use getStrict(); every other
+     * caller keeps the historical fall-back-to-defaults behaviour.
+     */
+    private static bool $settingsLoadFailed = false;
     private static bool $scopedConnection = false;
 
     public static function all(): array
@@ -192,6 +200,24 @@ final class ConfigStore
         return $cur;
     }
 
+    /**
+     * Like get(), but throws when the database settings could not be read
+     * (the value would otherwise silently be the hardcoded default). For
+     * security switches that must fail closed, e.g. private mode.
+     *
+     * An absent setting (never saved) is NOT a failure: $default is returned.
+     *
+     * @throws \RuntimeException when the settings read failed this request
+     */
+    public static function getStrict(string $path, $default = null)
+    {
+        self::all();
+        if (self::$settingsLoadFailed) {
+            throw new \RuntimeException('System settings could not be read');
+        }
+        return self::get($path, $default);
+    }
+
     public static function set(string $path, $value): void
     {
         self::$runtimeCache = null;
@@ -265,6 +291,7 @@ final class ConfigStore
     {
         self::$runtimeCache = null;
         self::$dbSettingsCache = null;
+        self::$settingsLoadFailed = false; // recomputed by the next load
         QueryCache::delete(self::SETTINGS_CACHE_KEY);
     }
 
@@ -466,6 +493,7 @@ final class ConfigStore
         }
 
         self::$dbSettingsCache = [];
+        self::$settingsLoadFailed = false;
 
         try {
             $raw = self::loadRawSettings();
@@ -545,7 +573,7 @@ final class ConfigStore
                                 self::$dbSettingsCache['mail']['smtp'][$dst] = '';
                                 continue;
                             }
-                            $decrypted = SettingsEncryption::decrypt((string) $value);
+                            $decrypted = SettingsEncryption::decrypt((string) $value, 'email', 'smtp_password');
                             if ($decrypted !== null) {
                                 self::$dbSettingsCache['mail']['smtp'][$dst] = $decrypted;
                             } else {
@@ -738,8 +766,9 @@ final class ConfigStore
             }
 
         } catch (\Throwable $e) {
-            // Silently ignore DB issues and fallback to stored defaults
+            // Fall back to stored defaults; getStrict() callers see the failure.
             self::$dbSettingsCache = [];
+            self::$settingsLoadFailed = true;
         }
 
         return self::$dbSettingsCache;
@@ -763,6 +792,11 @@ final class ConfigStore
 
         $mysqli = self::getConnection();
         if ($mysqli === null) {
+            if (self::$connectionFailed) {
+                // An earlier connect failed this request: still a read failure,
+                // not "no settings configured".
+                throw new \RuntimeException('Settings database connection unavailable');
+            }
             return [];
         }
 

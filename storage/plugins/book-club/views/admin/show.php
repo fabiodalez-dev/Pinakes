@@ -117,7 +117,7 @@ unset($workspaceHeader);
         <span class="text-xs text-gray-400"><?= $e(__('Attenzione: rinominare una chiave non migra i libri già in quello stato.')) ?></span>
       </div>
     </form>
-    <script>
+    <script<?= csp_nonce_attr() ?>>
       (function () {
         var table = document.getElementById('bc-workflow-table').querySelector('tbody');
         document.getElementById('bc-add-state').addEventListener('click', function () {
@@ -130,7 +130,7 @@ unset($workspaceHeader);
             + '<td class="py-2 pr-3 text-center"><input type="checkbox" name="flag_voting[' + idx + ']" value="1"></td>'
             + '<td class="py-2 pr-3 text-center"><input type="checkbox" name="flag_current[' + idx + ']" value="1"></td>'
             + '<td class="py-2 pr-3 text-center"><input type="checkbox" name="flag_archived[' + idx + ']" value="1"></td>'
-            + '<td class="py-2 text-right"><button type="button" class="btn-icon btn-secondary text-red-500 hover:text-red-700 bc-remove-state" aria-label="<?= htmlspecialchars(__('Chiudi'), ENT_QUOTES, 'UTF-8') ?>"><i class="fas fa-times"></i></button></td>';
+            + '<td class="py-2 text-right"><button type="button" class="btn-icon btn-secondary text-red-500 hover:text-red-700 bc-remove-state" aria-label="' + <?= json_encode(htmlspecialchars(__('Chiudi'), ENT_QUOTES, 'UTF-8'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) ?> + '"><i class="fas fa-times"></i></button></td>';
           table.appendChild(tr);
         });
         table.addEventListener('click', function (ev) {
@@ -188,7 +188,7 @@ unset($workspaceHeader);
             <td class="py-2 pr-3">
               <form method="post" action="<?= $e(url('/admin/book-club/' . $clubId . '/members/' . (int) $member['id'] . '/update')) ?>">
                 <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
-                <select name="role" class="border border-gray-200 rounded px-2 py-1 text-xs" onchange="this.form.submit()">
+                <select name="role" class="border border-gray-200 rounded px-2 py-1 text-xs" data-pk-action="submit-form">
                   <?php foreach ($roles as $role): ?>
                     <option value="<?= $e($role['slug']) ?>" <?= $role['slug'] === $member['role_slug'] ? 'selected' : '' ?>><?= $e($role['name']) ?></option>
                   <?php endforeach; ?>
@@ -205,7 +205,7 @@ unset($workspaceHeader);
             <td class="py-2 pr-3">
               <form method="post" action="<?= $e(url('/admin/book-club/' . $clubId . '/members/' . (int) $member['id'] . '/update')) ?>">
                 <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
-                <select name="status" class="border border-gray-200 rounded px-2 py-1 text-xs" onchange="this.form.submit()">
+                <select name="status" class="border border-gray-200 rounded px-2 py-1 text-xs" data-pk-action="submit-form">
                   <?php foreach ($statusLabels as $value => $label): ?>
                     <option value="<?= $e($value) ?>" <?= $value === $member['status'] ? 'selected' : '' ?>><?= $e($label) ?></option>
                   <?php endforeach; ?>

@@ -106,4 +106,4 @@ journal_article,Intertextuality in Daniel Kehlmann&#039;s Novel Tyll,&quot;Schwe
     </div>
   </div>
 </div>
-<script src="<?= $e(url('/plugins/emeroteca/assets/js/emeroteca-upload.js?v=1.3.0')) ?>" defer></script>
+<script<?= csp_nonce_attr() ?> src="<?= $e(url('/plugins/emeroteca/assets/js/emeroteca-upload.js?v=1.3.0')) ?>" defer></script>

@@ -77,7 +77,7 @@ unset($workspaceHeader);
                 <div class="flex-1">
                     <p class="text-green-800 font-medium"><?= htmlspecialchars($_SESSION['success']) ?></p>
                 </div>
-                <button onclick="this.parentElement.remove()" class="btn-icon btn-secondary text-green-600 hover:text-green-800" aria-label="<?= htmlspecialchars(__('Chiudi'), ENT_QUOTES, 'UTF-8') ?>">
+                <button data-pk-action="dismiss" class="btn-icon btn-secondary text-green-600 hover:text-green-800" aria-label="<?= htmlspecialchars(__('Chiudi'), ENT_QUOTES, 'UTF-8') ?>">
                     <i class="fas fa-times"></i>
                 </button>
             </div>
@@ -90,7 +90,7 @@ unset($workspaceHeader);
                 <div class="flex-1">
                     <p class="text-red-800 font-medium"><?= htmlspecialchars($_SESSION['error']) ?></p>
                 </div>
-                <button onclick="this.parentElement.remove()" class="btn-icon btn-secondary text-red-600 hover:text-red-800" aria-label="<?= htmlspecialchars(__('Chiudi'), ENT_QUOTES, 'UTF-8') ?>">
+                <button data-pk-action="dismiss" class="btn-icon btn-secondary text-red-600 hover:text-red-800" aria-label="<?= htmlspecialchars(__('Chiudi'), ENT_QUOTES, 'UTF-8') ?>">
                     <i class="fas fa-times"></i>
                 </button>
             </div>
@@ -308,7 +308,7 @@ unset($workspaceHeader);
 
                 <!-- Format Details -->
                 <div class="bg-white rounded-lg shadow-sm border border-gray-200">
-                    <button onclick="this.nextElementSibling.classList.toggle('hidden')" class="w-full px-6 py-4 flex items-center justify-between text-left hover:bg-gray-50 transition-colors">
+                    <button data-pk-action="toggle" class="w-full px-6 py-4 flex items-center justify-between text-left hover:bg-gray-50 transition-colors">
                         <span class="font-semibold text-gray-900 flex items-center">
                             <i class="fas fa-table text-gray-600 mr-2"></i>
                             <?= __("Formato CSV Dettagliato") ?>
@@ -470,7 +470,7 @@ unset($workspaceHeader);
     </div>
 </div>
 
-<script>
+<script<?= csp_nonce_attr() ?>>
 document.addEventListener('DOMContentLoaded', function() {
 
     if (typeof Uppy === 'undefined') {
@@ -563,7 +563,7 @@ document.addEventListener('DOMContentLoaded', function() {
         // Show progress container
         progressContainer.classList.remove('hidden');
         submitBtn.disabled = true;
-        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>' + <?= json_encode(__("Importazione in corso..."), JSON_HEX_TAG) ?>;
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>' + escapeHtml(<?= json_encode(__("Importazione in corso..."), JSON_HEX_TAG) ?>);
 
         // Use XMLHttpRequest for progress monitoring
         const xhr = new XMLHttpRequest();
@@ -646,10 +646,10 @@ document.addEventListener('DOMContentLoaded', function() {
                     if (stats.error_details.length > 0) {
                         const maxShow = 10;
                         const shown = stats.error_details.slice(0, maxShow);
-                        message += '<br><br><strong>' + <?= json_encode(__("Errori durante l'import"), JSON_HEX_TAG) ?> + ':</strong><ul style="text-align:left;margin-top:8px;font-size:0.9em">';
+                        message += '<br><br><strong>' + escapeHtml(<?= json_encode(__("Errori durante l'import"), JSON_HEX_TAG) ?>) + ':</strong><ul style="text-align:left;margin-top:8px;font-size:0.9em">';
                         shown.forEach(e => { message += `<li>${escapeHtml(e)}</li>`; });
                         if (stats.error_details.length > maxShow) {
-                            message += `<li><em>... ${<?= json_encode(__("e altri"), JSON_HEX_TAG) ?>} ${stats.error_details.length - maxShow} ${<?= json_encode(__("errori"), JSON_HEX_TAG) ?>}</em></li>`;
+                            message += `<li><em>... ${escapeHtml(<?= json_encode(__("e altri"), JSON_HEX_TAG) ?>)} ${stats.error_details.length - maxShow} ${escapeHtml(<?= json_encode(__("errori"), JSON_HEX_TAG) ?>)}</em></li>`;
                         }
                         message += '</ul>';
                     }
@@ -756,7 +756,7 @@ document.addEventListener('DOMContentLoaded', function() {
     function showError(message) {
         const submitBtn = document.getElementById('submitBtn');
         submitBtn.disabled = false;
-        submitBtn.innerHTML = '<i class="fas fa-cloud-upload-alt mr-2"></i>' + <?= json_encode(__("Importa"), JSON_HEX_TAG) ?>;
+        submitBtn.innerHTML = '<i class="fas fa-cloud-upload-alt mr-2"></i>' + escapeHtml(<?= json_encode(__("Importa"), JSON_HEX_TAG) ?>);
 
         window.SwalApp.error(<?= json_encode(__("Errore"), JSON_HEX_TAG) ?>, message);
 

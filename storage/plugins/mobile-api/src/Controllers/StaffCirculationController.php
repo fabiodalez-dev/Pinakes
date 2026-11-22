@@ -181,7 +181,11 @@ final class StaffCirculationController
 
                     return $loanId;
                 },
-                static fn (int $id): ?array => $reader->loan($id)
+                function (int $id) use ($reader): ?array {
+                    $loan = $reader->loan($id);
+
+                    return $loan === null ? null : $this->withLateFine($loan);
+                }
             );
         } catch (\Throwable $e) {
             return $this->fail($response, 'loan create', $e);
@@ -219,6 +223,12 @@ final class StaffCirculationController
                     return $this->invalid($response, $key, CirculationOutcome::message('invalid_date_format'));
                 }
                 $form[$column] = $date;
+            }
+            // Moving an overdue loan forward waives the fine accrued so far:
+            // PrestitiController::update() requires this reason for it.
+            $waiveReason = StaffPaging::text($json['waive_reason'] ?? null, 255);
+            if ($waiveReason !== null && $waiveReason !== '') {
+                $form['waive_reason'] = $waiveReason;
             }
 
             $db = $this->db;
@@ -289,14 +299,15 @@ final class StaffCirculationController
             });
             $message = is_string($outcome->json['message'] ?? null) ? (string) $outcome->json['message'] : '';
             if ($outcome->status !== 200 || ($outcome->json['success'] ?? false) !== true) {
-                return CirculationOutcome::approvalError($response, $outcome->status === 200 ? 400 : $outcome->status, $message, 'staff ' . $method);
+                $coreCode = is_string($outcome->json['code'] ?? null) ? (string) $outcome->json['code'] : '';
+                return CirculationOutcome::approvalError($response, $outcome->status === 200 ? 400 : $outcome->status, $message, 'staff ' . $method, $coreCode);
             }
             $loan = $this->reader->loan($id);
             if ($loan === null) {
                 return $this->notFound($response);
             }
 
-            return ResponseEnvelope::success($response, $loan, $message !== '' ? ['message' => $message] : []);
+            return ResponseEnvelope::success($response, $this->withLateFine($loan), $message !== '' ? ['message' => $message] : []);
         } catch (\Throwable $e) {
             return $this->fail($response, 'loan ' . $method, $e);
         }
@@ -598,10 +609,11 @@ final class StaffCirculationController
     public function receipt(ServerRequestInterface $request, ResponseInterface $response, int $id): ResponseInterface
     {
         try {
-            if ($this->reader->loanRow($id) === null) {
+            $loan = (new \App\Models\LoanRepository($this->db))->getById($id, scopeToBorrower: true);
+            if ($loan === null) {
                 return $this->notFound($response);
             }
-            $pdf = (new \App\Support\LoanPdfGenerator($this->db))->generate($id);
+            $pdf = (new \App\Support\LoanPdfGenerator($this->db))->generateFromLoan($loan);
             $filename = 'prestito_' . $id . '_' . date('Ymd') . '.pdf';
             $response->getBody()->write($pdf);
 
@@ -755,11 +767,16 @@ final class StaffCirculationController
         return $found;
     }
 
+    /**
+     * The loan after a write, in the same shape as detail() (late_fine
+     * included): the app replaces its loan state with this answer, so a
+     * missing late_fine would drop the fine preview and the waive_reason hint.
+     */
     private function loanOr404(ResponseInterface $response, int $id): ResponseInterface
     {
         $loan = $this->reader->loan($id);
 
-        return $loan === null ? $this->notFound($response) : ResponseEnvelope::success($response, $loan);
+        return $loan === null ? $this->notFound($response) : ResponseEnvelope::success($response, $this->withLateFine($loan));
     }
 
     private function notFound(ResponseInterface $response, ?string $message = null): ResponseInterface

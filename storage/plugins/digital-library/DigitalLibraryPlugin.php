@@ -894,7 +894,7 @@ class DigitalLibraryPlugin
         $css = htmlspecialchars(url('/assets/vendor/green-audio-player/css/green-audio-player.min.css'), ENT_QUOTES, 'UTF-8');
         $js = htmlspecialchars(url('/assets/vendor/green-audio-player/js/green-audio-player.min.js'), ENT_QUOTES, 'UTF-8');
         echo '<link rel="stylesheet" href="' . $css . '">' . "\n";
-        echo '<script src="' . $js . '" defer></script>' . "\n";
+        echo '<script' . csp_nonce_attr() . ' src="' . $js . '" defer></script>' . "\n";
     }
 
     // ========================================================================

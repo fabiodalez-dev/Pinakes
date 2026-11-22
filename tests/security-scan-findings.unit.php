@@ -159,10 +159,13 @@ $plain = 'p@ss"w0rd,\'; DROP';
 $encKey = hash('sha256', 'regression-key-xyz', true);
 $iv = random_bytes(12);
 $tag = '';
-$cipher = openssl_encrypt($plain, 'aes-256-gcm', $encKey, OPENSSL_RAW_DATA, $iv, $tag);
-$stored = 'ENC:' . base64_encode($iv . $tag . $cipher);
-$check(str_starts_with($stored, 'ENC:') && SettingsEncryption::decrypt($stored) === $plain,
+$aad = "pinakes-settings-v2\0email\0smtp_password";
+$cipher = openssl_encrypt($plain, 'aes-256-gcm', $encKey, OPENSSL_RAW_DATA, $iv, $tag, $aad);
+$stored = 'ENC:v2:' . base64_encode($iv . $tag . $cipher);
+$check(str_starts_with($stored, 'ENC:') && SettingsEncryption::decrypt($stored, 'email', 'smtp_password') === $plain,
     'installer-encrypted SMTP password decrypts to the original plaintext');
+$check(SettingsEncryption::decrypt($stored, 'email', 'smtp_username') === null,
+    'installer-encrypted SMTP password does not decrypt under another setting');
 SettingsEncryption::resetKeyCache();
 putenv('PLUGIN_ENCRYPTION_KEY');
 unset($_ENV['PLUGIN_ENCRYPTION_KEY']);

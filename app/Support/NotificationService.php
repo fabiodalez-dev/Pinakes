@@ -258,18 +258,52 @@ class NotificationService {
                 'cognome' => $user['cognome'],
                 'email' => $user['email'],
                 'codice_tessera' => $user['codice_tessera'],
-                'admin_users_url' => absoluteUrl('/admin/users')
             ];
+
+            // The registration is anonymous, so the link's host must not come
+            // from the request's Host header (TrustedLink, as for the
+            // registrant's verification link). Without a trusted host the
+            // admins still get the email, with a plain-text pointer to the
+            // user list in place of the button.
+            $adminUsersUrl = TrustedLink::build('/admin/users');
+            $bodyFilter = null;
+            if ($adminUsersUrl !== null) {
+                $variables['admin_users_url'] = $adminUsersUrl;
+            } else {
+                $variables['admin_users_url'] = '';
+                $bodyFilter = static function (string $body, string $locale): string {
+                    $current = \App\Support\I18n::getLocale();
+                    try {
+                        \App\Support\I18n::setLocale($locale);
+                        $pointer = __('Per gestire la richiesta apri l\'area di amministrazione e vai su Utenti.');
+                    } finally {
+                        \App\Support\I18n::setLocale($current);
+                    }
+                    return self::replaceAdminUsersLink($body, $pointer);
+                };
+            }
 
             // Send to admins — data_registrazione formatted per admin locale.
             return $this->sendToAdmins('admin_new_registration', $variables, [
                 'data_registrazione' => [$user['created_at'], true],
-            ]);
+            ], $bodyFilter);
 
         } catch (\Throwable $e) {
             SecureLogger::error("Failed to notify new user registration: " . $e->getMessage());
             return false;
         }
+    }
+
+    /**
+     * Replace the {{admin_users_url}} button of an admin template with the
+     * plain-text $pointer (escaped), for when no trusted link can be built. A
+     * stray placeholder elsewhere is emptied; a template without the button
+     * gets the pointer appended. Works on the raw template, placeholders
+     * included, before any variable is substituted.
+     */
+    public static function replaceAdminUsersLink(string $templateBody, string $pointer): string
+    {
+        return EmailService::replaceLinkPlaceholder($templateBody, ['admin_users_url'], $pointer);
     }
 
     /**
@@ -305,7 +339,29 @@ class NotificationService {
                 $currentLocale = \App\Support\I18n::getLocale();
                 try {
                     \App\Support\I18n::setLocale($locale);
-                    $verifyUrl = absoluteUrl(RouteTranslator::route('verify_email') . '?token=' . urlencode((string)$user['token_verifica_email']));
+                    // The link carries the live verification token and goes to an
+                    // address chosen by an anonymous registrant, so its host must be
+                    // one the operator configured, never the request's Host header
+                    // (TrustedLink, like the recovery and invitation emails).
+                    $verifyUrl = TrustedLink::build(RouteTranslator::route('verify_email') . '?token=' . urlencode((string)$user['token_verifica_email']));
+                    if ($verifyUrl === null) {
+                        // Fail closed, as PasswordController::forgot() does: send
+                        // nothing rather than a link pointing at an unverified host.
+                        // There is no host setting in system_settings to fall back
+                        // to (the app's absolute URLs come from APP_CANONICAL_URL,
+                        // APP_TRUSTED_HOSTS or the request), and the request Host is
+                        // exactly what must not be used. So the administrators are
+                        // told that they must act: the account is 'sospeso', and
+                        // "Attiva utente" (POST /admin/users/{id}/activate-directly)
+                        // activates it without the link.
+                        SecureLogger::error('[NotificationService] Registration email suppressed: neither APP_CANONICAL_URL nor '
+                            . 'APP_TRUSTED_HOSTS is configured; refusing to build the verification link from the request Host header. '
+                            . 'An administrator must activate the account ("Attiva utente") or set APP_CANONICAL_URL', [
+                                'user_id' => $userId,
+                            ]);
+                        $this->notifyVerificationLinkUnavailable($userId, (string) $user['email']);
+                        return false;
+                    }
                     $buttonText = __('Conferma la tua email');
                     $verifySection = '<p style="margin: 20px 0;"><a href="' . htmlspecialchars($verifyUrl, ENT_QUOTES, 'UTF-8') . '" style="background-color: #10b981; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px;">' . htmlspecialchars($buttonText, ENT_QUOTES, 'UTF-8') . '</a></p>';
                 } finally {
@@ -334,6 +390,31 @@ class NotificationService {
     }
 
     /**
+     * In-app notice to the administrators that a registrant's verification
+     * link could not be sent (no trusted host configured), so the account
+     * waits for a manual "Attiva utente". Best-effort.
+     */
+    private function notifyVerificationLinkUnavailable(int $userId, string $email): void
+    {
+        try {
+            $this->createNotification(
+                'new_user',
+                __('Email di verifica non inviata'),
+                sprintf(
+                    __('Il link di conferma per %s non è stato inviato perché l\'indirizzo del sito non è configurato (APP_CANONICAL_URL o APP_TRUSTED_HOSTS). Attiva l\'account con "Attiva utente", oppure imposta APP_CANONICAL_URL.'),
+                    $email
+                ),
+                '/admin/users/details/' . $userId,
+                $userId
+            );
+        } catch (\Throwable $e) {
+            SecureLogger::error('[NotificationService] Could not record the missing-verification-link notice: ' . $e->getMessage(), [
+                'user_id' => $userId,
+            ]);
+        }
+    }
+
+    /**
      * Invia email di approvazione account
      */
     public function sendUserAccountApproved(int $userId): bool {
@@ -357,7 +438,9 @@ class NotificationService {
                 'cognome' => $user['cognome'],
                 'email' => $user['email'],
                 'codice_tessera' => $user['codice_tessera'],
-                'login_url' => absoluteUrl(RouteTranslator::route('login'))
+                // Never the request Host in an email (TrustedLink); null drops
+                // the button for a plain-text pointer (EmailService).
+                'login_url' => TrustedLink::build(RouteTranslator::route('login'))
             ];
 
             // #360: recipient's preferred language (installation locale fallback)
@@ -390,7 +473,19 @@ class NotificationService {
             }
             $stmt->close();
 
-            $verificationUrl = absoluteUrl(RouteTranslator::route('verify_email') . '?token=' . urlencode($token));
+            // The link carries a live verification token: its host must be one
+            // the operator configured (TrustedLink), never the request's. With
+            // none, nothing is sent; approveAndSendActivation() checks this
+            // before it changes the account, so the account stays 'sospeso'
+            // and "Attiva utente" still works.
+            $verificationUrl = TrustedLink::build(RouteTranslator::route('verify_email') . '?token=' . urlencode($token));
+            if ($verificationUrl === null) {
+                SecureLogger::error('[NotificationService] Activation email suppressed: neither APP_CANONICAL_URL nor '
+                    . 'APP_TRUSTED_HOSTS is configured; refusing to build the verification link from the request Host header', [
+                        'user_id' => $userId,
+                    ]);
+                return false;
+            }
 
             $variables = [
                 'nome' => $user['nome'],
@@ -527,7 +622,7 @@ class NotificationService {
                 'cognome' => $user['cognome'],
                 'app_name' => ConfigStore::get('app.name', 'Biblioteca'),
                 'reset_url' => $resetUrl,
-                'dashboard_url' => absoluteUrl('/admin/dashboard')
+                'dashboard_url' => TrustedLink::build('/admin/dashboard')
             ];
 
             // #360: recipient's preferred language (installation locale fallback)
@@ -567,7 +662,10 @@ class NotificationService {
                 'libro_titolo' => $loan['libro_titolo'],
                 'utente_nome' => $loan['utente_nome'],
                 'utente_email' => $loan['utente_email'],
-                'approve_url' => absoluteUrl('/admin/loans/pending')
+                // Any reader triggers this email, so the link's host must not come
+                // from the request (TrustedLink); with no trusted host the admins
+                // get a plain-text pointer instead of the button (EmailService).
+                'approve_url' => TrustedLink::build('/admin/loans/pending')
             ];
 
             // Send email to admins — dates formatted per admin locale.
@@ -1561,7 +1659,7 @@ class NotificationService {
             $requestLocale = I18n::getLocale();
             try {
                 I18n::setLocale($recipientLocale);
-                $pdfContent = (new LoanPdfGenerator($this->db))->generate($loanId);
+                $pdfContent = (new LoanPdfGenerator($this->db))->generateFromLoan($loan);
             } finally {
                 I18n::setLocale($requestLocale);
             }
@@ -1718,8 +1816,10 @@ class NotificationService {
                     'libro_autore' => $wishlist['autore'] ?: $this->translateInLocale('Autore non specificato', $recipientLocale),
                     'libro_isbn' => $wishlist['isbn'] ?: 'N/A',
                     'data_disponibilita' => $this->formatEmailDate('now', true, $recipientLocale),
-                    'book_url' => absoluteUrl($bookLink),
-                    'wishlist_url' => absoluteUrl(RouteTranslator::route('wishlist'))
+                    // TrustedLink, never the request Host; null becomes a
+                    // plain-text pointer (EmailService::dropUnavailableLinks).
+                    'book_url' => TrustedLink::fromAppUrl($bookLink),
+                    'wishlist_url' => TrustedLink::build(RouteTranslator::route('wishlist'))
                 ];
 
                 $emailSent = $this->sendWithRetry($wishlist['email'], 'wishlist_book_available', $variables);
@@ -1956,23 +2056,26 @@ class NotificationService {
 
     /**
      * Invia template agli admin
-     */
-    /**
+     *
      * @param array<string,mixed>            $variables     non-date template variables, shared by every admin
      * @param array<string,array{0:string,1?:bool}> $dateVariables raw dates keyed by template variable —
      *        [rawDate, includeTime] — formatted per recipient inside the loop
+     * @param (callable(string, string): string)|null $bodyFilter applied to the template body per
+     *        recipient, with that recipient's locale (see EmailService::sendTemplateWithBodyFilter())
      */
-    private function sendToAdmins(string $templateName, array $variables, array $dateVariables = []): bool {
+    private function sendToAdmins(string $templateName, array $variables, array $dateVariables = [], ?callable $bodyFilter = null): bool {
         try {
             $result = $this->db->query("SELECT email FROM utenti WHERE tipo_utente IN ('admin', 'staff') AND stato = 'attivo'");
 
-            if (!$result || $result->num_rows === 0) {
+            if (!$result instanceof \mysqli_result) {
                 SecureLogger::warning("No active admin/staff users found for notification");
                 return false;
             }
 
             $sentCount = 0;
+            $recipients = 0;
             while ($row = $result->fetch_assoc()) {
+                $recipients++;
                 // #360: each admin gets the template AND its date variables in
                 // their own language (utenti.locale, installation locale as
                 // fallback). Dates arrive raw in $dateVariables and are
@@ -1983,11 +2086,24 @@ class NotificationService {
                 foreach ($dateVariables as $name => $spec) {
                     $recipientVars[$name] = $this->formatEmailDate((string) $spec[0], (bool) ($spec[1] ?? false), $locale);
                 }
-                if ($this->emailService->sendTemplate($row['email'], $templateName, $recipientVars, $locale)) {
+                $sent = $bodyFilter === null
+                    ? $this->emailService->sendTemplate($row['email'], $templateName, $recipientVars, $locale)
+                    : $this->emailService->sendTemplateWithBodyFilter(
+                        $row['email'],
+                        $templateName,
+                        $recipientVars,
+                        $locale,
+                        static fn (string $body): string => $bodyFilter($body, $locale)
+                    );
+                if ($sent) {
                     $sentCount++;
                 }
             }
 
+            if ($recipients === 0) {
+                SecureLogger::warning("No active admin/staff users found for notification");
+                return false;
+            }
             SecureLogger::info("Sent notification to $sentCount admins");
             return $sentCount > 0;
 
@@ -3224,9 +3340,13 @@ class NotificationService {
                 return;
             }
             $bodyHtml = '<p>' . htmlspecialchars($message, ENT_QUOTES, 'UTF-8') . '</p>';
-            if ($link !== null && $link !== '') {
-                $bodyHtml .= '<p><a href="' . htmlspecialchars($link, ENT_QUOTES, 'UTF-8') . '">'
-                    . htmlspecialchars($link, ENT_QUOTES, 'UTF-8') . '</a></p>';
+            // The emailed link is rebuilt on a host the operator configured
+            // (TrustedLink): callers pass absoluteUrl() output, whose host came
+            // from the request. With no trusted host the email goes without it.
+            $mailLink = ($link !== null && $link !== '') ? TrustedLink::fromAppUrl($link) : null;
+            if ($mailLink !== null) {
+                $bodyHtml .= '<p><a href="' . htmlspecialchars($mailLink, ENT_QUOTES, 'UTF-8') . '">'
+                    . htmlspecialchars($mailLink, ENT_QUOTES, 'UTF-8') . '</a></p>';
             }
             foreach ($recipients as $row) {
                 $this->emailService->sendEmail(
@@ -3476,7 +3596,9 @@ class NotificationService {
                 'stelle' => $review['stelle'],
                 'titolo_recensione' => $review['titolo'] ?? '',
                 'descrizione_recensione' => $review['descrizione'] ?? '',
-                'link_approvazione' => absoluteUrl('/admin/reviews')
+                // Any reader triggers this email: TrustedLink, as for
+                // admin_new_registration; null becomes a plain-text pointer.
+                'link_approvazione' => TrustedLink::build('/admin/reviews')
             ];
 
             // Send email to admins — data_recensione formatted per admin locale.

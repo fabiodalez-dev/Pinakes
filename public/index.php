@@ -177,7 +177,25 @@ if (file_exists($maintenanceFile)) {
         // Only an operator — or the restore itself, on the way out — clears it.
         $maintenanceTime = $maintenanceData['time'] ?? 0;
         $maintenanceSticky = !empty($maintenanceData['sticky']);
+        // The 30-minute timer is a safety net for an updater that died, not a
+        // deadline for one still working: a long update never refreshes
+        // 'time'. While the updater holds storage/cache/update.lock (an
+        // exclusive flock, released by the kernel if the process dies) the
+        // flag stays, so SchemaRepair cannot start next to its migrations.
+        $maintenanceUpdateRunning = false;
         if (!$maintenanceSticky && time() - $maintenanceTime > 1800) {
+            $updateLockFile = __DIR__ . '/../storage/cache/update.lock';
+            $updateLockHandle = is_file($updateLockFile) ? @fopen($updateLockFile, 'r') : false;
+            if ($updateLockHandle !== false) {
+                if (flock($updateLockHandle, LOCK_SH | LOCK_NB)) {
+                    flock($updateLockHandle, LOCK_UN);
+                } else {
+                    $maintenanceUpdateRunning = true;
+                }
+                fclose($updateLockHandle);
+            }
+        }
+        if (!$maintenanceSticky && !$maintenanceUpdateRunning && time() - $maintenanceTime > 1800) {
             // Stale maintenance file, remove it and continue
             unlink($maintenanceFile);
         } else {
@@ -289,6 +307,25 @@ $httpsDetected = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
     || (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && strtolower((string)$_SERVER['HTTP_X_FORWARDED_PROTO']) === 'https')
     || (isset($_SERVER['HTTP_X_FORWARDED_SSL']) && strtolower((string)$_SERVER['HTTP_X_FORWARDED_SSL']) === 'on');
 
+// Scheme used for decisions that end up in SHARED responses. $httpsDetected
+// above keeps honouring X-Forwarded-* from any peer (it only drives per-request
+// choices — session cookie Secure flag, HTTPS/canonical redirects — and a proxy
+// install without TRUSTED_PROXIES relies on it to avoid redirect loops). The
+// CSP header, however, is copied into the LiteSpeed edge cache: there a client
+// spoofing X-Forwarded-Proto on an HTTP-only install would poison the cached
+// page with upgrade-insecure-requests for every visitor. So the forwarded
+// headers count here only from a TRUSTED_PROXIES peer, or when the operator's
+// own APP_CANONICAL_URL already says the site is https.
+$httpsForSharedHeaders = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off');
+if (!$httpsForSharedHeaders && \App\Support\HtmlHelper::isRemoteAddrTrustedProxy()) {
+    $httpsForSharedHeaders = (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && strtolower(trim(explode(',', (string)$_SERVER['HTTP_X_FORWARDED_PROTO'])[0])) === 'https')
+        || (isset($_SERVER['HTTP_X_FORWARDED_SSL']) && strtolower((string)$_SERVER['HTTP_X_FORWARDED_SSL']) === 'on');
+}
+if (!$httpsForSharedHeaders && $httpsDetected) {
+    $canonicalForScheme = getenv('APP_CANONICAL_URL') ?: ($_ENV['APP_CANONICAL_URL'] ?? '');
+    $httpsForSharedHeaders = is_string($canonicalForScheme) && stripos(trim($canonicalForScheme), 'https://') === 0;
+}
+
 // Secure session configuration. The ini parameters below are ALWAYS applied
 // (even when no session is started for this request) so that any session
 // started later in the request — e.g. the lazy GET /csrf-token endpoint or
@@ -375,12 +412,17 @@ if (!$isCli && !$httpsDetected) {
     }
 }
 
-// Set HSTS header if enabled and using HTTPS
-if (!$isCli && $httpsDetected) {
-    $enableHstsFromDb = \App\Support\ConfigStore::get('advanced.enable_hsts', false);
-    if ($enableHstsFromDb) {
-        // HSTS: max-age=1 year (31536000 seconds), includeSubDomains
-        header('Strict-Transport-Security: max-age=31536000; includeSubDomains', false);
+// HSTS is opt-in (Settings > Advanced > "Abilita HSTS", off by default) and
+// only ever sent on HTTPS. The scheme check uses $httpsForSharedHeaders, which
+// honours X-Forwarded-* only from a TRUSTED_PROXIES peer: a spoofed header on a
+// plain-HTTP install must not get HSTS stored in a shared (edge) cache.
+if (!$isCli) {
+    $hstsValue = \App\Support\Hsts::headerValue(
+        \App\Support\ConfigStore::get('advanced.enable_hsts', false),
+        $httpsForSharedHeaders
+    );
+    if ($hstsValue !== null) {
+        header('Strict-Transport-Security: ' . $hstsValue);
     }
 }
 
@@ -511,6 +553,10 @@ if (!$isCli) {
 // lacks. The update that installs a release runs the previous release's
 // updater, so this is where a newer repair first runs. Not while an update
 // holds maintenance mode: its migrations may still be running.
+// Not during a fresh install either: runOncePerVersion() skips while the
+// installer holds its install-in-progress claim, since an anonymous request
+// would race the installer's own CREATE TABLE steps. An install with .env
+// but no .installed (treated as installed above) is still repaired.
 if (!$isCli && !file_exists($maintenanceFile)) {
     try {
         \App\Support\SchemaRepair::runOncePerVersion($container->get('db'));
@@ -658,42 +704,19 @@ if (!$displayErrorDetails) {
 // order, so this MUST be added after ErrorMiddleware: otherwise exceptions and
 // 404/405 responses are rendered outside this layer and leave the application
 // without CSP precisely on attacker-controlled paths.
-$app->add(function ($request, $handler) use ($httpsDetected) {
-    $cspNonce = \App\Support\ContentSecurityPolicy::createNonce();
+$app->add(function ($request, $handler) use ($httpsForSharedHeaders) {
+    // The nonce is generated BEFORE the request is handled so the templates
+    // can stamp it on their own <script>/<style> elements through
+    // csp_nonce_attr(). The response body is deliberately NOT rewritten:
+    // stamping every <script> of the finished page would also bless any tag
+    // smuggled in through stored content, which is exactly what the nonce
+    // is meant to keep out.
+    $cspNonce = \App\Support\ContentSecurityPolicy::beginRequest();
     $response = $handler->handle($request);
-
-    $contentType = strtolower($response->getHeaderLine('Content-Type'));
-    // Decide from the Content-Type first: a PDF, an image or a download is
-    // never read into memory here (a large scan would hit memory_limit).
-    // Only a response without a type is sniffed, from its first bytes.
-    $html = '';
-    $isHtml = false;
-    $declaredHtml = str_contains($contentType, 'text/html') || str_contains($contentType, 'application/xhtml+xml');
-    if ($declaredHtml) {
-        $isHtml = true;
-    } elseif (trim($contentType) === '') {
-        $body = $response->getBody();
-        if ($body->isSeekable()) {
-            $body->rewind();
-            $head = $body->read(1024);
-            $body->rewind();
-            $isHtml = \App\Support\ContentSecurityPolicy::isHtmlResponse('', $head);
-        } else {
-            $html = (string) $body;
-            $isHtml = \App\Support\ContentSecurityPolicy::isHtmlResponse('', $html);
-        }
-    }
-    if ($isHtml) {
-        $html = $html !== '' ? $html : (string) $response->getBody();
-        $html = \App\Support\ContentSecurityPolicy::addNonceAttributes($html, $cspNonce);
-        $response = $response
-            ->withBody((new \Slim\Psr7\Factory\StreamFactory())->createStream($html))
-            ->withoutHeader('Content-Length');
-    }
 
     $csp = \App\Support\ContentSecurityPolicy::header(
         $cspNonce,
-        getenv('APP_ENV') === 'production' && $httpsDetected
+        getenv('APP_ENV') === 'production' && $httpsForSharedHeaders
     );
 
     $response = $response->withHeader('X-Frame-Options', 'SAMEORIGIN')
@@ -705,9 +728,8 @@ $app->add(function ($request, $handler) use ($httpsDetected) {
         // same origin only (barcode scanner, patron photo), nothing else.
         ->withHeader('Permissions-Policy', \App\Support\ContentSecurityPolicy::permissionsPolicy());
 
-    if (!$response->hasHeader('Strict-Transport-Security') && (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')) {
-        $response = $response->withHeader('Strict-Transport-Security', 'max-age=63072000; includeSubDomains; preload');
-    }
+    // Strict-Transport-Security is NOT added here: it is opt-in and emitted
+    // once, above, from the advanced.enable_hsts setting (App\Support\Hsts).
 
     return $response;
 });

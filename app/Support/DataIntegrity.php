@@ -21,6 +21,12 @@ class DataIntegrity {
      * @return array{updated:int, errors:list<string>, desiderata_cleared?:int}
      */
     public function recalculateAllBookAvailability(bool $insideTransaction = false): array {
+        // The preceding release's web and standalone updaters both load
+        // this class from the new tree after copying files. They preserve the
+        // statically served sitemap and may already have loaded SchemaRepair.
+        if (!$insideTransaction) {
+            SitemapCache::withdrawIfPrivate($this->db);
+        }
         $results = ['updated' => 0, 'errors' => []];
         // App-timezone "today" (DateHelper), interpolated below instead of the DB's CURDATE():
         // stored dates are app-tz, so CURDATE() (DB session tz) drifts by a day in the window

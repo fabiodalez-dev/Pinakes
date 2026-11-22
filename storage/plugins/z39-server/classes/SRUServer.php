@@ -618,7 +618,7 @@ class SRUServer
             'count' => "SELECT COUNT(*) FROM (SELECT l.id {$baseQuery}) sru_matches",
             'data' => "
                 SELECT
-                    l.*,
+                    " . $this->publicBookColumns() . ",
                     GROUP_CONCAT(DISTINCT a.nome ORDER BY la.ordine_credito SEPARATOR '; ') as autori,
                     (SELECT GROUP_CONCAT(
                                 CONCAT(HEX(la_all.ruolo), ':', HEX(" . \App\Support\AuthorName::displaySql('a_all') . "))
@@ -639,6 +639,65 @@ class SRUServer
                 " . $this->buildSortClause($sortKeys) . "
                 LIMIT " . (int) $maximumRecords . " OFFSET " . (int) $offset
         ];
+    }
+
+    /**
+     * libri columns the record formatters may read. The search used to select
+     * l.*, which also carries non-public data (private_comment, note_varie,
+     * lending_patron, prezzo, …); the formatters whitelist what they emit,
+     * but an explicit list keeps a future formatter change from leaking it.
+     * Add a column here when a formatter starts reading it.
+     */
+    private const PUBLIC_BOOK_COLUMNS = [
+        'id', 'isbn10', 'isbn13', 'issn', 'ean', 'titolo', 'sottotitolo',
+        'anno_pubblicazione', 'data_pubblicazione', 'lingua', 'edizione',
+        'luogo_pubblicazione', 'numero_pagine', 'collocazione', 'stato',
+        'copertina_url', 'descrizione', 'parole_chiave', 'formato', 'tipo_media',
+        'dimensioni', 'copie_totali', 'copie_disponibili', 'numero_inventario',
+        'classificazione_dewey', 'collana', 'numero_serie', 'created_at',
+        'updated_at', 'traduttore', 'illustratore', 'curatore', 'colorista',
+        'diritti',
+        // Film and video (#539): UNIMARC 215 runtime, 323 cast and 333 age rating;
+        // the RDA overrides feed 215 through MarcMediaType::rdaCodes().
+        'durata_minuti', 'interpreti', 'classificazione_eta',
+        'rda_content_type', 'rda_media_type', 'rda_carrier_type',
+    ];
+
+    /** @var string|null "l.col, l.col, …" for this install's libri columns */
+    private ?string $publicBookColumnsCache = null;
+
+    /**
+     * The whitelisted columns that exist on this install. Some are added by
+     * later migrations (and colorista/diritti are not core columns), so a
+     * hard-coded list could reference a column an upgraded install lacks.
+     */
+    private function publicBookColumns(): string
+    {
+        if ($this->publicBookColumnsCache !== null) {
+            return $this->publicBookColumnsCache;
+        }
+        $present = [];
+        $res = $this->db->query(
+            "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+              WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'libri'"
+        );
+        if ($res instanceof \mysqli_result) {
+            while ($row = $res->fetch_row()) {
+                $present[strtolower((string) $row[0])] = true;
+            }
+            $res->free();
+        }
+        $cols = [];
+        foreach (self::PUBLIC_BOOK_COLUMNS as $col) {
+            if (isset($present[$col])) {
+                $cols[] = 'l.' . $col;
+            }
+        }
+        if ($cols === []) {
+            // Metadata lookup failed: id and title exist on every install.
+            $cols = ['l.id', 'l.titolo'];
+        }
+        return $this->publicBookColumnsCache = implode(', ', $cols);
     }
 
     /**
@@ -1688,6 +1747,17 @@ class SRUServer
         ];
     }
 
+    /**
+     * Escape a scan prefix for LIKE (default escape character: backslash).
+     * The backslash is doubled FIRST: done last, it would double the escapes
+     * just added for % and _, turning '%' into a literal backslash followed
+     * by a live wildcard.
+     */
+    private static function escapeLikePrefix(string $prefix): string
+    {
+        return str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $prefix);
+    }
+
     private function performScanQuery(string $index, string $prefix, int $limit): array
     {
         $index = strtolower($index);
@@ -1695,8 +1765,7 @@ class SRUServer
         $limit = (int) $limit;
 
         // Escape LIKE wildcards in prefix to prevent unintended pattern matching
-        $escapedPrefix = str_replace(['%', '_', '\\'], ['\\%', '\\_', '\\\\'], $prefix);
-        $pattern = $escapedPrefix . '%';
+        $pattern = self::escapeLikePrefix($prefix) . '%';
 
         // SECURITY FIX: Use prepared statements instead of string interpolation
         $terms = [];

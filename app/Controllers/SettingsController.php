@@ -79,6 +79,14 @@ class SettingsController
         $eventsHeaderTexts = \App\Support\CatalogHeader::stored($repository, 'events');
         $eventsHeaderDefaults = \App\Support\CatalogHeader::defaultsFor(array_map('strval', array_keys($catalogHeaderLocales)), 'events');
         $advancedSettings = $this->resolveAdvancedSettings($repository);
+        // HTTPS seen only through untrusted forwarded headers: HSTS would
+        // silently never be sent, so the advanced tab says why.
+        $canonicalUrl = getenv('APP_CANONICAL_URL') ?: ($_ENV['APP_CANONICAL_URL'] ?? '');
+        $hstsProxyNotice = \App\Support\Hsts::untrustedForwardedHttps(
+            $_SERVER,
+            \App\Support\HtmlHelper::isRemoteAddrTrustedProxy(),
+            is_string($canonicalUrl) ? $canonicalUrl : ''
+        );
         $loansSettings = $this->resolveLoansSettings($repository);
         // Patron types and rules matrix (Settings → Circulation): reserved to
         // administrators like every CirculationSettingsController action, so
@@ -111,6 +119,16 @@ class SettingsController
         // may see those values; the partials gate secret output on $isAdmin.
         $isAdmin = (($_SESSION['user']['tipo_utente'] ?? '') === 'admin');
 
+        // A just-created API key is shown exactly once: only its hash is
+        // stored, so this session copy is the last place the full key exists.
+        $newApiKey = null;
+        if (isset($_SESSION['new_api_key'])) {
+            if ($isAdmin && is_string($_SESSION['new_api_key']) && $_SESSION['new_api_key'] !== '') {
+                $newApiKey = $_SESSION['new_api_key'];
+            }
+            unset($_SESSION['new_api_key']);
+        }
+
         ob_start();
         $data = compact(
             'appSettings',
@@ -129,6 +147,7 @@ class SettingsController
             'eventsHeaderTexts',
             'eventsHeaderDefaults',
             'advancedSettings',
+            'hstsProxyNotice',
             'loansSettings',
             'circulationData',
             'moduleSettings',
@@ -138,7 +157,8 @@ class SettingsController
             'activeTab',
             'db',
             'cookieBannerTexts',
-            'isAdmin'
+            'isAdmin',
+            'newApiKey'
         );
         require __DIR__ . '/../Views/settings/index.php';
         $content = ob_get_clean();
@@ -148,6 +168,11 @@ class SettingsController
         $html = ob_get_clean();
 
         $response->getBody()->write($html);
+        if ($newApiKey !== null) {
+            // The page carries a secret that is never shown again: keep it out
+            // of the browser and proxy caches (back button, shared machines).
+            return $response->withHeader('Cache-Control', 'no-store, private');
+        }
         return $response;
     }
 
@@ -170,8 +195,8 @@ class SettingsController
         $removeLogo = (string) ($data['remove_logo'] ?? '') === '1';
         if ($removeLogo) {
             if ($logoPath !== '') {
-                $absoluteLogoPath = dirname(__DIR__, 2) . '/public' . $logoPath;
-                if (is_file($absoluteLogoPath)) {
+                $absoluteLogoPath = self::removableLogoFile(dirname(__DIR__, 2) . '/public', $logoPath);
+                if ($absoluteLogoPath !== null) {
                     @unlink($absoluteLogoPath);
                 }
             }
@@ -315,7 +340,7 @@ class SettingsController
         // Resolve SMTP password first: encrypt if non-empty, clear if empty
         try {
             $encryptedSmtpPass = $smtpPass !== ''
-                ? SettingsEncryption::encrypt($smtpPass)
+                ? SettingsEncryption::encrypt($smtpPass, 'email', 'smtp_password')
                 : '';
         } catch (\Throwable $e) {
             SecureLogger::error('SettingsController::updateEmailSettings encryption failed: ' . $e->getMessage());
@@ -665,7 +690,7 @@ class SettingsController
         // Decrypt SMTP password for form display (only when actually encrypted)
         if (isset($settings['smtp_password']) && is_string($settings['smtp_password'])
             && str_starts_with($settings['smtp_password'], SettingsEncryption::PREFIX)) {
-            $decrypted = SettingsEncryption::decrypt($settings['smtp_password']);
+            $decrypted = SettingsEncryption::decrypt($settings['smtp_password'], 'email', 'smtp_password');
             if ($decrypted !== null) {
                 $settings['smtp_password'] = $decrypted;
             } else {
@@ -731,6 +756,32 @@ class SettingsController
         // forcing the installation locale — otherwise an en_US admin on an
         // it_IT install would open the editor on the Italian templates.
         return \App\Support\I18n::resolveUserLocale(\App\Support\I18n::getLocale());
+    }
+
+    /**
+     * The file a stored logo path may delete, or null. Only the two places a
+     * logo is ever written qualify: anything under public/uploads/settings
+     * (this controller's upload handler) and a logo_* image directly in
+     * public/assets (the installer's step 5), resolved with realpath() so a
+     * '..' segment or a symlink cannot point the unlink at another file.
+     */
+    public static function removableLogoFile(string $publicDir, string $logoPath): ?string
+    {
+        $real = realpath($publicDir . '/' . ltrim($logoPath, '/'));
+        if ($real === false || !is_file($real)) {
+            return null;
+        }
+        $settingsDir = realpath($publicDir . '/uploads/settings');
+        if ($settingsDir !== false && str_starts_with($real, $settingsDir . DIRECTORY_SEPARATOR)) {
+            return $real;
+        }
+        $assetsDir = realpath($publicDir . '/assets');
+        if ($assetsDir !== false
+            && dirname($real) === $assetsDir
+            && preg_match('/^logo[\w.-]*\.(?:png|jpe?g|webp|gif|svg)$/i', basename($real)) === 1) {
+            return $real;
+        }
+        return null;
     }
 
     /**
@@ -1046,7 +1097,39 @@ class SettingsController
             'private_mode' => isset($data['private_mode']) && $data['private_mode'] === '1' ? '1' : '0',
         ];
 
+        // public/sitemap.xml is served by the web server without running PHP,
+        // so PrivateModeMiddleware cannot gate it: withdraw the published copy
+        // when private mode is on, and /sitemap.xml goes back through the gated
+        // route. The flag is written and the copy withdrawn while holding the
+        // lock SitemapGenerator::saveTo() holds when it re-reads the flag and
+        // renames its file into public/, so a publisher can never put a sitemap
+        // there after the flag is set. The static calendar copy is withdrawn
+        // too. A copy that cannot be removed stays public, so it is reported
+        // instead of hidden behind the success message.
+        $withdrawalErrors = [];
+        if ($settings['private_mode'] === '1') {
+            if (!\App\Support\SitemapCache::acquirePublishLock()) {
+                $_SESSION['error_message'] = __('Impossibile acquisire il lock. Riprova tra qualche secondo.');
+                return $this->redirect($response, '/admin/settings?tab=advanced');
+            }
+            try {
+                $repository->set('advanced', 'private_mode', '1');
+                ConfigStore::set('advanced.private_mode', true);
+                if (!\App\Support\SitemapCache::withdraw('private mode enabled')) {
+                    $withdrawalErrors[] = __('Impossibile rimuovere la sitemap pubblicata (public/sitemap.xml), che resta accessibile a chiunque. Verifica i permessi della cartella public/ e rimuovi il file.');
+                }
+                if (!\App\Support\MaintenanceService::withdrawPublicIcsFile()) {
+                    $withdrawalErrors[] = __('Impossibile rimuovere il calendario pubblico (storage/calendar/library-calendar.ics), che resta accessibile a chiunque. Verifica i permessi della cartella storage/calendar/ e rimuovi il file.');
+                }
+            } finally {
+                \App\Support\SitemapCache::releasePublishLock();
+            }
+        }
+
         foreach ($settings as $key => $value) {
+            if ($key === 'private_mode' && $value === '1') {
+                continue; // written above, under the sitemap publish lock
+            }
             $repository->set('advanced', $key, $value);
             if ($key === 'days_before_expiry_warning' || $key === 'session_lifetime') {
                 ConfigStore::set("advanced.$key", (int) $value);
@@ -1120,11 +1203,15 @@ class SettingsController
         $_SESSION['success_message'] = $liteSpeedBlockedByContainer && $requestedLiteSpeed
             ? __('Impostazioni avanzate aggiornate. LiteSpeed resta disabilitato perché non è disponibile nella versione Docker.')
             : __('Impostazioni avanzate aggiornate correttamente.');
+        $errorMessages = $withdrawalErrors;
         if ($droppedVerificationLines > 0) {
-            $_SESSION['error_message'] = sprintf(
+            $errorMessages[] = sprintf(
                 __('%d righe del campo "Verifica motori di ricerca" sono state ignorate: incolla il meta tag completo fornito dal servizio, ad esempio <meta name="google-site-verification" content="...">.'),
                 $droppedVerificationLines
             );
+        }
+        if ($errorMessages !== []) {
+            $_SESSION['error_message'] = implode(' ', $errorMessages);
         }
         return $this->redirect($response, url('/admin/settings') . '?tab=advanced');
     }
@@ -1136,11 +1223,36 @@ class SettingsController
         $repository = new SettingsRepository($db);
         $repository->ensureTables();
 
+        // A published file bypasses private mode (served statically, see
+        // updateAdvancedSettings()): never publish one while it is on. This
+        // early check only spares the generation; the guarantee is saveTo(),
+        // which re-reads the flag under the publish lock before publishing.
+        try {
+            $privateMode = (string) ConfigStore::get('advanced.private_mode', '0') === '1'
+                || $repository->get('advanced', 'private_mode', '0') === '1';
+        } catch (\Throwable $exception) {
+            SecureLogger::error('SettingsController::regenerateSitemap private mode lookup failed: ' . $exception->getMessage());
+            $privateMode = true;
+        }
+        if ($privateMode) {
+            $_SESSION['error_message'] = \App\Support\SitemapCache::withdraw('private mode is on')
+                ? __('La sitemap non viene pubblicata mentre la modalità privata è attiva.')
+                : __('Impossibile rimuovere la sitemap pubblicata (public/sitemap.xml), che resta accessibile a chiunque. Verifica i permessi della cartella public/ e rimuovi il file.');
+            return $this->redirect($response, '/admin/settings?tab=advanced');
+        }
+
         try {
             $baseUrl = SeoController::resolveBaseUrl($request);
             $generator = new SitemapGenerator($db, $baseUrl);
             $targetPath = \App\Support\SitemapCache::publishedPath();
-            $generator->saveTo($targetPath);
+            if (!$generator->saveTo($targetPath)) {
+                $_SESSION['error_message'] = match ($generator->getLastSkipReason()) {
+                    SitemapGenerator::SKIP_PRIVATE_MODE => __('La sitemap non viene pubblicata mentre la modalità privata è attiva.'),
+                    SitemapGenerator::SKIP_REVISION_CHANGED => __('Le impostazioni sono cambiate durante la generazione: la sitemap non è stata pubblicata. Riprova.'),
+                    default => __('La sitemap non è stata pubblicata: la cartella storage/cache/ non è leggibile o scrivibile. Verifica i permessi della cartella.'),
+                };
+                return $this->redirect($response, '/admin/settings?tab=advanced');
+            }
             $stats = $generator->getStats();
 
             $generatedAt = gmdate('c');
@@ -1390,7 +1502,9 @@ class SettingsController
             $newKey = $apiKeyRepo->create($name, $description !== '' ? $description : null);
 
             $_SESSION['success_message'] = __('API key creata con successo.');
-            $_SESSION['new_api_key'] = $newKey['api_key']; // Store for one-time display
+            // One-time display: SettingsController::index() shows it once and
+            // drops it; only the key's hash is stored in the database.
+            $_SESSION['new_api_key'] = $newKey['api_key'];
         } catch (\Throwable $e) {
             SecureLogger::error('SettingsController::createApiKey error: ' . $e->getMessage());
             $_SESSION['error_message'] = __('Errore nella creazione dell\'API key.');

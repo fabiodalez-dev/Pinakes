@@ -305,7 +305,7 @@ class CmsAdminController
 
         $newFilename = 'cms_' . $randomSuffix . '.' . $extension;
         // Sanitize filename to prevent null byte injection
-        $newFilename = str_replace("\\0", '', $newFilename);
+        $newFilename = str_replace("\0", '', $newFilename);
         $targetPath = $uploadPath . '/' . basename($newFilename);
 
         // SECURITY: Verify final path is within allowed directory

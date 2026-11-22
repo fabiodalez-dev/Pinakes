@@ -352,7 +352,7 @@ unset($workspaceHeader);
 </div>
 
 <!-- Modern DataTables with Advanced Features -->
-<script>
+<script<?= csp_nonce_attr() ?>>
 // i18n translations for JavaScript
 const i18nTranslations = <?= json_encode([
     'utenti' => __("utenti"),
@@ -391,10 +391,13 @@ document.addEventListener('DOMContentLoaded', function() {
     return;
   }
 
-  // i18n constants for JS template literals (avoid raw PHP in template strings)
-  const i18nViewDetails = <?= json_encode(__("Visualizza dettagli"), JSON_HEX_TAG) ?>;
-  const i18nEdit = <?= json_encode(__("Modifica"), JSON_HEX_TAG) ?>;
-  const i18nDelete = <?= json_encode(__("Elimina"), JSON_HEX_TAG) ?>;
+  // i18n constants for JS template literals (avoid raw PHP in template strings).
+  // These three land in title="…"/aria-label="…" of HTML assigned via innerHTML,
+  // so they are HTML-escaped here: json_encode() alone guards only the JS string,
+  // and a quote in a translation would close the attribute.
+  const i18nViewDetails = <?= json_encode(htmlspecialchars(__("Visualizza dettagli"), ENT_QUOTES, 'UTF-8'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+  const i18nEdit = <?= json_encode(htmlspecialchars(__("Modifica"), ENT_QUOTES, 'UTF-8'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+  const i18nDelete = <?= json_encode(htmlspecialchars(__("Elimina"), ENT_QUOTES, 'UTF-8'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
   // Only administrators may delete accounts (UsersController::delete refuses everyone else).
   const canDeleteUsers = <?= json_encode(($_SESSION['user']['tipo_utente'] ?? '') === 'admin') ?>;
   const i18nSelect = <?= json_encode(__("Seleziona"), JSON_HEX_TAG) ?>;
@@ -544,7 +547,7 @@ document.addEventListener('DOMContentLoaded', function() {
                  title="${i18nEdit}" aria-label="${i18nEdit}">
                 <i class="fas fa-edit text-sm"></i>
               </a>
-              ${canDeleteUsers ? `<button onclick="deleteUser(${Number(data)})"
+              ${canDeleteUsers ? `<button type="button" data-pk-action="users-delete" data-user-id="${Number(data)}"
                       class="btn-icon btn-danger-outline p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors duration-200"
                       title="${i18nDelete}" aria-label="${i18nDelete}">
                 <i class="fas fa-trash text-sm"></i>
@@ -707,6 +710,7 @@ document.addEventListener('DOMContentLoaded', function() {
   // Delete user function — SwalApp.confirmDelete has its own native
   // fallback, so this single branch covers both the Swal-loaded and
   // the Swal-missing cases.
+  window.PinakesActions.register('users-delete', (el) => window.deleteUser(Number(el.dataset.userId)));
   window.deleteUser = function(userId) {
     window.SwalApp.confirmDelete({
       title: __('Sei sicuro?'),
@@ -846,7 +850,7 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 
 <!-- Custom Styles for Enhanced UI -->
-<style>
+<style<?= csp_nonce_attr() ?>>
 .fade-in {
   animation: fadeIn 0.5s ease-in-out;
 }

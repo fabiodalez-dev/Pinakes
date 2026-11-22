@@ -168,7 +168,7 @@ unset($workspaceHeader);
                         <i class="fas fa-edit text-xs" aria-hidden="true"></i>
                       </a>
                       <form method="POST" action="<?= $deleteUrl ?>" class="inline-flex"
-                            onsubmit="return confirm(<?= $e(json_encode(__('Eliminare questo abbonamento?'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT)) ?>);">
+                            data-pk-confirm="<?= $e(__('Eliminare questo abbonamento?')) ?>">
                         <input type="hidden" name="csrf_token" value="<?= $csrf ?>">
                         <button type="submit" class="btn-icon btn-danger-outline w-7 h-7 inline-flex items-center justify-center text-gray-500 hover:text-red-500 hover:bg-red-50 rounded transition-all" title="<?= $e(__('Elimina')) ?>" aria-label="<?= $e(__('Elimina')) ?>">
                           <i class="fas fa-trash text-xs" aria-hidden="true"></i>
@@ -276,4 +276,4 @@ unset($workspaceHeader);
     </form>
   </div>
 </div>
-<script src="<?= $e(url('/plugins/emeroteca/assets/js/emeroteca-code-picker.js?v=1.0.0')) ?>" defer></script>
+<script<?= csp_nonce_attr() ?> src="<?= $e(url('/plugins/emeroteca/assets/js/emeroteca-code-picker.js?v=1.0.0')) ?>" defer></script>

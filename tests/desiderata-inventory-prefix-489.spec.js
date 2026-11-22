@@ -21,6 +21,15 @@ const { execFileSync } = require('node:child_process');
 const crypto = require('node:crypto');
 const { ensurePluginActive } = require('./helpers/plugin-activation');
 
+// The receipt buttons confirm through pk-actions.js (data-pk-confirm), which
+// uses SweetAlert2 where the admin layout loads it: click, then confirm.
+async function clickAndConfirm(page, locator) {
+  await locator.click();
+  const confirm = page.locator('.swal2-confirm');
+  await confirm.waitFor({ state: 'visible', timeout: 15000 });
+  await confirm.click();
+}
+
 const ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL || '';
 const ADMIN_PASS = process.env.E2E_ADMIN_PASS || '';
 const DB_USER = process.env.E2E_DB_USER || '';
@@ -131,7 +140,7 @@ test('B — "Libro donato" on the requests list uses the prefix', async ({ page 
   // wait for the receipt POST itself before reading the copies.
   await Promise.all([
     page.waitForResponse((res) => res.request().method() === 'POST' && /\/admin\/desiderata\/books\/\d+\/received/.test(res.url())),
-    row.getByRole('button', { name: 'Libro donato: registra la copia', exact: true }).click(),
+    clickAndConfirm(page, row.getByRole('button', { name: 'Libro donato: registra la copia', exact: true })),
   ]);
   await expectCopyCodes(page, book.id, [`${prefix}-C1`]);
 });
@@ -150,7 +159,7 @@ test('C — a donor proposal received through the admin buttons uses the prefix'
   await offer.getByRole('button', { name: 'Accetta proposta', exact: true }).click();
   offer = page.locator('article').filter({ hasText: book.title });
   await expect(offer).toContainText('In attesa della consegna');
-  await offer.getByRole('button', { name: 'Libro arrivato: registra una copia', exact: true }).click();
+  await clickAndConfirm(page, offer.getByRole('button', { name: 'Libro arrivato: registra una copia', exact: true }));
   await expect(page.locator('article').filter({ hasText: book.title })).toContainText('Ricevuta');
   await expectCopyCodes(page, book.id, [`${prefix}-C1`]);
 });
@@ -165,7 +174,7 @@ test('without a prefix the copy keeps the LIB-<id> default', async ({ page }) =>
   // wait for the receipt POST itself before reading the copies.
   await Promise.all([
     page.waitForResponse((res) => res.request().method() === 'POST' && /\/admin\/desiderata\/books\/\d+\/received/.test(res.url())),
-    row.getByRole('button', { name: 'Libro donato: registra la copia', exact: true }).click(),
+    clickAndConfirm(page, row.getByRole('button', { name: 'Libro donato: registra la copia', exact: true })),
   ]);
   await expectCopyCodes(page, book.id, [`LIB-${book.id}-C1`]);
 });

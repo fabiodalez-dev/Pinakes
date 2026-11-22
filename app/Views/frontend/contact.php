@@ -429,7 +429,7 @@ include __DIR__ . '/partials/catalog-hero.php';
                         <p class="map-blocked-description">
                             <?= __("Per visualizzare la mappa, accetta i cookie di Analytics nelle preferenze cookie.") ?>
                         </p>
-                        <button type="button" class="map-blocked-button" data-needs-consent-manager hidden onclick="if(window.CookieControl) window.CookieControl.open();">
+                        <button type="button" class="map-blocked-button" data-needs-consent-manager hidden data-pk-action="contact-cookie-preferences">
                             <i class="fas fa-cookie-bite"></i>
                             <?= __("Gestisci preferenze cookie") ?>
                         </button>
@@ -505,15 +505,15 @@ include __DIR__ . '/partials/catalog-hero.php';
 </section>
 
 <?php if (!empty($recaptchaSiteKey)): ?>
-<script src="https://www.google.com/recaptcha/api.js?render=<?= rawurlencode($recaptchaSiteKey) ?>"></script>
-<script>
+<script<?= csp_nonce_attr() ?> src="https://www.google.com/recaptcha/api.js?render=<?= rawurlencode($recaptchaSiteKey) ?>"></script>
+<script<?= csp_nonce_attr() ?>>
 document.getElementById('contact-form').addEventListener('submit', function(e) {
     e.preventDefault();
     const form = this;
     const submitBtn = form.querySelector('.btn-submit');
 
     submitBtn.disabled = true;
-    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i><span>' + <?= json_encode(__("Invio in corso..."), JSON_HEX_TAG) ?> + '</span>';
+    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i><span>' + <?= json_encode(htmlspecialchars(__("Invio in corso..."), ENT_QUOTES, 'UTF-8'), JSON_HEX_TAG) ?> + '</span>';
 
     grecaptcha.ready(function() {
         grecaptcha.execute(<?= json_encode($recaptchaSiteKey, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP) ?>, {action: 'contact_form'}).then(function(token) {
@@ -526,9 +526,13 @@ document.getElementById('contact-form').addEventListener('submit', function(e) {
 <?php endif; ?>
 
 <!-- External Content Consent Manager -->
-<script>
+<script<?= csp_nonce_attr() ?>>
 (function() {
     'use strict';
+
+    window.PinakesActions.register('contact-cookie-preferences', function () {
+        if (window.CookieControl) window.CookieControl.open();
+    });
 
     // A control that silently does nothing is worse than no control. The
     // button that opens cookie preferences starts hidden and is only shown

@@ -387,17 +387,27 @@ use App\Support\HtmlHelper;
                    class="w-5 h-5 text-gray-900 border-gray-300 rounded focus:ring-gray-500">
             <div>
               <span class="text-sm font-semibold text-gray-900"><?= __("Abilita HSTS") ?></span>
-              <p class="text-xs text-gray-600"><?= __("Attiva HTTP Strict Transport Security (max-age: 1 anno, include sottodomini)") ?></p>
+              <p class="text-xs text-gray-600"><?= __("Attiva HTTP Strict Transport Security sulle connessioni HTTPS (max-age: 1 anno, sottodomini esclusi). Disattivato per impostazione predefinita.") ?></p>
+              <?php if (!isset($advancedSettings['enable_hsts']) || $advancedSettings['enable_hsts'] !== '1'): ?>
+              <p class="text-xs text-amber-700 mt-1" data-testid="hsts-upgrade-note"><?= __("Fino alla versione 0.9.5 HSTS veniva inviato automaticamente su ogni risposta HTTPS. Dopo l'aggiornamento non viene più inviato finché non attivi questa opzione.") ?></p>
+              <?php endif; ?>
             </div>
           </label>
         </div>
+        <?php if (!empty($hstsProxyNotice)): ?>
+        <div class="pk-inline-note" role="status" data-testid="hsts-proxy-notice">
+          <p class="text-xs text-gray-700">
+            <i class="fas fa-exclamation-triangle text-amber-600" aria-hidden="true"></i>
+            <?= __("Questa richiesta arriva in HTTPS tramite un proxy non attendibile (X-Forwarded-Proto). Finché il proxy non è configurato, HSTS e upgrade-insecure-requests non vengono inviati: imposta TRUSTED_PROXIES con l'indirizzo del proxy oppure APP_CANONICAL_URL con l'indirizzo https:// del sito nel file .env.") ?>
+          </p>
+        </div>
+        <?php endif; ?>
         <div class="pk-inline-note">
           <div class="text-xs text-gray-700 space-y-1">
             <p><strong><?= __("Requisiti:") ?></strong></p>
             <ul class="list-disc pl-5">
               <li><?= __("Certificato SSL/TLS valido") ?></li>
               <li><?= __("Tutte le risorse del sito devono essere HTTPS") ?></li>
-              <li><?= __("Sottodomini devono supportare HTTPS (se usati)") ?></li>
             </ul>
           </div>
         </div>
@@ -699,7 +709,7 @@ use App\Support\HtmlHelper;
             <span class="text-gray-600"><?= __("URL pubblico:") ?></span>
             <a href="<?php echo HtmlHelper::e($publicSitemapUrl); ?>" class="text-gray-900 hover:text-black underline ml-2 break-all" target="_blank" rel="noopener noreferrer"><?php echo HtmlHelper::e($publicSitemapUrl); ?></a>
             <button type="button"
-                    onclick="copyToClipboard(<?php echo htmlspecialchars(json_encode($publicSitemapUrl, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT), ENT_QUOTES, 'UTF-8'); ?>, this)"
+                    data-pk-action="settings-copy" data-copy-text="<?php echo htmlspecialchars((string) $publicSitemapUrl, ENT_QUOTES, 'UTF-8'); ?>"
                     class="inline-flex items-center gap-1 ml-2 px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 rounded transition-colors">
               <i class="fas fa-copy"></i> <?= __("Copia") ?>
             </button>
@@ -830,7 +840,7 @@ use App\Support\HtmlHelper;
   ?>
 
   <div class="bg-white border border-gray-200 rounded-2xl overflow-hidden mt-6 max-sm:!bg-transparent max-sm:!rounded-none max-sm:!shadow-none max-sm:!border-0">
-    <div class="border-b border-gray-200 px-6 py-4 cursor-pointer hover:bg-gray-50 transition-colors max-sm:!px-0 max-sm:!border-0" onclick="toggleApiSection()">
+    <div class="border-b border-gray-200 px-6 py-4 cursor-pointer hover:bg-gray-50 transition-colors max-sm:!px-0 max-sm:!border-0" data-pk-action="settings-toggle-api-section">
       <div class="flex items-center justify-between gap-3">
         <div>
           <h2 class="text-xl font-semibold text-gray-900 flex items-center gap-2">
@@ -860,7 +870,7 @@ use App\Support\HtmlHelper;
                    value="1"
                    <?php echo $apiEnabled ? 'checked' : ''; ?>
                    class="toggle-checkbox sr-only"
-                   onchange="document.getElementById('api-toggle-form').submit()">
+                   data-pk-action="submit-form">
             <div class="toggle-bg w-11 h-6 bg-gray-200 rounded-full transition-colors"></div>
             <div class="toggle-dot absolute top-[2px] left-[2px] bg-white border border-gray-300 rounded-full h-5 w-5 transition-transform"></div>
           </label>
@@ -887,19 +897,37 @@ use App\Support\HtmlHelper;
             <?= __("API Keys") ?>
           </h4>
           <button type="button"
-                  onclick="showCreateApiKeyModal()"
+                  data-pk-action="settings-show-api-key-modal"
                   class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gray-900 text-white text-sm font-semibold hover:bg-black transition-colors">
             <i class="fas fa-plus"></i>
             <?= __("Crea Nuova API Key") ?>
           </button>
         </div>
 
+        <?php if (!empty($newApiKey) && is_string($newApiKey)): ?>
+          <div class="p-4 rounded-xl border border-yellow-300 bg-yellow-50" id="new-api-key-once" role="alert">
+            <p class="text-sm font-semibold text-gray-900 flex items-center gap-2">
+              <i class="fas fa-exclamation-triangle text-yellow-600"></i>
+              <?= __("Copia ora la nuova API key: non verrà più mostrata.") ?>
+            </p>
+            <p class="text-xs text-gray-600 mt-1"><?= __("Viene salvata solo un'impronta della chiave. Se la perdi, eliminala e creane una nuova.") ?></p>
+            <div class="mt-3 p-3 bg-gray-900 rounded-lg">
+              <code class="text-xs text-green-400 font-mono break-all"><?php echo HtmlHelper::e($newApiKey); ?></code>
+              <button type="button"
+                      data-pk-action="settings-copy" data-copy-text="<?php echo htmlspecialchars((string) $newApiKey, ENT_QUOTES, 'UTF-8'); ?>"
+                      class="ml-2 text-xs text-gray-300 hover:text-white">
+                <i class="fas fa-copy"></i> <?= __("Copia") ?>
+              </button>
+            </div>
+          </div>
+        <?php endif; ?>
+
         <?php if (empty($apiKeys)): ?>
           <div class="text-center py-12">
             <i class="fas fa-key text-4xl text-gray-300 mb-4"></i>
             <p class="text-gray-600 mb-4"><?= __("Nessuna API key configurata") ?></p>
             <button type="button"
-                    onclick="showCreateApiKeyModal()"
+                    data-pk-action="settings-show-api-key-modal"
                     class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gray-900 text-white text-sm font-semibold hover:bg-black transition-colors">
               <i class="fas fa-plus"></i>
               <?= __("Crea Prima API Key") ?>
@@ -927,21 +955,9 @@ use App\Support\HtmlHelper;
                       <span class="text-yellow-600"><i class="fas fa-exclamation-triangle mr-1"></i><?= __("Mai utilizzata") ?></span>
                     <?php endif; ?>
                   </div>
-                  <div class="mt-3">
-                    <button type="button"
-                            onclick="toggleApiKeyVisibility('key-<?php echo (int)$key['id']; ?>')"
-                            class="text-xs text-gray-700 hover:text-black font-medium">
-                      <i class="fas fa-eye mr-1"></i>
-                      <span id="key-<?php echo (int)$key['id']; ?>-toggle-text"><?= __("Mostra API Key") ?></span>
-                    </button>
-                    <div id="key-<?php echo (int)$key['id']; ?>" class="hidden mt-2 p-3 bg-gray-900 rounded-lg">
-                      <code class="text-xs text-green-400 font-mono break-all"><?php echo HtmlHelper::e($key['api_key']); ?></code>
-                      <button type="button"
-                              onclick="copyToClipboard(<?php echo htmlspecialchars(json_encode($key['api_key'], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT), ENT_QUOTES, 'UTF-8'); ?>, this)"
-                              class="ml-2 text-xs text-gray-300 hover:text-white">
-                        <i class="fas fa-copy"></i> <?= __("Copia") ?>
-                      </button>
-                    </div>
+                  <div class="mt-2 text-xs text-gray-500">
+                    <!-- Only the key's hash is stored: the full key was shown once, at creation. -->
+                    <code class="font-mono text-gray-700"><?php echo HtmlHelper::e((string) ($key['key_prefix'] ?? '')); ?>…</code>
                   </div>
                 </div>
                 <div class="flex items-center gap-2 ml-4">
@@ -988,7 +1004,7 @@ use App\Support\HtmlHelper;
             <div class="bg-gray-900 rounded-xl p-4">
               <code class="text-sm text-green-400 font-mono break-all"><?php echo HtmlHelper::e($apiEndpoint); ?></code>
               <button type="button"
-                      onclick="copyToClipboard(<?php echo htmlspecialchars(json_encode($apiEndpoint, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT), ENT_QUOTES, 'UTF-8'); ?>, this)"
+                      data-pk-action="settings-copy" data-copy-text="<?php echo htmlspecialchars((string) $apiEndpoint, ENT_QUOTES, 'UTF-8'); ?>"
                       class="ml-2 text-xs text-gray-300 hover:text-white">
                 <i class="fas fa-copy"></i> <?= __("Copia") ?>
               </button>
@@ -1081,7 +1097,7 @@ use App\Support\HtmlHelper;
   <div class="bg-white rounded-2xl max-w-md w-full p-6">
     <div class="flex items-center justify-between mb-4">
       <h3 class="text-xl font-bold text-gray-900"><?= __("Crea Nuova API Key") ?></h3>
-      <button type="button" onclick="hideCreateApiKeyModal()" class="text-gray-400 hover:text-gray-600">
+      <button type="button" data-pk-action="settings-hide-api-key-modal" class="text-gray-400 hover:text-gray-600">
         <i class="fas fa-times text-xl"></i>
       </button>
     </div>
@@ -1121,7 +1137,7 @@ use App\Support\HtmlHelper;
           <?= __("Crea API Key") ?>
         </button>
         <button type="button"
-                onclick="hideCreateApiKeyModal()"
+                data-pk-action="settings-hide-api-key-modal"
                 class="px-4 py-3 rounded-xl bg-gray-200 text-gray-700 text-sm font-semibold hover:bg-gray-300 transition-colors">
           <?= __("Annulla") ?>
         </button>
@@ -1130,7 +1146,7 @@ use App\Support\HtmlHelper;
   </div>
 </div>
 
-<script>
+<script<?= csp_nonce_attr() ?>>
 function showCreateApiKeyModal() {
   document.getElementById('create-api-key-modal').classList.remove('hidden');
 }
@@ -1139,22 +1155,10 @@ function hideCreateApiKeyModal() {
   document.getElementById('create-api-key-modal').classList.add('hidden');
 }
 
-function toggleApiKeyVisibility(keyId) {
-  const element = document.getElementById(keyId);
-  const toggleText = document.getElementById(keyId + '-toggle-text');
-  if (element.classList.contains('hidden')) {
-    element.classList.remove('hidden');
-    toggleText.textContent = <?= json_encode(__("Nascondi API Key"), JSON_HEX_TAG) ?>;
-  } else {
-    element.classList.add('hidden');
-    toggleText.textContent = <?= json_encode(__("Mostra API Key"), JSON_HEX_TAG) ?>;
-  }
-}
-
 function copyToClipboard(text, button) {
   navigator.clipboard.writeText(text).then(() => {
     const originalHTML = button.innerHTML;
-    button.innerHTML = '<i class="fas fa-check"></i> ' + <?= json_encode(__("Copiato!"), JSON_HEX_TAG) ?>;
+    button.innerHTML = '<i class="fas fa-check"></i> ' + escapeHtml(<?= json_encode(__("Copiato!"), JSON_HEX_TAG) ?>);
     setTimeout(() => {
       button.innerHTML = originalHTML;
     }, 2000);
@@ -1183,4 +1187,10 @@ function toggleApiSection() {
     icon.classList.remove('rotate-180');
   }
 }
+
+// Delegated actions (CSP script-src-attr 'none': no inline on* attributes).
+PinakesActions.register('settings-show-api-key-modal', () => showCreateApiKeyModal());
+PinakesActions.register('settings-hide-api-key-modal', () => hideCreateApiKeyModal());
+PinakesActions.register('settings-toggle-api-section', () => toggleApiSection());
+PinakesActions.register('settings-copy', (el) => copyToClipboard(el.dataset.copyText || '', el));
 </script>

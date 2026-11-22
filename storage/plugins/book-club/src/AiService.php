@@ -190,6 +190,9 @@ class AiService
                 'max_redirects'   => 0,
                 'https_only'      => true,
                 'ssrf_guard'      => true,
+                // A completion capped at max_tokens=1024 is a few KB; refuse
+                // a runaway body instead of buffering it.
+                'max_bytes'       => 1048576,
             ]);
 
             if (!$res['ok'] || $res['body'] === '') {
@@ -255,7 +258,7 @@ class AiService
                LEFT JOIN bookclub_books cb ON o.kind = 'questions' AND cb.id = o.entity_id
                LEFT JOIN libri l ON l.id = cb.libro_id AND l.deleted_at IS NULL
                LEFT JOIN bookclub_meetings mt ON o.kind = 'minutes' AND mt.id = o.entity_id
-              WHERE o.club_id = ?
+              WHERE o.club_id = ? AND o.content <> ''
               ORDER BY o.created_at DESC, o.id DESC
               LIMIT ?"
         );
@@ -294,6 +297,109 @@ class AiService
     public function underDailyCap(int $clubId): bool
     {
         return $this->countRecentOutputs($clubId, 24) < self::MAX_OUTPUTS_PER_DAY;
+    }
+
+    /**
+     * Book one generation against the daily cap BEFORE the provider is
+     * called, and return the id of the row that holds it (null = cap
+     * reached, or the reservation could not be taken).
+     *
+     * The count and the insert run under a per-club named lock, so two
+     * concurrent requests can no longer both pass a check-then-act on the
+     * saved rows. The row is inserted with empty content and filled by
+     * completeAttempt() on success; a call that fails (transport, HTTP
+     * status, unparsable answer) leaves it empty, so a billed-but-unusable
+     * call still counts. listOutputs() hides the empty rows.
+     */
+    /**
+     * Name of the per-club lock reserveAttempt() holds. GET_LOCK is
+     * server-wide, not per database, so the name carries the schema: two
+     * installations on one MySQL server with the same club id do not wait on
+     * each other. Hashed in PHP, like Repo::scopedPublisherLockName(), so it
+     * stays within MySQL's 64-character limit for any database name:
+     * 'pinakes-bc-ai:' + 32 hex = 46 characters.
+     */
+    public static function clubLockName(string $schema, int $clubId): string
+    {
+        return 'pinakes-bc-ai:' . md5($schema . ':' . $clubId);
+    }
+
+    private function currentSchema(): string
+    {
+        $schema = '';
+        $res = $this->db->query('SELECT DATABASE()');
+        if ($res instanceof \mysqli_result) {
+            $schema = (string) ($res->fetch_row()[0] ?? '');
+            $res->free();
+        }
+        return $schema;
+    }
+
+    public function reserveAttempt(int $clubId, string $kind, int $entityId, ?int $createdBy): ?int
+    {
+        $this->refusedByCap = false;
+        $lockName = self::clubLockName($this->currentSchema(), $clubId);
+        $lock = $this->db->prepare('SELECT GET_LOCK(?, 5) AS l');
+        if ($lock === false) {
+            SecureLogger::error('[BookClub:ai] reserveAttempt lock prepare failed: ' . $this->db->error);
+            return null;
+        }
+        $lock->bind_param('s', $lockName);
+        $got = false;
+        if ($lock->execute()) {
+            $res = $lock->get_result();
+            $row = $res ? $res->fetch_assoc() : null;
+            $got = (int) ($row['l'] ?? 0) === 1;
+        }
+        $lock->close();
+        if (!$got) {
+            SecureLogger::warning('[BookClub:ai] reserveAttempt could not take the per-club lock');
+            return null;
+        }
+        try {
+            if (!$this->underDailyCap($clubId)) {
+                $this->refusedByCap = true;
+                return null;
+            }
+            return $this->saveOutput($clubId, $kind, $entityId, '', $this->model(), $createdBy);
+        } finally {
+            $release = $this->db->prepare('SELECT RELEASE_LOCK(?)');
+            if ($release !== false) {
+                $release->bind_param('s', $lockName);
+                $release->execute();
+                $release->close();
+            }
+        }
+    }
+
+    /** Whether reserveAttempt() was refusing this club the daily cap. */
+    private bool $refusedByCap = false;
+
+    /**
+     * True when the last reserveAttempt() returned null because the daily cap
+     * is reached; false when it failed for another reason (lock timeout, a
+     * database error), which the caller must not report as the cap.
+     */
+    public function reserveRefusedByCap(): bool
+    {
+        return $this->refusedByCap;
+    }
+
+    /** Fill a row booked by reserveAttempt() with the generated text. */
+    public function completeAttempt(int $outputId, string $content): bool
+    {
+        $stmt = $this->db->prepare('UPDATE bookclub_ai_outputs SET content = ? WHERE id = ?');
+        if ($stmt === false) {
+            SecureLogger::error('[BookClub:ai] completeAttempt prepare failed: ' . $this->db->error);
+            return false;
+        }
+        $stmt->bind_param('si', $content, $outputId);
+        $ok = $stmt->execute();
+        if (!$ok) {
+            SecureLogger::error('[BookClub:ai] completeAttempt execute failed: ' . $stmt->error);
+        }
+        $stmt->close();
+        return $ok;
     }
 
     // ------------------------------------------------------------------

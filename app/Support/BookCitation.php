@@ -39,9 +39,17 @@ final class BookCitation
         }
         $title = $decode($book['titolo'] ?? '');
         $subtitle = $decode($book['sottotitolo'] ?? '');
+        // A film (#539) is cited as a film: its principal authors are its
+        // directors and the publisher its studio or distributor.
+        $isFilm = MediaLabels::isFilm(
+            isset($book['formato']) ? (string) $book['formato'] : null,
+            isset($book['tipo_media']) ? (string) $book['tipo_media'] : null
+        );
+        $formato = trim((string) ($book['formato'] ?? ''));
 
         return [
-            'type' => 'book',
+            'type' => $isFilm ? 'film' : 'book',
+            'medium' => $isFilm && $formato !== '' ? MediaLabels::formatDisplayName($formato) : '',
             'authors' => array_values(array_unique($citeAuthors)),
             'editors' => array_values(array_unique($citeEditors)),
             'year' => !empty($book['anno_pubblicazione']) ? (string) (int) $book['anno_pubblicazione'] : '',
@@ -53,22 +61,28 @@ final class BookCitation
     }
 
     /**
-     * The RIS record (TY BOOK). Every value is collapsed to one line: in RIS a
-     * line break starts a new tag.
+     * The RIS record: TY BOOK, or TY MPCT (motion picture) for a film (#539).
+     * Every value is collapsed to one line: in RIS a line break starts a new
+     * tag.
      *
      * @param array<string,mixed> $input from input()
      * @param array<string,mixed> $book  the libri row, for the identifiers
      */
-    public static function ris(array $input, array $book, string $recordUrl = ''): string
+    public static function ris(array $input, array $book, string $recordUrl = '', string $provider = ''): string
     {
         $clean = static fn(mixed $value): string => trim((string) preg_replace('/\s+/u', ' ', (string) $value));
-        $lines = [['TY', 'BOOK']];
+        $isFilm = ($input['type'] ?? 'book') === 'film';
+        $lines = [['TY', $isFilm ? 'MPCT' : 'BOOK']];
+        if ($isFilm && (int) ($book['id'] ?? 0) > 0) {
+            $lines[] = ['ID', (string) (int) $book['id']];
+        }
         foreach ($input['authors'] ?? [] as $author) {
             $lines[] = ['AU', $author];
         }
         foreach ($input['editors'] ?? [] as $editor) {
             $lines[] = ['A2', $editor];
         }
+        $ean = $clean($book['ean'] ?? '');
         $isbn = $clean($book['isbn13'] ?? '') !== '' ? $book['isbn13'] : ($book['isbn10'] ?? '');
         foreach ([
             'TI' => $input['title'] ?? '',
@@ -76,13 +90,33 @@ final class BookCitation
             'PB' => $input['publisher'] ?? '',
             'CY' => $input['place'] ?? '',
             'ET' => $input['edition'] ?? '',
-            'SN' => $isbn,
+            'SN' => $isFilm && $ean !== '' ? $ean : $isbn,
             'T2' => $book['collana'] ?? '',
             'LA' => $book['lingua'] ?? '',
+            'M3' => $input['medium'] ?? '',
             'UR' => $recordUrl,
+            'DP' => $isFilm ? $provider : '',
         ] as $tag => $value) {
             if ($clean($value) !== '') {
                 $lines[] = [$tag, $value];
+            }
+        }
+        if ($isFilm) {
+            $cast = FilmFields::castLine($book['interpreti'] ?? null);
+            if ($cast !== '') {
+                $lines[] = ['N1', 'Cast: ' . $cast];
+            }
+            $runtime = FilmFields::runtime($book['durata_minuti'] ?? null);
+            if ($runtime !== null) {
+                $lines[] = ['N1', 'Running time: ' . $runtime . ' min'];
+            }
+            // RIS has no audience or subtitle tag: notes, like cast and
+            // running time (bibliotek.dk puts the audience in its record too).
+            foreach (['classificazione_eta' => 'Age rating: ', 'sottotitoli' => 'Subtitles: '] as $column => $label) {
+                $value = $clean($book[$column] ?? '');
+                if ($value !== '') {
+                    $lines[] = ['N1', $label . $value];
+                }
             }
         }
         foreach (preg_split('/\s*[,;]\s*/u', $clean($book['parole_chiave'] ?? '')) ?: [] as $keyword) {

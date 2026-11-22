@@ -43,6 +43,12 @@ class Updater
     private array $releaseByVersionCache = [];
 
     /**
+     * A release version as tagged on GitHub (same rule UpdateController applies
+     * before downloading a package).
+     */
+    public const RELEASE_VERSION_PATTERN = '/^v?\d+\.\d+\.\d+(?:-[0-9A-Za-z.]+)?$/D';
+
+    /**
      * Directories copied aside for rollback before an update — and therefore
      * the directories whose size the space preflight has to account for. One
      * list for both, so an addition here can never make the estimate lie.
@@ -134,6 +140,9 @@ class Updater
     public function __construct(mysqli $db)
     {
         $this->db = $db;
+        // Migrations and backups run long statements: never under the web
+        // request's statement time limit.
+        DbStatementTimeout::lift($db);
         $this->rootPath = dirname(__DIR__, 2);
         $this->backupPath = $this->rootPath . '/storage/backups';
 
@@ -238,6 +247,15 @@ class Updater
             return;
         }
 
+        // Every Updater construction lands here, including the status polls an
+        // admin page fires while an update or restore runs. An install slower
+        // than the age limit below would lose its rollback copy (and its work
+        // dir) under its feet, so nothing is swept while the shared update lock
+        // is held.
+        if ($this->updateLockHeld()) {
+            return;
+        }
+
         $now = time();
         $maxAge = 3600; // 1 hour
 
@@ -256,6 +274,29 @@ class Updater
                 }
             }
         }
+    }
+
+    /**
+     * True while another request holds storage/cache/update.lock (an update or
+     * a backup restore is running). A missing lock file means nothing runs.
+     */
+    private function updateLockHeld(): bool
+    {
+        $lockFile = $this->rootPath . '/storage/cache/update.lock';
+        if (!is_file($lockFile)) {
+            return false;
+        }
+        $handle = @fopen($lockFile, 'r');
+        if ($handle === false) {
+            // Cannot tell: err on the side of keeping the directories.
+            return true;
+        }
+        $free = flock($handle, LOCK_SH | LOCK_NB);
+        if ($free) {
+            flock($handle, LOCK_UN);
+        }
+        fclose($handle);
+        return !$free;
     }
 
     /**
@@ -1726,6 +1767,16 @@ class Updater
      */
     protected function getReleaseByVersion(string $version): ?array
     {
+        // The version becomes a path segment of the GitHub API URL. Every caller
+        // (the legacy /admin/updates/perform body, the version.json of an
+        // uploaded package feeding the patch lookups) must be a plain release
+        // version, or a value like '1.0.0/../../x' would address another resource.
+        if (preg_match(self::RELEASE_VERSION_PATTERN, $version) !== 1) {
+            $this->debugLog('WARNING', 'Versione non valida per la ricerca della release', [
+                'version' => mb_substr($version, 0, 64),
+            ]);
+            return null;
+        }
         $tag = strpos($version, 'v') === 0 ? $version : 'v' . $version;
 
         // Memoized: the package download and both patch checks ask for the same
@@ -2353,7 +2404,7 @@ class Updater
      */
     public function deleteBackup(string $backupName): array
     {
-        if (preg_match('/[\/\\\\]|\.\./', $backupName)) {
+        if ($backupName === '' || $backupName === '.' || preg_match('/[\/\\\\]|\.\./', $backupName)) {
             return ['success' => false, 'error' => __('Nome backup non valido')];
         }
 
@@ -2367,7 +2418,7 @@ class Updater
         $realBackupDir = realpath($this->backupPath);
 
         if ($realBackupPath === false || $realBackupDir === false ||
-            strpos($realBackupPath, $realBackupDir) !== 0) {
+            !str_starts_with($realBackupPath, $realBackupDir . DIRECTORY_SEPARATOR)) {
             return ['success' => false, 'error' => __('Percorso backup non valido')];
         }
 
@@ -2400,7 +2451,7 @@ class Updater
         $realBackupDir = realpath($this->backupPath);
 
         if ($realDbFile === false || $realBackupDir === false ||
-            strpos($realDbFile, $realBackupDir) !== 0) {
+            !str_starts_with($realDbFile, $realBackupDir . DIRECTORY_SEPARATOR)) {
             return ['success' => false, 'path' => null, 'filename' => null, 'error' => __('Percorso backup non valido')];
         }
 
@@ -2481,6 +2532,10 @@ class Updater
             // Copy files
             $this->debugLog('INFO', 'Copia file aggiornamento');
             $this->copyDirectory($sourcePath, $this->rootPath);
+
+            // Shipped files that live under a preserved directory and must
+            // still follow the release (copyDirectory() keeps the old copy).
+            $this->healPreservedPackagedFiles($sourcePath);
 
             // Update bundled plugins (copyDirectory skips storage/plugins via preservePaths)
             $this->debugLog('INFO', 'Aggiornamento plugin bundled');
@@ -3716,6 +3771,48 @@ class Updater
     }
 
     /**
+     * Files the package ships inside a preserved directory (see $preservePaths)
+     * that are code, not data, and so must follow the release: copyDirectory()
+     * keeps an existing copy, so a changed version would never reach upgraded
+     * installs. storage/calendar/.htaccess stopped granting every .ics file
+     * (the private calendar included) after 0.9.5.
+     *
+     * @var list<string>
+     */
+    private const PACKAGED_FILES_UNDER_PRESERVED_PATHS = [
+        'storage/calendar/.htaccess',
+    ];
+
+    /**
+     * Write the packaged content of PACKAGED_FILES_UNDER_PRESERVED_PATHS over
+     * an installed file that is missing or differs, as public/.htaccess is
+     * healed after the copy. A symlink in its place is replaced, never written
+     * through. Non-fatal: a failure is logged and the update goes on.
+     */
+    private function healPreservedPackagedFiles(string $sourcePath): void
+    {
+        foreach (self::PACKAGED_FILES_UNDER_PRESERVED_PATHS as $relative) {
+            $packaged = rtrim($sourcePath, '/\\') . '/' . $relative;
+            if (!is_file($packaged) || is_link($packaged)) {
+                continue;
+            }
+            $content = @file_get_contents($packaged);
+            if ($content === false) {
+                $this->debugLog('WARNING', 'Packaged file unreadable, not healed', ['file' => $relative]);
+                continue;
+            }
+            $status = PackagedFileHeal::write($this->rootPath . '/' . $relative, $content);
+            match ($status) {
+                PackagedFileHeal::UNCHANGED => null,
+                PackagedFileHeal::WRITTEN => $this->debugLog('INFO', 'Packaged file healed', ['file' => $relative]),
+                PackagedFileHeal::DIR_MISSING => $this->debugLog('WARNING', 'Packaged file not healed: directory missing', ['file' => $relative]),
+                PackagedFileHeal::SYMLINK => $this->debugLog('WARNING', 'Packaged file not healed: cannot replace a symlink', ['file' => $relative]),
+                default => $this->debugLog('WARNING', 'Packaged file not healed: write failed, restore it from the release by hand', ['file' => $relative]),
+            };
+        }
+    }
+
+    /**
      * Copy directory contents, respecting preserve and skip lists
      */
     private function copyDirectory(string $source, string $dest): void
@@ -4765,6 +4862,11 @@ class Updater
      */
     private function deleteDirectory(string $dir): void
     {
+        if (is_link($dir)) {
+            // nosemgrep: php.lang.security.unlink-use.unlink-use -- removes the link itself, never its target
+            @unlink($dir);
+            return;
+        }
         if (!is_dir($dir)) {
             return;
         }
@@ -4777,7 +4879,9 @@ class Updater
 
         foreach ($files as $file) {
             $path = $dir . '/' . $file;
-            if (is_dir($path)) {
+            // is_dir() follows symlinks: a link to a directory is removed as a
+            // link, never descended into (that would empty its target).
+            if (is_dir($path) && !is_link($path)) {
                 $this->deleteDirectory($path);
             } else {
                 // nosemgrep: php.lang.security.unlink-use.unlink-use -- internal updater-controlled path (constant or constructed under storage), not user input
@@ -5537,7 +5641,9 @@ class Updater
             return ['success' => false, 'error' => 'File not found: ' . $patch['file']];
         }
 
-        if (strpos($realPath, $realRoot) !== 0) {
+        // Separator-terminated prefix: a sibling such as '<root>-old/x' must not
+        // pass as being inside '<root>', and the root itself is never a target.
+        if ($realRoot === false || !str_starts_with($realPath, $realRoot . DIRECTORY_SEPARATOR)) {
             return ['success' => false, 'error' => 'Invalid file path (outside root)'];
         }
 
@@ -5761,7 +5867,9 @@ class Updater
             return ['success' => true, 'error' => null];
         }
 
-        if (strpos($realPath, $realRoot) !== 0) {
+        // Separator-terminated prefix: a sibling such as '<root>-old/x' must not
+        // pass as being inside '<root>', and the root itself is never a target.
+        if ($realRoot === false || !str_starts_with($realPath, $realRoot . DIRECTORY_SEPARATOR)) {
             return ['success' => false, 'error' => 'Invalid file path (outside root)'];
         }
 

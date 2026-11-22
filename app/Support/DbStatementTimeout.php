@@ -1,0 +1,283 @@
+<?php
+declare(strict_types=1);
+
+namespace App\Support;
+
+/**
+ * Per-session statement time limit for interactive web requests.
+ *
+ * Bounds every read query a web request runs (search amplification, heavy
+ * catalogue filters) so a single request cannot hold a database thread for
+ * minutes. The flavour of the server is detected once per connection:
+ *
+ *  - MySQL:   SET SESSION max_execution_time = <ms>    (SELECT statements only)
+ *  - MariaDB: SET SESSION max_statement_time = <s>     (EVERY statement, writes too)
+ *
+ * Because the MariaDB variable also interrupts writes, the limit is only ever
+ * applied on the web request path, never in CLI (cron, scripts, tests), and
+ * long-running authenticated admin operations (updater, installer,
+ * backup/restore, imports, exports, maintenance, sitemap regeneration) are
+ * exempt by exact route. Anonymous whole-catalogue endpoints (OAI-PMH,
+ * ResourceSync, SRU, the public sitemap) are never exempt: they get a raised
+ * limit (HARVEST_TIMEOUT_SECONDS, or a multiple of DB_STATEMENT_TIMEOUT).
+ * Authenticated admin work that runs long regardless of the route (updater,
+ * backups, plugin activation, SchemaRepair, the admin-login maintenance run)
+ * calls lift() on the connection it receives.
+ *
+ * Configuration: env DB_STATEMENT_TIMEOUT in seconds (0 disables). Without it
+ * MySQL gets 30 s and MariaDB a more generous 60 s.
+ *
+ * Failure to set or detect the limit is logged and ignored: it must never
+ * break the request.
+ */
+final class DbStatementTimeout
+{
+    public const DEFAULT_SECONDS_MYSQL = 30;
+    public const DEFAULT_SECONDS_MARIADB = 60;
+
+    /**
+     * Exact routes (path after the base path, anchored at both ends) of web
+     * operations that legitimately run long statements. Listed one by one on
+     * purpose: a substring match on any segment also exempted free-form
+     * segments such as a book slug ("/libro/12/important-...").
+     *
+     * Plugin activation/installation, SchemaRepair and the admin-login
+     * maintenance run do not depend on the path: they call lift() right
+     * before their work.
+     */
+    private const EXEMPT_ROUTES = [
+        // Long-running areas as a whole.
+        'installer(?:/.*)?',
+        'admin/updates(?:/.*)?',
+        'admin/maintenance(?:/.*)?',
+        // Imports.
+        'admin/books/import(?:/.*)?',
+        'admin/users/import(?:/.*)?',
+        'admin/calendar/import-ics',
+        'admin/archives/import',
+        'admin/books/(?:bulk-)?import-sbn',
+        'admin/books/import-unimarc',
+        'admin/books/copy-cataloging/import',
+        'api/dewey-editor/(?:import|export|restore)/[^/]+',
+        'admin/periodicals/articles/import',
+        // Mobile staff API: the limit is set on the connection from the mobile
+        // path, so a route that delegates to an exempt web operation (upload,
+        // start, chunk, error report, ICS and copy-cataloging import, and the
+        // exports below, stocktake reports included) is exempt too, or the same
+        // work is cut off from the app and not from a browser.
+        'api/v1/staff/(?:imports|marc/imports|user-imports)',
+        'api/v1/staff/(?:imports|marc/imports|user-imports)/[0-9a-f-]{36}/chunk',
+        'api/v1/staff/user-imports/[0-9a-f-]{36}/(?:start|errors\.csv)',
+        'api/v1/staff/imports/history/[A-Za-z0-9_.\-]{1,64}/errors\.csv',
+        'api/v1/staff/calendar/import-ics',
+        'api/v1/staff/copy-cataloging/import',
+        // Exports.
+        'api/v1/staff/exports/librarything\.tsv',
+        'api/v1/staff/marc/export',
+        'api/v1/staff/attendance/export\.csv',
+        'api/v1/staff/stocktake/sessions/\d+/report\.(?:csv|pdf)',
+        'admin/books/export/(?:csv|marc|librarything)',
+        'admin/users/export/csv',
+        'admin/users/export-pdf',
+        'admin/loans/export-csv',
+        'admin/attendance/export\.csv',
+        'admin/inventory/\d+/report\.(?:csv|pdf)',
+        'admin/imports/download-errors',
+        'api/collocazione/export-csv',
+        'api/(?:autori|editori)/bulk-export',
+        'admin/archives/export\.(?:xml|ead3)',
+        'admin/archives/(?:authorities/)?\d+/export\.xml',
+        'admin/periodicals/export/(?:kbart|acnp)',
+        'admin/periodicals/articles/export',
+        'admin/books/\d+/export\.unimarc\.xml',
+        // Sitemap regeneration (the public /sitemap.xml is raised, see below).
+        'admin/settings/advanced/regenerate-sitemap',
+    ];
+
+    /**
+     * Anonymous whole-catalogue endpoints (harvesting protocols, the public
+     * sitemap). They legitimately run longer statements, but anyone can call
+     * them and SRU takes user-supplied CQL, so they are never exempt: they
+     * get a raised limit instead (harvestSeconds()).
+     */
+    private const RAISED_ROUTES = [
+        'oai',
+        'archives/oai',
+        'resync/(?:capabilitylist|resourcelist|changelist)\.xml',
+        '\.well-known/resourcesync',
+        'api/sru',
+        'api/archives/sru',
+        'sitemap\.xml',
+    ];
+
+    /** Limit of the RAISED_ROUTES when DB_STATEMENT_TIMEOUT is not set. */
+    public const HARVEST_TIMEOUT_SECONDS = 300;
+
+    /** With DB_STATEMENT_TIMEOUT set, the RAISED_ROUTES get this multiple of it. */
+    public const HARVEST_TIMEOUT_FACTOR = 10;
+
+    /** @var array<int, string> spl_object_id => variable name set on that connection */
+    private static array $applied = [];
+
+    /**
+     * Apply the limit to a freshly opened web connection.
+     *
+     * @param string|null $requestPath request path; defaults to REQUEST_URI's path
+     * @param bool|null   $isCli       injectable for tests; defaults to PHP_SAPI
+     */
+    public static function applyForWebRequest(\mysqli $db, ?string $requestPath = null, ?bool $isCli = null): void
+    {
+        $isCli ??= (PHP_SAPI === 'cli' || PHP_SAPI === 'phpdbg');
+        if ($isCli) {
+            return;
+        }
+        $basePath = '';
+        if ($requestPath === null) {
+            $parsed = parse_url((string) ($_SERVER['REQUEST_URI'] ?? '/'), PHP_URL_PATH);
+            $requestPath = is_string($parsed) ? $parsed : '/';
+            try {
+                $basePath = HtmlHelper::getBasePath();
+            } catch (\Throwable) {
+                $basePath = '';
+            }
+        }
+        if (self::isExemptPath($requestPath, $basePath)) {
+            return;
+        }
+
+        try {
+            $version = '';
+            $result = $db->query('SELECT VERSION()');
+            if ($result instanceof \mysqli_result) {
+                $row = $result->fetch_row();
+                $version = is_array($row) ? (string) ($row[0] ?? '') : '';
+                $result->free();
+            }
+            $seconds = self::isRaisedPath($requestPath, $basePath)
+                ? self::harvestSeconds($version)
+                : self::configuredSeconds($version);
+            $sql = self::statementFor($version, $seconds);
+            if ($sql === null) {
+                return;
+            }
+            $db->query($sql);
+            self::$applied[spl_object_id($db)] = self::isMariaDb($version) ? 'max_statement_time' : 'max_execution_time';
+        } catch (\Throwable $e) {
+            SecureLogger::warning('[DbStatementTimeout] could not set the statement time limit', [
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    /**
+     * Remove the limit from a connection about to run a long operation
+     * (updater, backup/restore). No query is sent unless the limit was set.
+     */
+    public static function lift(\mysqli $db): void
+    {
+        $id = spl_object_id($db);
+        if (!isset(self::$applied[$id])) {
+            return;
+        }
+        $variable = self::$applied[$id];
+        try {
+            $db->query('SET SESSION ' . $variable . ' = 0');
+            unset(self::$applied[$id]);
+        } catch (\Throwable $e) {
+            SecureLogger::warning('[DbStatementTimeout] could not lift the statement time limit', [
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    public static function isMariaDb(string $version): bool
+    {
+        return stripos($version, 'mariadb') !== false;
+    }
+
+    /**
+     * Seconds to apply for the given server: env DB_STATEMENT_TIMEOUT when it
+     * is a non-negative integer, otherwise the per-flavour default.
+     */
+    public static function configuredSeconds(string $version, ?string $envValue = null): int
+    {
+        if ($envValue === null) {
+            $raw = $_ENV['DB_STATEMENT_TIMEOUT'] ?? getenv('DB_STATEMENT_TIMEOUT');
+            $envValue = is_string($raw) ? $raw : '';
+        }
+        $envValue = trim($envValue);
+        if ($envValue !== '' && preg_match('/^\d+$/D', $envValue) === 1) {
+            return min((int) $envValue, 86400);
+        }
+        return self::isMariaDb($version) ? self::DEFAULT_SECONDS_MARIADB : self::DEFAULT_SECONDS_MYSQL;
+    }
+
+    /**
+     * Seconds for the RAISED_ROUTES: HARVEST_TIMEOUT_SECONDS by default,
+     * HARVEST_TIMEOUT_FACTOR x DB_STATEMENT_TIMEOUT when that is set, and
+     * 0 (disabled) only when DB_STATEMENT_TIMEOUT=0.
+     */
+    public static function harvestSeconds(string $version, ?string $envValue = null): int
+    {
+        if ($envValue === null) {
+            $raw = $_ENV['DB_STATEMENT_TIMEOUT'] ?? getenv('DB_STATEMENT_TIMEOUT');
+            $envValue = is_string($raw) ? $raw : '';
+        }
+        $envValue = trim($envValue);
+        if ($envValue === '' || preg_match('/^\d+$/D', $envValue) !== 1) {
+            return self::HARVEST_TIMEOUT_SECONDS;
+        }
+        $base = self::configuredSeconds($version, $envValue);
+        if ($base <= 0) {
+            return 0;
+        }
+        return min($base * self::HARVEST_TIMEOUT_FACTOR, 86400);
+    }
+
+    /** The SET statement for this server flavour, or null when disabled. */
+    public static function statementFor(string $version, int $seconds): ?string
+    {
+        if ($seconds <= 0) {
+            return null;
+        }
+        if (self::isMariaDb($version)) {
+            return 'SET SESSION max_statement_time = ' . $seconds;
+        }
+        return 'SET SESSION max_execution_time = ' . ($seconds * 1000);
+    }
+
+    /**
+     * @param string $path     request path, base path included
+     * @param string $basePath the install's base path ("" at the domain root)
+     */
+    public static function isExemptPath(string $path, string $basePath = ''): bool
+    {
+        return self::matchesRoute(self::EXEMPT_ROUTES, $path, $basePath);
+    }
+
+    /** Whether the path gets the raised (never absent) harvesting limit. */
+    public static function isRaisedPath(string $path, string $basePath = ''): bool
+    {
+        return self::matchesRoute(self::RAISED_ROUTES, $path, $basePath);
+    }
+
+    /** @param list<string> $patterns */
+    private static function matchesRoute(array $patterns, string $path, string $basePath): bool
+    {
+        $path = '/' . ltrim($path, '/');
+        $basePath = rtrim($basePath, '/');
+        if ($basePath !== '') {
+            if ($path !== $basePath && !str_starts_with($path, $basePath . '/')) {
+                return false;
+            }
+            $path = '/' . ltrim(substr($path, strlen($basePath)), '/');
+        }
+        $route = rtrim(substr($path, 1), '/');
+        foreach ($patterns as $pattern) {
+            if (preg_match('#^' . $pattern . '$#iD', $route) === 1) {
+                return true;
+            }
+        }
+        return false;
+    }
+}

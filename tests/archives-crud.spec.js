@@ -126,12 +126,12 @@ test.describe.serial('Archives plugin CRUD (#103 phase 1d)', () => {
         );
         if (isActive === '0') {
             // Click the Attiva button and confirm the SweetAlert modal.
-            // The button is <button onclick="activatePlugin(id)"> — not
+            // The button is <button data-pk-action="plugins-activate"> — not
             // wrapped in a form — so the previous `form button` selector
             // never matched. Without the `.swal2-confirm` click the
             // activation never actually runs on a clean install and the
             // next assertion fails.
-            const activateBtn = page.locator('button[onclick^="activatePlugin("]').first();
+            const activateBtn = page.locator('button[data-pk-action="plugins-activate"]').first();
             if (await activateBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
                 await activateBtn.click();
                 const swalConfirm = page.locator('.swal2-confirm').first();

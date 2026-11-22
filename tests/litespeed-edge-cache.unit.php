@@ -58,10 +58,11 @@ $handler = static function (string $marker, bool $setCookie = false, bool $upgra
         public function handle(ServerRequestInterface $request): ResponseInterface
         {
             $response = new Response(200);
-            $response->getBody()->write('<!doctype html><html><head><style nonce="random">.x{color:red}</style></head><body><script nonce="random">window.x=1;</script></body></html>');
+            $nonce = ContentSecurityPolicy::createNonce();
+            $response->getBody()->write('<!doctype html><html><head><style nonce="' . $nonce . '">.x{color:red}</style></head><body><script nonce="' . $nonce . '">window.x=1;</script></body></html>');
             $response = $response
                 ->withHeader('Content-Type', 'text/html; charset=UTF-8')
-                ->withHeader('Content-Security-Policy', $this->upgrade ? "default-src 'self'; upgrade-insecure-requests" : "default-src 'self'")
+                ->withHeader('Content-Security-Policy', ContentSecurityPolicy::header($nonce, $this->upgrade))
                 ->withHeader(LiteSpeedCache::MARKER_HEADER, $this->marker);
             return $this->setCookie ? $response->withAddedHeader('Set-Cookie', 'sid=private') : $response;
         }
@@ -86,11 +87,13 @@ $check(
 );
 
 echo "-- CSP stabilization --\n";
-$html = '<style nonce="one">a{color:red}</style><script nonce="two">window.ok=true;</script>';
+$cacheNonce = ContentSecurityPolicy::createNonce();
+$html = '<style nonce="' . $cacheNonce . '">a{color:red}</style><script nonce="' . $cacheNonce . '">window.ok=true;</script>'
+    . '<script>window.injected=true;</script>';
 $stable = ContentSecurityPolicy::removeNonceAttributes($html);
-$csp = ContentSecurityPolicy::headerForCachedHtml($stable);
+$csp = ContentSecurityPolicy::headerForCachedHtml($html, $cacheNonce);
 $check(!str_contains($stable, 'nonce='), 'shared HTML contains no reusable CSP nonce');
-$check(substr_count($csp, "'sha256-") === 2, 'shared CSP hashes every inline style/script block');
+$check(substr_count($csp, "'sha256-") === 2, 'shared CSP hashes every nonced inline style/script block and nothing else');
 
 echo "-- LiteSpeed response policy --\n";
 $setConfig(true);
@@ -180,7 +183,11 @@ $check(str_contains($advancedSettingsView, 'name="litespeed_enabled"'), 'Advance
 $check(str_contains($advancedSettingsView, "'litespeed_catalog_ttl' =>"), 'Advanced settings exposes per-surface TTL controls');
 $advancedMethod = strstr($settingsController, 'public function updateAdvancedSettings');
 $generalMethod = strstr($settingsController, 'public function updateGeneral');
-$check(is_string($advancedMethod) && str_contains(substr($advancedMethod, 0, 8000), "repository->set('cache'"), 'Advanced settings endpoint owns cache persistence');
+// The whole method body (up to the next method), not a fixed-size window: the
+// method grows (the private-mode lock lives in it too) and the check must not
+// depend on where in it the cache persistence sits.
+$advancedBody = is_string($advancedMethod) ? (string) preg_replace('/\n    (?:public|private|protected) function .*/s', '', substr($advancedMethod, 1)) : '';
+$check($advancedBody !== '' && str_contains($advancedBody, "repository->set('cache'"), 'Advanced settings endpoint owns cache persistence');
 $check(is_string($generalMethod) && !str_contains(substr($generalMethod, 0, 12000), "repository->set('cache'"), 'General settings endpoint cannot mutate cache policy');
 $check(str_contains($advancedMethod ?: '', "url('/admin/settings') . '?tab=advanced'"), 'Advanced cache redirect uses url() admin literal — base-path aware and Rule 4 compliant (no route_path for admin routes)');
 $check(str_contains($configStore, "!empty(\$raw['cache'])"), 'database cache settings are mapped back into ConfigStore');

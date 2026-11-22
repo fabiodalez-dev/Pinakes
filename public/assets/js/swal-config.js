@@ -68,13 +68,27 @@ const _fakeResult = function(isConfirmed, value) {
   return Promise.resolve({ isConfirmed: !!isConfirmed, value: value });
 };
 
+// HTML-escape a plain-text value for a Swal option that is rendered as HTML.
+const _escapeSwalHtml = function(value) {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+};
+
 // Helper functions per casi comuni
 window.SwalApp = {
   /**
    * Conferma eliminazione
    */
   confirmDelete: function(options = {}) {
-    const title = options.title || __swal('Sei sicuro?');
+    // options.titleText is a plain-text title (one that carries user data or a
+    // translation): the native dialog shows it as is, and it is escaped only
+    // for Swal, whose title is HTML. options.title keeps meaning HTML.
+    const plainTitle = (typeof options.titleText === 'string' && options.titleText !== '') ? options.titleText : null;
+    const title = plainTitle !== null ? plainTitle : (options.title || __swal('Sei sicuro?'));
     const text  = options.text  || __swal('Questa azione non può essere annullata!');
     if (!_hasSwal()) {
       // Native fallback: combine title + text on two lines so the user
@@ -86,7 +100,7 @@ window.SwalApp = {
       return _fakeResult(window.confirm(msg));
     }
     return Swal.fire({
-      title: title,
+      title: plainTitle !== null ? _escapeSwalHtml(plainTitle) : title,
       text:  text,
       icon: 'warning',
       showCancelButton: true,

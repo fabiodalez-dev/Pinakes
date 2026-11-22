@@ -120,6 +120,9 @@ ob_start();
                 <p class="catalog-subtitle pk-lead"><?= htmlspecialchars($catalogHeader['subtitle'], ENT_QUOTES, 'UTF-8') ?></p>
                 <?php endif; ?>
             </div>
+            <?php if (in_array('dvd', array_column($facetMediaTypes, 'value'), true)): ?>
+            <a class="pk-btn pk-btn--ghost" href="<?= htmlspecialchars(route_path('films'), ENT_QUOTES, 'UTF-8') ?>"><i class="fas fa-film" aria-hidden="true"></i> <?= htmlspecialchars(__('Esplora i film'), ENT_QUOTES, 'UTF-8') ?></a>
+            <?php endif; ?>
         </div>
     </div>
 </section>
@@ -149,7 +152,7 @@ ob_start();
                     <div class="filters-content" id="catalog-filters-content">
                     <!-- Clear All, also at the top: no scrolling down a long filter column to reset it -->
                     <div class="filter-section filter-section--clear-top">
-                        <button class="clear-all-btn" onclick="clearAllFilters()">
+                        <button class="clear-all-btn" data-pk-action="catalog-clear">
                             <i class="fas fa-times"></i>
                             <?= __("Pulisci tutti i filtri") ?>
                         </button>
@@ -165,7 +168,7 @@ ob_start();
                         <button type="button" class="availability-option <?= empty($filters['disponibilita']) ? 'active' : '' ?>"
                              data-filter-value=""
                              aria-pressed="<?= empty($filters['disponibilita']) ? 'true' : 'false' ?>"
-                             onclick="updateFilter('disponibilita', '')">
+                             data-pk-action="catalog-filter" data-catalog-key="disponibilita" data-catalog-value="">
                                 <span class="availability-icon" aria-hidden="true">
                                     <i class="fas fa-th-large"></i>
                                 </span>
@@ -181,7 +184,7 @@ ob_start();
                         <button type="button" class="availability-option <?= ($filters['disponibilita'] ?? '') === 'disponibile' ? 'active' : '' ?>"
                              data-filter-value="disponibile"
                              aria-pressed="<?= ($filters['disponibilita'] ?? '') === 'disponibile' ? 'true' : 'false' ?>"
-                             onclick="updateFilter('disponibilita', 'disponibile')">
+                             data-pk-action="catalog-filter" data-catalog-key="disponibilita" data-catalog-value="disponibile">
                                 <span class="availability-icon" aria-hidden="true">
                                     <i class="fas fa-check-circle"></i>
                                 </span>
@@ -197,7 +200,7 @@ ob_start();
                         <button type="button" class="availability-option <?= ($filters['disponibilita'] ?? '') === 'prenotato' ? 'active' : '' ?>"
                              data-filter-value="prenotato"
                              aria-pressed="<?= ($filters['disponibilita'] ?? '') === 'prenotato' ? 'true' : 'false' ?>"
-                             onclick="updateFilter('disponibilita', 'prenotato')">
+                             data-pk-action="catalog-filter" data-catalog-key="disponibilita" data-catalog-value="prenotato">
                                 <span class="availability-icon" aria-hidden="true">
                                     <i class="fas fa-bookmark"></i>
                                 </span>
@@ -213,7 +216,7 @@ ob_start();
                         <button type="button" class="availability-option <?= ($filters['disponibilita'] ?? '') === 'prestato' ? 'active' : '' ?>"
                              data-filter-value="prestato"
                              aria-pressed="<?= ($filters['disponibilita'] ?? '') === 'prestato' ? 'true' : 'false' ?>"
-                             onclick="updateFilter('disponibilita', 'prestato')">
+                             data-pk-action="catalog-filter" data-catalog-key="disponibilita" data-catalog-value="prestato">
                                 <span class="availability-icon" aria-hidden="true">
                                     <i class="fas fa-clock"></i>
                                 </span>
@@ -240,7 +243,7 @@ ob_start();
                                    aria-describedby="search-hint"
                                    placeholder="<?= htmlspecialchars(__("Cerca titoli, autori, ISBN..."), ENT_QUOTES, 'UTF-8') ?>"
                                    value="<?= htmlspecialchars($filters['search'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
-                                   onkeyup="debounceSearch(this.value)">
+                                   data-pk-action="catalog-search" data-pk-on="keyup">
                             <svg class="svg-inline--fa fa-magnifying-glass" data-prefix="fas" data-icon="magnifying-glass" role="img" viewBox="0 0 512 512" aria-hidden="true">
                                 <path fill="currentColor" d="M416 208c0 45.9-14.9 88.3-40 122.7L502.6 457.4c12.5 12.5 12.5 32.8 0 45.3s-32.8 12.5-45.3 0L330.7 376C296.3 401.1 253.9 416 208 416 93.1 416 0 322.9 0 208S93.1 0 208 0 416 93.1 416 208zM208 352a144 144 0 1 0 0-288 144 144 0 1 0 0 288z"></path>
                             </svg>
@@ -262,7 +265,7 @@ ob_start();
                             <?php foreach($facetAutori as $autore): ?>
                                 <a href="#"
                                    class="filter-option count <?= $selectedAutoreId === (int)$autore['id'] ? 'active' : '' ?>"
-                                   onclick="updateFilter('autore_id', <?= (int)$autore['id'] ?>); return false;"
+                                   data-pk-action="catalog-filter" data-catalog-key="autore_id" data-catalog-int data-catalog-value="<?= (int)$autore['id'] ?>"
                                    title="<?= htmlspecialchars((string)$autore['nome'], ENT_QUOTES, 'UTF-8') ?>">
                                     <span><?= htmlspecialchars((string)$autore['nome'], ENT_QUOTES, 'UTF-8') ?></span>
                                     <span class="count-badge"><?= (int)$autore['cnt'] ?></span>
@@ -286,7 +289,7 @@ ob_start();
                             <?php foreach($filter_options['editori'] as $editore): ?>
                                 <a href="#"
                                    class="filter-option count <?= ($filters['editore'] ?? '') == $editore['nome'] ? 'active' : '' ?>"
-                                   onclick="updateFilter('editore', <?= htmlspecialchars(json_encode($editore['nome'], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT), ENT_QUOTES, 'UTF-8') ?>); return false;">
+                                   data-pk-action="catalog-filter" data-catalog-key="editore" data-catalog-value="<?= htmlspecialchars((string) $editore['nome'], ENT_QUOTES, 'UTF-8') ?>">
                                     <span><?= htmlspecialchars(html_entity_decode($editore['nome'], ENT_QUOTES | ENT_HTML5, 'UTF-8')) ?></span>
                                     <span class="count-badge"><?= $editore['cnt'] ?></span>
                                 </a>
@@ -304,7 +307,7 @@ ob_start();
                         <div class="filter-options" id="genres-filter">
                             <?php if($genre_display['level'] > 0): ?>
                             <div class="filter-back-container">
-                                <a href="#" class="filter-back-btn" onclick="updateFilter('genere_id', <?= $genre_display['level'] === 1 ? 0 : (int)($genre_display['parent']['id'] ?? 0) ?>); return false;" title="<?= htmlspecialchars(__("Torna alla categoria superiore"), ENT_QUOTES, 'UTF-8') ?>">
+                                <a href="#" class="filter-back-btn" data-pk-action="catalog-filter" data-catalog-key="genere_id" data-catalog-int data-catalog-value="<?= $genre_display['level'] === 1 ? 0 : (int)($genre_display['parent']['id'] ?? 0) ?>" title="<?= htmlspecialchars(__("Torna alla categoria superiore"), ENT_QUOTES, 'UTF-8') ?>">
                                     <i class="fas fa-arrow-left"></i>
                                     <span><?= __("Torna alla categoria superiore") ?></span>
                                 </a>
@@ -316,7 +319,7 @@ ob_start();
                                     <?php if (($genere['cnt'] ?? 0) > 0): ?>
                                     <a href="#"
                                        class="filter-option count"
-                                       onclick="updateFilter('genere_id', <?= (int)$genere['id'] ?>); return false;"
+                                       data-pk-action="catalog-filter" data-catalog-key="genere_id" data-catalog-int data-catalog-value="<?= (int)$genere['id'] ?>"
                                        title="<?= htmlspecialchars($genere['nome'], ENT_QUOTES, 'UTF-8') ?>">
                                         <span><?= htmlspecialchars($genere['nome'], ENT_QUOTES, 'UTF-8') ?></span>
                                         <span class="count-badge"><?= $genere['cnt'] ?></span>
@@ -336,7 +339,7 @@ ob_start();
                                     ?>
                                     <a href="#"
                                        class="filter-option count"
-                                       onclick="updateFilter('genere_id', <?= (int)$genere['id'] ?>); return false;"
+                                       data-pk-action="catalog-filter" data-catalog-key="genere_id" data-catalog-int data-catalog-value="<?= (int)$genere['id'] ?>"
                                        title="<?= htmlspecialchars($genere['nome'], ENT_QUOTES, 'UTF-8') ?>">
                                         <span><?= htmlspecialchars($displayName, ENT_QUOTES, 'UTF-8') ?></span>
                                         <span class="count-badge"><?= $genere['cnt'] ?></span>
@@ -368,7 +371,7 @@ ob_start();
                           ?>
                             <a href="#"
                                class="filter-option count <?= $isActive ? 'active' : '' ?>"
-                               onclick="updateFilter('tipo_media', <?= htmlspecialchars(json_encode($mtValue, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT), ENT_QUOTES, 'UTF-8') ?>); return false;"
+                               data-pk-action="catalog-filter" data-catalog-key="tipo_media" data-catalog-value="<?= htmlspecialchars($mtValue, ENT_QUOTES, 'UTF-8') ?>"
                                title="<?= htmlspecialchars($mtLabel, ENT_QUOTES, 'UTF-8') ?>">
                               <span><i class="fas <?= htmlspecialchars($mtIcon, ENT_QUOTES, 'UTF-8') ?> mr-1"></i><?= htmlspecialchars($mtLabel, ENT_QUOTES, 'UTF-8') ?></span>
                               <span class="count-badge"><?= $mtCnt ?></span>
@@ -397,8 +400,7 @@ ob_start();
                                        max="<?= $yearMaxBound ?>"
                                        value="<?= $annoMinValue ?>"
                                        aria-label="<?= htmlspecialchars(__("Anno minimo"), ENT_QUOTES, 'UTF-8') ?>"
-                                       oninput="updateYearRange(false, this)"
-                                       onchange="updateYearRange(true, this)">
+                                       data-catalog-year-slider>
                                 <input type="range"
                                        id="year-max"
                                        class="year-slider"
@@ -406,12 +408,11 @@ ob_start();
                                        max="<?= $yearMaxBound ?>"
                                        value="<?= $annoMaxValue ?>"
                                        aria-label="<?= htmlspecialchars(__("Anno massimo"), ENT_QUOTES, 'UTF-8') ?>"
-                                       oninput="updateYearRange(false, this)"
-                                       onchange="updateYearRange(true, this)">
+                                       data-catalog-year-slider>
                             </div>
                             <div class="year-values">
                                 <span class="year-value" id="year-min-value"><?= $annoMinValue ?></span>
-                                <button type="button" class="year-reset" onclick="resetYearRange()" title="<?= htmlspecialchars(__("Reset anni"), ENT_QUOTES, 'UTF-8') ?>">
+                                <button type="button" class="year-reset" data-pk-action="catalog-year-reset" title="<?= htmlspecialchars(__("Reset anni"), ENT_QUOTES, 'UTF-8') ?>">
                                     <i class="fas fa-undo"></i>
                                 </button>
                                 <span class="year-value" id="year-max-value"><?= $annoMaxValue ?></span>
@@ -421,7 +422,7 @@ ob_start();
 
                     <!-- Clear All -->
                     <div class="filter-section">
-                        <button class="clear-all-btn" onclick="clearAllFilters()">
+                        <button class="clear-all-btn" data-pk-action="catalog-clear">
                             <i class="fas fa-times"></i>
                             <?= __("Pulisci tutti i filtri") ?>
                         </button>
@@ -445,11 +446,11 @@ ob_start();
                         <span id="results-text"><?= ($total_articles ?? 0) > 0 ? __('Risultati') : ($total_books == 1 ? __('libro trovato') : __('libri trovati')) ?></span>
                     </div>
                     <div class="pk-results__tools">
-                        <button class="clear-filters-top-btn" onclick="clearAllFilters()" title="<?= htmlspecialchars(__("Rimuovi tutti i filtri"), ENT_QUOTES, 'UTF-8') ?>">
+                        <button class="clear-filters-top-btn" data-pk-action="catalog-clear" title="<?= htmlspecialchars(__("Rimuovi tutti i filtri"), ENT_QUOTES, 'UTF-8') ?>">
                             <i class="fas fa-filter-circle-xmark"></i>
                             <span class="clear-filters-text"><?= __("Pulisci filtri") ?></span>
                         </button>
-                        <select class="sort-select" onchange="updateFilter('sort', this.value)" id="sort-select"
+                        <select class="sort-select" data-pk-action="catalog-sort" id="sort-select"
                             aria-label="<?= htmlspecialchars(__('Ordina per'), ENT_QUOTES, 'UTF-8') ?>">
                             <option value="newest" <?= ($filters['sort'] ?? 'newest') === 'newest' ? 'selected' : '' ?>><?= __("Più recenti") ?></option>
                             <option value="oldest" <?= ($filters['sort'] ?? 'newest') === 'oldest' ? 'selected' : '' ?>><?= __("Più vecchi") ?></option>
@@ -486,7 +487,7 @@ ob_start();
                         <i class="fas fa-search empty-state-icon"></i>
                         <h4 class="empty-state-title"><?= __("Nessun risultato trovato") ?></h4>
                         <p class="empty-state-text"><?= __("Prova a modificare i filtri o la tua ricerca") ?></p>
-                        <button type="button" class="btn-cta btn-cta-sm" onclick="clearAllFilters()">
+                        <button type="button" class="btn-cta btn-cta-sm" data-pk-action="catalog-clear">
                             <i class="fas fa-redo mr-2"></i>
                             <?= __("Pulisci filtri") ?>
                         </button>
@@ -516,13 +517,13 @@ ob_start();
                     ?>
                     <nav aria-label="<?= htmlspecialchars(__('Navigazione pagine'), ENT_QUOTES, 'UTF-8') ?>"><ul class="pagination justify-center">
                         <?php if ($srCurrentPage > 1): ?>
-                            <li class="page-item"><a class="page-link" href="<?= htmlspecialchars($srPageUrl($srCurrentPage - 1), ENT_QUOTES, 'UTF-8') ?>" onclick="goToPage(<?= $srCurrentPage - 1 ?>); return false;" title="<?= htmlspecialchars(__('Pagina precedente'), ENT_QUOTES, 'UTF-8') ?>"><i class="fas fa-chevron-left"></i></a></li>
+                            <li class="page-item"><a class="page-link" href="<?= htmlspecialchars($srPageUrl($srCurrentPage - 1), ENT_QUOTES, 'UTF-8') ?>" data-pk-action="catalog-page" data-catalog-page="<?= $srCurrentPage - 1 ?>" title="<?= htmlspecialchars(__('Pagina precedente'), ENT_QUOTES, 'UTF-8') ?>"><i class="fas fa-chevron-left"></i></a></li>
                         <?php endif; ?>
                         <?php for ($srI = $srStart; $srI <= $srEnd; $srI++): ?>
-                            <li class="page-item<?= $srI === $srCurrentPage ? ' active' : '' ?>"><a class="page-link" href="<?= htmlspecialchars($srPageUrl($srI), ENT_QUOTES, 'UTF-8') ?>" onclick="goToPage(<?= $srI ?>); return false;"><?= $srI ?></a></li>
+                            <li class="page-item<?= $srI === $srCurrentPage ? ' active' : '' ?>"><a class="page-link" href="<?= htmlspecialchars($srPageUrl($srI), ENT_QUOTES, 'UTF-8') ?>" data-pk-action="catalog-page" data-catalog-page="<?= $srI ?>"><?= $srI ?></a></li>
                         <?php endfor; ?>
                         <?php if ($srCurrentPage < $srTotalPages): ?>
-                            <li class="page-item"><a class="page-link" href="<?= htmlspecialchars($srPageUrl($srCurrentPage + 1), ENT_QUOTES, 'UTF-8') ?>" onclick="goToPage(<?= $srCurrentPage + 1 ?>); return false;" title="<?= htmlspecialchars(__('Pagina successiva'), ENT_QUOTES, 'UTF-8') ?>"><i class="fas fa-chevron-right"></i></a></li>
+                            <li class="page-item"><a class="page-link" href="<?= htmlspecialchars($srPageUrl($srCurrentPage + 1), ENT_QUOTES, 'UTF-8') ?>" data-pk-action="catalog-page" data-catalog-page="<?= $srCurrentPage + 1 ?>" title="<?= htmlspecialchars(__('Pagina successiva'), ENT_QUOTES, 'UTF-8') ?>"><i class="fas fa-chevron-right"></i></a></li>
                         <?php endif; ?>
                     </ul></nav>
                     <?php endif; ?>
@@ -592,8 +593,9 @@ $mediaTypesJson = json_encode($facetMediaTypes, $facetJsonFlags) ?: '[]';
 $editoriJson = json_encode(array_values($filter_options['editori'] ?? []), $facetJsonFlags) ?: '[]';
 $suppressJson = json_encode($facetSuppress, $facetJsonFlags) ?: '{}';
 
+$cspNonceAttr = csp_nonce_attr();
 $additional_js = <<<JS
-<script>
+<script{$cspNonceAttr}>
 // Translations object (PHP-rendered for JavaScript)
 const i18n = {$i18nJson};
 const CATALOG_ROUTE = {$catalogRouteJs};
@@ -616,7 +618,26 @@ let suppressData = {$suppressJson};
 const facetExpanded = {};       // key -> true when user clicked "Cambia" on a collapsed facet
 const facetOptionsRender = {};  // key -> options content (HTML string or render function)
 
+// Delegated actions (the CSP forbids inline on* attributes). The facet value
+// travels in data-catalog-value; data-catalog-int marks numeric ids so the
+// filter state keeps the same types the old inline calls passed.
+window.PinakesActions.register('catalog-filter', (el) => {
+    const raw = el.dataset.catalogValue || '';
+    const value = el.dataset.catalogInt !== undefined ? (parseInt(raw, 10) || 0) : raw;
+    updateFilter(el.dataset.catalogKey, value);
+});
+window.PinakesActions.register('catalog-sort', (el) => updateFilter('sort', el.value));
+window.PinakesActions.register('catalog-search', (el) => debounceSearch(el.value));
+window.PinakesActions.register('catalog-clear', () => clearAllFilters());
+window.PinakesActions.register('catalog-year-reset', () => resetYearRange());
+window.PinakesActions.register('catalog-page', (el) => goToPage(parseInt(el.dataset.catalogPage, 10)));
+
 document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('[data-catalog-year-slider]').forEach((slider) => {
+        slider.addEventListener('input', () => updateYearRange(false, slider));
+        slider.addEventListener('change', () => updateYearRange(true, slider));
+    });
+
     const filtersToggle = document.getElementById('catalog-filters-toggle');
     const filtersContent = document.getElementById('catalog-filters-content');
     const mobileFilters = window.matchMedia('(max-width: 768px)');
@@ -981,7 +1002,7 @@ function updatePagination(pagination) {
     let html = '<nav aria-label="' + escapeHtml(window.__('Page navigation')) + '"><ul class="pagination justify-center">';
 
     if (current > 1) {
-        html += '<li class="page-item"><a class="page-link" href="' + buildPageHref(current - 1) + '" onclick="goToPage(' + (current - 1) + '); return false;" title="' + i18n.pagina_precedente + '"><i class="fas fa-chevron-left"></i></a></li>';
+        html += '<li class="page-item"><a class="page-link" href="' + buildPageHref(current - 1) + '" data-pk-action="catalog-page" data-catalog-page="' + (current - 1) + '" title="' + i18n.pagina_precedente + '"><i class="fas fa-chevron-left"></i></a></li>';
     }
 
     const visiblePages = 5;
@@ -994,7 +1015,7 @@ function updatePagination(pagination) {
     }
 
     if (startPage > 1) {
-        html += '<li class="page-item"><a class="page-link" href="' + buildPageHref(1) + '" onclick="goToPage(1); return false;">1</a></li>';
+        html += '<li class="page-item"><a class="page-link" href="' + buildPageHref(1) + '" data-pk-action="catalog-page" data-catalog-page="1">1</a></li>';
         if (startPage > 2) {
             html += '<li class="page-item disabled"><span class="page-link">...</span></li>';
         }
@@ -1002,18 +1023,18 @@ function updatePagination(pagination) {
 
     for (let i = startPage; i <= endPage; i += 1) {
         const activeClass = i === current ? ' active' : '';
-        html += '<li class="page-item' + activeClass + '"><a class="page-link" href="' + buildPageHref(i) + '" onclick="goToPage(' + i + '); return false;">' + i + '</a></li>';
+        html += '<li class="page-item' + activeClass + '"><a class="page-link" href="' + buildPageHref(i) + '" data-pk-action="catalog-page" data-catalog-page="' + i + '">' + i + '</a></li>';
     }
 
     if (endPage < total) {
         if (endPage < total - 1) {
             html += '<li class="page-item disabled"><span class="page-link">...</span></li>';
         }
-        html += '<li class="page-item"><a class="page-link" href="' + buildPageHref(total) + '" onclick="goToPage(' + total + '); return false;">' + total + '</a></li>';
+        html += '<li class="page-item"><a class="page-link" href="' + buildPageHref(total) + '" data-pk-action="catalog-page" data-catalog-page="' + total + '">' + total + '</a></li>';
     }
 
     if (current < total) {
-        html += '<li class="page-item"><a class="page-link" href="' + buildPageHref(current + 1) + '" onclick="goToPage(' + (current + 1) + '); return false;" title="' + i18n.pagina_successiva + '"><i class="fas fa-chevron-right"></i></a></li>';
+        html += '<li class="page-item"><a class="page-link" href="' + buildPageHref(current + 1) + '" data-pk-action="catalog-page" data-catalog-page="' + (current + 1) + '" title="' + i18n.pagina_successiva + '"><i class="fas fa-chevron-right"></i></a></li>';
     }
 
     html += '</ul></nav>';
@@ -1052,7 +1073,7 @@ function updateFilterOptions(filterOptions, genreDisplay) {
             if (genreDisplay.level > 0) {
                 const backId = genreDisplay.level === 1 ? 0 : (genreDisplay.parent?.id || 0);
                 html += '<div class="filter-back-container">';
-                html += '<a href="#" class="filter-back-btn" onclick="updateFilter(\'genere_id\', ' + backId + '); return false;" title="' + i18n.torna_categoria_superiore + '">';
+                html += '<a href="#" class="filter-back-btn" data-pk-action="catalog-filter" data-catalog-key="genere_id" data-catalog-int data-catalog-value="' + Number(backId) + '" title="' + i18n.torna_categoria_superiore + '">';
                 html += '<i class="fas fa-arrow-left"></i>';
                 html += '<span>' + i18n.torna_categoria_superiore + '</span>';
                 html += '</a>';
@@ -1075,7 +1096,7 @@ function updateFilterOptions(filterOptions, genreDisplay) {
                 // Sanitize title attribute to prevent XSS
                 const safeTitle = escapeHtml(gen.nome);
 
-                html += '<a href="#" class="filter-option count ' + isActive + '" onclick="updateFilter(\'genere_id\', ' + gen.id + '); return false;" title="' + safeTitle + '">';
+                html += '<a href="#" class="filter-option count ' + isActive + '" data-pk-action="catalog-filter" data-catalog-key="genere_id" data-catalog-int data-catalog-value="' + Number(gen.id) + '" title="' + safeTitle + '">';
                 html += '<span>' + escapeHtml(displayName) + '</span>';
                 html += '<span class="count-badge">' + gen.cnt + '</span>';
                 html += '</a>';
@@ -1090,7 +1111,7 @@ function updateFilterOptions(filterOptions, genreDisplay) {
             filterOptions.generi.forEach(gen => {
                 if ((gen.cnt ?? 0) > 0) {
                     const isActive = parseInt(currentFilters.genere_id) === gen.id ? 'active' : '';
-                    html += '<a href="#" class="filter-option count ' + isActive + '" onclick="updateFilter(\'genere_id\', ' + gen.id + '); return false;">';
+                    html += '<a href="#" class="filter-option count ' + isActive + '" data-pk-action="catalog-filter" data-catalog-key="genere_id" data-catalog-int data-catalog-value="' + Number(gen.id) + '">';
                     html += '<span>' + escapeHtml(gen.nome) + '</span>';
                     html += '<span class="count-badge">' + gen.cnt + '</span>';
                     html += '</a>';
@@ -1100,7 +1121,7 @@ function updateFilterOptions(filterOptions, genreDisplay) {
                         gen.children.forEach(subgen => {
                             if ((subgen.cnt ?? 0) > 0) {
                                 const isSubActive = parseInt(currentFilters.genere_id) === subgen.id ? 'active' : '';
-                                html += '<a href="#" class="filter-option subgenre count ' + isSubActive + '" onclick="updateFilter(\'genere_id\', ' + subgen.id + '); return false;">';
+                                html += '<a href="#" class="filter-option subgenre count ' + isSubActive + '" data-pk-action="catalog-filter" data-catalog-key="genere_id" data-catalog-int data-catalog-value="' + Number(subgen.id) + '">';
                                 html += '<span>' + escapeHtml(subgen.nome) + '</span>';
                                 html += '<span class="count-badge">' + subgen.cnt + '</span>';
                                 html += '</a>';

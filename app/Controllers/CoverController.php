@@ -300,6 +300,13 @@ class CoverController
             throw new \RuntimeException('Solo HTTPS consentito');
         }
 
+        // Only the default HTTPS port: downloadCover() pins host:443 to the
+        // validated IP, so a hop on any other port would let cURL resolve the host
+        // itself after validation (DNS rebinding).
+        if (isset($parts['port']) && (int) $parts['port'] !== 443) {
+            throw new \RuntimeException('Porta non consentita');
+        }
+
         $host = strtolower($parts['host']);
 
         // Issue #173: the exact-host allow-list kept blocking legitimate covers whose
@@ -342,7 +349,8 @@ class CoverController
                 CURLOPT_RETURNTRANSFER => true,
                 CURLOPT_HEADER => true,
                 CURLOPT_FOLLOWLOCATION => false,
-                CURLOPT_RESOLVE => ["$pinHost:443:$pinIp", "$pinHost:80:$pinIp"],
+                // assertUrlAllowed() guarantees https on port 443 for this hop.
+                CURLOPT_RESOLVE => ["$pinHost:443:$pinIp"],
                 CURLOPT_TIMEOUT => 20,
                 CURLOPT_CONNECTTIMEOUT => 10,
                 CURLOPT_SSL_VERIFYPEER => true,

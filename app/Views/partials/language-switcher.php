@@ -85,7 +85,7 @@ if (count($languagesData) <= 1) {
 <div class="language-switcher relative inline-block">
     <button type="button"
             class="language-switcher-button flex items-center gap-2 px-3 py-2 text-sm text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
-            onclick="toggleLanguageDropdown()"
+            data-pk-action="language-switcher-toggle"
             aria-haspopup="true"
             aria-expanded="false">
         <span class="text-xl leading-none"><?= HtmlHelper::e($currentLangFlag) ?></span>
@@ -116,7 +116,11 @@ if (count($languagesData) <= 1) {
 </div>
 
 <!-- Language Switcher JavaScript -->
-<script>
+<script<?= csp_nonce_attr() ?>>
+if (window.PinakesActions) {
+    window.PinakesActions.register('language-switcher-toggle', () => toggleLanguageDropdown());
+}
+
 function toggleLanguageDropdown() {
     const dropdown = document.querySelector('.language-switcher-dropdown');
     const button = document.querySelector('.language-switcher-button');
@@ -158,7 +162,7 @@ document.addEventListener('keydown', function(event) {
 });
 </script>
 
-<style>
+<style<?= csp_nonce_attr() ?>>
 /* Language Switcher Styles */
 .language-switcher {
     position: relative;

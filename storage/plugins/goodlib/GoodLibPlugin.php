@@ -31,8 +31,8 @@ class GoodLibPlugin
         'zlib' => [
             'icon' => 'fas fa-search',
             'url_pattern' => 'https://%s/s/%s',
-            'default_domain' => 'z-lib.gd',
-            'mirrors' => ['z-lib.gd', 'z-lib.gl', 'z-lib.fm', '1lib.sk', 'z-library.ec', 'zliba.ru'],
+            'default_domain' => '1lib.sk',
+            'mirrors' => ['1lib.sk', 'z-lib.gl', 'z-lib.fm', 'z-library.ec', 'zliba.ru'],
         ],
         'gutenberg' => [
             'icon' => 'fas fa-feather-alt',
@@ -41,6 +41,32 @@ class GoodLibPlugin
             'mirrors' => ['www.gutenberg.org'],
         ],
     ];
+
+    /**
+     * Domains that were once a default and no longer serve the source. A
+     * stored value equal to one of them (written on activation, not chosen)
+     * resolves to the replacement, so existing installs follow the move.
+     *
+     * @var array<string, array<string, string>>
+     */
+    public const RETIRED_DOMAINS = [
+        'zlib_domain' => ['z-lib.gd' => '1lib.sk'],
+    ];
+
+    /**
+     * The domain to use for a stored setting: the default when empty, the
+     * replacement when it is a retired domain, the stored value otherwise.
+     */
+    public static function resolveDomain(string $domainKey, ?string $stored): string
+    {
+        $sourceKey = str_replace('_domain', '', $domainKey);
+        $default = self::SOURCES[$sourceKey]['default_domain'] ?? '';
+        $stored = strtolower(trim((string) $stored));
+        if ($stored === '') {
+            return $default;
+        }
+        return self::RETIRED_DOMAINS[$domainKey][$stored] ?? $stored;
+    }
 
     public function __construct(?\mysqli $db = null, ?object $hookManager = null)
     {
@@ -485,8 +511,8 @@ class GoodLibPlugin
             'gutenberg_enabled' => ($all['gutenberg_enabled'] ?? '1') === '1',
             'show_frontend' => ($all['show_frontend'] ?? '0') === '1',
             'show_admin' => ($all['show_admin'] ?? '1') === '1',
-            'anna_domain' => !empty($all['anna_domain']) ? (string) $all['anna_domain'] : self::SOURCES['anna']['default_domain'],
-            'zlib_domain' => !empty($all['zlib_domain']) ? (string) $all['zlib_domain'] : self::SOURCES['zlib']['default_domain'],
+            'anna_domain' => self::resolveDomain('anna_domain', isset($all['anna_domain']) ? (string) $all['anna_domain'] : null),
+            'zlib_domain' => self::resolveDomain('zlib_domain', isset($all['zlib_domain']) ? (string) $all['zlib_domain'] : null),
             'gutenberg_domain' => self::SOURCES['gutenberg']['default_domain'],
         ];
     }
