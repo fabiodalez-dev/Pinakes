@@ -83,10 +83,13 @@ test('binary controls, language actions and article tabs stay usable', async ({ 
   await expect(page.locator('.dt-info')).toBeVisible();
   const footerGap = await page.evaluate(() => document.querySelector('.dt-info').getBoundingClientRect().top - document.querySelector('#editori-table').getBoundingClientRect().bottom);
   expect(footerGap).toBeGreaterThanOrEqual(24);
-  const nextPage = page.locator('.dt-paging-button.next:not(.disabled)');
+  // The list has a pager above and one below the table: they share one state,
+  // so page on with the top one and expect both to show page 2.
+  const publisherPagers = page.locator('.dt-container').filter({ has: page.locator('#editori-table') }).locator('.dt-paging');
+  const nextPage = publisherPagers.first().locator('.dt-paging-button.next:not(.disabled)');
   if (await nextPage.count()) {
     await nextPage.click();
-    await expect(page.locator('.dt-paging-button[aria-current="page"]')).toHaveText('2');
+    await expect(publisherPagers.locator('.dt-paging-button[aria-current="page"]')).toHaveText(['2', '2']);
   }
 
   await page.goto(`${BASE}/admin/languages`);
