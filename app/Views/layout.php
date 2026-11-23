@@ -962,6 +962,7 @@ $htmlLang = substr($currentLocale, 0, 2);
     };
   </script>
   <script<?= csp_nonce_attr() ?> src="<?= htmlspecialchars(assetUrl('vendor.bundle.js'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($vendorBundleVersion, ENT_QUOTES, 'UTF-8') ?>" defer></script>
+  <script<?= csp_nonce_attr() ?> src="<?= htmlspecialchars(assetUrl('js/dt-page-scroll.js'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($appVersion, ENT_QUOTES, 'UTF-8') ?>" defer></script>
   <script<?= csp_nonce_attr() ?> src="<?= htmlspecialchars(assetUrl('flatpickr-init.js'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($appVersion, ENT_QUOTES, 'UTF-8') ?>" defer></script>
   <script<?= csp_nonce_attr() ?> src="<?= htmlspecialchars(assetUrl('main.bundle.js'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($mainBundleVersion, ENT_QUOTES, 'UTF-8') ?>" defer></script>
   <script<?= csp_nonce_attr() ?> src="<?= htmlspecialchars(assetUrl('js/csrf-helper.js'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($appVersion, ENT_QUOTES, 'UTF-8') ?>" defer></script>
