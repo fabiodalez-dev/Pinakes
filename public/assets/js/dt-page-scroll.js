@@ -32,14 +32,17 @@
                 if (e.target !== table) {
                     return;
                 }
+                // Decide now, when the page changes, not after the redraw: the
+                // user may scroll while a server-side list waits for its data.
+                // The table itself, not its wrapper, is the reference: the
+                // pager above sits over the table, so when that pager is in
+                // view the table top is too, even if the wrapper's own top
+                // edge (padding, page-size row) has left the window.
+                if (table.getBoundingClientRect().top >= 0) {
+                    return;
+                }
                 $(table).one('draw.dt', function () {
                     var anchor = table.closest('.dt-container, .dataTables_wrapper') || table;
-                    // Only when the start of the table has scrolled above the
-                    // viewport: a page change made with the table top in sight
-                    // keeps its position.
-                    if (anchor.getBoundingClientRect().top >= 0) {
-                        return;
-                    }
                     var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
                     // Leave a little room above the table, plus the height of
                     // any header that is pinned to the top of the window

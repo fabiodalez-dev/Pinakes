@@ -37,6 +37,27 @@ async function firstRowText(page, table) {
   return (await page.locator(`${table} tbody tr`).first().innerText()).trim();
 }
 
+/** Waits until the window has stopped scrolling (a smooth scroll moves over several frames). */
+async function settledScrollY(page) {
+  let last = -1;
+  await expect.poll(async () => {
+    const y = await page.evaluate(() => new Promise((r) => setTimeout(() => r(window.scrollY), 150)));
+    const still = y === last;
+    last = y;
+    return still;
+  }, { timeout: 8000, intervals: [0] }).toBe(true);
+  return last;
+}
+
+/** Where the window would have to put the wrapper top: a small margin, plus a header pinned to the top right now. */
+async function expectedWrapperTop(page) {
+  return page.evaluate(() => {
+    const h = document.querySelector('header.sticky, header.fixed');
+    const b = h ? h.getBoundingClientRect() : null;
+    return 16 + (b && b.top <= 0 && b.bottom > 0 ? b.bottom : 0);
+  });
+}
+
 /** Waits until the first row changes after a page move (server-side tables redraw after their AJAX answer). */
 async function waitForNewPage(page, table, before) {
   await expect.poll(() => firstRowText(page, table), { timeout: 15000 }).not.toBe(before);
@@ -76,20 +97,31 @@ test.describe.serial('#544 admin list pagination', () => {
       before = await firstRowText(page, list.table);
       await pagers.last().locator('.dt-paging-button.next').click();
       await waitForNewPage(page, list.table, before);
-      await expect.poll(() => wrapperTop(page, list.table), { timeout: 5000 }).toBeGreaterThanOrEqual(0);
+      // Wait for the scroll to finish, then check where it ended: the wrapper
+      // top just below the window edge (and below a pinned header, if any).
+      await settledScrollY(page);
+      const landed = await wrapperTop(page, list.table);
+      expect(Math.abs(landed - (await expectedWrapperTop(page))), `wrapper top landed at ${landed}`).toBeLessThanOrEqual(2);
       const firstRowBox = await page.locator(`${list.table} tbody tr`).first().boundingBox();
       expect(firstRowBox && firstRowBox.y >= 0 && firstRowBox.y < 520, 'first row of the new page in the window').toBeTruthy();
-      // Not hidden under the sticky header either.
-      const headerBottom = await page.locator('header.sticky').evaluate((h) => h.getBoundingClientRect().bottom);
-      expect(await wrapperTop(page, list.table)).toBeGreaterThanOrEqual(headerBottom - 1);
 
-      // From the top pager, already in view: the scroll stays where it is.
-      const scrollBefore = await page.evaluate(() => window.scrollY);
+      // From the top pager, in view, with the wrapper's own top edge (its
+      // padding and the page-size row) already above the window: the scroll
+      // stays where it is.
+      await page.evaluate((sel) => {
+        const pager = document.querySelector(sel).closest('.dt-container').querySelector('.dt-paging');
+        window.scrollBy(0, pager.getBoundingClientRect().top - 2);
+      }, list.table);
+      const scrollBefore = await settledScrollY(page);
+      if (list.name === 'loans') {
+        // The loans wrapper pads its top row: its edge leaves the window while
+        // the pager under it is still fully visible.
+        expect(await wrapperTop(page, list.table), 'precondition: wrapper edge above the window').toBeLessThan(0);
+      }
       before = await firstRowText(page, list.table);
       await pagers.first().locator('.dt-paging-button.previous').click();
       await waitForNewPage(page, list.table, before);
-      await page.waitForTimeout(400); // a smooth scroll, if one had started, would have moved by now
-      expect(Math.abs((await page.evaluate(() => window.scrollY)) - scrollBefore)).toBeLessThanOrEqual(2);
+      expect(Math.abs((await settledScrollY(page)) - scrollBefore), 'scroll kept after a change from the top pager').toBeLessThanOrEqual(2);
     });
   }
 });
