@@ -410,7 +410,7 @@ document.addEventListener('DOMContentLoaded', function() {
     serverSide: true,
     responsive: false, // Disabilitiamo responsive mode - usiamo solo scroll orizzontale
     searching: false, // We use custom search
-    dom: 'lfrtip',
+    dom: '<"pk-dt-top"lfp>rtip',
     scrollX: true,
     autoWidth: false,
     ajax: {

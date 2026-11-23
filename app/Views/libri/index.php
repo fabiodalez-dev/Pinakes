@@ -710,7 +710,7 @@ document.addEventListener('DOMContentLoaded', function() {
       }
       return state;
     },
-    dom: '<"top"l>rt<"bottom"ip><"clear">',
+    dom: '<"top pk-dt-top"lp>rt<"bottom"ip><"clear">',
     deferRender: true,
     ajax: {
       url: window.BASE_PATH + '/api/libri',

@@ -7777,6 +7777,8 @@
   "PDF (massimo 25 MB)": "PDF (höchstens 25 MB)",
   "PDF non valido o superiore a 25 MB.": "Ungültiges PDF oder größer als 25 MB.",
   "Paginazione": "Seitennavigation",
+  "Paginazione sopra la tabella": "Seitennavigation über der Tabelle",
+  "Paginazione sotto la tabella": "Seitennavigation unter der Tabelle",
   "Per associare o spostare questo articolo, selezionalo dalla lista Articoli.": "Zum Zuordnen oder Verschieben diesen Artikel in der Artikelliste auswählen.",
   "Per gli articoli usa l’importazione Emeroteca. Se il plugin è inattivo, attivalo da Plugins.": "Für Artikel den Zeitschriftenimport verwenden. Falls das Plugin inaktiv ist, unter Plugins aktivieren.",
   "Possibile duplicato: usa la reference_key esistente per aggiornare, oppure verifica la citazione.": "Mögliches Duplikat: vorhandene reference_key zum Aktualisieren verwenden oder Quellenangabe prüfen.",

@@ -167,10 +167,12 @@ test.describe.serial('Catalogue cards (schede catalografiche)', () => {
         if (pageNo === 3) await expect(rows).toHaveCount(5, { timeout: 15000 });
         else await expect(rows).toHaveCount(100, { timeout: 15000 });
         await page.locator('#select-all').check();
-        // The bulk actions bar is fixed over the bottom pager once books are
-        // selected, so the click goes straight to the pager's "next" button.
+        // The list has a pager above and one below the table. The bulk actions
+        // bar is fixed over the bottom one once books are selected, so page on
+        // with the top pager, the one a librarian can actually reach.
         if (pageNo < 3) {
-          await page.getByRole('navigation', { name: 'pagination' }).getByRole('link', { name: 'Next' }).dispatchEvent('click');
+          const topPager = page.locator('.dt-container').filter({ has: page.locator('#libri-table') }).locator('.dt-paging').first();
+          await topPager.getByRole('link', { name: 'Next' }).click();
           await expect(page.locator('.dt-info, .dataTables_info').first()).toContainText(`${pageNo * 100 + 1}`, { timeout: 15000 });
         }
       }

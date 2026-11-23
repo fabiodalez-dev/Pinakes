@@ -233,7 +233,7 @@ document.addEventListener('DOMContentLoaded', function() {
     searching: false,
     stateSave: true,
     stateDuration: 60 * 60 * 24,
-    dom: '<"top"l>rt<"bottom"ip><"clear">',
+    dom: '<"top pk-dt-top"lp>rt<"bottom"ip><"clear">',
     ajax: {
       url: (window.BASE_PATH || '') + '/api/autori',
       type: 'GET',

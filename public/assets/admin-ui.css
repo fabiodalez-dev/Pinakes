@@ -360,3 +360,23 @@
     overflow: visible;
   }
 }
+
+/*
+ * Admin lists (#544): the pager also sits above the table, next to the
+ * page-size menu, so a long page does not have to be scrolled to its end to
+ * move on. Paired with js/dt-page-scroll.js, which brings the top of the table
+ * back into view after a page change made from the bottom pager.
+ */
+.admin-shell .pk-dt-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.admin-shell .pk-dt-top > :is(.dt-length, .dt-paging, .dataTables_length, .dataTables_paginate) {
+  float: none;
+  margin: 0;
+}

@@ -7777,6 +7777,8 @@
   "PDF (massimo 25 MB)": "PDF (højst 25 MB)",
   "PDF non valido o superiore a 25 MB.": "Ugyldig PDF eller større end 25 MB.",
   "Paginazione": "Sidenavigation",
+  "Paginazione sopra la tabella": "Sidenavigation over tabellen",
+  "Paginazione sotto la tabella": "Sidenavigation under tabellen",
   "Per associare o spostare questo articolo, selezionalo dalla lista Articoli.": "Vælg artiklen på artikellisten for at tilknytte eller flytte den.",
   "Per gli articoli usa l’importazione Emeroteca. Se il plugin è inattivo, attivalo da Plugins.": "Brug importfunktionen i Tidsskrifter til artikler. Aktivér pluginet under Plugins, hvis det er inaktivt.",
   "Possibile duplicato: usa la reference_key esistente per aggiornare, oppure verifica la citazione.": "Mulig dublet: brug den eksisterende reference_key til opdatering, eller kontrollér referencen.",
