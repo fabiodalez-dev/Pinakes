@@ -84,6 +84,12 @@ test.describe.serial('#544 admin list pagination', () => {
 
       // Two pagers: one above the table, one below.
       await expect(pagers).toHaveCount(2);
+      // Two navigation landmarks a screen reader can tell apart: each is named
+      // after where it sits, not the shared "pagination" DataTables gives both.
+      const navNames = await pagers.locator('nav').evaluateAll((navs) => navs.map((n) => n.getAttribute('aria-label') || ''));
+      expect(navNames).toHaveLength(2);
+      expect(navNames[0]).not.toBe(navNames[1]);
+      for (const name of navNames) expect(name).not.toMatch(/^(pagination)?$/);
       const tableBox = await page.locator(list.table).boundingBox();
       const topPagerBox = await pagers.first().boundingBox();
       const bottomPagerBox = await pagers.last().boundingBox();

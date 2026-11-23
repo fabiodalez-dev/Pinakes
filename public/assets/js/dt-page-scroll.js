@@ -13,6 +13,12 @@
  * Covers every DataTable in the admin layout. DataTables 2 does not bubble its
  * "page" event, but it does bubble "init": each table is wired when it
  * initialises (plus any table that already exists when this file runs).
+ *
+ * A list with a pager above and one below the table gets two navigation
+ * landmarks that DataTables names "pagination" alike, so a screen reader
+ * listing landmarks cannot tell them apart. Each one is renamed after where
+ * it sits, in the user's language. The <nav> is built once at init and only
+ * its buttons are redrawn, so the name set here stays.
  */
 (function () {
     'use strict';
@@ -23,11 +29,29 @@
         }
         window.__pkDtPageScroll = true;
 
+        var t = typeof window.__ === 'function' ? window.__ : function (s) { return s; };
+
+        function labelPagers(table) {
+            var container = table.closest('.dt-container, .dataTables_wrapper');
+            if (!container) {
+                return;
+            }
+            var navs = container.querySelectorAll('.dt-paging nav');
+            if (navs.length < 2) {
+                return;
+            }
+            Array.prototype.forEach.call(navs, function (nav) {
+                var above = nav.compareDocumentPosition(table) & Node.DOCUMENT_POSITION_FOLLOWING;
+                nav.setAttribute('aria-label', above ? t('Paginazione sopra la tabella') : t('Paginazione sotto la tabella'));
+            });
+        }
+
         function wire(table) {
             if (!table || table.__pkPageScroll) {
                 return;
             }
             table.__pkPageScroll = true;
+            labelPagers(table);
             $(table).on('page.dt', function (e) {
                 if (e.target !== table) {
                     return;
