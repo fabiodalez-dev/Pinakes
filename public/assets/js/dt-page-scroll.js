@@ -62,10 +62,23 @@
                 // pager above sits over the table, so when that pager is in
                 // view the table top is too, even if the wrapper's own top
                 // edge (padding, page-size row) has left the window.
+                // Each page change replaces the decision of the one before:
+                // a change from the pager above, made while an earlier change
+                // from below still waits for its data, must not scroll.
+                $(table).off('.pkPageScroll');
                 if (table.getBoundingClientRect().top >= 0) {
                     return;
                 }
-                $(table).one('draw.dt', function () {
+                // A page request that fails never draws: drop the scroll
+                // then, or the next unrelated redraw (search, sort) would
+                // run it.
+                $(table).one('xhr.dt.pkPageScroll', function (ev, settings, json) {
+                    if (json === null) {
+                        $(table).off('.pkPageScroll');
+                    }
+                });
+                $(table).one('draw.dt.pkPageScroll', function () {
+                    $(table).off('.pkPageScroll');
                     var anchor = table.closest('.dt-container, .dataTables_wrapper') || table;
                     var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
                     // Leave a little room above the table, plus the height of

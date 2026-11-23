@@ -107,7 +107,13 @@ test.describe.serial('#544 admin list pagination', () => {
       // top just below the window edge (and below a pinned header, if any).
       await settledScrollY(page);
       const landed = await wrapperTop(page, list.table);
-      expect(Math.abs(landed - (await expectedWrapperTop(page))), `wrapper top landed at ${landed}`).toBeLessThanOrEqual(2);
+      const expected = await expectedWrapperTop(page);
+      // A short last page (11 rows at ten per page leave one) may not leave
+      // enough document below the table to scroll it all the way up: then the
+      // window stops at its bottom, with the table top lower but in view.
+      const atBottom = await page.evaluate(() => window.scrollY + window.innerHeight >= document.documentElement.scrollHeight - 2);
+      if (atBottom) expect(landed, `wrapper top landed at ${landed}`).toBeGreaterThanOrEqual(expected - 2);
+      else expect(Math.abs(landed - expected), `wrapper top landed at ${landed}`).toBeLessThanOrEqual(2);
       const firstRowBox = await page.locator(`${list.table} tbody tr`).first().boundingBox();
       expect(firstRowBox && firstRowBox.y >= 0 && firstRowBox.y < 520, 'first row of the new page in the window').toBeTruthy();
 
@@ -130,4 +136,34 @@ test.describe.serial('#544 admin list pagination', () => {
       expect(Math.abs((await settledScrollY(page)) - scrollBefore), 'scroll kept after a change from the top pager').toBeLessThanOrEqual(2);
     });
   }
+
+  test('books: a page request that fails does not scroll on the next unrelated redraw', async ({ page }) => {
+    test.skip(F.dbInt(LISTS[0].count) <= 10, 'needs more than 10 books');
+    const table = LISTS[0].table;
+    page.on('dialog', (d) => d.dismiss().catch(() => {})); // DataTables reports the failed request
+    await page.goto(F.BASE + LISTS[0].path);
+    const { wrapper, pagers } = parts(page, table);
+    await expect(page.locator(`${table} tbody tr`).first()).toBeVisible({ timeout: 15000 });
+    await wrapper.locator('.dt-length select').selectOption('10');
+    await expect(page.locator(`${table} tbody tr`)).toHaveCount(10, { timeout: 15000 });
+
+    // The next page request fails: no page is drawn, so no scroll either.
+    let failNext = true;
+    await page.route('**/api/libri**', (route) => {
+      if (failNext) { failNext = false; return route.fulfill({ status: 500, body: 'error' }); }
+      return route.continue();
+    });
+    await pagers.last().scrollIntoViewIfNeeded();
+    expect(await wrapperTop(page, table), 'precondition: table top above the window').toBeLessThan(0);
+    await pagers.last().locator('.dt-paging-button.next').click();
+    await expect.poll(() => failNext, { timeout: 15000 }).toBe(false);
+    await page.waitForTimeout(500);
+
+    // Later the user sorts by a column from where they are: the page must stay put.
+    const scrollBefore = await settledScrollY(page);
+    await page.evaluate((sel) => window.jQuery(sel).DataTable().order([4, 'desc']).draw(false), table);
+    await expect(page.locator(`${table} tbody tr`).first()).not.toHaveText(/Caricamento/, { timeout: 15000 });
+    await page.unroute('**/api/libri**');
+    expect(Math.abs((await settledScrollY(page)) - scrollBefore), 'a sort after a failed page request must not scroll').toBeLessThanOrEqual(2);
+  });
 });
