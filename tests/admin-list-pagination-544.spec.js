@@ -161,8 +161,14 @@ test.describe.serial('#544 admin list pagination', () => {
 
     // Later the user sorts by a column from where they are: the page must stay put.
     const scrollBefore = await settledScrollY(page);
-    await page.evaluate((sel) => window.jQuery(sel).DataTable().order([4, 'desc']).draw(false), table);
-    await expect(page.locator(`${table} tbody tr`).first()).not.toHaveText(/Caricamento/, { timeout: 15000 });
+    // Wait for the sort's own redraw, not for the rows: DataTables keeps the old
+    // rows on screen (its "processing" overlay sits apart) until the answer
+    // arrives, so only the draw event says the pending scroll had its chance.
+    await page.evaluate((sel) => new Promise((resolve) => {
+      const $t = window.jQuery(sel);
+      $t.one('draw.dt', () => resolve());
+      $t.DataTable().order([4, 'desc']).draw(false);
+    }), table);
     await page.unroute('**/api/libri**');
     expect(Math.abs((await settledScrollY(page)) - scrollBefore), 'a sort after a failed page request must not scroll').toBeLessThanOrEqual(2);
   });
