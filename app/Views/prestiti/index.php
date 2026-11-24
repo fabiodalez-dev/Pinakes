@@ -713,7 +713,7 @@ document.addEventListener('DOMContentLoaded', function() {
         order: [], // Empty array = use server default (p.id DESC = most recent first)
         language: typeof window.getDtLanguage === 'function' ? window.getDtLanguage() : {},
         pageLength: 25,
-        dom: '<"px-6 py-4"<"flex items-center justify-between"<"flex items-center gap-4"l><"flex-1"f>>>rtip'
+        dom: '<"px-6 py-4"<"pk-dt-top"<"flex items-center gap-4"l><"flex-1"f>p>>rtip'
     });
 
     // Status filter buttons

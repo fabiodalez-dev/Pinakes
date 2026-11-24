@@ -7777,6 +7777,8 @@
   "PDF (massimo 25 MB)": "PDF (25 Mo maximum)",
   "PDF non valido o superiore a 25 MB.": "PDF non valide ou supérieur à 25 Mo.",
   "Paginazione": "Pagination",
+  "Paginazione sopra la tabella": "Pagination au-dessus du tableau",
+  "Paginazione sotto la tabella": "Pagination sous le tableau",
   "Per associare o spostare questo articolo, selezionalo dalla lista Articoli.": "Pour associer ou déplacer cet article, sélectionnez-le dans la liste Articles.",
   "Per gli articoli usa l’importazione Emeroteca. Se il plugin è inattivo, attivalo da Plugins.": "Pour les articles, utilisez l’importation Périodiques. Si le plugin est inactif, activez-le dans Plugins.",
   "Possibile duplicato: usa la reference_key esistente per aggiornare, oppure verifica la citazione.": "Doublon possible : utilisez la reference_key existante pour mettre à jour, ou vérifiez la référence.",
