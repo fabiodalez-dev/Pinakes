@@ -2,6 +2,15 @@
 
 Full version-by-version history for Pinakes. The README shows only the last three releases; everything older lives here.
 
+## [0.9.7]
+
+Two layout fixes: long admin lists get a pager above the table and bring the first row back into view after a page change ([#544](https://github.com/fabiodalez-dev/Pinakes/issues/544), [#545](https://github.com/fabiodalez-dev/Pinakes/pull/545)), and the donation form on the page of a wanted book lines up with the rest of the page ([#543](https://github.com/fabiodalez-dev/Pinakes/pull/543)). No migration.
+
+### Fixes
+
+- **Admin lists (books, authors, publishers, users, loans) have a pager above the table as well as below it**, next to the page-size menu. Moving to another page from the pager below the table scrolls back to the top of the table, so the first row of the new page is what shows; a change from the pager above, already in view, leaves the scroll where it is, and a page request that fails scrolls nowhere. The two pagers carry different names for screen readers ("Pagination above the table" / "below the table"), translated in every language.
+- **Desiderata: the donation form on the public page of a wanted book starts at the same left edge as the description above it** (a container wrapper pushed it 28px right), and the "Propose a donation" heading is no longer repeated by the form. The homepage form is unchanged.
+
 ## [0.9.6]
 
 A security release and film cataloguing. I ran a full security audit of 0.9.5 and this release fixes everything it confirmed, plus the hardening it flagged; every fix carries a regression test that fails on the old code ([#536](https://github.com/fabiodalez-dev/Pinakes/pull/536), [#537](https://github.com/fabiodalez-dev/Pinakes/pull/537), [#538](https://github.com/fabiodalez-dev/Pinakes/pull/538)). One migration, `migrate_0.9.6.sql`, prepares `api_keys` for hashed keys and adds the five film columns of `libri`; both blocks are guarded, so a second run or a table the schema check already repaired is left as it is.
