@@ -155,9 +155,15 @@ test.describe.serial('#544 admin list pagination', () => {
     });
     await pagers.last().scrollIntoViewIfNeeded();
     expect(await wrapperTop(page, table), 'precondition: table top above the window').toBeLessThan(0);
+    // Record the table's answer to that request: DataTables reports a failed
+    // one with json === null, the signal the script drops its scroll on.
+    await page.evaluate((sel) => {
+      window.__pkPageAnswer = undefined;
+      window.jQuery(sel).one('xhr.dt', (e, settings, json) => { window.__pkPageAnswer = json === null ? 'failed' : 'ok'; });
+    }, table);
     await pagers.last().locator('.dt-paging-button.next').click();
-    await expect.poll(() => failNext, { timeout: 15000 }).toBe(false);
-    await page.waitForTimeout(500);
+    await expect.poll(() => page.evaluate(() => window.__pkPageAnswer), { timeout: 15000 }).toBe('failed');
+    expect(failNext, 'the route answered the page request with the error').toBe(false);
 
     // Later the user sorts by a column from where they are: the page must stay put.
     const scrollBefore = await settledScrollY(page);
