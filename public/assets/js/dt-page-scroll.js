@@ -19,6 +19,14 @@
  * listing landmarks cannot tell them apart. Each one is renamed after where
  * it sits, in the user's language. The <nav> is built once at init and only
  * its buttons are redrawn, so the name set here stays.
+ *
+ * When the window goes back up, the focus goes with it. DataTables gives the
+ * focus back to the button that was used, in the pager below, which the
+ * scroll has just taken off screen: a keyboard user would see the first rows
+ * while the next Tab or Enter acted down there. The same button in the pager
+ * above gets the focus instead. Where that one cannot act (Next or Last on
+ * the last page), the current page number gets it. No focus moves after a
+ * mouse click in a browser that does not focus buttons on click (Safari).
  */
 (function () {
     'use strict';
@@ -44,6 +52,40 @@
                 var above = nav.compareDocumentPosition(table) & Node.DOCUMENT_POSITION_FOLLOWING;
                 nav.setAttribute('aria-label', above ? t('Paginazione sopra la tabella') : t('Paginazione sotto la tabella'));
             });
+        }
+
+        // The data-dt-idx ("next", "last", a page number…) of the pager button
+        // that holds the focus, when that pager sits below this table; else null.
+        function focusedButtonBelow(table) {
+            var el = document.activeElement;
+            var nav = el && el.closest ? el.closest('.dt-paging nav') : null;
+            if (!nav || !el.hasAttribute('data-dt-idx')
+                || nav.closest('.dt-container, .dataTables_wrapper') !== table.closest('.dt-container, .dataTables_wrapper')
+                || !(table.compareDocumentPosition(nav) & Node.DOCUMENT_POSITION_FOLLOWING)) {
+                return null;
+            }
+            return el.getAttribute('data-dt-idx');
+        }
+
+        // Puts the focus on the button of the pager above the table that does
+        // what the button `idx` below did, or on the current page number when
+        // that one is now disabled. Without moving the window: it is scrolling.
+        function focusPagerAbove(table, idx) {
+            var container = table.closest('.dt-container, .dataTables_wrapper');
+            var navs = container ? container.querySelectorAll('.dt-paging nav') : [];
+            var nav = Array.prototype.filter.call(navs, function (n) {
+                return n.compareDocumentPosition(table) & Node.DOCUMENT_POSITION_FOLLOWING;
+            })[0];
+            if (!nav) {
+                return;
+            }
+            var same = nav.querySelector('[data-dt-idx="' + idx + '"]');
+            var target = same && same.getAttribute('aria-disabled') !== 'true'
+                ? same
+                : nav.querySelector('[aria-current="page"]');
+            if (target) {
+                target.focus({ preventScroll: true });
+            }
         }
 
         function wire(table) {
@@ -94,6 +136,13 @@
                     }
                     var target = anchor.getBoundingClientRect().top + window.pageYOffset - offset;
                     window.scrollTo({ top: Math.max(0, target), behavior: reduce ? 'auto' : 'smooth' });
+                    // Read after the redraw: DataTables has put the focus back
+                    // on the pager below only if it was still there. Focus the
+                    // user moved elsewhere while the page loaded stays put.
+                    var usedBelow = focusedButtonBelow(table);
+                    if (usedBelow !== null) {
+                        focusPagerAbove(table, usedBelow);
+                    }
                 });
             });
         }

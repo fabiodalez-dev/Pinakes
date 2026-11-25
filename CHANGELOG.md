@@ -8,7 +8,7 @@ Two layout fixes: long admin lists get a pager above the table and bring the fir
 
 ### Fixes
 
-- **Admin lists (books, authors, publishers, users, loans) have a pager above the table as well as below it**, next to the page-size menu. Moving to another page from the pager below the table scrolls back to the top of the table, so the first row of the new page is what shows; a change from the pager above, already in view, leaves the scroll where it is, and a page request that fails scrolls nowhere. The two pagers carry different names for screen readers ("Pagination above the table" / "below the table"), translated in every language.
+- **Admin lists (books, authors, publishers, users, loans) have a pager above the table as well as below it**, next to the page-size menu. Moving to another page from the pager below the table scrolls back to the top of the table, so the first row of the new page is what shows; a change from the pager above, already in view, leaves the scroll where it is, and a page request that fails scrolls nowhere. The two pagers carry different names for screen readers ("Pagination above the table" / "below the table"), translated in every language. From the keyboard, the focus goes up with the window: it lands on the same button of the pager above (or on the current page number, when that button is disabled on the last page), so the next Enter or Tab acts where the user is looking.
 - **Desiderata: the donation form on the public page of a wanted book starts at the same left edge as the description above it** (a container wrapper pushed it 28px right), and the "Propose a donation" heading is no longer repeated by the form. The homepage form is unchanged.
 
 ## [0.9.6]

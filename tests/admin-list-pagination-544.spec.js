@@ -137,6 +137,58 @@ test.describe.serial('#544 admin list pagination', () => {
     });
   }
 
+  test('books: from the keyboard, the focus goes up with the window to the pager above', async ({ page }) => {
+    test.skip(F.dbInt(LISTS[0].count) <= 30, 'needs more than 30 books');
+    const table = LISTS[0].table;
+    await page.goto(F.BASE + LISTS[0].path);
+    const { wrapper, pagers } = parts(page, table);
+    await expect(page.locator(`${table} tbody tr`).first()).toBeVisible({ timeout: 15000 });
+    await wrapper.locator('.dt-length select').selectOption('10');
+    await expect(page.locator(`${table} tbody tr`)).toHaveCount(10, { timeout: 15000 });
+
+    /** Which pager holds the focus (0 above, 1 below), on which button, and whether the user can see it. */
+    const focused = () => page.evaluate((sel) => {
+      const el = document.activeElement;
+      const navs = Array.from(document.querySelector(sel).closest('.dt-container').querySelectorAll('.dt-paging nav'));
+      const box = el.getBoundingClientRect();
+      return {
+        pager: navs.indexOf(el.closest('.dt-paging nav')),
+        button: el.getAttribute('data-dt-idx'),
+        current: el.getAttribute('aria-current'),
+        inView: box.top >= 0 && box.bottom <= window.innerHeight,
+      };
+    }, table);
+
+    // Enter on Next in the pager below: the window goes back up, and the focus
+    // with it, onto Next in the pager above.
+    await pagers.last().scrollIntoViewIfNeeded();
+    let before = await firstRowText(page, table);
+    await pagers.last().locator('.dt-paging-button.next').focus();
+    await page.keyboard.press('Enter');
+    await waitForNewPage(page, table, before);
+    await settledScrollY(page);
+    expect(await focused(), 'focus on Next above, in view').toEqual({ pager: 0, button: 'next', current: null, inView: true });
+
+    // A second Enter pages on from up there, without moving the window.
+    const scrollBefore = await settledScrollY(page);
+    before = await firstRowText(page, table);
+    await page.keyboard.press('Enter');
+    await waitForNewPage(page, table, before);
+    expect(Math.abs((await settledScrollY(page)) - scrollBefore), 'second Enter keeps the scroll').toBeLessThanOrEqual(2);
+    expect(await focused(), 'focus still on Next above').toEqual({ pager: 0, button: 'next', current: null, inView: true });
+
+    // Enter on Last in the pager below: on the last page Last is disabled, so
+    // the focus lands on the current page number above, a button that works.
+    await pagers.last().scrollIntoViewIfNeeded();
+    before = await firstRowText(page, table);
+    await pagers.last().locator('.dt-paging-button.last').focus();
+    await page.keyboard.press('Enter');
+    await waitForNewPage(page, table, before);
+    await settledScrollY(page);
+    await expect(pagers.first().locator('.dt-paging-button.last')).toHaveAttribute('aria-disabled', 'true');
+    expect(await focused(), 'focus on the current page above').toMatchObject({ pager: 0, current: 'page', inView: true });
+  });
+
   test('books: a page request that fails does not scroll on the next unrelated redraw', async ({ page }) => {
     test.skip(F.dbInt(LISTS[0].count) <= 10, 'needs more than 10 books');
     const table = LISTS[0].table;
