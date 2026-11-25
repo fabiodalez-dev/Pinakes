@@ -1145,20 +1145,13 @@ class CsvImportController
      * Parse a single CSV row into normalized book data
      */
     /**
-     * Reverse the CSV formula-injection escaping applied on export: League\Csv
-     * EscapeFormula prepends a single "'" to any cell whose first character is
-     * one of = + - @ (or a leading tab / CR). Strip that apostrophe on import so
-     * an export→import round-trip is byte-stable for such values.
+     * Reverse the CSV formula-injection escaping applied on export (League\Csv
+     * EscapeFormula with the "'" prefix), so an export→import round-trip is
+     * byte-stable. The rule is the library's own: see Csv::unescapeFormula().
      */
     private function unescapeCsvFormula(string $value): string
     {
-        if (strlen($value) >= 2
-            && $value[0] === "'"
-            && in_array($value[1], ['=', '+', '-', '@', "\t", "\r"], true)
-        ) {
-            return substr($value, 1);
-        }
-        return $value;
+        return Csv::unescapeFormula($value);
     }
 
     /**

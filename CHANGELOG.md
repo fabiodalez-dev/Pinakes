@@ -4,7 +4,11 @@ Full version-by-version history for Pinakes. The README shows only the last thre
 
 ## [0.9.7]
 
-Two layout fixes: long admin lists get a pager above the table and bring the first row back into view after a page change ([#544](https://github.com/fabiodalez-dev/Pinakes/issues/544), [#545](https://github.com/fabiodalez-dev/Pinakes/pull/545)), and the donation form on the page of a wanted book lines up with the rest of the page ([#543](https://github.com/fabiodalez-dev/Pinakes/pull/543)). No migration.
+Two layout fixes: long admin lists get a pager above the table and bring the first row back into view after a page change ([#544](https://github.com/fabiodalez-dev/Pinakes/issues/544), [#545](https://github.com/fabiodalez-dev/Pinakes/pull/545)), and the donation form on the page of a wanted book lines up with the rest of the page ([#543](https://github.com/fabiodalez-dev/Pinakes/pull/543)), plus a dependency security update. No migration.
+
+### Security
+
+- **league/csv 9.28.0 → 9.29.1**, for the `CharsetConverter` denial-of-service advisory published on 22 November ([GHSA-m9j4-54gj-jvf8](https://github.com/thephpleague/csv/security/advisories/GHSA-m9j4-54gj-jvf8)). Pinakes does not call `CharsetConverter`, but the affected version was installed. Since 9.29 the export also protects a cell that already starts with an apostrophe (`'Twas the night` is written as `''Twas the night`); the book CSV, LibraryThing and patron imports now undo that prefix with the library's own rule, so an export followed by an import keeps such a title, author or note exactly as it was. The patron import also takes the prefix off a value that starts with a tab, which it used to keep.
 
 ### Fixes
 

@@ -95,6 +95,26 @@ final class Csv
         return self::configureWriter($writer, $delimiter, $formulaPrefix);
     }
 
+    /**
+     * Undo, on import, the formula prefix an export wrote with
+     * $formulaPrefix (see {@see self::writerToStream()}).
+     *
+     * Delegates to league/csv's own inverse of the escape the writers apply,
+     * so the two sides cannot drift apart: since 9.29 the library also
+     * prefixes a cell that already starts with the prefix ("'Twas" is
+     * exported as "''Twas"), and a hand-copied rule that only knew = + - @
+     * kept the extra apostrophe on every round-trip. A value that was never
+     * exported and starts with "'" ("'Twas") is returned unchanged.
+     */
+    public static function unescapeFormula(string $value, string $formulaPrefix = "'"): string
+    {
+        static $formulas = [];
+        $formulas[$formulaPrefix] ??= new EscapeFormula($formulaPrefix);
+        $unescaped = $formulas[$formulaPrefix]->unescapeRecord([$value])[0] ?? $value;
+
+        return is_string($unescaped) ? $unescaped : $value;
+    }
+
     private static function configureReader(Reader $reader, string $delimiter, bool $useHeader): Reader
     {
         $reader->setDelimiter($delimiter);
