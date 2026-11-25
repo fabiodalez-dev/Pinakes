@@ -29,6 +29,7 @@ use function array_search;
 use function array_values;
 use function count;
 use function is_int;
+use function str_replace;
 
 final class Denormalizer
 {
@@ -311,8 +312,8 @@ final class Denormalizer
                 $accessor,
                 $offset,
                 $this->resolveTypeCasting($reflectionProperty),
-                $this->mapRecord?->convertEmptyStringToNull ?? self::$convertEmptyStringToNull,
-                $this->mapRecord?->trimFieldValueBeforeCasting ?? false
+                $this->mapRecord->convertEmptyStringToNull ?? self::$convertEmptyStringToNull,
+                $this->mapRecord->trimFieldValueBeforeCasting ?? false
             ),
         };
     }
@@ -355,11 +356,11 @@ final class Denormalizer
         };
 
         $convertEmptyStringToNull = $mapCell->convertEmptyStringToNull
-            ?? $this->mapRecord?->convertEmptyStringToNull
+            ?? $this->mapRecord->convertEmptyStringToNull
             ?? self::$convertEmptyStringToNull;
 
         $trimFieldValueBeforeCasting = $mapCell->trimFieldValueBeforeCasting
-            ?? $this->mapRecord?->trimFieldValueBeforeCasting
+            ?? $this->mapRecord->trimFieldValueBeforeCasting
             ?? false;
 
         return match (true) {
@@ -434,10 +435,22 @@ final class Denormalizer
 
     public function resolveTypeCaster(MapCell $mapCell, ReflectionMethod|ReflectionProperty $accessor): ?string
     {
-        /** @var ?class-string<TypeCasting> $typeCaster */
+        /** @var class-string<TypeCasting>|Closure|null $typeCaster */
         $typeCaster = $mapCell->cast;
         if (null === $typeCaster) {
             return null;
+        }
+
+        if ($typeCaster instanceof Closure) {
+            $name = $accessor->getName();
+            if ($accessor instanceof ReflectionMethod) {
+                $name .= '_'.$accessor->getParameters()[0]->getName();
+            }
+
+            $alias = '@_league_csv_generated_'.str_replace('\\', '_', $this->class->getName()).'__'.$name;
+            Denormalizer::registerAlias($alias, Type::Mixed->value, $typeCaster);
+
+            return CallbackCasting::class.$alias;
         }
 
         if (class_exists($typeCaster)) {
@@ -452,9 +465,7 @@ final class Denormalizer
             $accessor = $accessor->getParameters()[0];
         }
 
-        if (!CallbackCasting::supports($accessor, $typeCaster)) {
-            throw MappingFailed::dueToInvalidTypeCastingClass($typeCaster);
-        }
+        CallbackCasting::supports($accessor, $typeCaster) || throw MappingFailed::dueToInvalidTypeCastingClass($typeCaster);
 
         return CallbackCasting::class.$typeCaster;
     }

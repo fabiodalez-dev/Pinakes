@@ -19,9 +19,11 @@ use Iterator;
 use League\Csv\MapIterator;
 use League\Csv\Query\Sort;
 use League\Csv\Query\SortCombinator;
-use OutOfBoundsException;
 
 use function array_map;
+use function is_array;
+use function iterator_to_array;
+use function uasort;
 
 /**
  * Enable sorting a record based on multiple column.
@@ -31,10 +33,10 @@ use function array_map;
  * @phpstan-import-type Ordering from SortCombinator
  * @phpstan-import-type OrderingExtended from SortCombinator
  */
-final class MultiSort implements SortCombinator
+final readonly class MultiSort implements SortCombinator
 {
     /** @var array<Ordering> */
-    private readonly array $sorts;
+    private array $sorts;
 
     /**
      * @param OrderingExtended ...$sorts
@@ -96,20 +98,9 @@ final class MultiSort implements SortCombinator
             return MapIterator::toIterator($value);
         }
 
-        $class = new class () extends ArrayIterator {
-            public function seek(int $offset): void
-            {
-                try {
-                    parent::seek($offset);
-                } catch (OutOfBoundsException) {
-                    return;
-                }
-            }
-        };
+        $arr = !is_array($value) ? iterator_to_array($value) : $value;
+        uasort($arr, $this);
 
-        $it = new $class(!is_array($value) ? iterator_to_array($value) : $value);
-        $it->uasort($this);
-
-        return $it;
+        return new ArrayIterator($arr);
     }
 }

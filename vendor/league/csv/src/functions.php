@@ -18,7 +18,7 @@ use Deprecated;
 /**
  * DEPRECATION WARNING! This namespace function will be removed in the next major point release.
  *
- * @deprecated since version 9.7.0
+ * @deprecated since version 9.7.0, use League\Csv\Bom::tryFromSequence()
  * @see Bom::tryFromSequence()
  * @codeCoverageIgnore
  *
@@ -29,13 +29,13 @@ use Deprecated;
 #[Deprecated(message:'use League\Csv\Bom::tryFromSequence()', since:'league/csv:9.7.0')]
 function bom_match(string $str): string
 {
-    return Bom::tryFromSequence($str)?->value ?? '';
+    return Bom::tryFromSequence($str)->value ?? '';
 }
 
 /**
  * DEPRECATION WARNING! This namespace function will be removed in the next major point release.
  *
- * @deprecated since version 9.7.0
+ * @deprecated since version 9.7.0, use League\Csv\Info::getDelimiterStats() instead
  * @see Info::getDelimiterStats()
  * @codeCoverageIgnore
  *
