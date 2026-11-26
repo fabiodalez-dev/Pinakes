@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Plugins\MobileApi\Push;
 
 use App\Support\DateHelper;
+use App\Support\I18n;
 use App\Support\LibraryCalendar;
 use App\Support\SecureLogger;
 use mysqli;
@@ -67,6 +68,14 @@ final class PushDispatcher
             'skipped'           => 0,
         ];
 
+        // The texts are written in the instance locale (PushPayload). Cron runs
+        // in it already; a sweep started from the web (maintenance on an
+        // administrator's sign-in, the maintenance page) runs in that
+        // administrator's session language, which every reader would get.
+        $processLocale = I18n::getLocale();
+        $instanceLocale = I18n::getInstallationLocale();
+        $switched = $processLocale !== $instanceLocale && I18n::setLocale($instanceLocale);
+
         try {
             // Bind the application-domain date explicitly. CURDATE() would follow
             // the DB session timezone (this class used to force UTC), disagreeing
@@ -82,6 +91,11 @@ final class PushDispatcher
         } catch (\Throwable $e) {
             // The cron must continue; push is best-effort.
             SecureLogger::error('[MobileApi] push dispatch failed: ' . $e->getMessage());
+        } finally {
+            // The rest of the request is the administrator's again.
+            if ($switched) {
+                I18n::setLocale($processLocale);
+            }
         }
 
         return $counters;

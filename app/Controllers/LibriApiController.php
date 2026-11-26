@@ -566,73 +566,84 @@ class LibriApiController
             return $response->withStatus(400)->withHeader('Content-Type', 'application/json');
         }
 
-        // Build placeholders for IN clause
-        $placeholders = implode(',', array_fill(0, count($cleanIds), '?'));
-        $types = str_repeat('i', count($cleanIds));
+        $cleanIds = array_values(array_unique($cleanIds));
+        sort($cleanIds);
+        $in = implode(',', $cleanIds);
 
-        // Check if any book has active loans or pending reservations
-        $checkSql = "SELECT libro_id FROM prestiti WHERE libro_id IN ($placeholders) AND stato IN ('in_corso', 'in_ritardo', 'da_ritirare', 'prenotato') AND attivo = 1 LIMIT 1";
-        $checkStmt = $db->prepare($checkSql);
-        if (!$checkStmt) {
-            AppLog::error('libri.bulk_delete.check_prepare_failed', ['error' => $db->error]);
+        // The check and the archive run under the locks of the titles, taken
+        // in id order: a loan or a reservation being created for one of them
+        // waits on the same row, so it either blocks this delete or finds the
+        // title gone. The rule itself is the single delete's.
+        $snapshots = [];
+        $blocking = [];
+        $affected = 0;
+        $db->begin_transaction();
+        try {
+            $lock = $db->prepare("SELECT id FROM libri WHERE id IN ({$in}) AND deleted_at IS NULL ORDER BY id FOR UPDATE");
+            $lock->execute();
+            $liveIds = array_map(static fn (array $row): int => (int) $row[0], $lock->get_result()->fetch_all(MYSQLI_NUM));
+            $lock->close();
+
+            $blocking = \App\Support\DataIntegrity::booksBlockingDeletion($db, $cleanIds, true);
+            if ($blocking === [] && $liveIds !== []) {
+                foreach ($liveIds as $liveId) {
+                    $snapshots[$liveId] = \App\Support\ActivityLog::loadBookSnapshot($db, $liveId);
+                }
+                // Soft-delete: set deleted_at and nullify unique-indexed columns
+                // to avoid unique constraint violations on future inserts.
+                // Related records are kept for history/integrity (same as single delete).
+                $stmt = $db->prepare('UPDATE libri SET deleted_at = NOW(), isbn10 = NULL, isbn13 = NULL, ean = NULL, scaffale_id = NULL, mensola_id = NULL, posizione_progressiva = NULL, collocazione = NULL WHERE id IN (' . implode(',', $liveIds) . ') AND deleted_at IS NULL');
+                $stmt->execute();
+                $affected = $stmt->affected_rows;
+                $stmt->close();
+            }
+            $db->commit();
+        } catch (\Throwable $e) {
+            $db->rollback();
+            AppLog::error('libri.bulk_delete.failed', ['error' => $e->getMessage()]);
             $response->getBody()->write(json_encode([
                 'success' => false,
-                'error' => __('Errore interno del database durante la verifica')
+                'error' => __('Errore interno del database')
             ], JSON_UNESCAPED_UNICODE));
             return $response->withStatus(500)->withHeader('Content-Type', 'application/json');
         }
 
-        $checkStmt->bind_param($types, ...$cleanIds);
-        if (!$checkStmt->execute()) {
-            AppLog::error('libri.bulk_delete.check_execute_failed', ['error' => $checkStmt->error]);
-            $checkStmt->close();
+        if ($blocking !== []) {
+            // Name the titles: "some books" leaves the operator to open a
+            // whole selection one by one to find them.
+            $titles = [];
+            $listed = [];
+            foreach ($blocking as $blockingId => $blockingTitle) {
+                $listed[] = ['id' => $blockingId, 'title' => $blockingTitle];
+                $titles[] = '«' . ($blockingTitle !== '' ? $blockingTitle : '#' . $blockingId) . '»';
+            }
+            $shown = array_slice($titles, 0, 10);
+            $names = implode(', ', $shown) . (count($titles) > count($shown) ? ' (+' . (count($titles) - count($shown)) . ')' : '');
             $response->getBody()->write(json_encode([
                 'success' => false,
-                'error' => __('Errore durante la verifica dei prestiti attivi')
-            ], JSON_UNESCAPED_UNICODE));
-            return $response->withStatus(500)->withHeader('Content-Type', 'application/json');
-        }
-
-        $checkResult = $checkStmt->get_result();
-        if ($checkResult && $checkResult->num_rows > 0) {
-            $checkStmt->close();
-            $response->getBody()->write(json_encode([
-                'success' => false,
-                'error' => __('Impossibile eliminare: alcuni libri hanno prestiti attivi')
+                'code' => 'books_in_use',
+                'blocking' => $listed,
+                'error' => sprintf(__('Impossibile eliminare: questi libri hanno prestiti o prenotazioni attive: %s'), $names)
             ], JSON_UNESCAPED_UNICODE));
             return $response->withStatus(400)->withHeader('Content-Type', 'application/json');
         }
-        $checkStmt->close();
-
-        // Soft-delete: set deleted_at and nullify unique-indexed columns
-        // to avoid unique constraint violations on future inserts.
-        // Related records are kept for history/integrity (same as single delete).
-        $sql = "UPDATE libri SET deleted_at = NOW(), isbn10 = NULL, isbn13 = NULL, ean = NULL, scaffale_id = NULL, mensola_id = NULL, posizione_progressiva = NULL, collocazione = NULL WHERE id IN ($placeholders) AND deleted_at IS NULL";
-        $stmt = $db->prepare($sql);
-        if (!$stmt) {
-            AppLog::error('libri.bulk_delete.prepare_failed', ['error' => $db->error]);
-            $response->getBody()->write(json_encode([
-                'success' => false,
-                'error' => __('Errore interno del database')
-            ], JSON_UNESCAPED_UNICODE));
-            return $response->withStatus(500)->withHeader('Content-Type', 'application/json');
-        }
-
-        $stmt->bind_param($types, ...$cleanIds);
-        if (!$stmt->execute()) {
-            AppLog::error('libri.bulk_delete.execute_failed', ['error' => $stmt->error]);
-            $stmt->close();
-            $response->getBody()->write(json_encode([
-                'success' => false,
-                'error' => __('Errore interno del database')
-            ], JSON_UNESCAPED_UNICODE));
-            return $response->withStatus(500)->withHeader('Content-Type', 'application/json');
-        }
-        $affected = $stmt->affected_rows;
-        $stmt->close();
 
         if ($affected > 0) {
             ContentCache::booksChanged();
+            // Same activity event as the single delete, one per title.
+            foreach ($snapshots as $deletedId => $snapshot) {
+                \App\Support\ActivityLog::recordBookEvent(
+                    $db,
+                    $deletedId,
+                    'cancellazione',
+                    'edit',
+                    'book.deleted',
+                    $snapshot,
+                    [],
+                    bookTitle: (string) ($snapshot['titolo'] ?? ''),
+                    source: 'manual'
+                );
+            }
         }
 
         AppLog::info('libri.bulk_delete', ['ids' => $cleanIds, 'affected' => $affected]);

@@ -348,7 +348,7 @@ class ReservationsAdminController
                 if (!$capacity->hasFreeCapacity($libroId, $dataInizioRichiesta, $dataFineRichiesta, excludeReservationId: $id, excludeUserId: $utenteId, forQueue: true)) {
                     $db->rollback();
                     $blocked = array_filter([$capacity->firstUnavailableDateInRange($libroId, $dataInizioRichiesta, $dataFineRichiesta, $utenteId, null, $id, forQueue: true)]);
-                    $query = http_build_query(['error' => 'capacity_full'] + \App\Support\LoanWindow::redirectParams($dataInizioRichiesta, $blocked));
+                    $query = http_build_query(['error' => 'capacity_full'] + \App\Support\LoanWindow::redirectParams($dataInizioRichiesta, $blocked, \App\Support\LibraryCalendar::forDb($db), \App\Support\LibraryCalendar::requestScope($db, (int) $libroId)));
                     return $response->withHeader('Location', url('/admin/reservations/edit/' . $id) . '?' . $query)->withStatus(302);
                 }
             }
@@ -551,8 +551,18 @@ class ReservationsAdminController
         // Set default dates in the application timezone.
         $today = \App\Support\DateHelper::today();
 
+        // Same rule as update(): a new reservation looks ahead. A window that
+        // is already over could only become a loan request dated in the past,
+        // so it is refused; a past start with a later end starts today.
+        if ($dataScadenza !== '' && $dataScadenza < $today) {
+            return $response->withHeader('Location', url('/admin/reservations/create') . '?error=past_dates')->withStatus(302);
+        }
+        if ($dataPrenotazione === '' || $dataPrenotazione < $today) {
+            $dataPrenotazione = $today;
+        }
+
         // The same open start day and return day as the reader's request.
-        $dataPrenotazioneDate = \App\Support\LibraryCalendar::requestStartDay($db, $dataPrenotazione ?: $today, $libroId);
+        $dataPrenotazioneDate = \App\Support\LibraryCalendar::requestStartDay($db, $dataPrenotazione, $libroId);
         $dataScadenzaDate = $dataScadenza;
         $dataPrenotazione = $dataPrenotazioneDate . ' 00:00:00';
 
@@ -590,7 +600,11 @@ class ReservationsAdminController
         if ($dataFineRichiesta < $dataInizioRichiesta) {
             $dataFineRichiesta = $dataInizioRichiesta;
         }
-        $dataInizioRichiesta = \App\Support\LibraryCalendar::requestStartDay($db, $dataInizioRichiesta, $libroId);
+        // The requested window can be posted on its own: same rule.
+        if ($dataFineRichiesta < $today) {
+            return $response->withHeader('Location', url('/admin/reservations/create') . '?error=past_dates')->withStatus(302);
+        }
+        $dataInizioRichiesta = \App\Support\LibraryCalendar::requestStartDay($db, max($today, $dataInizioRichiesta), $libroId);
         $dataFineRichiesta = \App\Support\LibraryCalendar::requestDueDate($db, max($dataInizioRichiesta, $dataFineRichiesta), 0, $libroId);
 
         $db->begin_transaction();
@@ -693,7 +707,7 @@ class ReservationsAdminController
                 // The form explains the refusal with the longest window still
                 // possible from the requested start (LoanWindow).
                 $blocked = array_filter([$capacity->firstUnavailableDateInRange($libroId, $dataInizioRichiesta, $dataFineRichiesta, $utenteId, forQueue: true)]);
-                $query = http_build_query(['error' => 'capacity_full'] + \App\Support\LoanWindow::redirectParams($dataInizioRichiesta, $blocked));
+                $query = http_build_query(['error' => 'capacity_full'] + \App\Support\LoanWindow::redirectParams($dataInizioRichiesta, $blocked, \App\Support\LibraryCalendar::forDb($db), \App\Support\LibraryCalendar::requestScope($db, (int) $libroId)));
                 return $response->withHeader('Location', url('/admin/reservations/create') . '?' . $query)->withStatus(302);
             }
 

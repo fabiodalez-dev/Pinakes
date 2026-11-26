@@ -150,6 +150,10 @@ class ReservationReassignmentService
             // interamente trascorsa (non ancora cullato dal cron) non deve
             // ricevere la copia rientrata prima di candidati validi — la
             // terrebbe impegnata solo fino alla scadenza del pickup.
+            // A pending request that already holds a copy (automatic approval
+            // binds one before approving) follows it like a promoted
+            // reservation. A manual request never held one and is not given
+            // one here: it stays copy-less in the staff review queue.
             $today = \App\Support\DateHelper::today();
             $calendar = \App\Support\LibraryCalendar::forDb($this->db);
             $candidateFloor = $calendar->hasRules() ? '1000-01-01' : $today;
@@ -159,7 +163,8 @@ class ReservationReassignmentService
                 LEFT JOIN copie c ON p.copia_id = c.id
                 WHERE p.libro_id = ?
                   AND ( (p.attivo = 1 AND p.stato IN ('prenotato', 'da_ritirare'))
-                        OR (p.attivo = 0 AND p.stato = 'pendente' AND p.origine = 'prenotazione') )
+                        OR (p.attivo = 0 AND p.stato = 'pendente'
+                            AND (p.origine = 'prenotazione' OR p.copia_id IS NOT NULL)) )
                   AND (p.copia_id IS NULL
                        OR c.stato IN ('perso','danneggiato','manutenzione','in_restauro','in_trasferimento'))
                   AND p.data_scadenza >= ?
@@ -186,7 +191,8 @@ class ReservationReassignmentService
                 FROM prestiti
                 WHERE libro_id = ? AND id IN ({$candidatePlaceholders})
                   AND ( (attivo = 1 AND stato IN ('prenotato', 'da_ritirare'))
-                        OR (attivo = 0 AND stato = 'pendente' AND origine = 'prenotazione') )
+                        OR (attivo = 0 AND stato = 'pendente'
+                            AND (origine = 'prenotazione' OR copia_id IS NOT NULL)) )
                   AND data_scadenza >= ?
                 ORDER BY created_at ASC, id ASC
                 FOR UPDATE
@@ -412,7 +418,7 @@ class ReservationReassignmentService
                     WHERE id = ? AND libro_id = ? AND copia_id = ?
                       AND data_scadenza >= ?
                       AND ( (attivo = 1 AND stato IN ('prenotato','da_ritirare'))
-                            OR (attivo = 0 AND stato = 'pendente' AND origine = 'prenotazione') )
+                            OR (attivo = 0 AND stato = 'pendente') )
                     FOR UPDATE
                 ");
                 $lockReservation->bind_param('iiis', $reservationId, $libroId, $copiaId, $candidateFloor);
@@ -531,7 +537,13 @@ class ReservationReassignmentService
         return $this->handleNoCopyAvailable($reservationId, $copiaId, $resEnd);
     }
 
-    /** @return array<string,mixed>|null */
+    /**
+     * The first hold on this copy that can still be used. Any pending row
+     * bound to the copy counts, whatever its origin: a promoted reservation
+     * and a request automatic approval bound to this copy hold it alike.
+     *
+     * @return array<string,mixed>|null
+     */
     private function usableHoldOnCopy(int $copiaId, string $today, bool $lockingRead = false): ?array
     {
         $calendar = \App\Support\LibraryCalendar::forDb($this->db);
@@ -544,7 +556,7 @@ class ReservationReassignmentService
             WHERE copia_id = ?
             AND data_scadenza >= ?
             AND ( (attivo = 1 AND stato IN ('prenotato', 'da_ritirare'))
-                  OR (attivo = 0 AND stato = 'pendente' AND origine = 'prenotazione') )
+                  OR (attivo = 0 AND stato = 'pendente') )
             ORDER BY data_prestito ASC, id ASC{$lock}
         ");
         $stmt->bind_param('is', $copiaId, $candidateFloor);
@@ -630,7 +642,7 @@ class ReservationReassignmentService
                     pickup_deadline = NULL
                 WHERE id = ? AND libro_id = ? AND copia_id = ?
                   AND ( (attivo = 1 AND stato IN ('prenotato','da_ritirare'))
-                        OR (attivo = 0 AND stato = 'pendente' AND origine = 'prenotazione') )
+                        OR (attivo = 0 AND stato = 'pendente') )
             ");
             $stmt->bind_param('siii', $promisedEnd, $reservationId, $libroId, $lostCopyId);
             $stmt->execute();

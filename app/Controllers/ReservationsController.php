@@ -11,7 +11,29 @@ use App\Support\NotificationService;
 
 class ReservationsController
 {
+    /**
+     * How many days, today included, a reader's request may start in: the
+     * horizon the request calendars are given (getBookAvailabilityData()'s
+     * $days on the book page, the availability API and the Mobile API) and
+     * the one the write paths enforce through requestStartUntil(), so a start
+     * date posted by hand cannot go further than the last day a picker offers.
+     */
+    public const REQUEST_START_HORIZON_DAYS = 180;
+
     private $db;
+
+    /**
+     * The last day a reader's request may start on, in the application
+     * timezone: the `start_until` getBookAvailabilityData() reports for
+     * REQUEST_START_HORIZON_DAYS days from today.
+     */
+    public static function requestStartUntil(?string $today = null): string
+    {
+        return \App\Support\LibraryCalendar::shift(
+            $today ?? \App\Support\DateHelper::today(),
+            self::REQUEST_START_HORIZON_DAYS - 1
+        );
+    }
 
     public function __construct(?mysqli $db = null)
     {
@@ -277,10 +299,26 @@ class ReservationsController
             return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
         }
 
+        // The request calendar offers start days up to requestStartUntil():
+        // a later start posted by hand is refused like any other date the
+        // picker cannot produce, before anything is computed from it.
+        $startUntil = self::requestStartUntil();
+        if ($startDate > $startUntil) {
+            $response->getBody()->write(json_encode(['success' => false, 'error' => 'invalid_date', 'message' => __('Data richiesta non valida.')]));
+            return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+        }
+
         // A start day the library is closed moves to the next open day, as the
         // request calendar proposes it (a crafted request cannot start on a
         // closure); identical without closures.
         $startDate = \App\Support\LibraryCalendar::requestStartDay($this->db, $startDate, $bookId);
+
+        // A closed day at the end of the horizon must not carry the start past
+        // it either: the picker offers no such day.
+        if ($startDate > $startUntil) {
+            $response->getBody()->write(json_encode(['success' => false, 'error' => 'invalid_date', 'message' => __('Data richiesta non valida.')]));
+            return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+        }
 
         if ($endDate && $endDate < $startDate) {
             $response->getBody()->write(json_encode(['success' => false, 'error' => 'invalid_range', 'message' => __('La data di fine non può precedere la data di inizio')]));
@@ -322,7 +360,7 @@ class ReservationsController
         // since no copy is in the library for the window.
         if (!$capacity->hasFreeCapacity($bookId, $startDate, $endDate, excludeUserId: $userId, forQueue: $forQueue)) {
             $conflictDates = $capacity->unavailableDatesInRange($bookId, $startDate, $endDate, $userId, forQueue: $forQueue);
-            $response->getBody()->write(json_encode($this->capacityConflictPayload($startDate, $conflictDates)));
+            $response->getBody()->write(json_encode($this->capacityConflictPayload($startDate, $conflictDates, (int) $bookId)));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
         }
 
@@ -396,7 +434,7 @@ class ReservationsController
             if (!$capacity->hasFreeCapacity($bookId, $startDate, $endDate, excludeUserId: $userId, forQueue: $forQueue)) {
                 $postLockConflicts = $capacity->unavailableDatesInRange($bookId, $startDate, $endDate, $userId, forQueue: $forQueue);
                 $this->db->rollback();
-                $response->getBody()->write(json_encode($this->capacityConflictPayload($startDate, $postLockConflicts)));
+                $response->getBody()->write(json_encode($this->capacityConflictPayload($startDate, $postLockConflicts, (int) $bookId)));
                 return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
             }
 
@@ -876,11 +914,14 @@ class ReservationsController
      * start day is the blocked one there is nothing to shorten, so the generic
      * message stays. The figures and the wording come from LoanWindow, shared
      * with the user-area forms, the Mobile API and the admin loan form.
+     * `max_end_date` is an open day of the branch that lends the title: the
+     * request moves a return date on a closed day forward (requestDueDate()),
+     * which from the day before the conflict is the blocked day itself.
      *
      * @param string[] $conflictDates
      * @return array<string, mixed>
      */
-    private function capacityConflictPayload(string $startDate, array $conflictDates): array
+    private function capacityConflictPayload(string $startDate, array $conflictDates, int $bookId): array
     {
         $payload = [
             'success' => false,
@@ -888,7 +929,12 @@ class ReservationsController
             'message' => __('Nessuna copia disponibile nelle date richieste'),
             'conflict_dates' => $conflictDates,
         ];
-        $cap = \App\Support\LoanWindow::cap($startDate, $conflictDates);
+        $cap = \App\Support\LoanWindow::cap(
+            $startDate,
+            $conflictDates,
+            \App\Support\LibraryCalendar::forDb($this->db),
+            \App\Support\LibraryCalendar::requestScope($this->db, $bookId)
+        );
         if ($cap === null) {
             return $payload;
         }

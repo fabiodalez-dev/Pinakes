@@ -21,6 +21,8 @@ declare(strict_types=1);
  *        (an automatic approval of the reader's own request is not refused);
  *     E. reservation and loan created for oneself;
  *     F. [56] overdue extension: reason required, fine written + waived.
+ *     E2. the NCIP operator writes (CheckOutItem, CheckInItem, RenewItem,
+ *        RequestItem, CancelRequestItem), judged on the Basic-auth operator;
  *  G. the mobile API maps the refusal to a 403 not_permitted envelope.
  *
  * Run:  php tests/security-decisions-circulation.unit.php
@@ -287,6 +289,78 @@ try {
     $r = (new \App\Controllers\ReservationsAdminController())->store($post('/admin/reservations/create', ['utente_id' => (string) $staffId, 'libro_id' => (string) $freeBook, 'data_prenotazione' => $today, 'data_scadenza' => $day(10)]), new SlimResponse(), $db);
     $count = (int) $db->query("SELECT COUNT(*) FROM prenotazioni WHERE libro_id = {$freeBook}")->fetch_row()[0];
     $check(str_contains($r->getHeaderLine('Location'), 'error=self_dealing') && $count === 0, 'a reservation for its own account is refused');
+
+    // ── E2. NCIP: the Basic-auth operator is judged, not the web session ──
+    echo "E2. NCIP operator writes\n";
+    require_once $root . '/storage/plugins/ncip-server/NcipServerPlugin.php';
+    // The handlers email the borrower post-commit: stop before any SMTP contact.
+    $smtpProbe = new ReflectionProperty(\App\Support\Mailer::class, 'smtpReachable');
+    $smtpBefore = $smtpProbe->getValue();
+    $smtpProbe->setValue(null, false);
+    try {
+        // Settings (catalogue mode) from the sandbox, not from the worktree database.
+        \App\Support\ConfigStore::usingConnection($db, static function () use ($db, $check, $as, $newBook, $newLoan, $loanRow, $day, $staffId, $adminId, $readerId): void {
+            $ncip = new \App\Plugins\NcipServer\NcipServerPlugin($db, new \App\Support\HookManager($db));
+            $check($ncip->ensureSchema()['failed'] === [], 'the NCIP tables exist in the sandbox');
+            $ncipRequest = (new ServerRequestFactory())->createServerRequest('POST', '/ncip');
+            $ncipSend = static function (string $type, int $bookId, ?int $userId, array $operator) use ($ncip, $ncipRequest): array {
+                $xml = new SimpleXMLElement(
+                    "<NCIPMessage><{$type}>"
+                    . ($userId !== null ? "<UserId><UserIdentifierValue>{$userId}</UserIdentifierValue></UserId>" : '')
+                    . "<ItemId><ItemIdentifierValue>{$bookId}</ItemIdentifierValue></ItemId>"
+                    . "</{$type}></NCIPMessage>"
+                );
+                $r = (new ReflectionMethod($ncip, 'handle' . $type))->invoke($ncip, $ncipRequest, new SlimResponse(), $xml, $operator);
+                return [$r->getStatusCode(), (string) $r->getBody()];
+            };
+            $refused = static fn (array $answer): bool => $answer[0] === 403
+                && str_contains($answer[1], '>Unauthorized Combination Of Element Values For Agency<');
+            $rowsFor = static fn (string $table, int $bookId): int =>
+                (int) $db->query("SELECT COUNT(*) FROM {$table} WHERE libro_id = {$bookId}")->fetch_row()[0];
+            $staffOperator = ['id' => $staffId, 'tipo_utente' => 'staff'];
+            $adminOperator = ['id' => $adminId, 'tipo_utente' => 'admin'];
+
+            // An administrator signed in on the web lends no exemption to NCIP.
+            $as($adminId, 'admin');
+            [$ncipBook] = $newBook('disponibile');
+            $check($refused($ncipSend('CheckOutItem', $ncipBook, $staffId, $staffOperator)) && $rowsFor('prestiti', $ncipBook) === 0,
+                'NCIP CheckOutItem for the operator itself: 403, no loan');
+            $check($refused($ncipSend('RequestItem', $ncipBook, $staffId, $staffOperator))
+                && $rowsFor('prestiti', $ncipBook) === 0 && $rowsFor('prenotazioni', $ncipBook) === 0,
+                'NCIP RequestItem for the operator itself: 403, nothing stored');
+
+            $ncipLoan = $newLoan($staffId, $day(-2), $day(6));
+            $db->query("UPDATE prestiti SET origine = 'ncip' WHERE id = {$ncipLoan}");
+            $ncipLoanBook = (int) $loanRow($ncipLoan)['libro_id'];
+            foreach ([$staffId, null] as $userInMessage) {
+                $how = $userInMessage === null ? 'without UserId' : 'with UserId';
+                $check($refused($ncipSend('RenewItem', $ncipLoanBook, $userInMessage, $staffOperator)) && $loanRow($ncipLoan)['data_scadenza'] === $day(6),
+                    "NCIP RenewItem of its own loan ({$how}): 403, due date unchanged");
+                $check($refused($ncipSend('CheckInItem', $ncipLoanBook, $userInMessage, $staffOperator)) && (int) $loanRow($ncipLoan)['attivo'] === 1,
+                    "NCIP CheckInItem of its own loan ({$how}): 403, the loan stays open");
+            }
+
+            $ncipPending = $newLoan($staffId, $day(0), $day(10), 'pendente');
+            $db->query("UPDATE prestiti SET origine = 'ncip' WHERE id = {$ncipPending}");
+            $ncipPendingBook = (int) $loanRow($ncipPending)['libro_id'];
+            foreach ([$staffId, null] as $userInMessage) {
+                $how = $userInMessage === null ? 'without UserId' : 'with UserId';
+                $check($refused($ncipSend('CancelRequestItem', $ncipPendingBook, $userInMessage, $staffOperator)) && $loanRow($ncipPending)['stato'] === 'pendente',
+                    "NCIP CancelRequestItem of its own request ({$how}): 403, the request stays pending");
+            }
+
+            // Controls, with the Staff web session that must not matter either.
+            $as($staffId, 'staff');
+            $answer = $ncipSend('CheckOutItem', $ncipBook, $readerId, $staffOperator);
+            $check(!str_contains($answer[1], '<Problem>') && $rowsFor('prestiti', $ncipBook) === 1, 'control: Staff checks out for another reader over NCIP');
+            $answer = $ncipSend('CheckInItem', $ncipLoanBook, $staffId, $adminOperator);
+            $check(!str_contains($answer[1], '<Problem>') && $loanRow($ncipLoan)['stato'] === 'restituito', "control: an administrator checks in the operator's loan over NCIP");
+            $answer = $ncipSend('CancelRequestItem', $ncipPendingBook, null, $adminOperator);
+            $check(!str_contains($answer[1], '<Problem>') && $loanRow($ncipPending)['stato'] === 'annullato', "control: an administrator cancels the operator's request over NCIP");
+        });
+    } finally {
+        $smtpProbe->setValue(null, $smtpBefore);
+    }
 
     // ── F. [56] Overdue extension waives the accrued fine with a reason ──
     echo "F. Moving an overdue loan forward\n";

@@ -9431,5 +9431,9 @@
   "Durata non valida": "Durata non valida",
   "La durata deve essere un numero intero di minuti tra 1 e %d.": "La durata deve essere un numero intero di minuti tra 1 e %d.",
   "Impossibile registrare il tentativo di accesso: la cartella storage/cache/installer-login non è scrivibile. Verifica i permessi della cartella storage/ sul server.": "Impossibile registrare il tentativo di accesso: la cartella storage/cache/installer-login non è scrivibile. Verifica i permessi della cartella storage/ sul server.",
-  "Il database configurato non risponde come previsto. Il dettaglio dell'errore è nel log del server.": "Il database configurato non risponde come previsto. Il dettaglio dell'errore è nel log del server."
+  "Il database configurato non risponde come previsto. Il dettaglio dell'errore è nel log del server.": "Il database configurato non risponde come previsto. Il dettaglio dell'errore è nel log del server.",
+  "Ripristina le scadenze prorogate dai giorni che rimuovo": "Ripristina le scadenze prorogate dai giorni che rimuovo",
+  "Da usare se le date erano sbagliate. Senza questa opzione i lettori mantengono la scadenza già comunicata.": "Da usare se le date erano sbagliate. Senza questa opzione i lettori mantengono la scadenza già comunicata.",
+  "L'utente ha uno storico (prestiti, prenotazioni o altri dati collegati) e non può essere eliminato: è stato sospeso.": "L'utente ha uno storico (prestiti, prenotazioni o altri dati collegati) e non può essere eliminato: è stato sospeso.",
+  "Impossibile eliminare: questi libri hanno prestiti o prenotazioni attive: %s": "Impossibile eliminare: questi libri hanno prestiti o prenotazioni attive: %s"
 }

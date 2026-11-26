@@ -154,13 +154,8 @@ final class StaffReservationsController
                 return $this->notFound($response);
             }
             // Full form server-side: merge over the stored row.
-            $form = [
-                'stato'                      => is_string($json['status'] ?? null) ? $json['status'] : (string) $current['stato'],
-                'data_prenotazione'          => $dates['reserved_at'] ?? (StaffLoanReader::date($current['data_prenotazione'] ?? null) ?? ''),
-                'data_scadenza_prenotazione' => $dates['expires_at'] ?? (StaffLoanReader::date($current['data_scadenza_prenotazione'] ?? null) ?? ''),
-                'data_inizio_richiesta'      => $dates['requested_from'] ?? (StaffLoanReader::date($current['data_inizio_richiesta'] ?? null) ?? ''),
-                'data_fine_richiesta'        => $dates['requested_to'] ?? (StaffLoanReader::date($current['data_fine_richiesta'] ?? null) ?? ''),
-            ];
+            $form = ['stato' => is_string($json['status'] ?? null) ? $json['status'] : (string) $current['stato']]
+                + $this->mergedDates($dates, $current);
             $db = $this->db;
             $outcome = Delegation::run(static fn (): ResponseInterface => (new ReservationsAdminController())->update(
                 Delegation::request('POST', '/admin/reservations/update/' . $id, $form),
@@ -195,7 +190,10 @@ final class StaffReservationsController
             ));
             $message = is_string($outcome->json['message'] ?? null) ? (string) $outcome->json['message'] : '';
             if ($outcome->status !== 200 || ($outcome->json['success'] ?? false) !== true) {
-                return CirculationOutcome::approvalError($response, $outcome->status === 200 ? 400 : $outcome->status, $message, 'staff reservation cancel');
+                // The core code tells a self-dealing refusal (403 not_permitted)
+                // from an eligibility one, as on the loan desk.
+                $coreCode = is_string($outcome->json['code'] ?? null) ? (string) $outcome->json['code'] : '';
+                return CirculationOutcome::approvalError($response, $outcome->status === 200 ? 400 : $outcome->status, $message, 'staff reservation cancel', $coreCode);
             }
             $row = $this->reader->reservation($id);
 
@@ -205,6 +203,39 @@ final class StaffReservationsController
         } catch (\Throwable $e) {
             return $this->fail($response, 'reservation cancel', $e);
         }
+    }
+
+    /**
+     * The four dates of the admin form, merged over the stored row.
+     *
+     * The two pairs describe one window: the web forms post a single pair and
+     * the core derives the other from it. Re-posting the stored twin of a date
+     * the client changed would leave it behind (a deadline that passes before
+     * the new window starts, a requested end before the new deadline), so the
+     * twin follows unless the client sent it too.
+     *
+     * @param array<string, string> $dates
+     * @param array<string, mixed> $current
+     * @return array<string, string>
+     */
+    private function mergedDates(array $dates, array $current): array
+    {
+        $form = [];
+        foreach ([
+            ['reserved_at', 'data_prenotazione', 'requested_from', 'data_inizio_richiesta'],
+            ['expires_at', 'data_scadenza_prenotazione', 'requested_to', 'data_fine_richiesta'],
+        ] as [$reservationKey, $reservationField, $requestedKey, $requestedField]) {
+            $reservation = $dates[$reservationKey] ?? null;
+            $requested = $dates[$requestedKey] ?? null;
+            $form[$reservationField] = $reservation ?? $requested
+                ?? (StaffLoanReader::date($current[$reservationField] ?? null) ?? '');
+            // Left empty when only the reservation date came: the core then
+            // derives the requested day from it, after its own adjustments.
+            $form[$requestedField] = $requested
+                ?? ($reservation !== null ? '' : (StaffLoanReader::date($current[$requestedField] ?? null) ?? ''));
+        }
+
+        return $form;
     }
 
     /**
