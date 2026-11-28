@@ -2,7 +2,7 @@
 /**
  * Security-audit hardening, bundled plugins + release pipeline (group D).
  *
- *   A. SRU scan: the LIKE prefix doubles the backslash FIRST (#51).
+ *   A. SRU scan: the start term is a bound value, never a LIKE pattern (#51).
  *   B. Schema helpers refuse non-identifiers (#105): book-club, frbr-lrm,
  *      emeroteca, desiderata.
  *   C. Emeroteca: only a canonical '/uploads/emeroteca/<file>' image may be
@@ -73,14 +73,24 @@ foreach ([
     $check($rc === 0, "php -l {$rel}");
 }
 
-// ── A. SRU scan LIKE escape ────────────────────────────────────────────────
-echo "A. SRU scan LIKE prefix escape (#51)\n";
+// ── A. SRU scan start term ─────────────────────────────────────────────────
+// #51 was a LIKE prefix whose escaping doubled the backslash last. Scan now
+// browses the index (term >= ?, term < ?) instead of matching a prefix, so no
+// pattern is built from the term at all and there is nothing left to escape.
+// What must stay true is that the term never reaches the SQL text: the
+// behaviour (%, _ and quotes compared literally) is exercised against a real
+// database in tests/sru-server-interop.unit.php, section D.
+echo "A. SRU scan binds its start term, no LIKE pattern (#51)\n";
 require_once $root . '/storage/plugins/z39-server/classes/SRUServer.php';
-$esc = static fn (string $p) => $callStatic(\Z39Server\SRUServer::class, 'escapeLikePrefix', [$p]);
-$check($esc('100%') === '100\\%', "'100%' -> '100\\%' (one escape, wildcard neutralised)");
-$check($esc('a_b') === 'a\\_b', "'a_b' -> 'a\\_b'");
-$check($esc('C:\\x') === 'C:\\\\x', 'a literal backslash is doubled');
-$check($esc('\\%') === '\\\\\\%', "'\\%' -> '\\\\\\%' (backslash doubled, then % escaped)");
+$sruSource = $src('storage/plugins/z39-server/classes/SRUServer.php');
+$scanFrom = strpos($sruSource, 'private function scanTermSources(');
+$scanTo = strpos($sruSource, 'private function formatScanResponse(');
+$scanSource = ($scanFrom !== false && $scanTo !== false && $scanTo > $scanFrom) ? substr($sruSource, $scanFrom, $scanTo - $scanFrom) : '';
+$check($scanSource !== '', 'the scan query builders are where this check reads them');
+$check($scanSource !== '' && !preg_match('/\bLIKE\b/', $scanSource), 'no LIKE in the scan queries');
+$check(str_contains($scanSource, "str_replace('{cmp}', \$operator . ' ?', \$sql)") && !preg_match('/\{\$(start|prefix|term)\}|\' \. \$(start|prefix|term)\b/', $scanSource),
+    'the start term only enters as a bound placeholder');
+$check(!method_exists(\Z39Server\SRUServer::class, 'escapeLikePrefix'), 'the LIKE prefix helper went away with the LIKE');
 
 // ── B. Identifier assertions in schema helpers ─────────────────────────────
 echo "\nB. Schema helpers refuse non-identifiers (#105)\n";

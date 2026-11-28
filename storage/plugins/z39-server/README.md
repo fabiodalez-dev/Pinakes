@@ -6,11 +6,11 @@ Plugin per Pinakes che implementa un server SRU (Search/Retrieve via URL) comple
 
 Questo plugin permette di esporre il catalogo della tua biblioteca tramite il protocollo **SRU (Search/Retrieve via URL)**, il successore moderno e basato su HTTP del protocollo Z39.50. Questo consente l'integrazione con altre biblioteche, sistemi ILS (Integrated Library Systems) e reti bibliotecarie che supportano questi standard internazionali.
 
-> ℹ️ **Nota**: il plugin parla esclusivamente SRU 1.2 (HTTP + XML). I client Z39.50 “puri” dovranno usare un gateway SRU↔Z39.50 per collegarsi.
+> ℹ️ **Nota**: il plugin parla esclusivamente SRU (HTTP + XML), nelle versioni 1.1, 1.2 e 2.0. I client Z39.50 “puri” dovranno usare un gateway SRU↔Z39.50 per collegarsi.
 
 ## Caratteristiche
 
-- **Server SRU completo** - Implementazione completa del protocollo SRU 1.2
+- **Server SRU completo** - SRU 1.1/1.2 (namespace Library of Congress, prefisso `zs:`) e SRU 2.0 (namespace OASIS, con `version=2.0`)
 - **Formati multipli** - Supporto per MARCXML, Dublin Core, MODS e OAI Dublin Core
 - **Operazioni standard** - explain, searchRetrieve, scan
 - **Ricerca CQL** - Parser con supporto per parentesi, AND/OR/NOT, operatori `all`/`any`/`exact` e relazioni numeriche
@@ -184,8 +184,10 @@ Scansiona un indice per ottenere termini disponibili.
 
 **Richiesta:**
 ```
-GET /api/sru?operation=scan&scanClause=dc.title&maximumTerms=20
+GET /api/sru?operation=scan&scanClause=dc.title=rosa&maximumTerms=20
 ```
+
+`scanClause=dc.title` (il solo indice) sfoglia l'indice dal primo termine.
 
 **Indici contenenti termini sfogliabili:**
 - `dc.title` / `cql.anywhere` – restituisce titoli di opere
@@ -193,7 +195,9 @@ GET /api/sru?operation=scan&scanClause=dc.title&maximumTerms=20
 - `dc.subject` – restituisce i soggetti (generi) configurati
 - `bath.isbn` – restituisce gli ISBN registrati
 
-Il server esegue una ricerca “prefix” (es. `dc.creator=ros` → tutti i cognomi che iniziano con “Ros...”) e ritorna `<term>` con `value`, `numberOfRecords` e `position`, come previsto dalle specifiche SRU.
+Lo scan sfoglia l'indice, non è una ricerca per prefisso: restituisce i termini in ordine di indice a partire dal termine indicato, che non deve per forza esistere (`dc.creator=ros` → i primi nomi uguali o successivi a “ros”, anche se non iniziano con “Ros”). `responsePosition` dice in che posizione dell'elenco deve cadere il termine di partenza: `1` (predefinito) lo mette per primo, `N` lo fa precedere da `N-1` termini, `0` fa iniziare l'elenco subito dopo, `maximumTerms+1` restituisce i termini che lo precedono; un valore più alto è il diagnostico 120. Gli altri indici non hanno un elenco di termini e rispondono con il diagnostico 16.
+
+Ogni `<term>` contiene `value` e `numberOfRecords`; le risposte 1.1/1.2 aggiungono `position`, la posizione del termine nell'elenco restituito (un'estensione di Pinakes, non prevista dallo schema SRU e assente nelle risposte 2.0).
 
 ## Installazione
 

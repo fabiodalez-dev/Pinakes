@@ -12,37 +12,38 @@ curl "http://localhost/api/sru?operation=explain"
 **Risposta (esempio):**
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
-<explainResponse xmlns="http://www.loc.gov/zing/srw/">
-  <version>1.2</version>
-  <record>
-    <recordSchema>http://explain.z3950.org/dtd/2.1/</recordSchema>
-    <recordPacking>xml</recordPacking>
-    <recordData>
-      <explain>
+<zs:explainResponse xmlns:zs="http://www.loc.gov/zing/srw/">
+  <zs:version>1.2</zs:version>
+  <zs:record>
+    <zs:recordSchema>http://explain.z3950.org/dtd/2.1/</zs:recordSchema>
+    <zs:recordPacking>xml</zs:recordPacking>
+    <zs:recordData>
+      <explain xmlns="http://explain.z3950.org/dtd/2.1/">
         <serverInfo protocol="SRU" version="1.2">
           <host>localhost</host>
           <port>80</port>
-          <database>catalog</database>
+          <database>api/sru</database>
         </serverInfo>
         <databaseInfo>
           <title>Library Catalog - Pinakes</title>
           <description>SRU interface to library catalog</description>
         </databaseInfo>
         <indexInfo>
+          <set identifier="info:srw/cql-context-set/1/dc-v1.1" name="dc"/>
           <index>
             <title>Title</title>
-            <map><name>dc.title</name></map>
+            <map><name set="dc">title</name></map>
           </index>
           <index>
             <title>Author</title>
-            <map><name>dc.creator</name></map>
+            <map><name set="dc">creator</name></map>
           </index>
           ...
         </indexInfo>
       </explain>
-    </recordData>
-  </record>
-</explainResponse>
+    </zs:recordData>
+  </zs:record>
+</zs:explainResponse>
 ```
 
 ### 2. SearchRetrieve - Ricerca Base
@@ -279,72 +280,78 @@ public class SRUClient {
 
 ## Esempi di Risposta
 
+Le risposte SRU 1.1/1.2 usano il namespace `http://www.loc.gov/zing/srw/` legato al prefisso `zs:`. Con `version=2.0` la stessa risposta è scritta nei namespace OASIS (`http://docs.oasis-open.org/ns/search-ws/sruResponse`, prefisso `sru:`; `.../scan` per lo scan; `.../diagnostic` per i diagnostici) e `recordPacking` diventa `recordXMLEscaping`.
+
 ### MARCXML Response
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
-<searchRetrieveResponse xmlns="http://www.loc.gov/zing/srw/">
-  <version>1.2</version>
-  <numberOfRecords>42</numberOfRecords>
-  <record>
-    <recordSchema>marcxml</recordSchema>
-    <recordPacking>xml</recordPacking>
-    <recordPosition>1</recordPosition>
-    <recordData>
-      <record xmlns="http://www.loc.gov/MARC21/slim">
-        <leader>00000nam a2200000   4500</leader>
-        <controlfield tag="001">123</controlfield>
-        <controlfield tag="008">250116s2020    xx            000 0 ita d</controlfield>
-        <datafield tag="020" ind1=" " ind2=" ">
-          <subfield code="a">9788804666592</subfield>
-        </datafield>
-        <datafield tag="100" ind1="1" ind2=" ">
-          <subfield code="a">Dante Alighieri</subfield>
-        </datafield>
-        <datafield tag="245" ind1="1" ind2="0">
-          <subfield code="a">La Divina Commedia</subfield>
-        </datafield>
-        <datafield tag="260" ind1=" " ind2=" ">
-          <subfield code="b">Mondadori</subfield>
-          <subfield code="c">2020</subfield>
-        </datafield>
-        <datafield tag="300" ind1=" " ind2=" ">
-          <subfield code="a">400 p.</subfield>
-        </datafield>
-      </record>
-    </recordData>
-  </record>
-  ...
-</searchRetrieveResponse>
+<zs:searchRetrieveResponse xmlns:zs="http://www.loc.gov/zing/srw/">
+  <zs:version>1.2</zs:version>
+  <zs:numberOfRecords>42</zs:numberOfRecords>
+  <zs:records>
+    <zs:record>
+      <zs:recordSchema>info:srw/schema/1/marcxml-v1.1</zs:recordSchema>
+      <zs:recordPacking>xml</zs:recordPacking>
+      <zs:recordData>
+        <record xmlns="http://www.loc.gov/MARC21/slim">
+          <leader>00000nam a2200000   4500</leader>
+          <controlfield tag="001">123</controlfield>
+          <controlfield tag="008">250116s2020    xx            000 0 ita d</controlfield>
+          <datafield tag="020" ind1=" " ind2=" ">
+            <subfield code="a">9788804666592</subfield>
+          </datafield>
+          <datafield tag="100" ind1="1" ind2=" ">
+            <subfield code="a">Dante Alighieri</subfield>
+          </datafield>
+          <datafield tag="245" ind1="1" ind2="0">
+            <subfield code="a">La Divina Commedia</subfield>
+          </datafield>
+          <datafield tag="260" ind1=" " ind2=" ">
+            <subfield code="b">Mondadori</subfield>
+            <subfield code="c">2020</subfield>
+          </datafield>
+          <datafield tag="300" ind1=" " ind2=" ">
+            <subfield code="a">400 p.</subfield>
+          </datafield>
+        </record>
+      </zs:recordData>
+      <zs:recordPosition>1</zs:recordPosition>
+    </zs:record>
+    ...
+  </zs:records>
+</zs:searchRetrieveResponse>
 ```
 
 ### Dublin Core Response
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
-<searchRetrieveResponse xmlns="http://www.loc.gov/zing/srw/">
-  <version>1.2</version>
-  <numberOfRecords>42</numberOfRecords>
-  <record>
-    <recordSchema>dc</recordSchema>
-    <recordPacking>xml</recordPacking>
-    <recordPosition>1</recordPosition>
-    <recordData>
-      <oai_dc:dc xmlns:dc="http://purl.org/dc/elements/1.1/"
-                 xmlns:oai_dc="http://www.openarchives.org/OAI/2.0/oai_dc/">
-        <dc:title>La Divina Commedia</dc:title>
-        <dc:creator>Dante Alighieri</dc:creator>
-        <dc:publisher>Mondadori</dc:publisher>
-        <dc:date>2020</dc:date>
-        <dc:type>Text</dc:type>
-        <dc:format>cartaceo</dc:format>
-        <dc:identifier>ISBN:9788804666592</dc:identifier>
-        <dc:language>italiano</dc:language>
-      </oai_dc:dc>
-    </recordData>
-  </record>
-  ...
-</searchRetrieveResponse>
+<zs:searchRetrieveResponse xmlns:zs="http://www.loc.gov/zing/srw/">
+  <zs:version>1.2</zs:version>
+  <zs:numberOfRecords>42</zs:numberOfRecords>
+  <zs:records>
+    <zs:record>
+      <zs:recordSchema>info:srw/schema/1/dc-v1.1</zs:recordSchema>
+      <zs:recordPacking>xml</zs:recordPacking>
+      <zs:recordData>
+        <oai_dc:dc xmlns:dc="http://purl.org/dc/elements/1.1/"
+                   xmlns:oai_dc="http://www.openarchives.org/OAI/2.0/oai_dc/">
+          <dc:title>La Divina Commedia</dc:title>
+          <dc:creator>Dante Alighieri</dc:creator>
+          <dc:publisher>Mondadori</dc:publisher>
+          <dc:date>2020</dc:date>
+          <dc:type>Text</dc:type>
+          <dc:format>cartaceo</dc:format>
+          <dc:identifier>ISBN:9788804666592</dc:identifier>
+          <dc:language>italiano</dc:language>
+        </oai_dc:dc>
+      </zs:recordData>
+      <zs:recordPosition>1</zs:recordPosition>
+    </zs:record>
+    ...
+  </zs:records>
+</zs:searchRetrieveResponse>
 ```
 
 ## Test con Postman

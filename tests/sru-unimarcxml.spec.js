@@ -132,7 +132,7 @@ test.describe.serial('SRU recordSchema=unimarcxml — v0.7.4 (10 tests)', () => 
             `${SRU}?operation=searchRetrieve&version=1.1&query=dc.title+%3D+%22a%22&recordSchema=unimarcxml`
         );
         const body = await res.text();
-        const match = body.match(/<numberOfRecords>(\d+)<\/numberOfRecords>/);
+        const match = body.match(/<zs:numberOfRecords>(\d+)<\/zs:numberOfRecords>/);
         expect(match).not.toBeNull();
         expect(parseInt(match?.[1] ?? '-1')).toBeGreaterThanOrEqual(0);
     });
@@ -145,10 +145,10 @@ test.describe.serial('SRU recordSchema=unimarcxml — v0.7.4 (10 tests)', () => 
         );
         const body = await res.text();
         // If numberOfRecords > 0, there must be <record> elements
-        const nrMatch = body.match(/<numberOfRecords>(\d+)<\/numberOfRecords>/);
+        const nrMatch = body.match(/<zs:numberOfRecords>(\d+)<\/zs:numberOfRecords>/);
         const nr = parseInt(nrMatch?.[1] ?? '0');
         if (nr > 0) {
-            expect(body).toContain('<record>');
+            expect(body).toContain('<zs:record>');
         } else {
             // No results for this query — test is vacuously true
             expect(nr).toBeGreaterThanOrEqual(0);
@@ -161,7 +161,7 @@ test.describe.serial('SRU recordSchema=unimarcxml — v0.7.4 (10 tests)', () => 
             `${SRU}?operation=searchRetrieve&version=1.1&query=dc.title+%3D+%22e%22&recordSchema=unimarcxml&maximumRecords=3`
         );
         const body = await res.text();
-        const nrMatch = body.match(/<numberOfRecords>(\d+)<\/numberOfRecords>/);
+        const nrMatch = body.match(/<zs:numberOfRecords>(\d+)<\/zs:numberOfRecords>/);
         const nr = parseInt(nrMatch?.[1] ?? '0');
         if (nr > 0) {
             // UNIMARC field 200 is the title field
@@ -216,11 +216,11 @@ test.describe.serial('SRU 1.2 protocol conformance', () => {
         return res.text();
     };
     /** @param {string} body */
-    const total = (body) => parseInt(body.match(/<numberOfRecords>(\d+)<\/numberOfRecords>/)?.[1] ?? '-1', 10);
+    const total = (body) => parseInt(body.match(/<zs:numberOfRecords>(\d+)<\/zs:numberOfRecords>/)?.[1] ?? '-1', 10);
 
     test('P1. a request without operation is an explain with declared context sets', async ({ request }) => {
         const body = await sru(request, '');
-        expect(body).toContain('<explainResponse');
+        expect(body).toContain('<zs:explainResponse');
         expect(body).toContain('<set identifier="info:srw/cql-context-set/1/dc-v1.1" name="dc"/>');
         expect(body).toContain('name="bath"');
         expect(body).toContain('name="cql"');
@@ -244,12 +244,12 @@ test.describe.serial('SRU 1.2 protocol conformance', () => {
     test('P3. searchRetrieveResponse children follow the SRU 1.2 order', async ({ request }) => {
         const body = await sru(request, `?operation=searchRetrieve&version=1.2&query=${encodeURIComponent(`dc.title="${TITLE}"`)}&maximumRecords=1&recordSchema=dc`);
         expect(total(body)).toBe(2);
-        const order = ['<version>', '<numberOfRecords>', '<records>', '<nextRecordPosition>', '<echoedSearchRetrieveRequest>']
+        const order = ['<zs:version>', '<zs:numberOfRecords>', '<zs:records>', '<zs:nextRecordPosition>', '<zs:echoedSearchRetrieveRequest>']
             .map((tag) => body.indexOf(tag));
         expect(order.every((pos) => pos >= 0)).toBe(true);
         expect([...order].sort((a, b) => a - b)).toEqual(order);
         // inside <record>: recordSchema, recordPacking, recordData, recordPosition
-        const rec = ['<recordSchema>', '<recordPacking>', '<recordData>', '<recordPosition>'].map((tag) => body.indexOf(tag));
+        const rec = ['<zs:recordSchema>', '<zs:recordPacking>', '<zs:recordData>', '<zs:recordPosition>'].map((tag) => body.indexOf(tag));
         expect([...rec].sort((a, b) => a - b)).toEqual(rec);
     });
 
@@ -285,15 +285,15 @@ test.describe.serial('SRU 1.2 protocol conformance', () => {
         for (const value of ['-1', 'abc']) {
             const body = await sru(request, `?operation=searchRetrieve&version=1.2&query=${encodeURIComponent(`dc.title="${TITLE}"`)}&maximumRecords=${value}`);
             expect(body).toContain('<diag:uri>info:srw/diagnostic/1/6</diag:uri>');
-            expect(body).toContain('<numberOfRecords>0</numberOfRecords>');
+            expect(body).toContain('<zs:numberOfRecords>0</zs:numberOfRecords>');
         }
     });
 
     test('P7. recordPacking=string returns the record as escaped text; an unknown packing is diagnostic 71', async ({ request }) => {
         const body = await sru(request, `?operation=searchRetrieve&version=1.2&recordSchema=marcxml&recordPacking=string&query=${encodeURIComponent(`dc.title="${TITLE} Alpha"`)}`);
         expect(total(body)).toBe(1);
-        expect(body).toContain('<recordPacking>string</recordPacking>');
-        expect(body).toMatch(/<recordData>&lt;record xmlns="http:\/\/www\.loc\.gov\/MARC21\/slim"/);
+        expect(body).toContain('<zs:recordPacking>string</zs:recordPacking>');
+        expect(body).toMatch(/<zs:recordData>&lt;record xmlns="http:\/\/www\.loc\.gov\/MARC21\/slim"/);
         expect(body).toContain(`${TITLE} Alpha`);
 
         const bad = await sru(request, `?operation=searchRetrieve&version=1.2&recordPacking=json&query=${encodeURIComponent(`dc.title="${TITLE}"`)}`);

@@ -867,60 +867,61 @@ class OaiPmhServerPlugin
 
     // ── Identify ──────────────────────────────────────────────────────────────
 
+    /**
+     * earliestDatestamp: "the guaranteed lower limit of all datestamps
+     * recording changes, modifications, or deletions in the repository"
+     * (OAI-PMH 2.0 §4.2).
+     *
+     * So it is the smallest datestamp any response can carry, deleted headers
+     * included, and not the creation date of the oldest live book: a harvester
+     * that starts at from=earliestDatestamp would otherwise never be told
+     * about a deletion dated before it. Taken from the union the list verbs
+     * read, across every set, with the de-listing tombstones unbounded because
+     * GetRecord answers them at any age.
+     *
+     * A static epoch stands in for an empty repository, never the current time.
+     */
+    private function earliestDatestamp(): string
+    {
+        $fallback = '1970-01-01T00:00:00Z';
+
+        [$union, $types, $vals] = $this->harvestUnion(
+            [
+                'book'          => true,
+                'archival_unit' => $this->isArchivesSetExposed(),
+                'periodical'    => $this->isPeriodicalsSetExposed(),
+            ],
+            null,
+            null,
+            null
+        );
+        if ($union === null) {
+            return $fallback;
+        }
+
+        $stmt = $this->db->prepare("SELECT MIN(_datestamp) AS e FROM ($union) AS _combined");
+        if ($stmt === false) {
+            return $fallback;
+        }
+        if ($types !== '') {
+            $stmt->bind_param($types, ...$vals);
+        }
+        $stmt->execute();
+        $res = $stmt->get_result();
+        $row = ($res instanceof \mysqli_result) ? $res->fetch_assoc() : null;
+        $stmt->close();
+        if (empty($row['e'])) {
+            return $fallback;
+        }
+
+        // Same local → UTC conversion as recordDatestamp().
+        $ts = strtotime((string) $row['e']);
+        return $ts !== false ? gmdate('Y-m-d\TH:i:s\Z', $ts) : $fallback;
+    }
+
     private function oaiIdentify(\XMLWriter $xw, string $baseUrl, string $host, string $now): void
     {
-        // Earliest datestamp: MIN of books and archival units (if archives active).
-        // Use a static epoch fallback when the repository is empty — never the current time.
-        $earliest = '1970-01-01T00:00:00Z';
-        // A requested book (desiderata) is not a holding: it is never harvested,
-        // so it must not take part in the earliest-datestamp contract either.
-        $r = $this->db->query(
-            "SELECT MIN(created_at) AS e FROM libri WHERE deleted_at IS NULL AND " . \App\Support\BookVisibility::catalogue($this->db)
-        );
-        if ($r instanceof \mysqli_result) {
-            $row = $r->fetch_assoc();
-            $r->free();
-            if (!empty($row['e'])) {
-                $ts = strtotime((string) $row['e']);
-                if ($ts !== false) {
-                    $earliest = gmdate('Y-m-d\TH:i:s\Z', $ts);
-                }
-            }
-        }
-        // Also check archival_units if the table exists. Probed first: under
-        // MYSQLI_REPORT_STRICT a query on a missing table throws, and Identify
-        // must answer on installations that never had the Archives plugin.
-        $r2 = $this->hasArchivalUnitsTable()
-            ? $this->db->query("SELECT MIN(created_at) AS e FROM archival_units WHERE deleted_at IS NULL" . $this->archivalPublishedSql())
-            : false;
-        if ($r2 instanceof \mysqli_result) {
-            $row2 = $r2->fetch_assoc();
-            $r2->free();
-            if (!empty($row2['e'])) {
-                $ts2raw = strtotime((string) $row2['e']);
-                if ($ts2raw !== false) {
-                    $ts2 = gmdate('Y-m-d\TH:i:s\Z', $ts2raw);
-                    if ($ts2 < $earliest) { $earliest = $ts2; }
-                }
-            }
-        }
-        // Issue #140: mastheads are harvestable records, so they take part in
-        // the earliest-datestamp contract too (an incremental harvester uses it
-        // as the lower bound of its very first `from`).
-        if ($this->isPeriodicalsSetExposed()) {
-            $r3 = $this->db->query('SELECT MIN(created_at) AS e FROM emeroteca_testate');
-            if ($r3 instanceof \mysqli_result) {
-                $row3 = $r3->fetch_assoc();
-                $r3->free();
-                if (!empty($row3['e'])) {
-                    $ts3raw = strtotime((string) $row3['e']);
-                    if ($ts3raw !== false) {
-                        $ts3 = gmdate('Y-m-d\TH:i:s\Z', $ts3raw);
-                        if ($ts3 < $earliest) { $earliest = $ts3; }
-                    }
-                }
-            }
-        }
+        $earliest = $this->earliestDatestamp();
 
         $cfg       = \App\Support\ConfigStore::all();
         $repoName  = trim((string) ($cfg['app']['name'] ?? '')) ?: 'Pinakes';
@@ -2757,7 +2758,7 @@ class OaiPmhServerPlugin
             // GetRecord can never produce two conflicting resolutions.
             //
             // Gated on hasActiveTriggers() for the same conformance reason as
-            // the de-listing arm in fetchRecordsPage(): without them Identify
+            // the de-listing arm in harvestUnion(): without them Identify
             // advertises deletedRecord='no', and a repository at that level may
             // not reveal a deleted status in any response. There it falls back
             // to idDoesNotExist, which is what this method answered before.
@@ -3087,7 +3088,66 @@ class OaiPmhServerPlugin
         int $limit,
         string $metadataPrefix
     ): array {
-        $arms       = $this->harvestArms($set, $metadataPrefix);
+        [$union, $types, $vals] = $this->harvestUnion(
+            $this->harvestArms($set, $metadataPrefix),
+            $fromMysql,
+            $untilMysql,
+            $fromMysql !== null ? 90 : 30
+        );
+        if ($union === null) {
+            return [];
+        }
+
+        // UNION ALL with DB-level ORDER + LIMIT + OFFSET. Paging needs nothing
+        // else from the new arm: the cursor is a plain OFFSET into this ordered
+        // union and PAGE_SIZE + 1 still decides hasMore, so the extra rows are
+        // counted by the same arithmetic as every other arm and no separate
+        // total is kept anywhere.
+        $pageSql = "SELECT _id, _entity, _status, _datestamp, _source FROM ($union) AS _combined"
+            . " ORDER BY _datestamp, _id, _entity, _status, _source LIMIT ? OFFSET ?";
+        $types  .= 'ii';
+        $vals[]  = $limit;
+        $vals[]  = $cursor;
+
+        $pageRefs = [];
+        $stmt = $this->db->prepare($pageSql);
+        if ($stmt !== false) {
+            $stmt->bind_param($types, ...$vals);
+            $stmt->execute();
+            $res = $stmt->get_result();
+            if ($res instanceof \mysqli_result) {
+                while ($r = $res->fetch_assoc()) { $pageRefs[] = $r; }
+                $res->free();
+            }
+            $stmt->close();
+        }
+
+        if (empty($pageRefs)) {
+            return [];
+        }
+
+        return $this->hydrateRecordsPage($pageRefs);
+    }
+
+    /**
+     * The UNION ALL of every record reference (live and deleted) the given
+     * arms can put in a response, optionally narrowed to a datestamp window.
+     *
+     * One builder for two readers, on purpose: ListIdentifiers/ListRecords
+     * page through it, and Identify takes its MIN(_datestamp) as
+     * earliestDatestamp. The datestamp columns and the visibility filters are
+     * therefore the same by construction, and an arm added here later takes
+     * part in the earliest-datestamp contract without anyone remembering to
+     * mirror it.
+     *
+     * @param array{book:bool, archival_unit:bool, periodical:bool} $arms
+     * @param int|null $delistWindowDays how far back the de-listing tombstone
+     *        arm reaches; null leaves it unbounded
+     * @return array{0:?string, 1:string, 2:list<string>} the SQL (null when no
+     *         arm applies), then the bind types and values of its placeholders
+     */
+    private function harvestUnion(array $arms, ?string $fromMysql, ?string $untilMysql, ?int $delistWindowDays): array
+    {
         $doBooks    = $arms['book'];
         $doArchives = $arms['archival_unit'];
         $doPeriodicals = $arms['periodical'];
@@ -3151,7 +3211,9 @@ class OaiPmhServerPlugin
             // timestamps of the library's wish list. Only a row that was once
             // in the catalogue can have been withdrawn from it.
             $w = ['l.deleted_at IS NULL', $delisted, \App\Support\BookVisibility::everCatalogued($this->db, 'l')];
-            $w[] = 'l.updated_at >= DATE_SUB(NOW(), INTERVAL ' . ($fromMysql !== null ? 90 : 30) . ' DAY)';
+            if ($delistWindowDays !== null) {
+                $w[] = 'l.updated_at >= DATE_SUB(NOW(), INTERVAL ' . $delistWindowDays . ' DAY)';
+            }
             if ($fromMysql !== null)  { $w[] = 'l.updated_at >= ?'; $types .= 's'; $vals[] = $fromMysql; }
             if ($untilMysql !== null) { $w[] = 'l.updated_at <= ?'; $types .= 's'; $vals[] = $untilMysql; }
             // CI-SOFT-DELETE-EXEMPT: $w is initialized for this UNION arm with l.deleted_at IS NULL.
@@ -3229,38 +3291,21 @@ class OaiPmhServerPlugin
         }
 
         if ($parts === []) {
-            return [];
+            return [null, '', []];
         }
 
-        // UNION ALL with DB-level ORDER + LIMIT + OFFSET. Paging needs nothing
-        // else from the new arm: the cursor is a plain OFFSET into this ordered
-        // union and PAGE_SIZE + 1 still decides hasMore, so the extra rows are
-        // counted by the same arithmetic as every other arm and no separate
-        // total is kept anywhere.
-        $union   = implode(' UNION ALL ', $parts);
-        $pageSql = "SELECT _id, _entity, _status, _datestamp, _source FROM ($union) AS _combined"
-            . " ORDER BY _datestamp, _id, _entity, _status, _source LIMIT ? OFFSET ?";
-        $types  .= 'ii';
-        $vals[]  = $limit;
-        $vals[]  = $cursor;
+        return [implode(' UNION ALL ', $parts), $types, $vals];
+    }
 
-        $pageRefs = [];
-        $stmt = $this->db->prepare($pageSql);
-        if ($stmt !== false) {
-            $stmt->bind_param($types, ...$vals);
-            $stmt->execute();
-            $res = $stmt->get_result();
-            if ($res instanceof \mysqli_result) {
-                while ($r = $res->fetch_assoc()) { $pageRefs[] = $r; }
-                $res->free();
-            }
-            $stmt->close();
-        }
-
-        if (empty($pageRefs)) {
-            return [];
-        }
-
+    /**
+     * Turn a page of record references (harvestUnion() rows) into the full
+     * rows the header and metadata writers expect, in the same order.
+     *
+     * @param list<array<string, mixed>> $pageRefs
+     * @return list<array<string, mixed>>
+     */
+    private function hydrateRecordsPage(array $pageRefs): array
+    {
         // Batch-fetch full book rows for the page.
         $bookMap = [];
         $bookIds = array_values(array_map(
@@ -3297,7 +3342,7 @@ class OaiPmhServerPlugin
             fn($r) => (int) $r['_id'],
             array_filter($pageRefs, fn($r) => $r['_entity'] === 'archival_unit' && $r['_status'] === 'active')
         ));
-        if (!empty($auIds) && $auExists) {
+        if (!empty($auIds)) {
             $ph  = implode(',', array_fill(0, count($auIds), '?'));
             // Explicit column list (more reviewable than SELECT *) covering
             // every field RicJsonLdBuilder::buildUnit() reads. Missing any of
@@ -3331,7 +3376,7 @@ class OaiPmhServerPlugin
             fn($r) => (int) $r['_id'],
             array_filter($pageRefs, fn($r) => $r['_entity'] === 'periodical' && $r['_status'] === 'active')
         ));
-        if (!empty($perIds) && $doPeriodicals) {
+        if (!empty($perIds)) {
             $ph  = implode(',', array_fill(0, count($perIds), '?'));
             $sql = "SELECT id, titolo, sottotitolo, issn, e_issn, issn_l, editore_id,
                            luogo_pubblicazione, lingua, periodicita, tipo,
