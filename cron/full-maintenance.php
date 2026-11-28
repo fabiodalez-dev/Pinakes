@@ -135,7 +135,10 @@ try {
     // cron uscirebbero in italiano — o fallirebbero del tutto per i template senza
     // default hardcoded — sulle installazioni non italiane.
     try {
-        \App\Support\I18n::loadFromDatabase($db);
+        // false is the method's own "could not read them": it does not throw.
+        if (!\App\Support\I18n::loadFromDatabase($db)) {
+            logMessage("WARNING: Failed to load languages from database: the e-mails use the built-in locales");
+        }
     } catch (\Throwable $e) {
         // Fallback ai locale hardcoded se la query fallisce (es. installazione
         // incompleta): stesso comportamento del bootstrap web.

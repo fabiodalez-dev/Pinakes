@@ -256,6 +256,49 @@ $check(DataIntegrity::booksBlockingDeletion($db, [$requestedBulk, $requestedSing
 $r = $bulkDelete([]);
 $check($r['status'] === 400 && ($r['body']['success'] ?? null) === false, '19 an empty selection is still a 400', json_encode($r));
 
+// ═════════ 20-23: a pending loan that holds a copy blocks both paths ═════════
+// A promoted reservation: the queue entry is 'completata', the loan is
+// 'pendente' with attivo = 0 and the copy set aside for its reader.
+[$promotedBulk, $promotedBulkCopy, $promotedBulkTitle] = $mkBook('promoted bulk');
+[$promotedSingle, $promotedSingleCopy] = $mkBook('promoted single');
+[$bystander] = $mkBook('bystander');
+$mkReservation($promotedBulk, $reader, 'completata');
+$mkLoan($promotedBulk, $promotedBulkCopy, $reader, 'pendente', 0);
+$mkReservation($promotedSingle, $reader, 'completata');
+$mkLoan($promotedSingle, $promotedSingleCopy, $reader, 'pendente', 0);
+$r = $bulkDelete([$promotedBulk, $bystander]);
+$check($r['status'] === 400 && !$isDeleted($promotedBulk) && !$isDeleted($bystander)
+    && str_contains((string) ($r['body']['error'] ?? ''), $promotedBulkTitle),
+    '20 a promoted reservation awaiting its pickup confirmation blocks the bulk delete', json_encode($r));
+$single = $singleDelete($promotedSingle);
+$check(!$isDeleted($promotedSingle) && $single['error'] !== null && str_ends_with($single['location'], '/admin/books/' . $promotedSingle),
+    '21 and the single delete', json_encode($single));
+$check(array_keys(DataIntegrity::booksBlockingDeletion($db, [$promotedBulk, $promotedSingle, $bystander])) === [$promotedBulk, $promotedSingle],
+    '22 the shared predicate names the two titles, not the free one');
+$db->query("UPDATE prestiti SET stato = 'annullato' WHERE libro_id IN ({$promotedBulk}, {$promotedSingle})");
+$r = $bulkDelete([$promotedBulk]);
+$singleDelete($promotedSingle);
+$check($isDeleted($promotedBulk) && $isDeleted($promotedSingle), '23 once the pending loan is closed both titles can be archived', json_encode($r));
+
+// ═════════ 24-25: an archived title in the selection does not hold the rest ══
+// A title archived while it still had a queue entry (before the guard existed)
+// may come back in a kept selection: only the live titles are asked about.
+[$archivedQueued] = $mkBook('archived queued');
+[$free] = $mkBook('free');
+$mkReservation($archivedQueued, $reader);
+$db->query("UPDATE libri SET deleted_at = NOW() WHERE id = {$archivedQueued}");
+$r = $bulkDelete([$archivedQueued, $free]);
+$check(($r['body']['success'] ?? null) === true && ($r['body']['affected'] ?? null) === 1 && $isDeleted($free),
+    '24 the free title is archived although an archived one in the selection still has a queue entry', json_encode($r));
+
+// ═════════ 26: the single delete of an archived title is a no-op ═════════════
+$before = (string) $db->query("SELECT deleted_at FROM libri WHERE id = {$free}")->fetch_row()[0];
+$db->query("UPDATE libri SET deleted_at = '2020-01-01 00:00:00' WHERE id = {$free}");
+$single = $singleDelete($free);
+$check((string) $db->query("SELECT deleted_at FROM libri WHERE id = {$free}")->fetch_row()[0] === '2020-01-01 00:00:00'
+    && $deletedEvents($free) === 1 && $single['error'] === null && str_ends_with($single['location'], '/admin/books'),
+    '25 deleting an archived title again from its page neither moves its archive date nor logs a second event', $before . ' ' . json_encode($single));
+
 $cleanup();
 $db->close();
 

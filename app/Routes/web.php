@@ -2435,7 +2435,18 @@ return function (App $app): void {
         $db = $app->getContainer()->get('db');
         $controller = new ReservationsAdminController();
         return $controller->update($request, $response, $db, (int) $args['id']);
-    })->add($noCirculationInCatalogueMode(true))->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+    })->add(function (
+        \Psr\Http\Message\ServerRequestInterface $request,
+        \Psr\Http\Server\RequestHandlerInterface $handler
+    ) use ($noCirculationInCatalogueMode): \Psr\Http\Message\ResponseInterface {
+        // This form also cancels: what already exists must still be closable
+        // in catalogue-only mode, so only the other updates are refused there.
+        $posted = (array) ($request->getParsedBody() ?? []);
+        if ((string) ($posted['stato'] ?? '') === 'annullata') {
+            return $handler->handle($request);
+        }
+        return $noCirculationInCatalogueMode(true)($request, $handler);
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
     // Book availability endpoint
     $app->get('/api/books/{id:\\d+}/availability', function ($request, $response, $args) use ($app) {

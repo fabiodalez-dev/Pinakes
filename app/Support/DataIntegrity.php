@@ -212,9 +212,13 @@ class DataIntegrity {
      * pointing at a title no list shows any more. The single and the bulk
      * delete both ask here, so the two rules cannot drift apart again.
      *
-     * A request still awaiting approval (prestiti 'pendente', attivo = 0) does
-     * not block: it commits no copy, and on an archived title it stays hidden
-     * by design (see UserActionsController::reservationsPage).
+     * A request still awaiting approval (prestiti 'pendente', attivo = 0) with
+     * no copy does not block: it commits nothing, and on an archived title it
+     * stays hidden by design (see UserActionsController::reservationsPage).
+     * One that holds a copy does: it is a promoted reservation, or a request
+     * with a copy set aside, and its reader has been told the book is there.
+     * The reservation it came from is 'completata' by then, so nothing else
+     * would stop the archive.
      *
      * With $lock the commitments are read with locking reads; the caller holds
      * a transaction and has locked the libri rows first (lock order
@@ -233,8 +237,9 @@ class DataIntegrity {
         $suffix = $lock ? ' FOR UPDATE' : '';
         $blocking = [];
         foreach ([
-            "SELECT libro_id FROM prestiti WHERE libro_id IN ({$in}) AND attivo = 1
-               AND stato IN ('in_corso', 'in_ritardo', 'da_ritirare', 'prenotato'){$suffix}",
+            "SELECT libro_id FROM prestiti WHERE libro_id IN ({$in})
+               AND ((attivo = 1 AND stato IN ('in_corso', 'in_ritardo', 'da_ritirare', 'prenotato'))
+                    OR (attivo = 0 AND stato = 'pendente' AND copia_id IS NOT NULL)){$suffix}",
             "SELECT libro_id FROM prenotazioni WHERE libro_id IN ({$in}) AND stato = 'attiva'{$suffix}",
         ] as $sql) {
             $stmt = $db->prepare($sql);

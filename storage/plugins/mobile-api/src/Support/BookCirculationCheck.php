@@ -10,16 +10,19 @@ namespace App\Plugins\MobileApi\Support;
  *
  * The two queries state the same rule the web back office applies before a
  * single or a bulk deletion (App\Support\DataIntegrity::booksBlockingDeletion):
- * an approved loan that still holds (or will hold) a copy, or an active
- * wait-list entry. They are kept here, in the plugin, rather than calling the
+ * an approved loan that still holds (or will hold) a copy, a pending loan
+ * with a copy set aside (a promoted reservation), or an active wait-list
+ * entry. They are kept here, in the plugin, rather than calling the
  * core helper so the plugin keeps working against the core version it declares
  * in requires_app; the unit test tests/mobile-api-staff.unit.php pins them to
  * the core rule so the two cannot drift apart silently.
  */
 final class BookCirculationCheck
 {
-    /** Approved loans that still occupy (or are about to occupy) a copy. */
-    public const ACTIVE_LOANS_SQL = "SELECT COUNT(*) AS count FROM prestiti WHERE libro_id = ? AND attivo = 1 AND stato IN ('in_corso', 'da_ritirare', 'prenotato', 'in_ritardo')";
+    /** Loans that occupy (or are about to occupy) a copy: approved ones, and pending ones holding a copy. */
+    public const ACTIVE_LOANS_SQL = "SELECT COUNT(*) AS count FROM prestiti WHERE libro_id = ?
+        AND ((attivo = 1 AND stato IN ('in_corso', 'in_ritardo', 'da_ritirare', 'prenotato'))
+             OR (attivo = 0 AND stato = 'pendente' AND copia_id IS NOT NULL))";
 
     /** Wait-list entries that are still waiting for a copy. */
     public const ACTIVE_RESERVATIONS_SQL = "SELECT COUNT(*) AS count FROM prenotazioni WHERE libro_id = ? AND stato = 'attiva'";

@@ -2470,15 +2470,45 @@ class LibriController
         // CSRF validated by CsrfMiddleware
 
         // Case 10: no deletion while an approved loan or a live queue entry
-        // points at the title. Same predicate as the bulk delete.
-        if (\App\Support\DataIntegrity::booksBlockingDeletion($db, [$id]) !== []) {
+        // points at the title. Same predicate as the bulk delete, and like it
+        // the check and the archive run under the lock of the title: a loan or
+        // a reservation being created for it waits on the same row, so it
+        // either blocks this delete or finds the title gone.
+        $repo = new \App\Models\BookRepository($db);
+        $deletedSnapshot = [];
+        $live = false;
+        $blocked = false;
+        $deleted = false;
+        $db->begin_transaction();
+        try {
+            $lock = $db->prepare('SELECT id FROM libri WHERE id = ? AND deleted_at IS NULL FOR UPDATE');
+            $lock->bind_param('i', $id);
+            $lock->execute();
+            $live = $lock->get_result()->fetch_row() !== null;
+            $lock->close();
+            if ($live) {
+                $blocked = \App\Support\DataIntegrity::booksBlockingDeletion($db, [$id], true) !== [];
+                if (!$blocked) {
+                    $deletedSnapshot = \App\Support\ActivityLog::loadBookSnapshot($db, $id);
+                    $deleted = $repo->delete($id);
+                }
+            }
+            $db->commit();
+        } catch (\Throwable $e) {
+            $db->rollback();
+            \App\Support\SecureLogger::error('libri.delete.failed: ' . $e->getMessage());
+            $deleted = false;
+            $blocked = false;
+            $live = true;
+        }
+        if ($blocked) {
             $_SESSION['error_message'] = __('Impossibile eliminare il libro: ci sono prestiti o prenotazioni attive. Termina prima i prestiti/prenotazioni.');
             return $response->withHeader('Location', url('/admin/books/' . $id))->withStatus(302);
         }
-
-        $repo = new \App\Models\BookRepository($db);
-        $deletedSnapshot = \App\Support\ActivityLog::loadBookSnapshot($db, $id);
-        $deleted = $repo->delete($id);
+        if (!$live) {
+            // Already archived, or never there: nothing to delete or to log.
+            return $response->withHeader('Location', url('/admin/books'))->withStatus(302);
+        }
         if (!$deleted) {
             $_SESSION['error_message'] = __('Errore durante l\'eliminazione del libro. Riprova.');
             return $response->withHeader('Location', url('/admin/books/' . $id))->withStatus(302);

@@ -1727,13 +1727,19 @@ class NotificationService {
         if ($alerted) {
             return;
         }
-        $this->notifyAdminsOverdue($loanId);
-        $this->notifyOverdueLoanInApp(
-            $loanId,
-            (string) $loan['utente_nome'],
-            (string) $loan['libro_titolo'],
-            (int) $loan['giorni_ritardo']
-        );
+        // Never throws: the caller still has the reader's flag to settle and
+        // the other loans of the run to notify.
+        try {
+            $this->notifyAdminsOverdue($loanId);
+            $this->notifyOverdueLoanInApp(
+                $loanId,
+                (string) $loan['utente_nome'],
+                (string) $loan['libro_titolo'],
+                (int) $loan['giorni_ritardo']
+            );
+        } catch (\Throwable $e) {
+            SecureLogger::warning("Overdue staff alert for loan {$loanId} failed: " . $e->getMessage());
+        }
     }
 
     public function notifyAdminsOverdue(int $loanId): void

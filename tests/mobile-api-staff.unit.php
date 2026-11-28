@@ -89,14 +89,16 @@ $check($response->getStatusCode() === 403, 'non-array identity fails closed');
 // of the two conditions (see BookCirculationCheck): pin them to the core's.
 echo "\nB. BookCirculationCheck mirrors DataIntegrity::booksBlockingDeletion()\n";
 // What a guard query tests, whatever its SELECT list and its book filter:
-// the table, whether it requires attivo = 1, and the set of states.
+// the table, whether it requires attivo = 1, the set of states, and whether
+// a pending loan counts only when it holds a copy.
 $rule = static function (string $sql): array {
     $flat = strtolower(trim((string) preg_replace('/\s+/', ' ', $sql)));
     preg_match('/ from (\w+) /', $flat, $table);
     preg_match_all("/'([a-z_]+)'/", $flat, $states);
     $list = array_values(array_unique($states[1]));
     sort($list);
-    return [$table[1] ?? '', str_contains($flat, 'attivo = 1'), $list];
+    return [$table[1] ?? '', str_contains($flat, 'attivo = 1'), $list,
+        str_contains($flat, "(attivo = 0 and stato = 'pendente' and copia_id is not null)")];
 };
 $core = (string) file_get_contents(__DIR__ . '/../app/Support/DataIntegrity.php');
 $predicateBody = substr($core, (int) strpos($core, 'public static function booksBlockingDeletion('), 2500);
@@ -105,9 +107,9 @@ $coreRules = array_map($rule, $m[1]);
 $check(count($coreRules) === 2, 'the core predicate still runs exactly two guards (found ' . count($coreRules) . ')');
 $check(in_array($rule(BookCirculationCheck::ACTIVE_LOANS_SQL), $coreRules, true), 'active-loans condition identical to core');
 $check(in_array($rule(BookCirculationCheck::ACTIVE_RESERVATIONS_SQL), $coreRules, true), 'active-reservations condition identical to core');
-$check($rule(BookCirculationCheck::ACTIVE_LOANS_SQL) === ['prestiti', true, ['da_ritirare', 'in_corso', 'in_ritardo', 'prenotato']]
-    && $rule(BookCirculationCheck::ACTIVE_RESERVATIONS_SQL) === ['prenotazioni', false, ['attiva']],
-    'the rule is: an approved loan (attivo = 1, four states) or a live queue entry');
+$check($rule(BookCirculationCheck::ACTIVE_LOANS_SQL) === ['prestiti', true, ['da_ritirare', 'in_corso', 'in_ritardo', 'pendente', 'prenotato'], true]
+    && $rule(BookCirculationCheck::ACTIVE_RESERVATIONS_SQL) === ['prenotazioni', false, ['attiva'], false],
+    'the rule is: an approved loan (attivo = 1, four states), a pending loan holding a copy, or a live queue entry');
 $usesPredicate = static function (string $file, string $method): bool {
     $source = (string) file_get_contents(__DIR__ . '/../app/Controllers/' . $file);
     $body = substr($source, (int) strpos($source, 'public function ' . $method . '('), 6000);

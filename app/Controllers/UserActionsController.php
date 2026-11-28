@@ -744,7 +744,13 @@ class UserActionsController
         // library runs in a local zone, so a raw date('Y-m-d') near midnight
         // would date the request to the wrong day.
         // A day the library is closed starts on the next open day instead.
-        $data_prestito = \App\Support\LibraryCalendar::requestStartDay($db, \App\Support\DateHelper::today(), $libroId);
+        $requestDay = \App\Support\DateHelper::today();
+        $data_prestito = \App\Support\LibraryCalendar::requestStartDay($db, $requestDay, $libroId);
+        // A closure that runs past the last day a request may start on leaves
+        // no day to offer: the same horizon as a chosen date (reserve()).
+        if ($data_prestito > ReservationsController::requestStartUntil($requestDay)) {
+            return $this->back($response, ['loan_error' => 'not_available']);
+        }
         $circulation = new \App\Services\CirculationPolicy($db);
         $loanPolicy = $circulation->forLoan($utenteId, $libroId);
         $data_scadenza = \App\Support\LibraryCalendar::requestDueDate($db, $data_prestito, $loanPolicy->requestDurationDays(), $libroId);
@@ -1030,9 +1036,11 @@ class UserActionsController
         // is closed moves to the next open day, as the request calendar
         // proposes it; identical without closures.
         $start = \App\Support\LibraryCalendar::requestStartDay($db, ($desired !== '') ? $desired : $today, $libroId);
-        // A closed day at the end of the horizon must not carry a chosen start past it.
-        if ($desired !== '' && $start > $startUntil) {
-            return $this->back($response, ['reserve_error' => 'invalid_date']);
+        // A closed day at the end of the horizon must not carry the start past
+        // it: a chosen date is refused as one the picker cannot produce, and
+        // with no date chosen there is simply no day left to offer.
+        if ($start > $startUntil) {
+            return $this->back($response, ['reserve_error' => $desired !== '' ? 'invalid_date' : 'not_available']);
         }
         $reservePolicy = (new \App\Services\CirculationPolicy($db))->forLoan($utenteId, $libroId);
         $end = \App\Support\LibraryCalendar::requestDueDate($db, $start, $reservePolicy->requestDurationDays(), $libroId);

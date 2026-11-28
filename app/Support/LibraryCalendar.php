@@ -1866,8 +1866,9 @@ final class LibraryCalendar
         $seconds = (int) ($m[3] ?? 0) * 3600 + (int) ($m[4] ?? 0) * 60 + (int) ($m[5] ?? 0);
         try {
             $start = new \DateTimeImmutable($startKey, new \DateTimeZone($timezone));
-            // Days are calendar days, the time part is elapsed time.
-            $end = $start->modify("+{$days} days")->modify("+{$seconds} seconds");
+            // Days are calendar days, the time part is elapsed time: modify()
+            // would add it on the wall clock, an hour off across a DST change.
+            $end = $start->modify("+{$days} days")->add(new \DateInterval("PT{$seconds}S"));
         } catch (\Throwable $e) {
             return null;
         }

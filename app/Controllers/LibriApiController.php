@@ -584,7 +584,9 @@ class LibriApiController
             $liveIds = array_map(static fn (array $row): int => (int) $row[0], $lock->get_result()->fetch_all(MYSQLI_NUM));
             $lock->close();
 
-            $blocking = \App\Support\DataIntegrity::booksBlockingDeletion($db, $cleanIds, true);
+            // Only the titles still live: one archived by an earlier delete
+            // may still carry a commitment, and it must not refuse the others.
+            $blocking = \App\Support\DataIntegrity::booksBlockingDeletion($db, $liveIds, true);
             if ($blocking === [] && $liveIds !== []) {
                 foreach ($liveIds as $liveId) {
                     $snapshots[$liveId] = \App\Support\ActivityLog::loadBookSnapshot($db, $liveId);

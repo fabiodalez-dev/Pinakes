@@ -85,26 +85,37 @@ $bookIds = [];
 $userIds = [];
 $catalogueRow = $db->query("SELECT setting_value FROM system_settings WHERE category = 'system' AND setting_key = 'catalogue_mode'")->fetch_row();
 $cleanup = static function () use ($db, &$bookIds, &$userIds, $catalogueRow, $prefix): void {
-    foreach ($bookIds as $id) {
-        try { $db->query("DELETE FROM log_modifiche WHERE tabella = 'libri' AND record_id = {$id}"); } catch (Throwable) {}
-        $db->query("DELETE FROM prestiti WHERE libro_id = {$id}");
-        $db->query("DELETE FROM prenotazioni WHERE libro_id = {$id}");
-        $db->query("DELETE FROM copie WHERE libro_id = {$id}");
-        $db->query("DELETE FROM libri WHERE id = {$id}");
-    }
-    try { $db->query("DELETE FROM email_delivery_outbox WHERE recipient_email LIKE '" . strtolower($prefix) . "-%@example.invalid'"); } catch (Throwable) {}
-    foreach ($userIds as $id) {
-        $db->query("DELETE FROM utenti WHERE id = {$id}");
-    }
-    // Catalogue mode is restored to exactly what this run found.
-    if ($catalogueRow === null) {
-        $db->query("DELETE FROM system_settings WHERE category = 'system' AND setting_key = 'catalogue_mode'");
-    } else {
-        $stmt = $db->prepare("UPDATE system_settings SET setting_value = ? WHERE category = 'system' AND setting_key = 'catalogue_mode'");
-        $value = (string) $catalogueRow[0];
-        $stmt->bind_param('s', $value);
-        $stmt->execute();
-        $stmt->close();
+    try {
+        foreach ($bookIds as $id) {
+            try { $db->query("DELETE FROM log_modifiche WHERE tabella = 'libri' AND record_id = {$id}"); } catch (Throwable) {}
+            $db->query("DELETE FROM prestiti WHERE libro_id = {$id}");
+            $db->query("DELETE FROM prenotazioni WHERE libro_id = {$id}");
+            $db->query("DELETE FROM copie WHERE libro_id = {$id}");
+            $db->query("DELETE FROM libri WHERE id = {$id}");
+        }
+        try { $db->query("DELETE FROM email_delivery_outbox WHERE recipient_email LIKE '" . strtolower($prefix) . "-%@example.invalid'"); } catch (Throwable) {}
+        foreach ($userIds as $id) {
+            $db->query("DELETE FROM utenti WHERE id = {$id}");
+        }
+    } finally {
+        // Catalogue mode is restored to exactly what this run found, also when
+        // a delete above failed: a database left in catalogue mode refuses the
+        // circulation of every suite that runs after this one. An error here
+        // is reported, and never hides the one of the deletes.
+        try {
+            if ($catalogueRow === null) {
+                $db->query("DELETE FROM system_settings WHERE category = 'system' AND setting_key = 'catalogue_mode'");
+            } else {
+                $stmt = $db->prepare("UPDATE system_settings SET setting_value = ? WHERE category = 'system' AND setting_key = 'catalogue_mode'");
+                // Not cast: a row whose value is SQL NULL goes back to NULL.
+                $value = $catalogueRow[0];
+                $stmt->bind_param('s', $value);
+                $stmt->execute();
+                $stmt->close();
+            }
+        } catch (Throwable $e) {
+            fwrite(STDERR, 'FAIL: catalogue_mode not restored: ' . $e->getMessage() . PHP_EOL);
+        }
     }
 };
 set_exception_handler(static function (Throwable $e) use ($cleanup, $db): void {
@@ -319,6 +330,16 @@ try {
         $check($reservationRow($edited) !== $before && !str_contains($r['location'], 'error='),
             '12 mode off: POST /admin/reservations/update still changes the reservation', json_encode($r) . ' ' . $reservationRow($edited));
 
+        // The same form cancels, and what exists must stay closable.
+        [$adminCancelBook] = $mkBook();
+        $adminCancelled = $mkReservation($adminCancelBook, $reader, 30, 40);
+        $setCatalogueMode(true);
+        $r = $post("/admin/reservations/update/{$adminCancelled}", ['stato' => 'annullata'] + $form);
+        $state = (string) $db->query("SELECT stato FROM prenotazioni WHERE id = {$adminCancelled}")->fetch_row()[0];
+        $check($state === 'annullata' && !$refusedAdmin($r) && !str_contains($r['location'], 'error='),
+            '12b catalogue mode: the staff can still cancel a reservation from its edit form', json_encode($r) . " stato={$state}");
+        $setCatalogueMode(false);
+
         // ═════════ POST /prestiti/update/{id}: the legacy alias of a guarded route
         [$aliasBook] = $mkBook();
         $aliasLoan = $mkPendingLoan($aliasBook, $reader);
@@ -329,8 +350,17 @@ try {
             '13 catalogue mode: /prestiti/update is closed like /admin/loans/update, of which it is an alias',
             json_encode([$guarded, $alias]));
         $setCatalogueMode(false);
-        $alias = $post("/prestiti/update/{$aliasLoan}", []);
-        $check(!$refusedAdmin($alias), '14 mode off: /prestiti/update reaches its handler', json_encode($alias));
+        // "Not refused" is also what a redirect to the login looks like: the
+        // alias must run the handler, so it has to save what was posted.
+        [$aliasLiveBook, $aliasLiveCopy] = $mkBook();
+        $db->query("INSERT INTO prestiti (libro_id, copia_id, utente_id, data_prestito, data_scadenza, stato, attivo, origine)
+                    VALUES ({$aliasLiveBook}, {$aliasLiveCopy}, {$reader}, '{$day(0)}', '{$day(14)}', 'in_corso', 1, 'richiesta')");
+        $aliasLiveLoan = (int) $db->insert_id;
+        $dueBefore = (string) $db->query("SELECT data_scadenza FROM prestiti WHERE id = {$aliasLiveLoan}")->fetch_row()[0];
+        $alias = $post("/prestiti/update/{$aliasLiveLoan}", ['data_scadenza' => $day(21)]);
+        $dueAfter = (string) $db->query("SELECT data_scadenza FROM prestiti WHERE id = {$aliasLiveLoan}")->fetch_row()[0];
+        $check(!$refusedAdmin($alias) && !str_contains($alias['location'], 'error=') && $dueAfter > $dueBefore,
+            '14 mode off: /prestiti/update runs its handler and saves the new due date', json_encode($alias) . " {$dueBefore} -> {$dueAfter}");
 
         // ═════════ cancelling stays open in catalogue mode ═══════════════════
         [$cancelBook] = $mkBook();
@@ -362,11 +392,22 @@ try {
     $fatal = $e;
 }
 
-$cleanup();
+// A teardown that fails leaves rows behind for the suites after this one: it
+// fails the run, also when every check passed.
+$cleanupError = null;
+try {
+    $cleanup();
+} catch (Throwable $e) {
+    $cleanupError = $e;
+}
 $db->close();
 
 if ($fatal !== null) {
     fwrite(STDERR, 'FAIL: uncaught ' . $fatal->getMessage() . ' @ ' . $fatal->getFile() . ':' . $fatal->getLine() . PHP_EOL);
+    exit(1);
+}
+if ($cleanupError !== null) {
+    fwrite(STDERR, 'FAIL: cleanup ' . $cleanupError->getMessage() . ' @ ' . $cleanupError->getFile() . ':' . $cleanupError->getLine() . PHP_EOL);
     exit(1);
 }
 

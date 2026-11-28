@@ -125,7 +125,10 @@ $db->set_charset($cfg['charset']);
 // locale would stay the static it_IT and the e-mails queued below would go
 // out in Italian on every other installation.
 try {
-    \App\Support\I18n::loadFromDatabase($db);
+    // false is the method's own "could not read them": it does not throw.
+    if (!\App\Support\I18n::loadFromDatabase($db)) {
+        error_log('Maintenance: languages not loaded from the database: the e-mails use the built-in locales');
+    }
 } catch (\Throwable $e) {
     // Same fallback as the web bootstrap: the hardcoded locales.
     error_log('Maintenance: languages not loaded from the database: ' . $e->getMessage());

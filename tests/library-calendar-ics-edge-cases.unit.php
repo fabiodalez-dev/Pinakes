@@ -60,6 +60,12 @@ $eq($parse("DTSTART:20261224T220000\nDURATION:PT2H"), [['2026-12-24', '2026-12-2
     'A6 ending at midnight does not close the next day, as a DTEND at midnight');
 $eq($parse("DTSTART:20261224T090000\nDURATION:P1DT12H"), [['2026-12-24', '2026-12-25', false]],
     'A7 a day and a half reaches the next day');
+// The night the clocks go back (25 October 2026 in Europe/Rome) lasts 25
+// hours: 24 elapsed hours from 00:30 end at 23:30 of the same day.
+$eq($parse("DTSTART:20261025T003000\nDURATION:PT24H"), [['2026-10-25', '2026-10-25', false]],
+    'A8 the time part is elapsed time: PT24H across the end of DST stays on the day');
+$eq($parse("DTSTART:20261025T003000\nDURATION:P1D"), [['2026-10-25', '2026-10-26', false]],
+    'A9 while P1D is a calendar day, and reaches the same time of the next one');
 $eq($parse("DTSTART:20261224T230000Z\nDURATION:PT1H"), [['2026-12-25', '2026-12-25', false]],
     'A8 the duration starts from the local day of a UTC DTSTART');
 $eq($parse("DTSTART;VALUE=DATE:20261224\nDTEND;VALUE=DATE:20261226\nDURATION:P14D"), [['2026-12-24', '2026-12-25', false]],

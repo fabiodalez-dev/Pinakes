@@ -294,6 +294,21 @@ $cases['B2 a closed last day cannot carry the start past the picker'] = static f
     SettingsReview25::eq(cr97StoredEnd($t, $book['id'], $t->reader), null, 'Nothing is stored');
 };
 
+$cases['B2b a closure that outlasts the horizon leaves no default start either'] = static function (SettingsReview25 $t): void {
+    $book = $t->book($t->branchA);
+    // Closed from today to past the last day a request may start on.
+    $t->db->query("INSERT INTO calendario_chiusure (data_inizio,data_fine,descrizione,ricorrente_annuale,sede_id,attiva)
+                   VALUES ('{$t->today}','{$t->day(185)}','Review 097',0,NULL,1)");
+    LibraryCalendar::reset();
+    // No date chosen: the start would default to the first open day, +186.
+    $queued = cr97UserAction($t, 'reserve', $t->reader, ['libro_id' => $book['id']]);
+    SettingsReview25::eq($queued['query']['reserve_error'] ?? null, 'not_available', 'A reservation with no chosen date is refused: ' . json_encode($queued['query']));
+    SettingsReview25::eq(cr97StoredEnd($t, $book['id'], $t->reader), null, 'Nothing is stored');
+    $asked = cr97UserAction($t, 'loan', $t->reader, ['libro_id' => $book['id']]);
+    SettingsReview25::eq($asked['query']['loan_error'] ?? null, 'not_available', 'So is a loan request, which always starts on the first open day: ' . json_encode($asked['query']));
+    SettingsReview25::eq(cr97StoredEnd($t, $book['id'], $t->reader), null, 'Nothing is stored');
+};
+
 $cases['B3 reservation form, date change and the app refuse a start past the picker'] = static function (SettingsReview25 $t): void {
     $book = $t->book($t->branchA);
     $late = cr97UserAction($t, 'reserve', $t->reader, ['libro_id' => $book['id'], 'desired_date' => $t->day(180)]);
@@ -397,6 +412,8 @@ $cases['D2 an edit that frees nothing leaves the queue alone'] = static function
         'utente_id' => (string) $third, 'data_prestito' => $t->day(6), 'data_scadenza' => $t->day(12),
     ]), new Response(), $t->db, $loan);
     SettingsReview25::check(!str_contains($response->getHeaderLine('Location'), 'error='), 'The edit is saved: ' . $response->getHeaderLine('Location'));
+    // Without this a redirect that saved nothing would pass the two checks below.
+    SettingsReview25::eq((int) $t->scalar("SELECT utente_id FROM prestiti WHERE id={$loan}"), $third, 'The loan now belongs to the third reader');
     SettingsReview25::eq((string) $t->scalar("SELECT stato FROM prenotazioni WHERE id={$waiting}"), 'attiva', 'The reservation still waits');
     SettingsReview25::eq((int) $t->scalar("SELECT COUNT(*) FROM prestiti WHERE libro_id={$book['id']} AND utente_id={$t->reader}"), 0, 'No loan was written for its reader');
 };
