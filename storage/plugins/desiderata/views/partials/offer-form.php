@@ -14,6 +14,7 @@
  * @var array<string,mixed>|null  $book             pre-bound wanted book (WP5, book detail page)
  * @var string|null               $returnTo         path to come back to after a successful send (WP5)
  * @var string|null               $recaptchaSiteKey empty = no reCAPTCHA on this installation (WP5)
+ * @var bool|null                 $omitFormTitle    true where the host section already carries the title (book page)
  */
 $e = [DesiderataPlugin::class, 'e'];
 $texts = is_array($texts ?? null) ? $texts : [];
@@ -42,7 +43,7 @@ $recaptchaSiteKey = is_string($recaptchaSiteKey ?? null) ? $recaptchaSiteKey : '
 $lockTitle = ($values['book_id'] ?? '') !== '';
 ?>
 <div class="dw-form" id="donation-form" data-desiderata-form>
-  <h3><?= $e($texts['form_title'] ?? __('Proponi una donazione')) ?></h3>
+  <?php if (empty($omitFormTitle)): ?><h3><?= $e($texts['form_title'] ?? __('Proponi una donazione')) ?></h3><?php endif; ?>
   <p><?= $e($texts['form_intro'] ?? __('La biblioteca valuterà la proposta e ti contatterà per concordare la consegna.')) ?></p>
   <?php if ($success): ?><p role="status" class="alert alert-success"><?= __('Grazie! La proposta è stata inviata alla biblioteca.') ?></p><?php endif; ?>
   <?php if (!empty($error)): ?><p role="alert" class="alert alert-danger"><?= $e($error) ?></p><?php endif; ?>

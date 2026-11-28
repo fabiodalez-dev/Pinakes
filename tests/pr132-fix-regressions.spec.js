@@ -95,7 +95,7 @@ test.describe('F003 — SRU errorResponse elements in SRU namespace', () => {
         // A namespace-correct child inherits the root NS or has explicit NS.
         // Easiest check: the <diagnostic> or <diagnostics> element must appear
         // within a document that has the SRU namespace declared.
-        expect(body).toMatch(/<diagnostics[\s>]/);
+        expect(body).toMatch(/<zs:diagnostics[\s>]/);
         // The diagnostic and its children live in the SRU diagnostic
         // namespace (prefix diag); info:srw/diagnostic/1/N is only the text
         // of <diag:uri>, never a namespace.
@@ -111,7 +111,7 @@ test.describe('F003 — SRU errorResponse elements in SRU namespace', () => {
         const body = await res.text();
         // The version element built via createElementNS must appear (not namespace-bare).
         // Old bug: createElement() → element in no namespace; root NS not inherited in DOM.
-        expect(body).toContain('<version>1.1</version>');
+        expect(body).toContain('<zs:version>1.1</zs:version>');
         // Diagnostic code 7 = mandatory parameter not supplied
         expect(body).toContain('info:srw/diagnostic/1/7');
     });

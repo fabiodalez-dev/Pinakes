@@ -18,6 +18,8 @@ use Closure;
 use Iterator;
 use League\Csv\Query\Constraint\Criteria;
 use League\Csv\Query\Predicate;
+use League\Csv\Schema\Inspector;
+use League\Csv\Schema\Schema;
 use League\Csv\Serializer\Denormalizer;
 use League\Csv\Serializer\MappingFailed;
 use League\Csv\Serializer\TypeCastingFailed;
@@ -45,6 +47,7 @@ use function array_values;
 use function count;
 use function in_array;
 use function is_int;
+use function is_string;
 use function sort;
 
 use const ARRAY_FILTER_USE_KEY;
@@ -54,13 +57,13 @@ final class Buffer implements TabularData
     public const INCLUDE_HEADER = 1;
     public const EXCLUDE_HEADER = 2;
 
-    /** @var list<string>|array{} */
+    /** @var array<string>|array{} */
     private readonly array $header;
-    /** @var list<string>|array{} */
+    /** @var array<string>|array{} */
     private readonly array $sortedHeader;
     /** @var array<string, null> */
     private readonly array $nullRecord;
-    /** @var array<int, list<mixed>> */
+    /** @var array<int, array<mixed>> */
     private array $rows = [];
     /** @var array<Closure(array): bool> callable collection to validate the record before insertion. */
     private array $validators = [];
@@ -98,11 +101,11 @@ final class Buffer implements TabularData
 
         /** @var Iterator<int, array> $rows */
         $rows = $dataStorage instanceof TabularData ? $dataStorage->getRecords() : RdbmsResult::rows($dataStorage);
-        $instance = new self(match (true) {
+        $instance = new self(array_values(match (true) {
             self::EXCLUDE_HEADER === $options => [],
             $dataStorage instanceof TabularData => $dataStorage->getHeader(),
             default => RdbmsResult::columnNames($dataStorage),
-        });
+        }));
 
         /**
          * @var int $offset
@@ -204,17 +207,87 @@ final class Buffer implements TabularData
     }
 
     /**
+     * @param callable(TInitial|null, array<mixed>, array-key=): TInitial $callback
+     * @param TInitial|null $initial
+     *
+     * @template TInitial
+     *
+     * @throws SyntaxError
+     *
+     * @return TInitial|null
+     */
+    public function reduce(callable $callback, mixed $initial = null): mixed
+    {
+        foreach ($this->getRecords() as $offset => $record) {
+            $initial = $callback($initial, $record, $offset);
+        }
+
+        return $initial;
+    }
+
+    public function inferSchema(?Inspector $inspector = null, array $header = []): Schema
+    {
+        return ($inspector ?? Inspector::default())->schema($this, $header);
+    }
+
+    public function inferRecords(?Inspector $inspector = null, array $header = []): Iterator
+    {
+        return $this->inferSchema($inspector, $header)->parse($this);
+    }
+
+    public function firstInferred(?Inspector $inspector = null, array $header = []): array
+    {
+        return $this->inferSchema($inspector, $header)->format($this->first());
+    }
+
+    public function lastInferred(?Inspector $inspector = null, array $header = []): array
+    {
+        return $this->inferSchema($inspector, $header)->format($this->last());
+    }
+
+    /**
+     * @param int<0, max> $nth
+     *
+     * @throws InvalidArgument
+     */
+    public function nthInferred(int $nth, ?Inspector $inspector = null, array $header = []): array
+    {
+        return $this->inferSchema($inspector, $header)->format($this->nth($nth));
+    }
+
+    public function valueInferred(int|string $column = 0, ?Inspector $inspector = null, array $header = []): mixed
+    {
+        return $this->selectedColumnValue($this->firstInferred($inspector, $header), $column);
+    }
+
+    private function selectedColumnValue(array $record, int|string $column = 0): mixed
+    {
+        if ([] === $record) {
+            return null;
+        }
+
+        if (is_string($column)) {
+            return $record[$column] ?? null;
+        }
+
+        $record = array_values($record);
+        if ($column < 0) {
+            $column += count($record);
+        }
+
+        return $record[$column] ?? null;
+    }
+
+    /**
      * @param non-negative-int $nth
      *
      * @throws InvalidArgument
      */
     public function nth(int $nth): array
     {
-        if ([] === ($row = $this->nthRow($nth, __METHOD__))) {
-            return [];
-        }
+        $row = $this->nthRow($nth, __METHOD__);
 
-        return $this->rowToRecord($row, $this->header);
+        return [] !== $row ? $this->rowToRecord($row, $this->header) : [];
     }
 
     /**
@@ -229,11 +302,12 @@ final class Buffer implements TabularData
      */
     public function nthAsObject(int $nth, string $className, array $header = []): ?object
     {
-        if ([] === ($row = $this->nthRow($nth, __METHOD__))) {
-            return null;
-        }
+        $row = $this->nthRow($nth, __METHOD__);
 
-        return Denormalizer::assign($className, $this->rowToRecord($row, [] !== $header ? $header : $this->header));
+        return [] !== $row
+            ? Denormalizer::assign($className, $this->rowToRecord($row, [] !== $header ? $header : $this->header))
+            : null;
+
     }
 
     public function firstOffset(): ?int
@@ -246,6 +320,11 @@ final class Buffer implements TabularData
         return null === ($offset = $this->firstOffset()) ? [] : $this->rowToRecord($this->rows[$offset], $this->header);
     }
 
+    public function value(int|string $column = 0): mixed
+    {
+        return $this->selectedColumnValue($this->first(), $column);
+    }
+
     /**
      * @param class-string $className
      * @param array<string> $header
@@ -254,7 +333,13 @@ final class Buffer implements TabularData
      */
     public function firstAsObject(string $className, array $header = []): ?object
     {
-        if ([] === ($row = $this->rows[$this->firstOffset()] ?? [])) {
+        $offset = $this->firstOffset();
+        if (null === $offset) {
+            return null;
+        }
+
+        $row =  $this->rows[$offset] ?? [];
+        if ([] === $row) {
             return null;
         }
 
@@ -279,7 +364,13 @@ final class Buffer implements TabularData
      */
     public function lastAsObject(string $className, array $header = []): ?object
     {
-        if ([] === ($row = $this->rows[$this->lastOffset()] ?? [])) {
+        $offset = $this->lastOffset();
+        if (null === $offset) {
+            return null;
+        }
+
+        $row =  $this->rows[$offset] ?? [];
+        if ([] === $row) {
             return null;
         }
 
@@ -292,16 +383,15 @@ final class Buffer implements TabularData
     private function nthRow(int $nth, string $method): array
     {
         -1 < $nth || throw InvalidArgument::dueToInvalidRecordOffset($nth, $method);
-        if (null === ($first = $this->firstOffset())) {
-            return [];
+
+        $i = 0;
+        foreach ($this->rows as $row) {
+            if ($nth === $i++) {
+                return $row;
+            }
         }
 
-        $offset = $first + $nth;
-        if (!array_key_exists($offset, $this->rows)) {
-            return [];
-        }
-
-        return $this->rows[$nth + $first];
+        return [];
     }
 
     public function fetchColumn(int|string $index = 0): Iterator

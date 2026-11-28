@@ -486,10 +486,9 @@ final class UserImport
     /** A CSV cell as trimmed text, with the export's formula-escape apostrophe undone. */
     private static function cell(mixed $value): string
     {
-        $value = trim(is_scalar($value) ? (string) $value : '');
-        if (strlen($value) > 1 && $value[0] === "'" && in_array($value[1], ['=', '+', '-', '@'], true)) {
-            $value = substr($value, 1);
-        }
+        // Unescape before the final trim: the export escapes a leading tab
+        // too ("'\t…"), and that tab only becomes trimmable once the prefix is off.
+        $value = trim(Csv::unescapeFormula(trim(is_scalar($value) ? (string) $value : '')));
         return strip_tags($value);
     }
 

@@ -71,6 +71,28 @@ test('genre headings align with the books on desktop, tablet and mobile',async({
   }
 });
 
+// #543: on the public page of a wanted book the donation section starts at the
+// same left edge as the rest of the book column (a .container wrapper used to
+// push it 28px right), and its heading is not repeated by the form below it.
+test('wanted book page: donation section lined up with the book column, one heading',async({page})=>{
+  await page.goto('/book/'+seeded.wanted);
+  const section=page.locator('#desiderata-book-offer');
+  await expect(section).toBeVisible();
+  await expect(section.getByRole('heading',{name:'Proponi una donazione',exact:true})).toHaveCount(1);
+  const edges=await section.evaluate(s=>{
+    const column=s.parentElement; const cs=getComputedStyle(column);
+    const contentLeft=column.getBoundingClientRect().left+parseFloat(cs.paddingLeft)+parseFloat(cs.borderLeftWidth);
+    // The first field a donor fills in (the form also carries off-screen traps).
+    const field=Array.from(s.querySelectorAll('[data-desiderata-form] .form-input')).find(el=>{const b=el.getBoundingClientRect(); return b.width>0&&b.height>0&&b.left>=0;});
+    return {contentLeft, heading:s.querySelector('h2').getBoundingClientRect().left, intro:s.querySelector('p').getBoundingClientRect().left, field:field?field.getBoundingClientRect().left:null};
+  });
+  expect(edges.field,'a visible form field').not.toBeNull();
+  for (const key of ['heading','intro','field']) expect(Math.abs(edges[key]-edges.contentLeft),`${key} at ${edges[key]}, column content at ${edges.contentLeft}`).toBeLessThanOrEqual(1);
+  // The homepage form keeps its own title: there it is the only one.
+  await page.goto('/');
+  await expect(page.locator('#donation-form h3')).toHaveCount(1);
+});
+
 test('explicit checkbox disables copies, restores prior input, and keeps scraping available',async({page})=>{
   await login(page); await page.goto('/admin/books/create');
   const flag=page.getByRole('checkbox',{name:'Desiderata: cerchiamo questo libro',exact:true});

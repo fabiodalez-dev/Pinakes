@@ -7777,6 +7777,8 @@
   "PDF (massimo 25 MB)": "PDF (massimo 25 MB)",
   "PDF non valido o superiore a 25 MB.": "PDF non valido o superiore a 25 MB.",
   "Paginazione": "Paginazione",
+  "Paginazione sopra la tabella": "Paginazione sopra la tabella",
+  "Paginazione sotto la tabella": "Paginazione sotto la tabella",
   "Per associare o spostare questo articolo, selezionalo dalla lista Articoli.": "Per associare o spostare questo articolo, selezionalo dalla lista Articoli.",
   "Per gli articoli usa l’importazione Emeroteca. Se il plugin è inattivo, attivalo da Plugins.": "Per gli articoli usa l’importazione Emeroteca. Se il plugin è inattivo, attivalo da Plugins.",
   "Possibile duplicato: usa la reference_key esistente per aggiornare, oppure verifica la citazione.": "Possibile duplicato: usa la reference_key esistente per aggiornare, oppure verifica la citazione.",
@@ -9429,5 +9431,9 @@
   "Durata non valida": "Durata non valida",
   "La durata deve essere un numero intero di minuti tra 1 e %d.": "La durata deve essere un numero intero di minuti tra 1 e %d.",
   "Impossibile registrare il tentativo di accesso: la cartella storage/cache/installer-login non è scrivibile. Verifica i permessi della cartella storage/ sul server.": "Impossibile registrare il tentativo di accesso: la cartella storage/cache/installer-login non è scrivibile. Verifica i permessi della cartella storage/ sul server.",
-  "Il database configurato non risponde come previsto. Il dettaglio dell'errore è nel log del server.": "Il database configurato non risponde come previsto. Il dettaglio dell'errore è nel log del server."
+  "Il database configurato non risponde come previsto. Il dettaglio dell'errore è nel log del server.": "Il database configurato non risponde come previsto. Il dettaglio dell'errore è nel log del server.",
+  "Ripristina le scadenze prorogate dai giorni che rimuovo": "Ripristina le scadenze prorogate dai giorni che rimuovo",
+  "Da usare se le date erano sbagliate. Senza questa opzione i lettori mantengono la scadenza già comunicata.": "Da usare se le date erano sbagliate. Senza questa opzione i lettori mantengono la scadenza già comunicata.",
+  "L'utente ha uno storico (prestiti, prenotazioni o altri dati collegati) e non può essere eliminato: è stato sospeso.": "L'utente ha uno storico (prestiti, prenotazioni o altri dati collegati) e non può essere eliminato: è stato sospeso.",
+  "Impossibile eliminare: questi libri hanno prestiti o prenotazioni attive: %s": "Impossibile eliminare: questi libri hanno prestiti o prenotazioni attive: %s"
 }

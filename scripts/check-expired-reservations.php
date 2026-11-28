@@ -51,6 +51,19 @@ if ($db->connect_error) {
     die("Connection failed: " . $db->connect_error);
 }
 
+// The installation locale, as cron/full-maintenance.php loads it: in CLI the
+// locale would stay the static it_IT and the reservation_expired e-mail would
+// go out in Italian on every other installation.
+try {
+    // false is the method's own "could not read them": it does not throw.
+    if (!\App\Support\I18n::loadFromDatabase($db)) {
+        fwrite(STDERR, "WARNING: languages not loaded from the database: the e-mails use the built-in locales\n");
+    }
+} catch (\Throwable $e) {
+    // Same fallback as the web bootstrap: the hardcoded locales.
+    fwrite(STDERR, 'WARNING: languages not loaded from the database: ' . $e->getMessage() . "\n");
+}
+
 echo "[" . date('Y-m-d H:i:s') . "] Starting expired reservations check...\n";
 
 // Delegate to the SINGLE production sweep instead of duplicating its logic:

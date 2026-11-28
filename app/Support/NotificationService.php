@@ -950,13 +950,7 @@ class NotificationService {
                 // if ($emailSent), quindi per i prestatari senza indirizzo il
                 // ritardo non arrivava mai né via email admin né in-app.
                 if (trim((string) $loan['utente_email']) === '') {
-                    $this->notifyAdminsOverdue((int)$loan['id']);
-                    $this->notifyOverdueLoanInApp(
-                        (int)$loan['id'],
-                        $loan['utente_nome'],
-                        $loan['libro_titolo'],
-                        (int)$loan['giorni_ritardo']
-                    );
+                    $this->alertStaffOverdueOnce($loan);
                     SecureLogger::info("Overdue notification for loan {$loan['id']}: user has no email, admins notified only");
                     continue;
                 }
@@ -970,16 +964,11 @@ class NotificationService {
 
                 $emailSent = $this->sendWithRetry($loan['utente_email'], 'loan_overdue_notification', $variables);
 
-                if ($emailSent) {
-                    $this->notifyAdminsOverdue((int)$loan['id']);
+                // Whatever became of the reader's e-mail: an address that keeps
+                // failing must not keep the overdue loan from the staff.
+                $this->alertStaffOverdueOnce($loan);
 
-                    // Create in-app notification for overdue loan
-                    $this->notifyOverdueLoanInApp(
-                        (int)$loan['id'],
-                        $loan['utente_nome'],
-                        $loan['libro_titolo'],
-                        (int)$loan['giorni_ritardo']
-                    );
+                if ($emailSent) {
                     $sentCount++;
                 } else {
                     // Email failed after retries: revert ONLY the flag so the next run
@@ -1703,6 +1692,53 @@ class NotificationService {
         } catch (\Throwable $e) {
             SecureLogger::error("Failed to email loan receipt for loan {$loanId}: " . $e->getMessage());
             return ['success' => false, 'message' => __('Invio email non riuscito. Controlla la configurazione email e riprova.')];
+        }
+    }
+
+    /**
+     * The staff alert for an overdue loan (admin e-mail and in-app notice),
+     * once per overdue period. The reader's own notice is retried on every
+     * run while its delivery fails; this must not repeat with it.
+     *
+     * The in-app notice is the record that the alert went out: one created on
+     * or after the current due date belongs to this period, an older one to a
+     * due date that was moved forward since.
+     *
+     * @param array<string, mixed> $loan id, data_scadenza, utente_nome, libro_titolo, giorni_ritardo
+     */
+    private function alertStaffOverdueOnce(array $loan): void
+    {
+        $loanId = (int) $loan['id'];
+        try {
+            $due = (string) $loan['data_scadenza'];
+            $stmt = $this->db->prepare(
+                "SELECT 1 FROM admin_notifications
+                 WHERE type = 'overdue_loan' AND related_id = ? AND created_at >= ? LIMIT 1"
+            );
+            $stmt->bind_param('is', $loanId, $due);
+            $stmt->execute();
+            $alerted = $stmt->get_result()->fetch_row() !== null;
+            $stmt->close();
+        } catch (\Throwable $e) {
+            // Unknown is not "already alerted": a repeated alert is the lesser harm.
+            SecureLogger::warning("Overdue staff alert for loan {$loanId}: earlier alert not readable: " . $e->getMessage());
+            $alerted = false;
+        }
+        if ($alerted) {
+            return;
+        }
+        // Never throws: the caller still has the reader's flag to settle and
+        // the other loans of the run to notify.
+        try {
+            $this->notifyAdminsOverdue($loanId);
+            $this->notifyOverdueLoanInApp(
+                $loanId,
+                (string) $loan['utente_nome'],
+                (string) $loan['libro_titolo'],
+                (int) $loan['giorni_ritardo']
+            );
+        } catch (\Throwable $e) {
+            SecureLogger::warning("Overdue staff alert for loan {$loanId} failed: " . $e->getMessage());
         }
     }
 

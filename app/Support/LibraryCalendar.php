@@ -565,26 +565,8 @@ final class LibraryCalendar
     {
         $calendar = self::forDb($db);
         $today = DateHelper::today();
-        $stmt = $db->prepare(
-            "SELECT p.id, p.libro_id, p.data_scadenza, c.sede_id
-             FROM prestiti p
-             LEFT JOIN copie c ON c.id = p.copia_id
-             WHERE p.attivo = 1 AND p.stato IN ('in_corso', 'da_ritirare', 'prenotato')
-               AND p.data_scadenza > ?
-               AND EXISTS (
-                   SELECT 1 FROM log_modifiche l
-                   WHERE l.tabella = 'libri' AND l.record_id = p.libro_id
-                     AND l.dati_nuovi LIKE '%loan.due_moved%'
-               )
-             ORDER BY p.libro_id, p.id"
-        );
-        $stmt->bind_param('s', $today);
-        $stmt->execute();
-        $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
-        $stmt->close();
-
         $withWarningDay = self::hasWarningSentFor($db);
-        foreach ($rows as $row) {
+        foreach (self::loansWithMovedDueDate($db, $today) as $row) {
             $id = (int) $row['id'];
             $bookId = (int) $row['libro_id'];
             $branch = $row['sede_id'] === null ? null : (int) $row['sede_id'];
@@ -596,18 +578,7 @@ final class LibraryCalendar
             }
 
             self::withBookLock($db, $bookId, static function () use ($db, $calendar, $comparison, $undo, $removed, $closureCreatedAt, $today, $id, $bookId, $withWarningDay): void {
-                // A failed current read must abort the transaction. In
-                // particular, MariaDB 1020 may have already rolled it back.
-                $stmt = $db->prepare(
-                    "SELECT p.data_prestito, p.data_scadenza, c.sede_id
-                     FROM prestiti p LEFT JOIN copie c ON c.id = p.copia_id
-                     WHERE p.id = ? AND p.libro_id = ? AND p.attivo = 1 AND p.data_scadenza > ?
-                       AND p.stato IN ('in_corso', 'da_ritirare', 'prenotato') FOR UPDATE"
-                );
-                $stmt->bind_param('iis', $id, $bookId, $today);
-                $stmt->execute();
-                $current = $stmt->get_result()->fetch_assoc();
-                $stmt->close();
+                $current = self::lockLoanWithMovedDueDate($db, $id, $bookId, $today);
                 if ($current === null) {
                     return;
                 }
@@ -648,6 +619,110 @@ final class LibraryCalendar
                 ActivityLog::recordLoanEvent($db, $id, 'loan.due_restored', $before, source: 'calendar', strict: true);
             });
         }
+    }
+
+    /**
+     * A closure edited in place. $previous is the calendar read before the
+     * edit; the loans concerned are those whose own day the edited calendar
+     * reopens earlier than $previous did, i.e. the loans an undo of the old
+     * version would bring back.
+     *
+     * With $undo they come back, exactly as after a closure deleted as a
+     * mistake. Otherwise each keeps its date and the day $previous had given
+     * it is recorded as granted, so a later undo cannot retract it: what an
+     * ordinary removal records. Days the edit adds are extendDueDates()' work.
+     */
+    public static function reconcileEditedClosure(
+        \mysqli $db,
+        self $previous,
+        bool $undo,
+        ?string $closureCreatedAt = null
+    ): void
+    {
+        if ($undo) {
+            self::reconcileRemovedClosure($db, $previous, undo: true, closureCreatedAt: $closureCreatedAt);
+            return;
+        }
+        $calendar = self::forDb($db);
+        $today = DateHelper::today();
+        foreach (self::loansWithMovedDueDate($db, $today) as $row) {
+            $id = (int) $row['id'];
+            $bookId = (int) $row['libro_id'];
+            $branch = $row['sede_id'] === null ? null : (int) $row['sede_id'];
+            $anchor = self::dueDateAnchor($db, $bookId, $id, (string) $row['data_scadenza'], $branch, null, $closureCreatedAt);
+            if ($anchor === null || $calendar->nextOpenDay($anchor, $branch) >= $previous->nextOpenDay($anchor, $branch)) {
+                continue;
+            }
+
+            self::withBookLock($db, $bookId, static function () use ($db, $calendar, $previous, $closureCreatedAt, $today, $id, $bookId): void {
+                $current = self::lockLoanWithMovedDueDate($db, $id, $bookId, $today);
+                if ($current === null) {
+                    return;
+                }
+                $due = (string) $current['data_scadenza'];
+                $branch = $current['sede_id'] === null ? null : (int) $current['sede_id'];
+                $anchor = self::dueDateAnchor($db, $bookId, $id, $due, $branch, null, $closureCreatedAt, lockingRead: true);
+                if ($anchor === null) {
+                    return;
+                }
+                $granted = $previous->nextOpenDay($anchor, $branch);
+                if ($calendar->nextOpenDay($anchor, $branch) >= $granted) {
+                    return;
+                }
+                $snapshot = ActivityLog::loadLoanSnapshot($db, $id, lockingRead: true, strict: true);
+                ActivityLog::recordLoanEvent($db, $id, 'loan.due_preserved', $snapshot, source: 'calendar', strict: true, calendarDueFloor: min($due, $granted));
+            });
+        }
+    }
+
+    /**
+     * Open loans due after today whose book history holds a calendar move:
+     * the only ones a removed or edited closure can still be holding.
+     *
+     * @return list<array{id: int|string, libro_id: int|string, data_scadenza: string, sede_id: int|string|null}>
+     */
+    private static function loansWithMovedDueDate(\mysqli $db, string $today): array
+    {
+        $stmt = $db->prepare(
+            "SELECT p.id, p.libro_id, p.data_scadenza, c.sede_id
+             FROM prestiti p
+             LEFT JOIN copie c ON c.id = p.copia_id
+             WHERE p.attivo = 1 AND p.stato IN ('in_corso', 'da_ritirare', 'prenotato')
+               AND p.data_scadenza > ?
+               AND EXISTS (
+                   SELECT 1 FROM log_modifiche l
+                   WHERE l.tabella = 'libri' AND l.record_id = p.libro_id
+                     AND l.dati_nuovi LIKE '%loan.due_moved%'
+               )
+             ORDER BY p.libro_id, p.id"
+        );
+        $stmt->bind_param('s', $today);
+        $stmt->execute();
+        $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+        $stmt->close();
+        return $rows;
+    }
+
+    /**
+     * The current row of such a loan, locked. Call it under the book lock.
+     * A failed current read must abort the transaction: in particular,
+     * MariaDB 1020 may have already rolled it back.
+     *
+     * @return array{data_prestito: string, data_scadenza: string, sede_id: int|string|null}|null
+     */
+    private static function lockLoanWithMovedDueDate(\mysqli $db, int $id, int $bookId, string $today): ?array
+    {
+        $stmt = $db->prepare(
+            "SELECT p.data_prestito, p.data_scadenza, c.sede_id
+             FROM prestiti p LEFT JOIN copie c ON c.id = p.copia_id
+             WHERE p.id = ? AND p.libro_id = ? AND p.attivo = 1 AND p.data_scadenza > ?
+               AND p.stato IN ('in_corso', 'da_ritirare', 'prenotato') FOR UPDATE"
+        );
+        $stmt->bind_param('iis', $id, $bookId, $today);
+        $stmt->execute();
+        $current = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        return is_array($current) ? $current : null;
     }
 
     /**
@@ -1588,8 +1663,12 @@ final class LibraryCalendar
      * a year. An event whose DTSTART is itself excluded has no occurrence to
      * import and is left out. A UTC DATE-TIME (trailing Z) and one with a
      * TZID parameter are read in $timezone (app.timezone by default) before
-     * their day is taken. The spans are not validated here: the import
-     * applies the same limits as the form.
+     * their day is taken. Without a DTEND, a DURATION gives the end the same
+     * way. An event with STATUS:CANCELLED closes nothing. An event with a
+     * RECURRENCE-ID replaces one occurrence of the recurring event with its
+     * UID: it is imported on its own day, once, and that occurrence counts as
+     * an EXDATE of the recurring event. The spans are not validated here: the
+     * import applies the same limits as the form.
      *
      * @return list<array{start: string, end: string, description: string, yearly: bool}>
      */
@@ -1599,26 +1678,39 @@ final class LibraryCalendar
         // Unfold continuation lines (RFC 5545 §3.1).
         $ics = str_replace(["\r\n", "\r"], "\n", $ics);
         $ics = preg_replace("/\n[ \t]/", '', $ics) ?? $ics;
+        $lines = explode("\n", $ics);
+        // An override can stand before or after the event it belongs to.
+        $overridden = self::icsOverriddenOccurrences($lines, $timezone);
         $events = [];
         $current = null;
-        foreach (explode("\n", $ics) as $line) {
+        $nested = 0;
+        foreach ($lines as $line) {
             $line = rtrim($line);
             if (strcasecmp($line, 'BEGIN:VEVENT') === 0) {
-                $current = ['start' => null, 'startKey' => null, 'end' => null, 'endIsDate' => false, 'endAtMidnight' => false, 'summary' => '', 'rrule' => null, 'exdates' => []];
+                $current = ['start' => null, 'startKey' => null, 'startSource' => null, 'startZone' => null, 'end' => null, 'endIsDate' => false, 'endAtMidnight' => false, 'summary' => '', 'rrule' => null, 'exdates' => [],
+                    'duration' => null, 'cancelled' => false, 'uid' => null, 'override' => false];
+                $nested = 0;
                 continue;
             }
             if ($current === null) {
                 continue;
             }
             if (strcasecmp($line, 'END:VEVENT') === 0) {
+                // The occurrences replaced by an event of their own are gone
+                // from this one, as if excluded. An override has none itself.
+                if (!$current['override'] && $current['uid'] !== null) {
+                    $current['exdates'] += $overridden[$current['uid']] ?? [];
+                }
                 // RRULE and EXDATE may come before DTSTART: judged at the end.
                 // An EXDATE removes the occurrence with DTSTART's date and
                 // time (RFC 5545): another time the same day leaves it.
-                if ($current['start'] !== null && !isset($current['exdates'][$current['startKey']])) {
+                if (!$current['cancelled'] && $current['start'] !== null && !isset($current['exdates'][$current['startKey']])) {
                     $start = $current['start'];
                     $end = $current['end'];
                     if ($end === null) {
-                        $end = $start;
+                        $end = $current['duration'] === null
+                            ? $start
+                            : (self::icsDurationEnd((string) $current['startSource'], (string) $current['startZone'], $current['duration'], $timezone) ?? $start);
                     } elseif ($current['endIsDate'] || ($current['endAtMidnight'] && $end > $start)) {
                         $end = self::shift($end, -1);
                     }
@@ -1629,13 +1721,26 @@ final class LibraryCalendar
                         'start' => $start,
                         'end' => $end,
                         'description' => mb_substr(trim($current['summary']), 0, 255),
-                        'yearly' => $current['rrule'] !== null && $current['exdates'] === [] && self::isPlainYearlyRule($current['rrule'], $start),
+                        'yearly' => !$current['override'] && $current['rrule'] !== null && $current['exdates'] === [] && self::isPlainYearlyRule($current['rrule'], $start),
                     ];
                     if (count($events) >= $maxEvents) {
                         break;
                     }
                 }
                 $current = null;
+                continue;
+            }
+            // A component inside the event (VALARM) has a DURATION and a
+            // SUMMARY of its own: they are the alarm's, not the event's.
+            if (strncasecmp($line, 'BEGIN:', 6) === 0) {
+                $nested++;
+                continue;
+            }
+            if (strncasecmp($line, 'END:', 4) === 0) {
+                $nested = max(0, $nested - 1);
+                continue;
+            }
+            if ($nested > 0) {
                 continue;
             }
             $colon = strpos($line, ':');
@@ -1658,6 +1763,8 @@ final class LibraryCalendar
                 if ($name === 'DTSTART') {
                     $current['start'] = $date;
                     $current['startKey'] = $parsed['key'];
+                    $current['startSource'] = $parsed['source'];
+                    $current['startZone'] = $parsed['zone'];
                 } else {
                     $current['end'] = $date;
                     $current['endIsDate'] = $isDate;
@@ -1667,6 +1774,14 @@ final class LibraryCalendar
                 $current['summary'] = str_replace(['\\,', '\\;', '\\n', '\\N', '\\\\'], [',', ';', ' ', ' ', '\\'], $value);
             } elseif ($name === 'RRULE') {
                 $current['rrule'] = $value;
+            } elseif ($name === 'DURATION') {
+                $current['duration'] = $value;
+            } elseif ($name === 'STATUS') {
+                $current['cancelled'] = strcasecmp(trim($value), 'CANCELLED') === 0;
+            } elseif ($name === 'UID') {
+                $current['uid'] = trim($value);
+            } elseif ($name === 'RECURRENCE-ID') {
+                $current['override'] = true;
             } elseif ($name === 'EXDATE') {
                 $tzid = preg_match('/;TZID=("?)([^;:"]+)\1/i', $rawParams, $tz) === 1 ? $tz[2] : null;
                 foreach (explode(',', $value) as $excluded) {
@@ -1678,6 +1793,97 @@ final class LibraryCalendar
             }
         }
         return $events;
+    }
+
+    /**
+     * UID => the occurrences (icsDateTime() keys) that an event with that UID
+     * and a RECURRENCE-ID replaces. A cancelled override counts too: it is how
+     * a calendar app cancels one occurrence.
+     *
+     * @param list<string> $lines unfolded lines
+     * @return array<string, array<string, true>>
+     */
+    private static function icsOverriddenOccurrences(array $lines, string $timezone): array
+    {
+        $overridden = [];
+        $inEvent = false;
+        $nested = 0;
+        $uid = $occurrence = null;
+        foreach ($lines as $line) {
+            $line = rtrim($line);
+            if (strcasecmp($line, 'BEGIN:VEVENT') === 0) {
+                $inEvent = true;
+                $nested = 0;
+                $uid = $occurrence = null;
+                continue;
+            }
+            if (!$inEvent) {
+                continue;
+            }
+            if (strcasecmp($line, 'END:VEVENT') === 0) {
+                if ($uid !== null && $uid !== '' && $occurrence !== null) {
+                    $overridden[$uid][$occurrence] = true;
+                }
+                $inEvent = false;
+                continue;
+            }
+            if (strncasecmp($line, 'BEGIN:', 6) === 0) {
+                $nested++;
+                continue;
+            }
+            if (strncasecmp($line, 'END:', 4) === 0) {
+                $nested = max(0, $nested - 1);
+                continue;
+            }
+            $colon = strpos($line, ':');
+            if ($nested > 0 || $colon === false) {
+                continue;
+            }
+            $rawParams = substr($line, 0, $colon);
+            $name = strtoupper(explode(';', $rawParams)[0]);
+            if ($name === 'UID') {
+                $uid = trim(substr($line, $colon + 1));
+            } elseif ($name === 'RECURRENCE-ID') {
+                $tzid = preg_match('/;TZID=("?)([^;:"]+)\1/i', $rawParams, $tz) === 1 ? $tz[2] : null;
+                $occurrence = self::icsDateTime(substr($line, $colon + 1), $timezone, $tzid)['key'] ?? null;
+            }
+        }
+        return $overridden;
+    }
+
+    /**
+     * The last closed day of an event given as DTSTART + DURATION (RFC 5545
+     * §3.3.6: weeks, days, hours, minutes, seconds). Like a DTEND the end is
+     * exclusive: one that falls on midnight does not close that day. Null for
+     * a duration that is not a positive one, which leaves DTSTART's day.
+     *
+     * The duration runs in DTSTART's own zone (RFC 5545 §3.3.6: a day is a
+     * day on that clock), so a UTC DTSTART adds its days in UTC; the end is
+     * then converted to $timezone, where the midnight rule applies.
+     *
+     * @param string $source DTSTART as written: date, or date and time
+     * @param string $zone   the zone $source is in (icsDateTime()'s 'zone')
+     */
+    private static function icsDurationEnd(string $source, string $zone, string $duration, string $timezone): ?string
+    {
+        if (preg_match('/^\+?P(?=\d|T\d)(?:(\d{1,5})W)?(?:(\d{1,6})D)?(?:T(?=\d)(?:(\d{1,6})H)?(?:(\d{1,7})M)?(?:(\d{1,8})S)?)?$/i', trim($duration), $m) !== 1) {
+            return null;
+        }
+        $days = (int) ($m[1] ?? 0) * 7 + (int) ($m[2] ?? 0);
+        $seconds = (int) ($m[3] ?? 0) * 3600 + (int) ($m[4] ?? 0) * 60 + (int) ($m[5] ?? 0);
+        try {
+            $start = new \DateTimeImmutable($source, new \DateTimeZone($zone));
+            // Days are calendar days, the time part is elapsed time: modify()
+            // would add it on the wall clock, an hour off across a DST change.
+            $end = $start->modify("+{$days} days")->add(new \DateInterval("PT{$seconds}S"))
+                ->setTimezone(new \DateTimeZone($timezone));
+        } catch (\Throwable $e) {
+            return null;
+        }
+        if ($end <= $start) {
+            return null;
+        }
+        return ($end->format('H:i:s') === '00:00:00' ? $end->modify('-1 day') : $end)->format('Y-m-d');
     }
 
     // ── Internals ───────────────────────────────────────────────────────────
@@ -1777,7 +1983,11 @@ final class LibraryCalendar
      * Europe/Rome is 2026-04-11. An unknown TZID is read as floating. Anything
      * after the date or time makes the value invalid.
      *
-     * @return array{date: string, midnight: bool, key: string}|null
+     * 'source' and 'zone' are the value as written and the zone it is in
+     * ($timezone for a DATE, a floating time or an unknown TZID), for
+     * arithmetic that must run on DTSTART's own clock.
+     *
+     * @return array{date: string, midnight: bool, key: string, source: string, zone: string}|null
      */
     private static function icsDateTime(string $value, string $timezone, ?string $tzid = null): ?array
     {
@@ -1790,7 +2000,7 @@ final class LibraryCalendar
             return null;
         }
         if (($m[4] ?? '') === '') {
-            return ['date' => $date, 'midnight' => true, 'key' => $date];
+            return ['date' => $date, 'midnight' => true, 'key' => $date, 'source' => $date, 'zone' => $timezone];
         }
         $time = sprintf('%s:%s:%s', $m[4], $m[5], ($m[6] ?? '') !== '' ? $m[6] : '00');
         $source = null;
@@ -1803,12 +2013,13 @@ final class LibraryCalendar
             try {
                 $local = (new \DateTimeImmutable($date . 'T' . $time, new \DateTimeZone($source)))
                     ->setTimezone(new \DateTimeZone($timezone));
-                return ['date' => $local->format('Y-m-d'), 'midnight' => $local->format('H:i:s') === '00:00:00', 'key' => $local->format('Y-m-d\TH:i:s')];
+                return ['date' => $local->format('Y-m-d'), 'midnight' => $local->format('H:i:s') === '00:00:00', 'key' => $local->format('Y-m-d\TH:i:s'),
+                    'source' => $date . 'T' . $time, 'zone' => $source];
             } catch (\Throwable $e) {
                 // An unknown TZID: the time as written.
             }
         }
-        return ['date' => $date, 'midnight' => $time === '00:00:00', 'key' => $date . 'T' . $time];
+        return ['date' => $date, 'midnight' => $time === '00:00:00', 'key' => $date . 'T' . $time, 'source' => $date . 'T' . $time, 'zone' => $timezone];
     }
 
     /** app.timezone, with the same fallback as DateHelper::today(). */

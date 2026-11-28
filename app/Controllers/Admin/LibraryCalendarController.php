@@ -230,6 +230,10 @@ class LibraryCalendarController
             $_SESSION['error_message'] = $row;
             return $this->back($response, null, $id);
         }
+        // The days this edit removes had moved due dates forward. The same
+        // choice as on delete: undo_extensions=1 brings them back, otherwise
+        // the readers keep them (commitChange()).
+        $undoExtensions = (((array) $request->getParsedBody())['undo_extensions'] ?? null) === '1';
         $error = $this->commitChange($db, function () use ($db, $row, $id): ?string {
             // Again under the lock: a closure another operator deleted since
             // the check above would make the UPDATE touch no row and still
@@ -244,7 +248,7 @@ class LibraryCalendarController
             $stmt->execute();
             $stmt->close();
             return $this->yearCoverageError($db, $row);
-        });
+        }, undoExtensions: $undoExtensions, editedClosure: ['id' => $id] + $row);
         if ($error !== null) {
             $_SESSION['error_message'] = $error;
             return $this->back($response, null, $id);
@@ -602,9 +606,14 @@ class LibraryCalendarController
      * change back, so the expiry sweep never reads a calendar whose pickup
      * deadlines were not moved. Null on success, otherwise the message.
      *
+     * A closure removed ($removedClosureId) or edited in place
+     * ($editedClosure: its id and the new values) is read here, under the
+     * lock and before the write, to reconcile the due dates it had moved.
+     *
      * @param callable(): ?string $write
+     * @param array{id: int, start: string, end: string, description: string, yearly: bool, sede: ?int}|null $editedClosure
      */
-    private function commitChange(\mysqli $db, callable $write, ?int $removedClosureId = null, bool $undoExtensions = false): ?string
+    private function commitChange(\mysqli $db, callable $write, ?int $removedClosureId = null, bool $undoExtensions = false, ?array $editedClosure = null): ?string
     {
         $lockName = $this->lockName($db);
         try {
@@ -644,11 +653,35 @@ class LibraryCalendarController
                         }
                     }
                 }
+                $beforeEdit = $editedCreatedAt = null;
+                if ($editedClosure !== null) {
+                    // SELECT *: `attiva` is missing before the holiday-presets migration.
+                    $stmt = $db->prepare('SELECT * FROM calendario_chiusure WHERE id = ?');
+                    $stmt->bind_param('i', $editedClosure['id']);
+                    $stmt->execute();
+                    $stored = $stmt->get_result()->fetch_assoc();
+                    $stmt->close();
+                    // Only an edit that changes which days an applied closure
+                    // closes can free a day: a renamed or suspended one cannot.
+                    if ($stored !== null && (int) ($stored['attiva'] ?? 1) === 1 && (
+                        (string) $stored['data_inizio'] !== $editedClosure['start']
+                        || (string) $stored['data_fine'] !== $editedClosure['end']
+                        || ((int) $stored['ricorrente_annuale'] === 1) !== $editedClosure['yearly']
+                        || ($stored['sede_id'] === null ? null : (int) $stored['sede_id']) !== $editedClosure['sede']
+                    )) {
+                        $editedCreatedAt = (string) $stored['created_at'];
+                        // Read now, not from an instance cached before the lock.
+                        LibraryCalendar::reset();
+                        $beforeEdit = LibraryCalendar::forDb($db);
+                    }
+                }
                 $error = $write();
                 if ($error === null) {
                     // The due date and deadline moves read the new calendar.
                     LibraryCalendar::reset();
-                    if ($previous !== null) {
+                    if ($beforeEdit !== null) {
+                        LibraryCalendar::reconcileEditedClosure($db, $beforeEdit, $undoExtensions, $editedCreatedAt);
+                    } elseif ($previous !== null) {
                         LibraryCalendar::reconcileRemovedClosure($db, $previous, undo: true, closureCreatedAt: $removedCreatedAt);
                     } elseif ($removed !== null) {
                         LibraryCalendar::reconcileRemovedClosure($db, new LibraryCalendar([], [$removed]), undo: false, closureCreatedAt: $removedCreatedAt);

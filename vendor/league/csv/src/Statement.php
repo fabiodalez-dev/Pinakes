@@ -18,9 +18,9 @@ use CallbackFilterIterator;
 use Closure;
 use Deprecated;
 use Iterator;
-use OutOfBoundsException;
 use ReflectionException;
 use ReflectionFunction;
+use SortDirection;
 
 use function array_key_exists;
 use function array_reduce;
@@ -236,7 +236,7 @@ class Statement
      */
     public function orderByAsc(string|int $column, callable|Closure|null $callback = null): self
     {
-        return $this->orderBy(Query\Ordering\Column::sortOn($column, 'asc', $callback));
+        return $this->orderBy(Query\Ordering\Column::sortOn($column, SortDirection::Ascending, $callback));
     }
 
     /**
@@ -246,7 +246,7 @@ class Statement
      */
     public function orderByDesc(string|int $column, callable|Closure|null $callback = null): self
     {
-        return $this->orderBy(Query\Ordering\Column::sortOn($column, 'desc', $callback));
+        return $this->orderBy(Query\Ordering\Column::sortOn($column, SortDirection::Descending, $callback));
     }
 
     /**
@@ -355,7 +355,7 @@ class Statement
      *
      * @throws SyntaxError
      * @see Statement::process()
-     * @deprecated Since version 9.16.0
+     * @deprecated Since version 9.16.0, this method no longer affects on the outcome of the class, use League\Csv\Statement::process() instead
      */
     #[Deprecated(message:'this method no longer affects on the outcome of the class, use League\Csv\Statement::process() instead', since:'league/csv:9.16.0')]
     protected function applySelect(Iterator $records, array $recordsHeader, array $select): TabularDataReader
@@ -403,7 +403,7 @@ class Statement
      * DEPRECATION WARNING! This method will be removed in the next major point release.
      *
      * @see Statement::applyFilter()
-     * @deprecated Since version 9.15.0
+     * @deprecated Since version 9.15.0, this method no longer affects on the outcome of the class, use League\Csv\Statement::applyFilter() instead
      * @codeCoverageIgnore
      */
     #[Deprecated(message:'this method no longer affects on the outcome of the class, use League\Csv\Statement::applyFilter() instead', since:'league/csv:9.15.0')]
@@ -418,7 +418,7 @@ class Statement
      * DEPRECATION WARNING! This method will be removed in the next major point release.
      *
      * @see Statement::process()
-     * @deprecated Since version 9.16.0
+     * @deprecated Since version 9.16.0, this method no longer affects on the outcome of the class, use League\Csv\Statement::process() instead
      * @codeCoverageIgnore
      */
     #[Deprecated(message:'this method no longer affects on the outcome of the class, use League\Csv\Statement::process() instead', since:'league/csv:9.16.0')]
@@ -443,7 +443,7 @@ class Statement
      * DEPRECATION WARNING! This method will be removed in the next major point release.
      *
      * @see Statement::process()
-     * @deprecated Since version 9.16.0
+     * @deprecated Since version 9.16.0, this method no longer affects on the outcome of the class, use League\Csv\Statement::process() instead
      * @codeCoverageIgnore
      */
     #[Deprecated(message:'this method no longer affects on the outcome of the class, use League\Csv\Statement::process() instead', since:'league/csv:9.16.0')]
@@ -463,22 +463,11 @@ class Statement
             return $cmp ?? 0;
         };
 
-        $class = new class () extends ArrayIterator {
-            public function seek(int $offset): void
-            {
-                try {
-                    parent::seek($offset);
-                } catch (OutOfBoundsException) {
-                    return;
-                }
-            }
-        };
+        /** @var array<array-key, array<string|null>> $arr */
+        $arr = [...$iterator];
+        uasort($arr, $compare);
 
-        /** @var ArrayIterator<array-key, array<string|null>> $it */
-        $it = new $class([...$iterator]);
-        $it->uasort($compare);
-
-        return $it;
+        return new ArrayIterator($arr);
     }
 
 
@@ -494,7 +483,7 @@ class Statement
      * @throws ReflectionException
      *
      * @see Statement::__construct()
-     * @deprecated Since version 9.22.0
+     * @deprecated Since version 9.22.0, use League\Csv\Statement::__construct() instead
      * @codeCoverageIgnore
      */
     #[Deprecated(message:'use League\Csv\Statement::__construct() instead', since:'league/csv:9.22.0')]

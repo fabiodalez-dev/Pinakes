@@ -60,7 +60,7 @@ enum Comparison: string
             'NOT_REGEXP', 'NOT REGEXP' => self::NotRegexp,
             'NOT_CONTAIN', 'NOT CONTAIN', 'DOES_NOT_CONTAIN', 'DOES NOT CONTAIN' => self::NotContain,
             'NOT_IN', 'NOT IN' => self::NotIn,
-            'NOT_BETWEEN', 'NOT BETWEEN' => self::Between,
+            'NOT_BETWEEN', 'NOT BETWEEN' => self::NotBetween,
             'STARTS WITH', 'START WITH' => self::StartsWith,
             'ENDS WITH', 'END WITH' => self::EndsWith,
             default => self::tryFrom($operator),
@@ -87,22 +87,22 @@ enum Comparison: string
         $this->accept($reference);
 
         return match ($this) {
-            self::Equals => self::isSingleValue($subject) ? $subject === $reference : $subject == $reference,
-            self::NotEquals => self::isSingleValue($subject) ? $subject !== $reference : $subject != $reference,
+            self::Equals => self::isSingleValue($subject) ? $subject === $reference : $subject == $reference,  /* @phpstan-ignore-line */
+            self::NotEquals => self::isSingleValue($subject) ? $subject !== $reference : $subject != $reference,  /* @phpstan-ignore-line */
             self::GreaterThan => $subject > $reference,
             self::GreaterThanOrEqual => $subject >= $reference,
             self::LesserThan => $subject < $reference,
             self::LesserThanOrEqual => $subject <= $reference,
-            self::Between => $subject >= $reference[0] && $subject <= $reference[1], /* @phpstan-ignore-line */
-            self::NotBetween => $subject < $reference[0] || $subject > $reference[1], /* @phpstan-ignore-line */
+            self::Between => $subject >= $reference[0] && $subject <= $reference[1],  /* @phpstan-ignore-line */
+            self::NotBetween => $subject < $reference[0] || $subject > $reference[1],  /* @phpstan-ignore-line */
             self::In => in_array($subject, $reference, self::isSingleValue($subject)), /* @phpstan-ignore-line */
             self::NotIn => !in_array($subject, $reference, self::isSingleValue($subject)), /* @phpstan-ignore-line */
-            self::Regexp => is_string($subject) && 1 === preg_match($reference, $subject), /* @phpstan-ignore-line */
-            self::NotRegexp => is_string($subject) && 1 !== preg_match($reference, $subject), /* @phpstan-ignore-line */
-            self::Contains => is_string($subject) && str_contains($subject, $reference), /* @phpstan-ignore-line */
-            self::NotContain => is_string($subject) && !str_contains($subject, $reference), /* @phpstan-ignore-line */
-            self::StartsWith => is_string($subject) && str_starts_with($subject, $reference), /* @phpstan-ignore-line */
-            self::EndsWith => is_string($subject) && str_ends_with($subject, $reference), /* @phpstan-ignore-line */
+            self::Regexp => is_string($subject) && 1 === preg_match($reference, $subject),  /* @phpstan-ignore-line */
+            self::NotRegexp => is_string($subject) && 1 !== preg_match($reference, $subject),  /* @phpstan-ignore-line */
+            self::Contains => is_string($subject) && str_contains($subject, (string) $reference),  /* @phpstan-ignore-line */
+            self::NotContain => is_string($subject) && !str_contains($subject, (string) $reference),  /* @phpstan-ignore-line */
+            self::StartsWith => is_string($subject) && str_starts_with($subject, (string) $reference),  /* @phpstan-ignore-line */
+            self::EndsWith => is_string($subject) && str_ends_with($subject, (string) $reference),  /* @phpstan-ignore-line */
         };
     }
 

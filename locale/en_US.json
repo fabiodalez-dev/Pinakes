@@ -7777,6 +7777,8 @@
   "PDF (massimo 25 MB)": "PDF (up to 25 MB)",
   "PDF non valido o superiore a 25 MB.": "Invalid PDF or larger than 25 MB.",
   "Paginazione": "Pagination",
+  "Paginazione sopra la tabella": "Pagination above the table",
+  "Paginazione sotto la tabella": "Pagination below the table",
   "Per associare o spostare questo articolo, selezionalo dalla lista Articoli.": "To associate or move this article, select it in the Articles list.",
   "Per gli articoli usa l’importazione Emeroteca. Se il plugin è inattivo, attivalo da Plugins.": "Use the Periodicals import for articles. If the plugin is inactive, activate it under Plugins.",
   "Possibile duplicato: usa la reference_key esistente per aggiornare, oppure verifica la citazione.": "Possible duplicate: use the existing reference_key to update, or verify the citation.",
@@ -9429,5 +9431,9 @@
   "Durata non valida": "Invalid running time",
   "La durata deve essere un numero intero di minuti tra 1 e %d.": "The running time must be a whole number of minutes between 1 and %d.",
   "Impossibile registrare il tentativo di accesso: la cartella storage/cache/installer-login non è scrivibile. Verifica i permessi della cartella storage/ sul server.": "The login attempt could not be recorded: the storage/cache/installer-login folder is not writable. Check the permissions of the storage/ folder on the server.",
-  "Il database configurato non risponde come previsto. Il dettaglio dell'errore è nel log del server.": "The configured database does not respond as expected. The error details are in the server log."
+  "Il database configurato non risponde come previsto. Il dettaglio dell'errore è nel log del server.": "The configured database does not respond as expected. The error details are in the server log.",
+  "Ripristina le scadenze prorogate dai giorni che rimuovo": "Restore the due dates extended by the days I am removing",
+  "Da usare se le date erano sbagliate. Senza questa opzione i lettori mantengono la scadenza già comunicata.": "Use it when the dates were wrong. Without this option readers keep the due date they were already given.",
+  "L'utente ha uno storico (prestiti, prenotazioni o altri dati collegati) e non può essere eliminato: è stato sospeso.": "This user has a history (loans, reservations or other linked data) and cannot be deleted: the account has been suspended.",
+  "Impossibile eliminare: questi libri hanno prestiti o prenotazioni attive: %s": "Cannot delete: these books have active loans or reservations: %s"
 }

@@ -17,11 +17,12 @@
  */
 $e = [DesiderataPlugin::class, 'e'];
 ?>
+<?php // No .container: the section already sits in the book page's text column, and the
+      // theme's container padding would push it off the description above it. ?>
 <section class="desiderata-section dw-on-book" id="desiderata-book-offer" aria-labelledby="desiderata-book-heading">
-  <div class="container">
-    <h2 id="desiderata-book-heading"><?= $e($texts['form_title'] ?? __('Proponi una donazione')) ?></h2>
-    <p><?= __('Questo libro è tra quelli che la biblioteca cerca. Se ce l’hai, puoi proporlo in donazione.') ?></p>
-    <?php require __DIR__ . '/partials/offer-form.php'; ?>
-  </div>
+  <h2 id="desiderata-book-heading"><?= $e($texts['form_title'] ?? __('Proponi una donazione')) ?></h2>
+  <p><?= __('Questo libro è tra quelli che la biblioteca cerca. Se ce l’hai, puoi proporlo in donazione.') ?></p>
+  <?php $omitFormTitle = true; // the section heading above already says it
+  require __DIR__ . '/partials/offer-form.php'; ?>
 </section>
 <?php require __DIR__ . '/partials/offer-assets.php'; ?>

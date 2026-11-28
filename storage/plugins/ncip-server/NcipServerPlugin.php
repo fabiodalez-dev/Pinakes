@@ -83,6 +83,10 @@ class NcipServerPlugin
         'item-does-not-circulate'      => ['checkoutitemprocessingerror.scm', 'Item Does Not Circulate'],
         'request-item-does-not-circulate' => ['requestitemprocessingerror.scm', 'Item Does Not Circulate'],
         'unknown-request'              => ['cancelrequestitemprocessingerror.scm', 'Unknown Request'],
+        // No window in which a copy could serve the hold.
+        'request-item-not-available'   => ['requestitemprocessingerror.scm', 'Item Not Available By Need Before Date'],
+        // Separation of duties: the operator is the borrower (SelfDealingGuard).
+        'self-dealing'                 => ['generalprocessingerror.scm', 'Unauthorized Combination Of Element Values For Agency'],
     ];
 
     /**
@@ -873,6 +877,11 @@ class NcipServerPlugin
             );
         }
 
+        $refusal = $this->refuseInCatalogueMode($response);
+        if ($refusal !== null) {
+            return $refusal;
+        }
+
         $message = $this->messageNode($xml, 'CheckOutItem');
         $itemId = $this->parseNcipNumericId((string) ($message?->ItemId->ItemIdentifierValue ?? ''));
         $userId = $this->parseNcipNumericId((string) ($message?->UserId->UserIdentifierValue ?? ''));
@@ -881,6 +890,10 @@ class NcipServerPlugin
                 $response,
                 $this->buildProblem('Invalid ItemId or UserId', 'invalid-data')
             );
+        }
+        $refusal = $this->refuseSelfDealing($response, $userId, $caller);
+        if ($refusal !== null) {
+            return $refusal;
         }
 
         $user = $this->fetchUser($userId);
@@ -1003,6 +1016,12 @@ class NcipServerPlugin
         }
 
         $resolvedCheckInUserId = (int) $loan['utente_id'];
+        // Judged on the borrower the lookup resolved: omitting UserId must not
+        // get around it. closeLoan() refuses if that borrower changes.
+        $refusal = $this->refuseSelfDealing($response, $resolvedCheckInUserId, $caller);
+        if ($refusal !== null) {
+            return $refusal;
+        }
         if (!$this->closeLoan((int) $loan['id'], $itemId, $resolvedCheckInUserId)) {
             // A concurrent CheckInItem may have returned this exact loan between
             // findActiveLoan() and closeLoan(): LoanRepository::close()'s state
@@ -1087,6 +1106,11 @@ class NcipServerPlugin
 
         $failureReason = 'db_error';
         $resolvedRenewUserId = (int) $loan['utente_id'];
+        // As in CheckInItem: the resolved borrower, which extendLoan() pins.
+        $refusal = $this->refuseSelfDealing($response, $resolvedRenewUserId, $caller);
+        if ($refusal !== null) {
+            return $refusal;
+        }
         $newDue = $this->extendLoan(
             (int) $loan['id'],
             $itemId,
@@ -1149,6 +1173,11 @@ class NcipServerPlugin
             );
         }
 
+        $refusal = $this->refuseInCatalogueMode($response);
+        if ($refusal !== null) {
+            return $refusal;
+        }
+
         $message = $this->messageNode($xml, 'RequestItem');
         $itemId = $this->parseNcipNumericId((string) ($message?->ItemId->ItemIdentifierValue ?? ''));
         $userId = $this->parseNcipNumericId((string) ($message?->UserId->UserIdentifierValue ?? ''));
@@ -1157,6 +1186,10 @@ class NcipServerPlugin
                 $response,
                 $this->buildProblem('Invalid ItemId or UserId', 'invalid-data')
             );
+        }
+        $refusal = $this->refuseSelfDealing($response, $userId, $caller);
+        if ($refusal !== null) {
+            return $refusal;
         }
 
         $book = $this->fetchBook($itemId);
@@ -1185,12 +1218,18 @@ class NcipServerPlugin
                 'max_loans'   => 'user-ineligible-to-request',
                 'not_loanable' => 'request-item-does-not-circulate',
                 'reservation_limit', 'reservations_disabled' => 'user-ineligible-to-request',
+                'not_available' => 'request-item-not-available',
                 default       => 'temporary-processing-failure',
             };
             SecureLogger::error('[NcipServer] createRequestItemNcip failed: ' . $failureReason);
             return $this->xmlResponse(
                 $response,
-                $this->buildProblem('Failed to create ILL request', $problemType)
+                $this->buildProblem(
+                    $failureReason === 'not_available'
+                        ? 'No lendable copy can serve this request'
+                        : 'Failed to create ILL request',
+                    $problemType
+                )
             );
         }
 
@@ -1238,7 +1277,7 @@ class NcipServerPlugin
         }
 
         try {
-            $cancelResult = $this->cancelPendingNcipRequest($itemId, $userId);
+            $cancelResult = $this->cancelPendingNcipRequest($itemId, $userId, $caller);
         } catch (\RuntimeException $e) {
             SecureLogger::error('[NcipServer] cancelPendingNcipRequest failed: ' . $e->getMessage());
             return $this->xmlResponse(
@@ -1256,6 +1295,9 @@ class NcipServerPlugin
                     'invalid-data'
                 )
             );
+        }
+        if ($cancelResult['status'] === 'self_dealing') {
+            return $this->xmlResponse($response->withStatus(403), $this->selfDealingProblem());
         }
         if ($cancelResult['status'] !== 'cancelled') {
             // Approval and cancellation serialize on the book row. If approval
@@ -1362,7 +1404,9 @@ class NcipServerPlugin
         }
         // Same navigation as resolvePartner(): SimpleXML keeps the namespace
         // context of messageNode(), so this works with and without the NCIP ns.
-        $node = $message->InitiationHeader->FromAgencyId->AgencyId;
+        // A message with no InitiationHeader gives null at the second step:
+        // the header is optional, reading through it must not warn.
+        $node = $message->InitiationHeader->FromAgencyId?->AgencyId;
         if (!$node instanceof \SimpleXMLElement || $node->getName() === '') {
             return null;
         }
@@ -2190,9 +2234,28 @@ class NcipServerPlugin
             }
 
             $startDate = \App\Support\LibraryCalendar::requestStartDay($this->db, $today, $bookId);
-            $dueDate = $dueDate === null
+            $requestedDue = $dueDate;
+            $dueDate = $requestedDue === null
                 ? \App\Support\LibraryCalendar::requestDueDate($this->db, $startDate, $requestPolicy->requestDurationDays(), $bookId)
-                : \App\Support\LibraryCalendar::requestDueDate($this->db, max($startDate, $dueDate), 0, $bookId);
+                : \App\Support\LibraryCalendar::requestDueDate($this->db, max($startDate, $requestedDue), 0, $bookId);
+
+            // The gate below never refuses: it queues whatever window it is
+            // given. The web checks capacity first (ReservationsController),
+            // so a hold cannot sit on days another commitment already fills.
+            $window = $this->firstHoldWindow(
+                $bookId,
+                $userId,
+                $startDate,
+                $dueDate,
+                $requestedDue === null ? $requestPolicy->requestDurationDays() : null,
+                \App\Controllers\ReservationsController::requestStartUntil($today)
+            );
+            if ($window === null) {
+                $failureReason = 'not_available';
+                $this->db->rollback();
+                return null;
+            }
+            [$startDate, $dueDate] = $window;
             $routing = (new \App\Services\LoanRequestGate($this->db))->route(
                 $bookId,
                 $userId,
@@ -2272,6 +2335,98 @@ class NcipServerPlugin
     }
 
     /**
+     * The window a hold may occupy, by the capacity rule of the web request
+     * form: every day of it must keep a free unit (a queue entry behind an
+     * overdue copy counts that copy through today only).
+     *
+     * On the web a refused window sends the patron to pick later days. A hold
+     * placed through NCIP has no patron-chosen start, so with $durationDays the
+     * search moves to the day after the last full one and tries again; null
+     * keeps the window fixed. Call it under the book lock.
+     *
+     * The search stops at $startUntil, the last day a request may start on
+     * (ReservationsController::requestStartUntil(), the horizon the web form
+     * and the Mobile API enforce): a hold never starts later than a reader
+     * could have asked for.
+     *
+     * @return array{0: string, 1: string}|null [start, due], or null when no copy can serve the hold within the horizon
+     */
+    private function firstHoldWindow(int $bookId, int $userId, string $startDate, string $dueDate, ?int $durationDays, string $startUntil): ?array
+    {
+        $capacity = new \App\Services\CapacityService($this->db, lockingReads: true);
+        if ($capacity->totalCopies($bookId) <= 0) {
+            return null;
+        }
+        $forQueue = $capacity->hasPhysicalCopies($bookId);
+        // Every round starts after the last full day of the window before it,
+        // so the start only moves forward and the horizon ends the search: a
+        // fixed number of rounds would give up on a title whose free days
+        // come late, with the horizon still ahead.
+        while ($startDate <= $startUntil) {
+            if ($capacity->hasFreeCapacity($bookId, $startDate, $dueDate, excludeUserId: $userId, forQueue: $forQueue)) {
+                return [$startDate, $dueDate];
+            }
+            if ($durationDays === null) {
+                return null;
+            }
+            $fullDays = $capacity->unavailableDatesInRange($bookId, $startDate, $dueDate, $userId, forQueue: $forQueue);
+            if ($fullDays === []) {
+                return null;
+            }
+            // No earlier start can work: any window from here to the last
+            // full day would contain it.
+            $afterLastFullDay = \App\Support\LibraryCalendar::shift($fullDays[count($fullDays) - 1], 1);
+            $nextStart = \App\Support\LibraryCalendar::requestStartDay($this->db, $afterLastFullDay, $bookId);
+            if ($nextStart <= $startDate) {
+                // Cannot happen with the rule above; never loop on the same day.
+                return null;
+            }
+            $startDate = $nextStart;
+            $dueDate = \App\Support\LibraryCalendar::requestDueDate($this->db, $startDate, $durationDays, $bookId);
+        }
+        return null;
+    }
+
+    /**
+     * Catalogue-only mode switches loans and requests off on the web and in
+     * the Mobile API; NCIP must not keep creating them. Returns and renewals
+     * of what is already out stay open, as they do there.
+     */
+    private function refuseInCatalogueMode(ResponseInterface $response): ?ResponseInterface
+    {
+        if (!\App\Support\ConfigStore::isCatalogueMode()) {
+            return null;
+        }
+        return $this->xmlResponse(
+            $response,
+            $this->buildProblem('Circulation is switched off: this library runs in catalogue-only mode', 'unsupported-request')
+        );
+    }
+
+    /**
+     * Separation of duties, as on the web desk (App\Support\SelfDealingGuard):
+     * a Staff operator does not record circulation on its own account.
+     *
+     * @param array<string, mixed>|null $caller the authenticated NCIP operator
+     */
+    private function refuseSelfDealing(ResponseInterface $response, int $targetUserId, ?array $caller): ?ResponseInterface
+    {
+        // Never null: the guard would fall back to the web session, and NCIP has none.
+        if (!\App\Support\SelfDealingGuard::blocks($targetUserId, $caller ?? [])) {
+            return null;
+        }
+        return $this->xmlResponse($response->withStatus(403), $this->selfDealingProblem());
+    }
+
+    private function selfDealingProblem(): string
+    {
+        return $this->buildProblem(
+            'An operator cannot record circulation on their own account: ask another operator or an administrator',
+            'self-dealing'
+        );
+    }
+
+    /**
      * Resolve and cancel one still-pending NCIP loan request or active NCIP
      * waitlist reservation atomically.
      *
@@ -2281,9 +2436,13 @@ class NcipServerPlugin
      * visible here) or waits until cancellation commits. Ambiguity detection is
      * therefore based on the same locked state that the UPDATE mutates.
      *
-     * @return array{status:'cancelled', loan_id:?int, reservation_id:?int, user_id:int}|array{status:'not_found'|'ambiguous'}
+     * $operator is the authenticated NCIP operator: a request whose locked row
+     * belongs to that operator is left untouched (status 'self_dealing').
+     *
+     * @param array<string, mixed>|null $operator
+     * @return array{status:'cancelled', loan_id:?int, reservation_id:?int, user_id:int}|array{status:'not_found'|'ambiguous'|'self_dealing'}
      */
-    private function cancelPendingNcipRequest(int $bookId, ?int $userId): array
+    private function cancelPendingNcipRequest(int $bookId, ?int $userId, ?array $operator = null): array
     {
         $inTransaction = false;
         $reservationManager = null;
@@ -2371,6 +2530,14 @@ class NcipServerPlugin
                 $this->db->rollback();
                 $inTransaction = false;
                 return ['status' => 'ambiguous'];
+            }
+
+            // Judged on the locked row, so omitting UserId does not get around it.
+            $requestOwner = (int) (($lockedLoans[0] ?? $lockedReservations[0])['utente_id'] ?? 0);
+            if (\App\Support\SelfDealingGuard::blocks($requestOwner, $operator ?? [])) {
+                $this->db->rollback();
+                $inTransaction = false;
+                return ['status' => 'self_dealing'];
             }
 
             $loanId = null;

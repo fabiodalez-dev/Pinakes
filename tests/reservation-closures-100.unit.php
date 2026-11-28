@@ -170,8 +170,18 @@ foreach ($calendars as $name => $calendarSpec) {
             $response = (new ReservationsController($t->db))->createReservation($t->request('/api/reservations', [
                 'start_date' => $date, 'end_date' => $end,
             ]), new Response(), ['id' => $b['id']]);
-            SettingsReview25::eq($response->getStatusCode(), 200, 'Web request is accepted');
             $row = $t->db->query("SELECT data_prestito,data_scadenza FROM prestiti WHERE libro_id={$b['id']}")->fetch_row();
+            // A reader's request starts within the 180 days the request
+            // calendar offers, today included (0.9.7). A calendar whose
+            // example falls later (a New Year observed on a Friday, a yearly
+            // closure when the suite runs early in the year) is refused here;
+            // the staff forms and the read models of this matrix still cover it.
+            if ($open > $t->day(179)) {
+                SettingsReview25::eq($response->getStatusCode(), 400, 'A start past the request calendar is refused');
+                SettingsReview25::eq($row, null, 'Nothing is stored for it');
+                return;
+            }
+            SettingsReview25::eq($response->getStatusCode(), 200, 'Web request is accepted');
             SettingsReview25::eq($row, [$open, $end], 'Loan starts on the usable day and keeps the open end');
         };
     }
@@ -185,6 +195,11 @@ foreach ($calendars as $name => $calendarSpec) {
                 'libro_id' => $b['id'], 'desired_date' => $date, 'end_date' => $end,
             ]), new Response(), $t->db);
             $row = $t->db->query("SELECT data_inizio_richiesta,data_fine_richiesta FROM prenotazioni WHERE libro_id={$b['id']}")->fetch_row();
+            // Same 180-day horizon as the web request above.
+            if ($open > $t->day(179)) {
+                SettingsReview25::eq($row, null, 'A hold starting past the request calendar is not stored');
+                return;
+            }
             SettingsReview25::eq($row, [$open, $end], 'Reader hold is persisted on the usable window');
         };
     }

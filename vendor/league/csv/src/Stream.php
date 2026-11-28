@@ -16,6 +16,7 @@ namespace League\Csv;
 use Deprecated;
 use RuntimeException;
 use SeekableIterator;
+use SplFileInfo;
 use SplFileObject;
 use Stringable;
 use TypeError;
@@ -124,7 +125,7 @@ final class Stream implements SeekableIterator
     /**
      * Returns a new instance from a file path.
      *
-     * @param resource|string $filename
+     * @param resource|string|SplFileInfo $filename
      * @param resource|null $context
      *
      * @throws UnavailableStream if the stream resource cannot be created
@@ -132,6 +133,10 @@ final class Stream implements SeekableIterator
     public static function from($filename, string $mode = 'r', $context = null): self
     {
         $should_close_stream = false;
+        if ($filename instanceof SplFileInfo) {
+            $filename = $filename->getPathname();
+        }
+
         if (is_string($filename)) {
             $should_close_stream = true;
             /** @var resource|false $resource */
@@ -165,7 +170,7 @@ final class Stream implements SeekableIterator
      */
     public function getPathname(): string
     {
-        return stream_get_meta_data($this->stream)['uri'];
+        return stream_get_meta_data($this->stream)['uri'] ?? '';
     }
 
     /**
@@ -234,7 +239,7 @@ final class Stream implements SeekableIterator
      *
      * @see https://www.php.net/manual/en/splfileobject.getcsvcontrol.php
      *
-     * @return array<string>
+     * @return array{0: string, 1: string, 2: string}
      */
     public function getCsvControl(): array
     {
@@ -448,7 +453,7 @@ final class Stream implements SeekableIterator
      *
      * @see https://www.php.net/manual/en/splfileobject.fpassthru.php
      */
-    public function fpassthru(): int|false
+    public function fpassthru(): int
     {
         return fpassthru($this->stream);
     }
@@ -522,7 +527,7 @@ final class Stream implements SeekableIterator
 
     /**
      * DEPRECATION WARNING! This method will be removed in the next major point release.
-     * @deprecated since version 9.27.0
+     * @deprecated since version 9.27.0, use League\Csv\Stream::from() instead
      * @codeCoverageIgnore
      *
      * @param resource $stream
@@ -541,7 +546,7 @@ final class Stream implements SeekableIterator
 
     /**
      * DEPRECATION WARNING! This method will be removed in the next major point release.
-     * @deprecated since version 9.27.0
+     * @deprecated since version 9.27.0, use League\Csv\Stream::from() instead
      * @codeCoverageIgnore
      *
      * @param resource|null $context
@@ -558,7 +563,7 @@ final class Stream implements SeekableIterator
 
     /**
      * DEPRECATION WARNING! This method will be removed in the next major point release.
-     * @deprecated since version 9.27.0
+     * @deprecated since version 9.27.0, use League\Csv\Stream::fromString() instead
      * @codeCoverageIgnore
      *
      * Returns a new instance from a string.

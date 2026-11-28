@@ -20,11 +20,14 @@ use Deprecated;
 use Generator;
 use Iterator;
 use JsonSerializable;
+use League\Csv\Schema\Inspector;
+use League\Csv\Schema\Schema;
 use League\Csv\Serializer\Denormalizer;
 use League\Csv\Serializer\MappingFailed;
 use League\Csv\Serializer\TypeCastingFailed;
 use LimitIterator;
 use mysqli_result;
+use OutOfBoundsException;
 use PDOStatement;
 use PgSql\Result;
 use ReflectionException;
@@ -35,12 +38,17 @@ use Throwable;
 use function array_filter;
 use function array_flip;
 use function array_key_exists;
+use function array_keys;
 use function array_reduce;
 use function array_search;
+use function array_unique;
 use function array_values;
+use function count;
 use function is_int;
 use function is_string;
 use function iterator_count;
+
+use const ARRAY_FILTER_USE_KEY;
 
 /**
  * Represents the result set of a {@link Reader} processed by a {@link Statement}.
@@ -204,6 +212,59 @@ class ResultSet implements TabularDataReader, JsonSerializable
     public function map(callable $callback): Iterator
     {
         return MapIterator::fromIterable($this, $callback);
+    }
+
+    public function inferSchema(?Inspector $inspector = null, array $header = []): Schema
+    {
+        return ($inspector ?? Inspector::default())->schema($this, $header);
+    }
+
+    public function inferRecords(?Inspector $inspector = null, array $header = []): Iterator
+    {
+        return $this->inferSchema($inspector, $header)->parse($this);
+    }
+
+    public function firstInferred(?Inspector $inspector = null, array $header = []): array
+    {
+        return $this->inferSchema($inspector, $header)->format($this->first());
+    }
+
+    public function lastInferred(?Inspector $inspector = null, array $header = []): array
+    {
+        return $this->inferSchema($inspector, $header)->format($this->last());
+    }
+
+    /**
+     * @param int<0, max> $nth
+     *
+     * @throws Exception
+     */
+    public function nthInferred(int $nth, ?Inspector $inspector = null, array $header = []): array
+    {
+        return $this->inferSchema($inspector, $header)->format($this->nth($nth));
+    }
+
+    public function valueInferred(int|string $column = 0, ?Inspector $inspector = null, array $header = []): mixed
+    {
+        return $this->selectedColumnValue($this->firstInferred($inspector, $header), $column);
+    }
+
+    private function selectedColumnValue(array $record, int|string $column = 0): mixed
+    {
+        if ([] === $record) {
+            return null;
+        }
+
+        if (is_string($column)) {
+            return $record[$column] ?? null;
+        }
+
+        $record = array_values($record);
+        if ($column < 0) {
+            $column += count($record);
+        }
+
+        return $record[$column] ?? null;
     }
 
     /**
@@ -511,21 +572,22 @@ class ResultSet implements TabularDataReader, JsonSerializable
 
     public function value(int|string $column = 0): mixed
     {
-        return match (true) {
-            is_string($column) => $this->first()[$column] ?? null,
-            default => array_values($this->first())[$column] ?? null,
-        };
+        return $this->selectedColumnValue($this->first(), $column);
     }
 
     public function nth(int $nth): array
     {
         0 <= $nth || throw InvalidArgument::dueToInvalidRecordOffset($nth, __METHOD__);
 
-        $iterator = new LimitIterator($this->getIterator(), $nth, 1);
-        $iterator->rewind();
+        try {
+            $iterator = new LimitIterator($this->getIterator(), $nth, 1);
+            $iterator->rewind();
+        } catch (OutOfBoundsException) {
+            return [];
+        }
 
         /** @var array|null $result */
-        $result = $iterator->current();
+        $result = $iterator->current(); /* @phpstan-ignore-line */
 
         return $result ?? [];
     }
@@ -670,7 +732,7 @@ class ResultSet implements TabularDataReader, JsonSerializable
      *
      * @throws Exception
      *
-     * @deprecated since version 9.23.0
+     * @deprecated since version 9.23.0, use League\Csv\Resultset::fetchColumn() instead
      * @codeCoverageIgnore
      *
      * @see ResultSet::fetchColumn()
@@ -688,7 +750,7 @@ class ResultSet implements TabularDataReader, JsonSerializable
      *
      * @throws Exception
      *
-     * @deprecated since version 9.23.0
+     * @deprecated since version 9.23.0, use League\Csv\Resultset::fetchColumn() instead
      * @codeCoverageIgnore
      *
      * @see ResultSet::fetchColumn()
@@ -705,7 +767,7 @@ class ResultSet implements TabularDataReader, JsonSerializable
      * DEPRECATION WARNING! This method will be removed in the next major point release.
      *
      * @see ResultSet::nth()
-     * @deprecated since version 9.9.0
+     * @deprecated since version 9.9.0, use League\Csv\Resultset::nth() instead
      * @codeCoverageIgnore
      */
     #[Deprecated(message:'use League\Csv\Resultset::nth() instead', since:'league/csv:9.9.0')]
@@ -718,7 +780,7 @@ class ResultSet implements TabularDataReader, JsonSerializable
      * DEPRECATION WARNING! This method will be removed in the next major point release.
      *
      * @see ResultSet::getRecordsAsObject()
-     * @deprecated Since version 9.15.0
+     * @deprecated Since version 9.15.0, use League\Csv\ResultSet::getRecordsAsObject() instead
      * @codeCoverageIgnore
      *
      * @param class-string $className
@@ -735,9 +797,12 @@ class ResultSet implements TabularDataReader, JsonSerializable
     }
 
     /**
-     * Returns a new instance from an object implementing the TabularDataReader interface.
+     * DEPRECATION WARNING! This method will be removed in the next major point release.
      *
      * @throws SyntaxError
+     * @deprecated since league/csv 9.22.0, use League\Csv\ResultSet::from() instead
+     * Returns a new instance from an object implementing the TabularDataReader interface.
+     *
      */
     #[Deprecated(message:'use League\Csv\ResultSet::from() instead', since:'league/csv:9.22.0')]
     public static function createFromTabularDataReader(TabularDataReader $reader): self
@@ -746,6 +811,7 @@ class ResultSet implements TabularDataReader, JsonSerializable
     }
 
     /**
+     * @deprecated since league/csv 9.22.0, use League\Csv\ResultSet::from() instead
      * Returns a new instance from a collection without header.
      */
     #[Deprecated(message:'use League\Csv\ResultSet::from() instead', since:'league/csv:9.22.0')]

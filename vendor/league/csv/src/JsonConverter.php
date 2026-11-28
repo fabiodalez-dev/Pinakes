@@ -40,6 +40,7 @@ use function preg_match;
 use function str_repeat;
 use function str_replace;
 use function str_starts_with;
+use function strcspn;
 use function strlen;
 use function strtolower;
 use function substr;
@@ -110,7 +111,6 @@ final class JsonConverter
     public readonly ?Closure $formatter;
     /** @var int<1, max> */
     public readonly int $chunkSize;
-    public readonly JsonFormat $format;
     private readonly string $start;
     private readonly string $end;
     private readonly string $separator;
@@ -136,7 +136,7 @@ final class JsonConverter
         int $indentSize = 4,
         ?callable $formatter = null,
         int $chunkSize = 500,
-        JsonFormat $jsonFormat = JsonFormat::Standard,
+        public readonly JsonFormat $format = JsonFormat::Standard,
     ) {
         json_encode([], $flags & ~JSON_THROW_ON_ERROR, $depth);
 
@@ -148,7 +148,6 @@ final class JsonConverter
         $this->depth = $depth;
         $this->indentSize = $indentSize;
         $this->formatter = ($formatter instanceof Closure || null === $formatter) ? $formatter : $formatter(...);
-        $this->format = $jsonFormat;
 
         // Initialize settings and closure to use for conversion.
         // To speed up the process, we pre-calculate them
@@ -208,15 +207,27 @@ final class JsonConverter
         $inQuotes = false;
         $escape = false;
         $length = strlen($json);
-        $str = [$this->indentation];
+        $str = $this->indentation;
         for ($i = 0; $i < $length; $i++) {
+            if ($inQuotes && !$escape) {
+                // Copy string contents up to the next quote or escape in one operation.
+                $run = strcspn($json, '"\\', $i);
+                if (0 !== $run) {
+                    $str .= substr($json, $i, $run);
+                    $i += $run;
+                    if ($i === $length) {
+                        break;
+                    }
+                }
+            }
+
             $char = $json[$i];
             if ('"' === $char && !$escape) {
                 $inQuotes = !$inQuotes;
             }
 
             $escape = '\\' === $char && !$escape;
-            $str[] = $inQuotes ? $char : match ($char) {
+            $str .= $inQuotes ? $char : match ($char) {
                 '{', '[' => $char.($this->indentationLevels[++$level] ??= "\n".str_repeat($this->indentation, $level)),
                 '}', ']' =>  ($this->indentationLevels[--$level] ??= "\n".str_repeat($this->indentation, $level)).$char,
                 ',' => $char.($this->indentationLevels[$level] ??= "\n".str_repeat($this->indentation, $level)),
@@ -225,7 +236,7 @@ final class JsonConverter
             };
         }
 
-        return implode('', $str);
+        return $str;
     }
 
     /**
@@ -247,7 +258,7 @@ final class JsonConverter
     public function withPrettyPrint(?int $indentSize = null): self
     {
         $flags = $this->flags | JSON_PRETTY_PRINT;
-        $indentSize = $indentSize ?? $this->indentSize;
+        $indentSize ??= $this->indentSize;
 
         return match (true) {
             $flags === $this->flags && $indentSize === $this->indentSize => $this,
@@ -570,7 +581,7 @@ final class JsonConverter
      * DEPRECATION WARNING! This method will be removed in the next major point release.
      *
      * @see JsonConverter::withPrettyPrint()
-     * @deprecated Since version 9.19.0
+     * @deprecated Since version 9.19.0, use League\Csv\JsonConverter::withPrettyPrint() instead
      * @codeCoverageIgnore
      *
      * Set the indentation size.
@@ -590,7 +601,7 @@ final class JsonConverter
      * DEPRECATION WARNING! This method will be removed in the next major point release.
      *
      * @see JsonConverter::__construct()
-     * @deprecated Since version 9.22.0
+     * @deprecated Since version 9.22.0, use League\Csv\JsonConverter::__construct() instead
      * @codeCoverageIgnore
      */
     #[Deprecated(message:'use League\Csv\JsonConverter::__construct() instead', since:'league/csv:9.22.0')]
@@ -602,7 +613,7 @@ final class JsonConverter
             indentSize: 4,
             formatter: null,
             chunkSize: 500,
-            jsonFormat: JsonFormat::Standard
+            format: JsonFormat::Standard
         );
     }
 }

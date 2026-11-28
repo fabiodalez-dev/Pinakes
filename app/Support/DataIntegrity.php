@@ -206,6 +206,67 @@ class DataIntegrity {
         return $results;
     }
 
+    /**
+     * The titles among $bookIds that must not be archived, id => title: one
+     * with an approved loan or a live queue entry would leave that commitment
+     * pointing at a title no list shows any more. The single and the bulk
+     * delete both ask here, so the two rules cannot drift apart again.
+     *
+     * A request still awaiting approval (prestiti 'pendente', attivo = 0) with
+     * no copy does not block: it commits nothing, and on an archived title it
+     * stays hidden by design (see UserActionsController::reservationsPage).
+     * One that holds a copy does: it is a promoted reservation, or a request
+     * with a copy set aside, and its reader has been told the book is there.
+     * The reservation it came from is 'completata' by then, so nothing else
+     * would stop the archive.
+     *
+     * With $lock the commitments are read with locking reads; the caller holds
+     * a transaction and has locked the libri rows first (lock order
+     * libri -> prestiti/prenotazioni).
+     *
+     * @param list<int> $bookIds
+     * @return array<int,string>
+     */
+    public static function booksBlockingDeletion(mysqli $db, array $bookIds, bool $lock = false): array
+    {
+        $ids = array_values(array_unique(array_filter(array_map('intval', $bookIds), static fn (int $id): bool => $id > 0)));
+        if ($ids === []) {
+            return [];
+        }
+        $in = implode(',', $ids);
+        $suffix = $lock ? ' FOR UPDATE' : '';
+        $blocking = [];
+        foreach ([
+            "SELECT libro_id FROM prestiti WHERE libro_id IN ({$in})
+               AND ((attivo = 1 AND stato IN ('in_corso', 'in_ritardo', 'da_ritirare', 'prenotato'))
+                    OR (attivo = 0 AND stato = 'pendente' AND copia_id IS NOT NULL)){$suffix}",
+            "SELECT libro_id FROM prenotazioni WHERE libro_id IN ({$in}) AND stato = 'attiva'{$suffix}",
+        ] as $sql) {
+            $stmt = $db->prepare($sql);
+            if ($stmt === false) {
+                throw new \RuntimeException($db->error);
+            }
+            $stmt->execute();
+            foreach ($stmt->get_result()->fetch_all(MYSQLI_NUM) as $row) {
+                $blocking[(int) $row[0]] = '';
+            }
+            $stmt->close();
+        }
+        if ($blocking === []) {
+            return [];
+        }
+        $stmt = $db->prepare('SELECT id, titolo FROM libri WHERE id IN (' . implode(',', array_keys($blocking)) . ') AND deleted_at IS NULL');
+        if ($stmt === false) {
+            throw new \RuntimeException($db->error);
+        }
+        $stmt->execute();
+        foreach ($stmt->get_result()->fetch_all(MYSQLI_NUM) as $row) {
+            $blocking[(int) $row[0]] = (string) $row[1];
+        }
+        $stmt->close();
+        return $blocking;
+    }
+
     /** A copyless scheduled loan takes a title slot until it receives a copy. */
     private function unassignedHoldCountTodaySql(string $today, string $scheduledStillHolds, ?int $bookId = null): string
     {
@@ -214,25 +275,44 @@ class DataIntegrity {
                       AND p.attivo = 1 AND p.stato = 'prenotato' AND p.data_prestito <= '{$today}' AND {$scheduledStillHolds}))";
     }
 
-    /** The counter uses the same effective intervals and pauses as the booking gates. */
+    /**
+     * The counter uses the same effective intervals and pauses as the booking
+     * gates: the count comes from CapacityService itself, with or without
+     * calendar rules. A SQL count of every `attiva` row would also count the
+     * reservations the gates leave out (reader suspended, card expired, debt
+     * block, loan limit, material refused) and show a copy the gate still
+     * lends as taken.
+     *
+     * The cost stays bounded: one indexed read finds the titles that have a
+     * live reservation around today at all (usually a handful), and only
+     * those go through CapacityService.
+     */
     private function reservationCountTodaySql(string $today, ?int $bookId = null): string
     {
         $start = 'COALESCE(pr.data_inizio_richiesta, DATE(pr.data_scadenza_prenotazione))';
-        if (!LibraryCalendar::forDb($this->db)->hasRules()) {
-            return "(SELECT COUNT(*) FROM prenotazioni pr WHERE pr.libro_id = l.id AND pr.stato = 'attiva'
-                      AND {$start} <= '{$today}'
-                      AND COALESCE(pr.data_fine_richiesta, DATE(pr.data_scadenza_prenotazione), pr.data_inizio_richiesta) >= '{$today}')";
+        // Without closures a reservation ends on its stored day; with them the
+        // effective end can be later, so only the start can narrow the read.
+        $stillRunning = LibraryCalendar::forDb($this->db)->hasRules()
+            ? ''
+            : " AND COALESCE(pr.data_fine_richiesta, DATE(pr.data_scadenza_prenotazione), pr.data_inizio_richiesta) >= '{$today}'";
+        $bookFilter = $bookId === null ? '' : ' AND pr.libro_id = ?';
+        $stmt = $this->db->prepare("SELECT pr.libro_id FROM prenotazioni pr WHERE pr.stato = 'attiva' AND {$start} <= ?{$stillRunning}{$bookFilter} FOR UPDATE");
+        if ($bookId === null) {
+            $stmt->bind_param('s', $today);
+        } else {
+            $stmt->bind_param('si', $today, $bookId);
         }
+        $stmt->execute();
+        $bookIds = array_unique(array_column($stmt->get_result()->fetch_all(MYSQLI_NUM), 0));
+        $stmt->close();
+        if ($bookIds === []) {
+            return '0';
+        }
+
         $capacity = new \App\Services\CapacityService($this->db, lockingReads: true);
         if ($bookId !== null) {
             return (string) count($capacity->reservationIntervalsInRange($bookId, $today, $today));
         }
-
-        $stmt = $this->db->prepare("SELECT pr.libro_id FROM prenotazioni pr WHERE pr.stato = 'attiva' AND {$start} <= ? FOR UPDATE");
-        $stmt->bind_param('s', $today);
-        $stmt->execute();
-        $bookIds = array_unique(array_column($stmt->get_result()->fetch_all(MYSQLI_NUM), 0));
-        $stmt->close();
         $counts = [];
         foreach ($bookIds as $id) {
             $id = (int) $id;

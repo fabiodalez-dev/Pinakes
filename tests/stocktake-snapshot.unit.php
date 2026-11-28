@@ -23,7 +23,10 @@ mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 use App\Services\StocktakeService;
 
 $env = Dotenv\Dotenv::parse((string) file_get_contents(dirname(__DIR__) . '/.env'));
-$db = new mysqli($env['DB_HOST'] ?? '127.0.0.1', $env['DB_USER'], $env['DB_PASS'] ?? '', $env['DB_NAME'], (int) ($env['DB_PORT'] ?? 3306), getenv('E2E_DB_SOCKET') ?: ($env['DB_SOCKET'] ?? null));
+// The E2E_DB_* variables win over .env, as in the other suites: a checkout
+// whose .env names a live database can still run this against a sandbox.
+$connect = static fn (): mysqli => new mysqli(getenv('E2E_DB_HOST') ?: ($env['DB_HOST'] ?? '127.0.0.1'), getenv('E2E_DB_USER') ?: $env['DB_USER'], getenv('E2E_DB_PASS') ?: ($env['DB_PASS'] ?? ''), getenv('E2E_DB_NAME') ?: $env['DB_NAME'], (int) (getenv('E2E_DB_PORT') ?: ($env['DB_PORT'] ?? 3306)), getenv('E2E_DB_SOCKET') ?: ($env['DB_SOCKET'] ?? null));
+$db = $connect();
 $db->set_charset('utf8mb4');
 
 if ($db->query("SHOW TABLES LIKE 'inventario_sessioni'")->num_rows === 0) {
@@ -297,7 +300,7 @@ try {
     // mode, its id taken, not committed yet): latestScanId() waits for it
     // instead of pinning below it (review #518). The wait is cut to a second
     // here, so it shows as a lock timeout; once committed, it is seen.
-    $other = new mysqli($env['DB_HOST'] ?? '127.0.0.1', $env['DB_USER'], $env['DB_PASS'] ?? '', $env['DB_NAME'], (int) ($env['DB_PORT'] ?? 3306), getenv('E2E_DB_SOCKET') ?: ($env['DB_SOCKET'] ?? null));
+    $other = $connect();
     $other->set_charset('utf8mb4');
     $other->begin_transaction();
     $other->query("SELECT stato FROM inventario_sessioni WHERE id = {$second} LOCK IN SHARE MODE")->fetch_all();
@@ -438,7 +441,7 @@ try {
     // A close still in flight on another connection (chiusa_il stamped, not
     // committed): the snapshot waits for it rather than reading it open,
     // since after the commit its stamp would rank it closed on later pages.
-    $other = new mysqli($env['DB_HOST'] ?? '127.0.0.1', $env['DB_USER'], $env['DB_PASS'] ?? '', $env['DB_NAME'], (int) ($env['DB_PORT'] ?? 3306), getenv('E2E_DB_SOCKET') ?: ($env['DB_SOCKET'] ?? null));
+    $other = $connect();
     $other->begin_transaction();
     $other->query("UPDATE inventario_sessioni SET stato = 'chiusa', chiusa_il = NOW() - INTERVAL 1 MINUTE WHERE id = {$bulk[2]}");
     $db->query('SET SESSION innodb_lock_wait_timeout = 1');
@@ -545,7 +548,7 @@ try {
     // for the close instead of landing on a closed session.
     $third = $service->open('ZZST3 ' . $run, null, ['collocazione_da' => "{$p}.B2", 'collocazione_a' => "{$p}.B2"], null);
     $sessionIds[] = $third;
-    $other = new mysqli($env['DB_HOST'] ?? '127.0.0.1', $env['DB_USER'], $env['DB_PASS'] ?? '', $env['DB_NAME'], (int) ($env['DB_PORT'] ?? 3306), getenv('E2E_DB_SOCKET') ?: ($env['DB_SOCKET'] ?? null));
+    $other = $connect();
     $other->begin_transaction();
     $other->query("UPDATE inventario_sessioni SET stato = 'chiusa' WHERE id = {$third} AND stato = 'aperta'");
     $db->query('SET SESSION innodb_lock_wait_timeout = 1');
@@ -566,7 +569,7 @@ try {
     // waits for the loan, a file upload does not lock circulation rows at all.
     $locked = $service->open('ZZST locks ' . $run, null, ['collocazione_da' => "{$p}.B2", 'collocazione_a' => "{$p}.B2"], null);
     $sessionIds[] = $locked;
-    $other = new mysqli($env['DB_HOST'] ?? '127.0.0.1', $env['DB_USER'], $env['DB_PASS'] ?? '', $env['DB_NAME'], (int) ($env['DB_PORT'] ?? 3306), getenv('E2E_DB_SOCKET') ?: ($env['DB_SOCKET'] ?? null));
+    $other = $connect();
     $other->begin_transaction();
     $other->query("SELECT id FROM copie WHERE id = {$c5} FOR UPDATE");
     $db->query('SET SESSION innodb_lock_wait_timeout = 1');
@@ -695,11 +698,65 @@ try {
     $twoToMark = (new ReflectionMethod($service, 'missingToMark'))->invoke($service, $twoSession);
     $check($service->pendingLostCount($twoSession) === 2 && array_sum(array_map('count', $twoToMark)) === 2 && array_keys($twoToMark) === [$twoBook], 'two missing copies of the same book count as two pending copies');
 
+    // A copy booked for a later day is still on its shelf. Approving a loan
+    // sets the copy 'prenotato' at once (LoanApprovalController, DataIntegrity),
+    // days or weeks before anyone sets it aside: only a copy that is out, or
+    // on the pickup shelf ('da_ritirare'), is "on loan" for the stocktake.
+    // Scanned, a booked copy is found; not scanned, it is missing like any
+    // other shelf copy, and "mark lost" moves its hold to another copy.
+    $schedBook = $addBook('Sched', $shelves['X']);
+    $schedSeen = $addCopy($schedBook, 'SCH1', 'prenotato');
+    $schedGone = $addCopy($schedBook, 'SCH2', 'prenotato');
+    $schedFree = $addCopy($schedBook, 'SCH3');
+    $schedQueued = $addCopy($schedBook, 'SCH4', 'prenotato');
+    $schedPickup = $addCopy($schedBook, 'SCH5', 'prenotato');
+    $db->query("UPDATE libri SET copie_totali = 5, copie_disponibili = 1 WHERE id = {$schedBook}");
+    $db->query("INSERT INTO prestiti (libro_id, copia_id, utente_id, data_prestito, data_scadenza, stato, origine, attivo) VALUES ({$schedBook}, {$schedSeen}, {$borrowerId}, DATE_ADD(CURDATE(), INTERVAL 5 DAY), DATE_ADD(CURDATE(), INTERVAL 19 DAY), 'prenotato', 'richiesta', 1)");
+    $db->query("INSERT INTO prestiti (libro_id, copia_id, utente_id, data_prestito, data_scadenza, stato, origine, attivo) VALUES ({$schedBook}, {$schedGone}, {$borrowerId}, DATE_ADD(CURDATE(), INTERVAL 5 DAY), DATE_ADD(CURDATE(), INTERVAL 19 DAY), 'prenotato', 'richiesta', 1)");
+    $schedGoneLoan = (int) $db->insert_id;
+    // Promoted from the queue and waiting for staff approval: it holds the copy, which nobody has moved.
+    $db->query("INSERT INTO prestiti (libro_id, copia_id, utente_id, data_prestito, data_scadenza, stato, origine, attivo) VALUES ({$schedBook}, {$schedQueued}, {$borrowerId}, CURDATE(), DATE_ADD(CURDATE(), INTERVAL 14 DAY), 'pendente', 'prenotazione', 0)");
+    $db->query("INSERT INTO prestiti (libro_id, copia_id, utente_id, data_prestito, data_scadenza, pickup_deadline, stato, origine, attivo) VALUES ({$schedBook}, {$schedPickup}, {$borrowerId}, CURDATE(), DATE_ADD(CURDATE(), INTERVAL 14 DAY), DATE_ADD(CURDATE(), INTERVAL 3 DAY), 'da_ritirare', 'richiesta', 1)");
+    $schedPickupLoan = (int) $db->insert_id;
+    $schedSession = $service->open('ZZST sched ' . $run, null, ['collocazione_da' => "{$p}.Sched", 'collocazione_a' => "{$p}.Sched"], null);
+    $sessionIds[] = $schedSession;
+    $check($service->scan($schedSession, "{$p}-SCH1", null, $shelves['X'])['esito'] === 'trovata', 'a copy booked for a later day, scanned on its shelf, is found and not reported on loan');
+    $check($service->scan($schedSession, "{$p}-SCH4", null, $shelves['X'])['esito'] === 'trovata', 'a copy held for a request still awaiting approval, scanned on its shelf, is found');
+    $check($service->scan($schedSession, "{$p}-SCH3", null, $shelves['X'])['esito'] === 'trovata' && $service->scan($schedSession, "{$p}-SCH5", null, $shelves['X'])['esito'] === 'in_prestito', 'a free copy is found and a copy set aside for pickup is still on loan');
+    $schedSummary = $service->summary($schedSession);
+    $check($schedSummary['attese'] === 5 && $schedSummary['trovate'] === 3 && $schedSummary['in_prestito'] === 1 && $schedSummary['mancanti'] === 1, 'a booked copy nobody scanned is missing: found 3, on loan 1 (pickup shelf), missing 1');
+    $schedRows = array_column($service->reportRows($schedSession), 'categoria', 'codice');
+    $check(($schedRows["{$p}-SCH2"] ?? null) === 'mancante' && ($schedRows["{$p}-SCH1"] ?? null) === 'trovata' && ($schedRows["{$p}-SCH5"] ?? null) === 'in_prestito', 'the report lists the unscanned booked copy among the missing');
+    $check($service->reportRowCount($schedSession, 'mancante') === 1 && $service->reportRowCount($schedSession, 'in_prestito') === 1, 'and the bucket counters of the report agree');
+    $check($service->close($schedSession, true, null) === ['marked' => 1, 'failed' => 0], 'closing with "mark lost" marks the missing booked copy, and only it');
+    $check($one("SELECT stato FROM copie WHERE id = {$schedGone}") === 'perso' && $one("SELECT CONCAT(stato, ':', attivo, ':', copia_id) FROM prestiti WHERE id = {$schedGoneLoan}") === "prenotato:1:{$schedFree}", 'the lost copy gives its future loan to the free copy of the same book');
+    $check($one("SELECT stato FROM copie WHERE id = {$schedFree}") === 'prenotato' && $one("SELECT stato FROM copie WHERE id = {$schedSeen}") === 'prenotato' && $one("SELECT stato FROM copie WHERE id = {$schedQueued}") === 'prenotato', 'the copy that took the loan over is now the booked one; the booked copies that were found are untouched');
+    $check($one("SELECT stato FROM copie WHERE id = {$schedPickup}") === 'prenotato' && $one("SELECT CONCAT(stato, ':', attivo, ':', copia_id) FROM prestiti WHERE id = {$schedPickupLoan}") === "da_ritirare:1:{$schedPickup}", 'the copy on the pickup shelf keeps its hold');
+    $check($one("SELECT GROUP_CONCAT(CONCAT(copia_id, ':', esito_chiusura) ORDER BY copia_id) FROM inventario_attese WHERE sessione_id = {$schedSession}") === "{$schedSeen}:trovata,{$schedGone}:persa,{$schedFree}:trovata,{$schedQueued}:trovata,{$schedPickup}:in_prestito", 'the frozen report says found, lost, found, found, on loan');
+    // Unscanned and closed without marking: frozen as missing, the copy and its loan untouched.
+    $schedBook2 = $addBook('Sched2', $shelves['X']);
+    $schedGone2 = $addCopy($schedBook2, 'SCH6', 'prenotato');
+    $db->query("INSERT INTO prestiti (libro_id, copia_id, utente_id, data_prestito, data_scadenza, stato, origine, attivo) VALUES ({$schedBook2}, {$schedGone2}, {$borrowerId}, DATE_ADD(CURDATE(), INTERVAL 5 DAY), DATE_ADD(CURDATE(), INTERVAL 19 DAY), 'prenotato', 'richiesta', 1)");
+    $schedGone2Loan = (int) $db->insert_id;
+    $schedSession2 = $service->open('ZZST sched2 ' . $run, null, ['collocazione_da' => "{$p}.Sched2", 'collocazione_a' => "{$p}.Sched2"], null);
+    $sessionIds[] = $schedSession2;
+    $check($service->close($schedSession2, false, null) === ['marked' => 0, 'failed' => 0] && $one("SELECT esito_chiusura FROM inventario_attese WHERE sessione_id = {$schedSession2} AND copia_id = {$schedGone2}") === 'mancante', 'a close without marking freezes the unscanned booked copy as missing');
+    $check($one("SELECT stato FROM copie WHERE id = {$schedGone2}") === 'prenotato' && $one("SELECT CONCAT(stato, ':', attivo, ':', copia_id) FROM prestiti WHERE id = {$schedGone2Loan}") === "prenotato:1:{$schedGone2}", 'and leaves the copy and its future loan as they were');
+    // The only copy of the title, marked lost: the loan stays, without a copy, for staff to resolve.
+    $schedBook3 = $addBook('Sched3', $shelves['X']);
+    $schedGone3 = $addCopy($schedBook3, 'SCH7', 'prenotato');
+    $db->query("INSERT INTO prestiti (libro_id, copia_id, utente_id, data_prestito, data_scadenza, stato, origine, attivo) VALUES ({$schedBook3}, {$schedGone3}, {$borrowerId}, DATE_ADD(CURDATE(), INTERVAL 5 DAY), DATE_ADD(CURDATE(), INTERVAL 19 DAY), 'prenotato', 'richiesta', 1)");
+    $schedGone3Loan = (int) $db->insert_id;
+    $schedSession3 = $service->open('ZZST sched3 ' . $run, null, ['collocazione_da' => "{$p}.Sched3", 'collocazione_a' => "{$p}.Sched3"], null);
+    $sessionIds[] = $schedSession3;
+    $check($service->close($schedSession3, true, null) === ['marked' => 1, 'failed' => 0] && $one("SELECT stato FROM copie WHERE id = {$schedGone3}") === 'perso' && $one("SELECT CONCAT(stato, ':', attivo, ':', COALESCE(copia_id, 'none')) FROM prestiti WHERE id = {$schedGone3Loan}") === 'prenotato:1:none', 'marking the only copy lost leaves no hold on it: the future loan waits without a copy');
+
     // A hold the reassignment cannot take off the copy (review #504): a
     // trigger puts the copy back on every release. Marking it lost must roll
     // back instead of committing a lost copy that still carries the hold.
+    // The copy is 'prenotato', as approval leaves it for a scheduled loan.
     $holdBook = $addBook('Hold', $shelves['X']);
-    $holdCopy = $addCopy($holdBook, 'HOLD');
+    $holdCopy = $addCopy($holdBook, 'HOLD', 'prenotato');
     $db->query("INSERT INTO prestiti (libro_id, copia_id, utente_id, data_prestito, data_scadenza, stato, origine, attivo) VALUES ({$holdBook}, {$holdCopy}, {$borrowerId}, DATE_ADD(CURDATE(), INTERVAL 5 DAY), DATE_ADD(CURDATE(), INTERVAL 19 DAY), 'prenotato', 'prenotazione', 1)");
     $stuckHold = (int) $db->insert_id;
     $holdSession = $service->open('ZZST hold ' . $run, null, ['collocazione_da' => "{$p}.Hold", 'collocazione_a' => "{$p}.Hold"], null);
@@ -710,7 +767,7 @@ try {
     $result = $service->close($holdSession, true, null);
     $db->query("DROP TRIGGER {$stuck}");
     $check($result === ['marked' => 0, 'failed' => 1], 'a copy whose hold cannot be moved is reported as a failed book update');
-    $check($one("SELECT stato FROM copie WHERE id = {$holdCopy}") === 'disponibile' && $one("SELECT copia_id FROM prestiti WHERE id = {$stuckHold}") === (string) $holdCopy && $one("SELECT esito_chiusura FROM inventario_attese WHERE sessione_id = {$holdSession}") === 'mancante', 'and nothing of it is committed: the copy is not lost and keeps its hold');
+    $check($one("SELECT stato FROM copie WHERE id = {$holdCopy}") === 'prenotato' && $one("SELECT copia_id FROM prestiti WHERE id = {$stuckHold}") === (string) $holdCopy && $one("SELECT esito_chiusura FROM inventario_attese WHERE sessione_id = {$holdSession}") === 'mancante', 'and nothing of it is committed: the copy is not lost and keeps its hold');
 
     // The audit entry is part of the loss (review #504): when it cannot be
     // written the copy is not lost either, and a resume writes both.
@@ -742,7 +799,7 @@ try {
     $returnLoan = (int) $db->insert_id;
     $returnSession = $service->open('ZZST return ' . $run, null, ['collocazione_da' => "{$p}.B9", 'collocazione_a' => "{$p}.B9"], null);
     $sessionIds[] = $returnSession;
-    $other = new mysqli($env['DB_HOST'] ?? '127.0.0.1', $env['DB_USER'], $env['DB_PASS'] ?? '', $env['DB_NAME'], (int) ($env['DB_PORT'] ?? 3306), getenv('E2E_DB_SOCKET') ?: ($env['DB_SOCKET'] ?? null));
+    $other = $connect();
     $other->begin_transaction();
     $other->query("SELECT id FROM prestiti WHERE id = {$returnLoan} FOR UPDATE");
     $other->query("UPDATE prestiti SET stato = 'restituito', attivo = 0, data_restituzione = CURDATE() WHERE id = {$returnLoan}");

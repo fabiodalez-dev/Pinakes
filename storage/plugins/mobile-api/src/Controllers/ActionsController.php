@@ -64,10 +64,11 @@ final class ActionsController
 
     /**
      * Own loans: pending requests, active (scheduled/holding/overdue), and the
-     * most recent concluded history. Pending and concluded JOINs on `libri`
-     * carry `AND l.deleted_at IS NULL`; ACTIVE loans are deliberately exempt
+     * most recent concluded history. The concluded JOIN on `libri` carries
+     * `AND l.deleted_at IS NULL`; ACTIVE loans are deliberately exempt
      * (M3) — the borrower still holds the copy of an archived title and keeps
-     * receiving overdue recalls for it, so the app must keep showing it.
+     * receiving overdue recalls for it, so the app must keep showing it. A
+     * PENDING request is exempt only when it holds a copy, as on the website.
      * Scoped to the authenticated user only.
      */
     public function myLoans(Request $request, ResponseInterface $response): ResponseInterface
@@ -82,12 +83,16 @@ final class ActionsController
             $pending = [];
             $history = [];
 
-            // Pending loan requests (awaiting admin approval).
+            // Pending loan requests (awaiting admin approval). Same predicate
+            // as the website (UserActionsController::reservationsPage): a bare
+            // request on an archived title commits nothing and stays hidden.
+            // CI-SOFT-DELETE-EXEMPT: a request promoted from the queue HOLDS a copy (copia_id) even after its title was archived and the reader keeps receiving reminders for it, so the app must list it, with its real title, to let the reader withdraw it.
             $sql = "SELECT pr.id, pr.libro_id, pr.data_prestito, pr.data_scadenza, pr.stato, pr.created_at,
-                           l.titolo, l.copertina_url
+                           COALESCE(l.titolo, '') AS titolo, l.copertina_url
                     FROM prestiti pr
-                    JOIN libri l ON l.id = pr.libro_id AND l.deleted_at IS NULL
+                    LEFT JOIN libri l ON l.id = pr.libro_id
                     WHERE pr.utente_id = ? AND pr.stato = 'pendente'
+                      AND (l.deleted_at IS NULL OR pr.copia_id IS NOT NULL)
                     ORDER BY pr.created_at DESC";
             foreach ($this->fetchScoped($sql, $userId) as $r) {
                 $pending[] = $this->mapLoan($r);
@@ -320,7 +325,7 @@ final class ActionsController
                     $delegatedLoan['end_date'] = $endDate;
                 }
                 $delegated = $request->withParsedBody($delegatedLoan);
-                $result    = $controller->loan($delegated, new SlimResponse(), $this->db);
+                $result    = $this->withoutClientReferer(fn (): ResponseInterface => $controller->loan($delegated, new SlimResponse(), $this->db));
                 $outcome   = $this->redirectOutcome($result);
 
                 if (isset($outcome['loan_request_success'])) {
@@ -329,7 +334,7 @@ final class ActionsController
                     // `prenotato`, not awaiting pickup.
                     $status = CirculationOutcome::requestState($outcome);
                     $loanId = isset($outcome['loan_id']) ? (int) $outcome['loan_id'] : null;
-                    $startDate = $status === 'prenotato' ? $this->loanStartDate($loanId) : null;
+                    $startDate = $status === 'prenotato' ? $this->loanStartDate($loanId, $userId) : null;
                     $message = match ($status) {
                         // Without the stored start the day is not promised:
                         // today would be wrong when the library is closed.
@@ -376,7 +381,7 @@ final class ActionsController
                 $delegatedBody['end_date'] = $endDate;
             }
             $delegated = $request->withParsedBody($delegatedBody);
-            $result    = $controller->reserve($delegated, new SlimResponse(), $this->db);
+            $result    = $this->withoutClientReferer(fn (): ResponseInterface => $controller->reserve($delegated, new SlimResponse(), $this->db));
             $outcome   = $this->redirectOutcome($result);
 
             if (isset($outcome['reserve_success'])) {
@@ -418,10 +423,10 @@ final class ActionsController
             $controller = new UserActionsController();
             if ($kind === 'reservation') {
                 $delegated = $request->withParsedBody(['reservation_id' => $reservationId]);
-                $result    = $controller->cancelReservation($delegated, new SlimResponse(), $this->db);
+                $result    = $this->withoutClientReferer(fn (): ResponseInterface => $controller->cancelReservation($delegated, new SlimResponse(), $this->db));
             } else {
                 $delegated = $request->withParsedBody(['loan_id' => $reservationId]);
-                $result    = $controller->cancelLoan($delegated, new SlimResponse(), $this->db);
+                $result    = $this->withoutClientReferer(fn (): ResponseInterface => $controller->cancelLoan($delegated, new SlimResponse(), $this->db));
             }
 
             $outcome = $this->redirectOutcome($result);
@@ -468,7 +473,7 @@ final class ActionsController
 
         try {
             $delegated = $request->withParsedBody(['loan_id' => $loanId]);
-            $result = (new UserActionsController())->cancelLoan($delegated, new SlimResponse(), $this->db);
+            $result = $this->withoutClientReferer(fn (): ResponseInterface => (new UserActionsController())->cancelLoan($delegated, new SlimResponse(), $this->db));
             $outcome = $this->redirectOutcome($result);
 
             if (isset($outcome['canceled'])) {
@@ -1318,24 +1323,21 @@ final class ActionsController
     }
 
     /**
-     * Extract the query-string params from a delegated controller's redirect
-     * Location header into an associative array, so the JSON layer can branch on
-     * the web controller's outcome without reimplementing its logic.
-     *
-     * @return array<string, string>
+     * The stored start day (prestiti.data_prestito) of one of $userId's own
+     * loans, null when unknown. Scoped to the reader: the id comes back from
+     * a redirect, and a date must never be read from someone else's loan.
      */
-    /** The stored start day (prestiti.data_prestito) of a loan, null when unknown. */
-    private function loanStartDate(?int $loanId): ?string
+    private function loanStartDate(?int $loanId, int $userId): ?string
     {
-        if ($loanId === null || $loanId <= 0) {
+        if ($loanId === null || $loanId <= 0 || $userId <= 0) {
             return null;
         }
         try {
-            $stmt = $this->db->prepare('SELECT data_prestito FROM prestiti WHERE id = ?');
+            $stmt = $this->db->prepare('SELECT data_prestito FROM prestiti WHERE id = ? AND utente_id = ?');
             if ($stmt === false) {
                 return null;
             }
-            $stmt->bind_param('i', $loanId);
+            $stmt->bind_param('ii', $loanId, $userId);
             $stmt->execute();
             $row = $stmt->get_result()->fetch_row();
             $stmt->close();
@@ -1346,6 +1348,38 @@ final class ActionsController
         }
     }
 
+    /**
+     * Run a delegated website controller with the caller's Referer out of its
+     * reach. Those controllers answer a form POST by redirecting back to the
+     * Referer with the outcome appended to its query string, and
+     * redirectOutcome() reads the outcome from that query: a Referer chosen
+     * by the API client (`/?loan_request_success=1&loan_id=…`) would otherwise
+     * supply the outcome itself. Without a Referer the redirect goes to `/`
+     * and carries only what the controller decided.
+     *
+     * @param callable(): ResponseInterface $call
+     */
+    private function withoutClientReferer(callable $call): ResponseInterface
+    {
+        $hadReferer = array_key_exists('HTTP_REFERER', $_SERVER);
+        $referer = $_SERVER['HTTP_REFERER'] ?? null;
+        unset($_SERVER['HTTP_REFERER']);
+        try {
+            return $call();
+        } finally {
+            if ($hadReferer) {
+                $_SERVER['HTTP_REFERER'] = $referer;
+            }
+        }
+    }
+
+    /**
+     * Extract the query-string params from a delegated controller's redirect
+     * Location header into an associative array, so the JSON layer can branch on
+     * the web controller's outcome without reimplementing its logic.
+     *
+     * @return array<string, string>
+     */
     private function redirectOutcome(ResponseInterface $result): array
     {
         $location = $result->getHeaderLine('Location');

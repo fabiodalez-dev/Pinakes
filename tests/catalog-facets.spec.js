@@ -1,11 +1,15 @@
 // @ts-check
-// Catalog facet tests — read-only against the dev catalog (/catalogo).
-// No login required, no DB writes. Run via:
+// Catalog facet tests against the dev catalog (/catalogo). No login
+// required. Read-only except test 20, which seeds and removes its own genre,
+// subgenre and book when the E2E database is configured. Run via:
 //   /tmp/run-e2e.sh tests/catalog-facets.spec.js \
 //     --config=tests/playwright.config.js --workers=1
 
 const { test, expect } = require('@playwright/test');
 test.describe.configure({ mode: 'serial' });
+
+const F = require('./helpers/circulation-fixtures');
+const { flushCache } = require('./helpers/flush-cache');
 
 const BASE = process.env.E2E_BASE_URL || 'http://localhost:8081';
 
@@ -682,10 +686,13 @@ test.describe('Catalog facets', () => {
         await page.evaluate(() => window.loadBooks());
         await response;
         const list = page.locator('#genres-filter');
+        const tags = page.locator('#active-filters-list .filter-tag');
         await clickAndRefresh(list.locator('a[title="Root genre"]'));
+        await expect(tags.filter({ hasText: /Root genre×/ })).toBeVisible();
         await expect(list.locator('.facet-collapsed')).toHaveCount(0);
         await expect(list.locator('a[title="Root genre - Child genre"]')).toBeVisible();
         await clickAndRefresh(list.locator('a[title="Root genre - Child genre"]'));
+        await expect(tags.filter({ hasText: /Root genre - Child genre×/ })).toBeVisible();
         await expect(list.locator('a[title="Root genre - Child genre - Leaf genre"]')).toBeVisible();
         await clickAndRefresh(list.locator('a[title="Root genre - Child genre - Leaf genre"]'));
         await expect(list.locator('.filter-back-btn')).toBeVisible();
@@ -693,6 +700,7 @@ test.describe('Catalog facets', () => {
         expect(new URL(page.url()).searchParams.get('genere_id')).toBe(String(child.id));
         await clickAndRefresh(list.locator('.filter-back-btn'));
         expect(new URL(page.url()).searchParams.get('genere_id')).toBe(String(root.id));
+        await expect(tags.filter({ hasText: /Root genre×/ })).toBeVisible();
         await clickAndRefresh(list.locator('.filter-back-btn'));
         expect(new URL(page.url()).searchParams.has('genere_id')).toBe(false);
         await expect(list.locator('a[title="Root genre"]')).toBeVisible();
@@ -700,6 +708,124 @@ test.describe('Catalog facets', () => {
     } finally {
       await page.unroute('**/api/catalogo?*');
       if (original) await page.setViewportSize(original);
+    }
+  });
+
+  // -------------------------------------------------------------------------
+  // 20. #547: the active-filter chip names the genre. Against the real
+  // catalogue, no stubbed answers: from a click in the facet, from the same
+  // address opened as a saved link, one level down, and when no book matches
+  // (the facet list is empty then, so the name cannot come from it).
+  // -------------------------------------------------------------------------
+  test('20. The genre chip shows the genre name, never its ID (#547)', async () => {
+    // Whatever the files before this one left in the catalogue, the test brings
+    // its own genre, subgenre and book when the database is at hand, so the
+    // subgenre step always runs. Direct writes bypass the app's cache
+    // invalidation, hence the flush before the first navigation.
+    // Each id is recorded the moment it exists, and the preparation is inside
+    // the try: an insert or the cache flush that fails half-way still leaves
+    // the finally everything it needs to remove what was written.
+    const seeded = { bookIds: [], rootId: 0, subId: 0 };
+    try {
+    if (F.CONFIGURED) {
+      const tag = `E2E547 ${Date.now()}`;
+      F.dbQuery(`INSERT INTO generi (nome, parent_id) VALUES (${F.sqlStr(`${tag} Root`)}, NULL)`);
+      seeded.rootId = F.dbInt(`SELECT id FROM generi WHERE nome=${F.sqlStr(`${tag} Root`)} AND parent_id IS NULL`);
+      F.dbQuery(`INSERT INTO generi (nome, parent_id) VALUES (${F.sqlStr(`${tag} Sub`)}, ${seeded.rootId})`);
+      seeded.subId = F.dbInt(`SELECT id FROM generi WHERE nome=${F.sqlStr(`${tag} Sub`)} AND parent_id=${seeded.rootId}`);
+      const book = F.createTitle(tag.replace(' ', '-'));
+      seeded.bookIds.push(book.id);
+      F.dbQuery(`UPDATE libri SET genere_id=${seeded.rootId}, sottogenere_id=${seeded.subId} WHERE id=${book.id}`);
+      await flushCache();
+    }
+    await page.goto(`${BASE}/catalogo`, { waitUntil: 'networkidle', timeout: 30000 });
+    const { filter_options: facets } = await apiCatalog(page);
+    const roots = facets.generi.filter(root => root.cnt > 0);
+    if (!F.CONFIGURED) {
+      test.skip(roots.length === 0, 'no genre with books in this catalogue and no database to seed one');
+    }
+    expect(roots.length, 'the catalogue has at least one genre with books').toBeGreaterThan(0);
+    const own = seeded.rootId ? roots.find(root => Number(root.id) === seeded.rootId) : undefined;
+    if (seeded.rootId) {
+      expect(own, 'the seeded genre is listed in the facet').toBeTruthy();
+    }
+    const withChild = own || roots.find(root => (root.children || []).some(sub => sub.cnt > 0));
+    const genre = withChild || roots[0];
+    const chip = page.locator('#active-filters-list .filter-tag');
+    const named = name => new RegExp(`^[^:]+: ${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}×$`);
+    const clickGenre = async id => {
+      const response = page.waitForResponse(r => new URL(r.url()).pathname.endsWith('/api/catalogo'));
+      await page.locator(`#genres-filter a.filter-option[data-catalog-value="${id}"]`).click();
+      await response;
+      await expect(page.locator('#loading-state')).toBeHidden();
+    };
+
+    // Chosen from the facet.
+    await clickGenre(genre.id);
+    expect(new URL(page.url()).searchParams.get('genere_id')).toBe(String(genre.id));
+    await expect(chip).toHaveCount(1);
+    await expect(chip).toHaveText(named(genre.nome));
+
+    // The address the click produced, opened again as a saved or shared link.
+    const saved = page.url();
+    await page.goto(saved, { waitUntil: 'networkidle', timeout: 30000 });
+    await expect(chip).toHaveCount(1);
+    await expect(chip).toHaveText(named(genre.nome));
+
+    // One level down: the chip follows to the subgenre, it does not keep the
+    // name of the genre above it.
+    if (withChild) {
+      const sub = withChild.children.find(child => child.cnt > 0);
+      await clickGenre(sub.id);
+      expect(new URL(page.url()).searchParams.get('genere_id')).toBe(String(sub.id));
+      await expect(chip).toHaveCount(1);
+      await expect(chip).toHaveText(named(sub.nome));
+      await page.goto(page.url(), { waitUntil: 'networkidle', timeout: 30000 });
+      await expect(chip).toHaveText(named(sub.nome));
+    } else {
+      test.info().annotations.push({ type: 'note', description: 'no subgenre with books in this catalogue: the subgenre step ran only in test 19' });
+    }
+
+    // A saved link whose other filter leaves no book: no genre is listed in
+    // the facet any more, and the chip still names the one in the address.
+    await page.goto(`${BASE}/catalogo?genere_id=${genre.id}&search=zzqx547nomatch`, { waitUntil: 'networkidle', timeout: 30000 });
+    const genreChip = chip.filter({ hasNotText: 'zzqx547nomatch' });
+    await expect(genreChip).toHaveCount(1);
+    await expect(genreChip).toHaveText(named(genre.nome));
+
+    // A genre no visible book sits under is not in the facet tree at all
+    // (an emptied genre in an old bookmark): its name comes from the genre
+    // table. Read-only lookup of one such genre, when the database is at hand.
+    const listed = new Set();
+    const collect = nodes => nodes.forEach(node => { listed.add(Number(node.id)); collect(node.children || []); });
+    collect(facets.generi);
+    const unlisted = F.CONFIGURED
+      ? F.dbQuery('SELECT id, nome FROM generi ORDER BY id').split('\n').filter(Boolean)
+        .map(row => { const [id, ...nome] = row.split('\t'); return { id: Number(id), nome: nome.join('\t') }; })
+        .find(row => !listed.has(row.id) && !/[\\<>&]/.test(row.nome))
+      : undefined;
+    if (unlisted) {
+      await page.goto(`${BASE}/catalogo?genere_id=${unlisted.id}`, { waitUntil: 'networkidle', timeout: 30000 });
+      await expect(chip).toHaveCount(1);
+      await expect(chip).toHaveText(named(unlisted.nome));
+    } else {
+      test.info().annotations.push({ type: 'note', description: 'no genre without books to open by address: covered by catalog-articles-412.unit.php only' });
+    }
+
+    // The chip's × removes the filter.
+    await page.goto(`${BASE}/catalogo?genere_id=${genre.id}&search=zzqx547nomatch`, { waitUntil: 'networkidle', timeout: 30000 });
+    await genreChip.locator('.filter-tag-remove').click();
+    expect(new URL(page.url()).searchParams.has('genere_id')).toBe(false);
+    await expect(chip.filter({ hasNotText: 'zzqx547nomatch' })).toHaveCount(0);
+    } finally {
+      if (seeded.bookIds.length) F.deleteTitles(seeded.bookIds);
+      // Child first: the parent's ON DELETE CASCADE would take it anyway, but
+      // an explicit order keeps the cleanup readable.
+      for (const id of [seeded.subId, seeded.rootId]) {
+        if (!id) continue;
+        try { F.dbQuery(`DELETE FROM generi WHERE id=${Number(id)}`); } catch { /* best effort */ }
+      }
+      if (F.CONFIGURED) await flushCache();
     }
   });
 

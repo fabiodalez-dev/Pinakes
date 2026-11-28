@@ -33,7 +33,9 @@ class SRUServer
         ],
         'dc.subject' => [
             'type' => 'text',
-            'columns' => ['l.parole_chiave', 'g.nome'],
+            // Keywords, genre and subgenre: scan lists the last two as terms
+            // (scanTermSources()), so each of them must be searchable.
+            'columns' => ['l.parole_chiave', 'g.nome', 'sg.nome'],
         ],
         'dc.publisher' => [
             'type' => 'text',
@@ -72,6 +74,7 @@ class SRUServer
                 'l.parole_chiave',
                 'l.collana',
                 'g.nome',
+                'sg.nome',
             ],
         ],
         // Library-specific indexes for advanced searching
@@ -130,11 +133,19 @@ class SRUServer
     // EXISTS on libri_editori in buildTextMatchClause, so no base-query JOIN is needed.
     private const PUBLISHER_MATCH = '__pub_exists__';
 
+    // SRU 1.1/1.2 (Library of Congress): one namespace for every response.
     private const NS_SRU = 'http://www.loc.gov/zing/srw/';
     // SRU 1.2 diagnostics: the <diagnostic> element and its children live in
     // the diagnostic XML namespace; info:srw/diagnostic/1/N is only the text
     // of <uri>, never a namespace.
     private const NS_DIAG = 'http://www.loc.gov/zing/srw/diagnostic/';
+    // SRU 2.0 (OASIS searchRetrieve 1.0): searchRetrieve and explain answer in
+    // sruResponse, scan in its own namespace, diagnostics in a third.
+    private const NS_SRU_2 = 'http://docs.oasis-open.org/ns/search-ws/sruResponse';
+    private const NS_SCAN_2 = 'http://docs.oasis-open.org/ns/search-ws/scan';
+    private const NS_DIAG_2 = 'http://docs.oasis-open.org/ns/search-ws/diagnostic';
+    // ZeeRex, the record an explain response carries.
+    private const NS_EXPLAIN = 'http://explain.z3950.org/dtd/2.1/';
     private const DIAG_URI_PREFIX = 'info:srw/diagnostic/1/';
 
     /**
@@ -217,8 +228,49 @@ class SRUServer
             \App\Support\SecureLogger::error("[SRU Server] Error in handleRequest: " . $e->getMessage());
             $this->updateAccessLog($responseTime, 500, 'Internal error');
 
-            return $this->errorResponse(1, 'An internal error occurred. Please contact the administrator.', $version);
+            return $this->errorResponse(1, 'An internal error occurred. Please contact the administrator.', $version, $operation);
         }
+    }
+
+    /**
+     * The XML envelope a response of the given SRU version is written in.
+     *
+     * SRU 1.1 and 1.2 share the Library of Congress namespace. It is bound to
+     * the conventional "zs" prefix instead of being the default namespace:
+     * the two forms are the same XML, but the prefixed one is what the LoC
+     * and YAZ servers answer with, and clients that match element names as
+     * text (xmltodict and similar) look for zs:record, zs:recordData and so
+     * on. Left unprefixed, the envelope <record> also collides by name with
+     * the MARCXML <record> it carries.
+     *
+     * SRU 2.0 is a different vocabulary, not a relabelled 1.2: its own
+     * namespaces (one for searchRetrieve/explain, one for scan, one for
+     * diagnostics) and recordXMLEscaping where 1.x said recordPacking.
+     *
+     * @return array{v2:bool, ns:string, prefix:string, diag:string}
+     */
+    private function envelope(string $version, string $operation): array
+    {
+        if ($version !== '2.0') {
+            return ['v2' => false, 'ns' => self::NS_SRU, 'prefix' => 'zs', 'diag' => self::NS_DIAG];
+        }
+        return $operation === 'scan'
+            ? ['v2' => true, 'ns' => self::NS_SCAN_2, 'prefix' => 'scan', 'diag' => self::NS_DIAG_2]
+            : ['v2' => true, 'ns' => self::NS_SRU_2, 'prefix' => 'sru', 'diag' => self::NS_DIAG_2];
+    }
+
+    /**
+     * One element of the response envelope, in its namespace and prefix.
+     * $value is already-escaped text (escapeXml()), as for createElementNS.
+     *
+     * @param array{v2:bool, ns:string, prefix:string, diag:string} $env
+     */
+    private function envelopeElement(\DOMDocument $xml, array $env, string $name, ?string $value = null): \DOMElement
+    {
+        $qualified = $env['prefix'] . ':' . $name;
+        return $value === null
+            ? $xml->createElementNS($env['ns'], $qualified)
+            : $xml->createElementNS($env['ns'], $qualified, $value);
     }
 
     /**
@@ -231,58 +283,64 @@ class SRUServer
     private function handleExplain(array $params): string
     {
         $version = $this->sanitizeString($params['version'] ?? '1.2');
-        $recordPacking = $this->resolveRecordPacking($params);
+        $env = $this->envelope($version, 'explain');
+        $recordPacking = $this->resolveRecordPacking($params, $env['v2']);
         if ($recordPacking === null) {
-            return $this->errorResponse(71, 'Unsupported record packing', $version, 'explain', (string) ($params['recordPacking'] ?? ''));
+            return $this->errorResponse(71, 'Unsupported record packing', $version, 'explain', $this->recordPackingAsked($params, $env['v2']));
         }
 
         [$host, $port, $database] = $this->serverLocation();
 
         $xml = new \DOMDocument('1.0', 'UTF-8');
         $xml->formatOutput = true;
-        $ns = self::NS_SRU;
 
         // Root element
-        $root = $xml->createElementNS($ns, 'explainResponse');
+        $root = $this->envelopeElement($xml, $env, 'explainResponse');
         $xml->appendChild($root);
 
-        // Version
-        $root->appendChild($xml->createElementNS($ns, 'version', $this->escapeXml($version)));
+        // Version: a 1.x element, removed from every SRU 2.0 response.
+        if (!$env['v2']) {
+            $root->appendChild($this->envelopeElement($xml, $env, 'version', $this->escapeXml($version)));
+        }
 
         // Record
-        $record = $xml->createElementNS($ns, 'record');
+        $record = $this->envelopeElement($xml, $env, 'record');
         $root->appendChild($record);
 
-        $record->appendChild($xml->createElementNS($ns, 'recordSchema', 'http://explain.z3950.org/dtd/2.1/'));
-        $record->appendChild($xml->createElementNS($ns, 'recordPacking', $recordPacking));
+        $record->appendChild($this->envelopeElement($xml, $env, 'recordSchema', self::NS_EXPLAIN));
+        $record->appendChild($this->envelopeElement($xml, $env, $env['v2'] ? 'recordXMLEscaping' : 'recordPacking', $recordPacking));
 
         // Record data
-        $recordData = $xml->createElementNS($ns, 'recordData');
+        $recordData = $this->envelopeElement($xml, $env, 'recordData');
         $record->appendChild($recordData);
 
-        // Explain record
-        $explain = $xml->createElementNS('http://explain.z3950.org/dtd/2.1/', 'explain');
+        // Explain record: ZeeRex, in its own (default) namespace. Its children
+        // are created in that namespace too, so they stay <serverInfo>,
+        // <indexInfo>, ... whatever prefix the envelope around them uses.
+        $explain = $xml->createElementNS(self::NS_EXPLAIN, 'explain');
 
         // Server info: where this endpoint really answers, not the
-        // localhost/80 placeholders of a fresh install.
-        $serverInfo = $xml->createElement('serverInfo');
+        // localhost/80 placeholders of a fresh install. The version is the
+        // highest one of the protocol family this response is written in:
+        // 1.2 for a 1.1/1.2 request (the default), 2.0 for a 2.0 request.
+        $serverInfo = $xml->createElementNS(self::NS_EXPLAIN, 'serverInfo');
         $serverInfo->setAttribute('protocol', 'SRU');
-        $serverInfo->setAttribute('version', '1.2');
+        $serverInfo->setAttribute('version', $env['v2'] ? '2.0' : '1.2');
         $explain->appendChild($serverInfo);
 
-        $serverInfo->appendChild($xml->createElement('host', $this->escapeXml($host)));
-        $serverInfo->appendChild($xml->createElement('port', $this->escapeXml($port)));
-        $serverInfo->appendChild($xml->createElement('database', $this->escapeXml($database)));
+        $serverInfo->appendChild($xml->createElementNS(self::NS_EXPLAIN, 'host', $this->escapeXml($host)));
+        $serverInfo->appendChild($xml->createElementNS(self::NS_EXPLAIN, 'port', $this->escapeXml($port)));
+        $serverInfo->appendChild($xml->createElementNS(self::NS_EXPLAIN, 'database', $this->escapeXml($database)));
 
         // Database info
-        $databaseInfo = $xml->createElement('databaseInfo');
+        $databaseInfo = $xml->createElementNS(self::NS_EXPLAIN, 'databaseInfo');
         $explain->appendChild($databaseInfo);
 
-        $databaseInfo->appendChild($xml->createElement('title', 'Library Catalog - Pinakes'));
-        $databaseInfo->appendChild($xml->createElement('description', 'SRU interface to library catalog'));
+        $databaseInfo->appendChild($xml->createElementNS(self::NS_EXPLAIN, 'title', 'Library Catalog - Pinakes'));
+        $databaseInfo->appendChild($xml->createElementNS(self::NS_EXPLAIN, 'description', 'SRU interface to library catalog'));
 
         // Index info
-        $indexInfo = $xml->createElement('indexInfo');
+        $indexInfo = $xml->createElementNS(self::NS_EXPLAIN, 'indexInfo');
         $explain->appendChild($indexInfo);
 
         // Define searchable indexes
@@ -308,7 +366,7 @@ class SRUServer
             $usedSets[explode('.', $idx['name'], 2)[0]] = true;
         }
         foreach (array_keys($usedSets) as $setName) {
-            $set = $xml->createElement('set');
+            $set = $xml->createElementNS(self::NS_EXPLAIN, 'set');
             $set->setAttribute('identifier', self::CONTEXT_SETS[$setName]);
             $set->setAttribute('name', $setName);
             $indexInfo->appendChild($set);
@@ -317,21 +375,21 @@ class SRUServer
         foreach ($indexes as $idx) {
             [$setName, $indexName] = explode('.', $idx['name'], 2);
 
-            $index = $xml->createElement('index');
+            $index = $xml->createElementNS(self::NS_EXPLAIN, 'index');
             $indexInfo->appendChild($index);
 
-            $index->appendChild($xml->createElement('title', $this->escapeXml($idx['title'])));
+            $index->appendChild($xml->createElementNS(self::NS_EXPLAIN, 'title', $this->escapeXml($idx['title'])));
 
-            $map = $xml->createElement('map');
+            $map = $xml->createElementNS(self::NS_EXPLAIN, 'map');
             $index->appendChild($map);
 
-            $nameEl = $xml->createElement('name', $this->escapeXml($indexName));
+            $nameEl = $xml->createElementNS(self::NS_EXPLAIN, 'name', $this->escapeXml($indexName));
             $nameEl->setAttribute('set', $setName);
             $map->appendChild($nameEl);
         }
 
         // Schema info
-        $schemaInfo = $xml->createElement('schemaInfo');
+        $schemaInfo = $xml->createElementNS(self::NS_EXPLAIN, 'schemaInfo');
         $explain->appendChild($schemaInfo);
 
         $supportedFormats = explode(',', $this->settings['supported_formats'] ?? 'marcxml,dc');
@@ -346,21 +404,21 @@ class SRUServer
         foreach ($supportedFormats as $format) {
             $format = trim($format);
             if (isset($formatSchemas[$format])) {
-                $schema = $xml->createElement('schema');
+                $schema = $xml->createElementNS(self::NS_EXPLAIN, 'schema');
                 $schema->setAttribute('identifier', $formatSchemas[$format]);
                 $schema->setAttribute('name', $format);
                 $schemaInfo->appendChild($schema);
 
-                $schemaTitle = $xml->createElement('title', ucfirst($format));
+                $schemaTitle = $xml->createElementNS(self::NS_EXPLAIN, 'title', ucfirst($format));
                 $schema->appendChild($schemaTitle);
             }
         }
 
         // Config info
-        $configInfo = $xml->createElement('configInfo');
+        $configInfo = $xml->createElementNS(self::NS_EXPLAIN, 'configInfo');
         $explain->appendChild($configInfo);
 
-        $maxRecords = $xml->createElement('default', $this->escapeXml((string) ($this->settings['max_records'] ?? '100')));
+        $maxRecords = $xml->createElementNS(self::NS_EXPLAIN, 'default', $this->escapeXml((string) ($this->settings['max_records'] ?? '100')));
         $maxRecords->setAttribute('type', 'numberOfRecords');
         $configInfo->appendChild($maxRecords);
 
@@ -370,18 +428,51 @@ class SRUServer
     }
 
     /**
-     * The recordPacking a client asked for: 'xml' (default) or 'string'.
-     * Null for any other value, which callers answer with diagnostic 71.
+     * How the client wants records carried in <recordData>: 'xml' (default)
+     * or 'string'. Null for any other value, which callers answer with
+     * diagnostic 71.
+     *
+     * SRU 1.x calls the parameter recordPacking. SRU 2.0 renamed it
+     * recordXMLEscaping and gave recordPacking a new meaning (packed or
+     * unpacked, a hint about how strictly the record schema is applied; this
+     * server answers the same record either way). A 2.0 request that still
+     * says recordPacking=xml|string is read the 1.x way rather than refused.
      *
      * @param array<string,mixed> $params
      */
-    private function resolveRecordPacking(array $params): ?string
+    private function resolveRecordPacking(array $params, bool $v2 = false): ?string
     {
-        $packing = strtolower($this->sanitizeString($params['recordPacking'] ?? 'xml'));
-        if ($packing === '') {
+        $packing = strtolower($this->sanitizeString($params['recordPacking'] ?? ''));
+        if (!$v2) {
+            if ($packing === '') {
+                return 'xml';
+            }
+            return in_array($packing, ['xml', 'string'], true) ? $packing : null;
+        }
+
+        $escaping = strtolower($this->sanitizeString($params['recordXMLEscaping'] ?? ''));
+        if ($escaping === '' && in_array($packing, ['xml', 'string'], true)) {
+            $escaping = $packing;
+            $packing = '';
+        }
+        if (!in_array($packing, ['', 'packed', 'unpacked'], true)) {
+            return null;
+        }
+        if ($escaping === '') {
             return 'xml';
         }
-        return in_array($packing, ['xml', 'string'], true) ? $packing : null;
+        return in_array($escaping, ['xml', 'string'], true) ? $escaping : null;
+    }
+
+    /**
+     * The raw value resolveRecordPacking() refused, for the diagnostic details.
+     *
+     * @param array<string,mixed> $params
+     */
+    private function recordPackingAsked(array $params, bool $v2): string
+    {
+        $escaping = $v2 ? $this->sanitizeString($params['recordXMLEscaping'] ?? '') : '';
+        return $escaping !== '' ? $escaping : $this->sanitizeString($params['recordPacking'] ?? '');
     }
 
     /**
@@ -470,9 +561,10 @@ class SRUServer
             (int) ($this->settings['max_records'] ?? 100)
         ));
         $recordSchema = $this->sanitizeString($params['recordSchema'] ?? $this->settings['default_format'] ?? 'marcxml');
-        $recordPacking = $this->resolveRecordPacking($params);
+        $v2 = $this->envelope($version, 'searchRetrieve')['v2'];
+        $recordPacking = $this->resolveRecordPacking($params, $v2);
         if ($recordPacking === null) {
-            return $this->errorResponse(71, 'Unsupported record packing', $version, 'searchRetrieve', (string) ($params['recordPacking'] ?? ''));
+            return $this->errorResponse(71, 'Unsupported record packing', $version, 'searchRetrieve', $this->recordPackingAsked($params, $v2));
         }
 
         // Validate query parameter
@@ -555,21 +647,30 @@ class SRUServer
             $bad = $positionRaw === false ? 'responsePosition' : 'maximumTerms';
             return $this->errorResponse(6, 'Unsupported parameter value: ' . $bad, $version, 'scan', $bad);
         }
-        $responsePosition = max(1, $positionRaw ?? 1);
+        $responsePosition = $positionRaw ?? 1;
         $maximumTerms = min($termsRaw ?? 10, 100);
 
         if (empty($scanClause)) {
             return $this->errorResponse(7, 'Mandatory parameter not supplied: scanClause', $version, 'scan');
         }
 
+        // In SRU 1.x responsePosition runs from 0 (the start term sits just
+        // before the list) to maximumTerms + 1 (just after it); beyond that is
+        // diagnostic 120, "Response position out of range". SRU 2.0 has no
+        // upper limit: a larger position asks for terms further before the
+        // start term (performScanQuery()).
+        if ($version !== '2.0' && $responsePosition > $maximumTerms + 1) {
+            return $this->errorResponse(120, 'Response position out of range', $version, 'scan', (string) $responsePosition);
+        }
+
         try {
             $parser = new CQLParser();
             $ast = $parser->parse($scanClause);
-            $condition = $this->extractScanCondition($ast);
+            $condition = $this->extractScanCondition($ast, $scanClause);
 
-            $terms = $this->performScanQuery($condition['index'], $condition['value'], $maximumTerms);
+            $terms = $this->performScanQuery($condition['index'], $condition['value'], $maximumTerms, $responsePosition);
 
-            return $this->formatScanResponse($version, $scanClause, $terms, $responsePosition);
+            return $this->formatScanResponse($version, $scanClause, $terms, $responsePosition, $maximumTerms);
         } catch (\Z39Server\Exceptions\UnsupportedIndexException $e) {
             return $this->errorResponse(16, 'Unsupported index', $version, 'scan', $e->getMessage());
         } catch (\Z39Server\Exceptions\InvalidCQLSyntaxException | \Z39Server\Exceptions\UnsupportedRelationException $e) {
@@ -719,6 +820,7 @@ class SRUServer
             -- query doesn't multiply rows (libri_autori × copie × libri_editori)
             -- before GROUP BY. Payload publishers come from fetchPublishersForRecords().
             LEFT JOIN generi g ON l.genere_id = g.id
+            LEFT JOIN generi sg ON l.sottogenere_id = sg.id
             -- #5: resolve shelf/location from the CURRENT columns. The admin
             -- book save hard-sets libri.posizione_id = NULL and stores the
             -- location in libri.scaffale_id / libri.mensola_id / libri.collocazione,
@@ -1669,16 +1771,22 @@ class SRUServer
         $xml = new \DOMDocument('1.0', 'UTF-8');
         $xml->formatOutput = true;
 
-        $root = $xml->createElementNS(self::NS_SRU, 'searchRetrieveResponse');
-        $xml->appendChild($root);
+        $env = $this->envelope($version, 'searchRetrieve');
+        // SRU 2.0 renamed the per-record and echoed recordPacking.
+        $packingElement = $env['v2'] ? 'recordXMLEscaping' : 'recordPacking';
 
-        $ns = self::NS_SRU;
+        $root = $this->envelopeElement($xml, $env, 'searchRetrieveResponse');
+        $xml->appendChild($root);
 
         // SRU 1.2 fixes the child order: version, numberOfRecords,
         // resultSetId?, resultSetIdleTime?, records?, nextRecordPosition?,
         // echoedSearchRetrieveRequest?, diagnostics?, extraResponseData?.
-        $root->appendChild($xml->createElementNS($ns, 'version', $this->escapeXml($version)));
-        $root->appendChild($xml->createElementNS($ns, 'numberOfRecords', (string) $totalRecords));
+        // SRU 2.0 keeps the same order for the elements written here, without
+        // <version>: it removed the element from the response and its echo.
+        if (!$env['v2']) {
+            $root->appendChild($this->envelopeElement($xml, $env, 'version', $this->escapeXml($version)));
+        }
+        $root->appendChild($this->envelopeElement($xml, $env, 'numberOfRecords', (string) $totalRecords));
 
         $schemaKey = strtolower($recordSchema);
         $formatter = RecordFormatter::create($schemaKey, $xml);
@@ -1695,22 +1803,22 @@ class SRUServer
 
         // <records> is optional and must not be emitted empty.
         if ($records !== []) {
-            $recordsEl = $xml->createElementNS($ns, 'records');
+            $recordsEl = $this->envelopeElement($xml, $env, 'records');
             $root->appendChild($recordsEl);
 
             $position = $startRecord;
             foreach ($records as $record) {
-                $recordEl = $xml->createElementNS($ns, 'record');
+                $recordEl = $this->envelopeElement($xml, $env, 'record');
                 $recordsEl->appendChild($recordEl);
 
-                $recordEl->appendChild($xml->createElementNS($ns, 'recordSchema', $this->escapeXml($schemaUri)));
-                $recordEl->appendChild($xml->createElementNS($ns, 'recordPacking', $recordPacking));
+                $recordEl->appendChild($this->envelopeElement($xml, $env, 'recordSchema', $this->escapeXml($schemaUri)));
+                $recordEl->appendChild($this->envelopeElement($xml, $env, $packingElement, $recordPacking));
 
-                $recordData = $xml->createElementNS($ns, 'recordData');
+                $recordData = $this->envelopeElement($xml, $env, 'recordData');
                 $recordEl->appendChild($recordData);
                 $this->appendRecordPayload($xml, $recordData, $formatter->format($record), $recordPacking);
 
-                $recordEl->appendChild($xml->createElementNS($ns, 'recordPosition', (string) $position));
+                $recordEl->appendChild($this->envelopeElement($xml, $env, 'recordPosition', (string) $position));
 
                 $position++;
             }
@@ -1719,160 +1827,162 @@ class SRUServer
         // nextRecordPosition when more records exist beyond this page
         $nextPos = $startRecord + $returnedRecords;
         if ($returnedRecords > 0 && $nextPos <= $totalRecords) {
-            $root->appendChild($xml->createElementNS($ns, 'nextRecordPosition', (string) $nextPos));
+            $root->appendChild($this->envelopeElement($xml, $env, 'nextRecordPosition', (string) $nextPos));
         }
 
         // Echo the request (version and query first, as the schema requires)
-        $echoedQuery = $xml->createElementNS($ns, 'echoedSearchRetrieveRequest');
+        $echoedQuery = $this->envelopeElement($xml, $env, 'echoedSearchRetrieveRequest');
         $root->appendChild($echoedQuery);
-        $echoedQuery->appendChild($xml->createElementNS($ns, 'version', $this->escapeXml($version)));
-        $echoedQuery->appendChild($xml->createElementNS($ns, 'query', $this->escapeXml($query)));
-        $echoedQuery->appendChild($xml->createElementNS($ns, 'startRecord', (string) $startRecord));
-        $echoedQuery->appendChild($xml->createElementNS($ns, 'maximumRecords', (string) $maximumRecords));
-        $echoedQuery->appendChild($xml->createElementNS($ns, 'recordPacking', $recordPacking));
-        $echoedQuery->appendChild($xml->createElementNS($ns, 'recordSchema', $this->escapeXml($recordSchema)));
+        if (!$env['v2']) {
+            $echoedQuery->appendChild($this->envelopeElement($xml, $env, 'version', $this->escapeXml($version)));
+        }
+        $echoedQuery->appendChild($this->envelopeElement($xml, $env, 'query', $this->escapeXml($query)));
+        $echoedQuery->appendChild($this->envelopeElement($xml, $env, 'startRecord', (string) $startRecord));
+        $echoedQuery->appendChild($this->envelopeElement($xml, $env, 'maximumRecords', (string) $maximumRecords));
+        $echoedQuery->appendChild($this->envelopeElement($xml, $env, $packingElement, $recordPacking));
+        $echoedQuery->appendChild($this->envelopeElement($xml, $env, 'recordSchema', $this->escapeXml($recordSchema)));
 
         return $xml->saveXML();
     }
 
-    private function extractScanCondition(array $ast): array
+    /**
+     * The index to browse and the term to start from.
+     *
+     * @param array<string,mixed> $ast
+     * @return array{index:string, value:string}
+     */
+    private function extractScanCondition(array $ast, string $scanClause = ''): array
     {
         if (($ast['type'] ?? '') !== 'condition') {
             throw new \Exception('Scan clause must be a single index condition');
         }
 
+        $index = (string) ($ast['index'] ?? 'cql.anywhere');
+        $value = (string) ($ast['value'] ?? '');
+
+        // scanClause=dc.title, an index and nothing else, browses that index
+        // from its first term. CQL reads it as the bare term "dc.title", which
+        // nobody means.
+        $bare = strtolower(trim($scanClause));
+        if ($bare !== '' && $bare === strtolower(trim($value)) && isset($this->indexDefinitions[$bare])) {
+            return ['index' => $bare, 'value' => ''];
+        }
+
         return [
-            'index' => $this->resolveIndex((string) ($ast['index'] ?? 'cql.anywhere')),
-            'value' => $ast['value'] ?? '',
+            'index' => $this->resolveIndex($index),
+            'value' => $value,
         ];
     }
 
     /**
-     * Escape a scan prefix for LIKE (default escape character: backslash).
-     * The backslash is doubled FIRST: done last, it would double the escapes
-     * just added for % and _, turning '%' into a literal backslash followed
-     * by a live wildcard.
+     * The term lists scan can browse: for each index, the SELECTs whose rows
+     * are one (term, record id) pair per catalogue record carrying the term.
+     * {cmp} is where the caller puts its bound comparison on the term.
+     *
+     * Terms and frequencies must agree with searchRetrieve: only live books,
+     * and a requested book (desiderata) is not a holding, so it is not
+     * browsable either.
+     *
+     * @return list<string>|null null when the index has no browsable terms
      */
-    private static function escapeLikePrefix(string $prefix): string
+    private function scanTermSources(string $index): ?array
     {
-        return str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $prefix);
+        $holdingOnly = \App\Support\BookVisibility::catalogue($this->db, 'l');
+
+        return match ($index) {
+            // The number of records a searchRetrieve would return for the
+            // author, not the number of authority rows sharing the name. The
+            // INNER JOINs drop authors whose only books are soft-deleted, and
+            // the roles are those bookFromClause() searches: a translator is
+            // not a dc.creator term, the search would not find it.
+            'dc.creator' => ["
+                SELECT a.nome AS term, l.id AS record_id
+                FROM autori a
+                JOIN libri_autori la ON la.autore_id = a.id
+                                    AND la.ruolo IN ('principale', 'co-autore')
+                JOIN libri l ON l.id = la.libro_id AND l.deleted_at IS NULL AND {$holdingOnly}
+                WHERE a.nome <> '' AND a.nome {cmp}
+            "],
+            // Genre names across both the primary genre and the subgenre;
+            // genres with no books are dropped.
+            'dc.subject' => ["
+                SELECT g.nome AS term, l.id AS record_id
+                FROM generi g
+                JOIN libri l ON (l.genere_id = g.id OR l.sottogenere_id = g.id)
+                            AND l.deleted_at IS NULL AND {$holdingOnly}
+                WHERE g.nome <> '' AND g.nome {cmp}
+            "],
+            'bath.isbn' => [
+                "SELECT l.isbn10 AS term, l.id AS record_id FROM libri l
+                 WHERE l.deleted_at IS NULL AND {$holdingOnly} AND l.isbn10 <> '' AND l.isbn10 {cmp}",
+                "SELECT l.isbn13 AS term, l.id AS record_id FROM libri l
+                 WHERE l.deleted_at IS NULL AND {$holdingOnly} AND l.isbn13 <> '' AND l.isbn13 {cmp}",
+            ],
+            'dc.title', 'cql.anywhere' => ["
+                SELECT l.titolo AS term, l.id AS record_id FROM libri l
+                WHERE l.deleted_at IS NULL AND {$holdingOnly} AND l.titolo <> '' AND l.titolo {cmp}
+            "],
+            default => null,
+        };
     }
 
-    private function performScanQuery(string $index, string $prefix, int $limit): array
+    /**
+     * One direction of a browse: up to $limit distinct terms on one side of
+     * the start term, nearest first, each with its record count.
+     *
+     * The start term is always a bound parameter and is compared as a value,
+     * in the collation of the column that also orders the list, so nothing in
+     * it (%, _, quotes, backslashes) is ever a pattern or SQL.
+     *
+     * Terms are distinct in that same collation: spellings it holds equal
+     * (case, accents) are one term, listed once under one fixed spelling, with
+     * the records of all of them counted together.
+     *
+     * @param list<string> $sources scanTermSources()
+     * @param '>='|'>'|'<' $operator
+     * @param int $offset how many of the nearest terms to leave out first
+     * @return list<array{value:string, frequency:int}>
+     */
+    private function scanTerms(array $sources, string $operator, string $start, int $limit, int $offset = 0): array
     {
-        $index = strtolower($index);
-        $prefix = trim($prefix);
-        $limit = (int) $limit;
+        if ($limit <= 0) {
+            return [];
+        }
+        $direction = $operator === '<' ? 'DESC' : 'ASC';
+        $arms = array_map(static fn(string $sql): string => str_replace('{cmp}', $operator . ' ?', $sql), $sources);
+        // GROUP BY term groups in the column's collation, which is the index's
+        // own notion of "the same term": "Pride and Prejudice" and "Pride and
+        // prejudice" are one term carried by two records, exactly what a
+        // searchRetrieve on either spelling returns. Which of the spellings
+        // stands for the group must not be left to the server: a bare `term`
+        // in the select list is whichever row the plan reads first, so the
+        // same scan could answer either one. The byte-wise lowest spelling is
+        // the same on every run, plan and engine.
+        $sql = 'SELECT MIN(term COLLATE utf8mb4_bin) AS term, COUNT(DISTINCT record_id) AS frequency FROM ('
+            . implode(' UNION ALL ', $arms) . ') AS scan_terms'
+            . " GROUP BY scan_terms.term ORDER BY scan_terms.term {$direction} LIMIT ? OFFSET ?";
 
-        // Escape LIKE wildcards in prefix to prevent unintended pattern matching
-        $pattern = self::escapeLikePrefix($prefix) . '%';
-
-        // SECURITY FIX: Use prepared statements instead of string interpolation
         $terms = [];
-        $stmt = null;
-        $result = null;
-
-        // Scan terms and frequencies must agree with searchRetrieve: a
-        // requested book (desiderata) is not a holding, so it is not browsable.
-        $holdingOnly = \App\Support\BookVisibility::catalogue($this->db, 'l');
-        $holdingOnlyBare = \App\Support\BookVisibility::catalogue($this->db, 'libri');
-
         try {
-            switch ($index) {
-                case 'dc.creator':
-                    // Frequency must reflect the number of non-deleted catalogue
-                    // records a searchRetrieve would return for the author, not
-                    // the number of authority rows sharing that name. The INNER
-                    // JOINs drop authors whose only books are soft-deleted.
-                    $stmt = $this->db->prepare("
-                        SELECT a.nome AS term, COUNT(DISTINCT l.id) AS frequency
-                        FROM autori a
-                        JOIN libri_autori la ON la.autore_id = a.id
-                        JOIN libri l ON l.id = la.libro_id AND l.deleted_at IS NULL AND {$holdingOnly}
-                        WHERE a.nome <> '' AND a.nome LIKE ?
-                        GROUP BY a.nome
-                        ORDER BY a.nome
-                        LIMIT ?
-                    ");
-                    if ($stmt) {
-                        $stmt->bind_param('si', $pattern, $limit);
-                        $stmt->execute();
-                        $result = $stmt->get_result();
-                    }
-                    break;
-
-                case 'dc.subject':
-                    // Count non-deleted records per genre name across both the
-                    // primary genre and the subgenre; drop genres with no books.
-                    $stmt = $this->db->prepare("
-                        SELECT g.nome AS term, COUNT(DISTINCT l.id) AS frequency
-                        FROM generi g
-                        JOIN libri l ON (l.genere_id = g.id OR l.sottogenere_id = g.id)
-                                    AND l.deleted_at IS NULL AND {$holdingOnly}
-                        WHERE g.nome <> '' AND g.nome LIKE ?
-                        GROUP BY g.nome
-                        ORDER BY g.nome
-                        LIMIT ?
-                    ");
-                    if ($stmt) {
-                        $stmt->bind_param('si', $pattern, $limit);
-                        $stmt->execute();
-                        $result = $stmt->get_result();
-                    }
-                    break;
-
-                case 'bath.isbn':
-                    $stmt = $this->db->prepare("
-                        SELECT value AS term, COUNT(*) AS frequency FROM (
-                            SELECT isbn10 AS value FROM libri WHERE deleted_at IS NULL AND {$holdingOnlyBare} AND isbn10 <> '' AND isbn10 LIKE ?
-                            UNION ALL
-                            SELECT isbn13 AS value FROM libri WHERE deleted_at IS NULL AND {$holdingOnlyBare} AND isbn13 <> '' AND isbn13 LIKE ?
-                        ) AS isbns
-                        GROUP BY value
-                        ORDER BY value
-                        LIMIT ?
-                    ");
-                    if ($stmt) {
-                        $stmt->bind_param('ssi', $pattern, $pattern, $limit);
-                        $stmt->execute();
-                        $result = $stmt->get_result();
-                    }
-                    break;
-
-                case 'dc.title':
-                case 'cql.anywhere':
-                default:
-                    $stmt = $this->db->prepare("
-                        SELECT titolo AS term, COUNT(*) AS frequency
-                        FROM libri
-                        WHERE titolo <> '' AND titolo LIKE ? AND deleted_at IS NULL AND {$holdingOnlyBare}
-                        GROUP BY titolo
-                        ORDER BY titolo
-                        LIMIT ?
-                    ");
-                    if ($stmt) {
-                        $stmt->bind_param('si', $pattern, $limit);
-                        $stmt->execute();
-                        $result = $stmt->get_result();
-                    }
-                    break;
+            $stmt = $this->db->prepare($sql);
+            if ($stmt === false) {
+                return [];
             }
-
-            if ($result) {
+            $values = array_fill(0, count($arms), $start);
+            $values[] = $limit;
+            $values[] = max(0, $offset);
+            $stmt->bind_param(str_repeat('s', count($arms)) . 'ii', ...$values);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            if ($result instanceof \mysqli_result) {
                 while ($row = $result->fetch_assoc()) {
-                    if (!empty($row['term'])) {
-                        $terms[] = [
-                            'value' => $row['term'],
-                            'frequency' => (int) ($row['frequency'] ?? 0),
-                        ];
+                    if ((string) ($row['term'] ?? '') !== '') {
+                        $terms[] = ['value' => (string) $row['term'], 'frequency' => (int) ($row['frequency'] ?? 0)];
                     }
                 }
                 $result->free();
             }
-
-            if ($stmt) {
-                $stmt->close();
-            }
+            $stmt->close();
         } catch (\mysqli_sql_exception $e) {
             throw new \Z39Server\Exceptions\DatabaseException($e->getMessage(), (int) $e->getCode(), $e);
         }
@@ -1881,51 +1991,109 @@ class SRUServer
     }
 
     /**
+     * Browse an index (SRU scan): the terms around the start term, in index
+     * order. This is not a search: the start term does not have to exist, and
+     * the terms returned do not have to begin with it. dc.title=a answers the
+     * first titles at or after "a".
+     *
+     * responsePosition says where in the list the start term belongs. 1 (the
+     * default) puts it first: the list is the first $limit terms at or after
+     * it. N puts N - 1 preceding terms in front of it. 0 leaves it out: the
+     * list starts with the first term after it. $limit + 1 puts it right
+     * after the list, which is then made of the $limit terms before it.
+     * A larger N (SRU 2.0) moves the list further back: it still begins
+     * N - 1 terms before the start term and holds $limit of them, so the
+     * terms nearest to the start term are left out.
+     * Either side comes back shorter when the index ends there.
+     *
+     * @return list<array{value:string, frequency:int}>
+     */
+    private function performScanQuery(string $index, string $start, int $limit, int $responsePosition = 1): array
+    {
+        $index = strtolower($index);
+        $sources = $this->scanTermSources($index);
+        if ($sources === null) {
+            // A searchable index whose terms cannot be listed (availability,
+            // dates, shelves, ...): answering another index's terms for it
+            // would be a wrong answer, so it is diagnostic 16.
+            throw new \Z39Server\Exceptions\UnsupportedIndexException($index);
+        }
+        $start = trim($start);
+
+        if ($responsePosition <= 0) {
+            return $this->scanTerms($sources, '>', $start, $limit);
+        }
+
+        // The list begins $preceding terms before the start term. When that is
+        // more than it can hold, the nearest of them fall after its end.
+        $preceding = $responsePosition - 1;
+        $skipped = max(0, $preceding - $limit);
+        $before = array_reverse($this->scanTerms($sources, '<', $start, min($preceding, $limit), $skipped));
+        $from = $this->scanTerms($sources, '>=', $start, $limit - $preceding);
+
+        return array_merge($before, $from);
+    }
+
+    /**
      * Format scan response
      *
      * @param string $version SRU version
      * @param string $scanClause Scan clause
+     * @param list<array{value:string, frequency:int}> $terms
      * @param int $responsePosition Response position
+     * @param int $maximumTerms Maximum number of terms
      * @return string XML response
      */
     private function formatScanResponse(
         string $version,
         string $scanClause,
         array $terms,
-        int $responsePosition
+        int $responsePosition,
+        int $maximumTerms
     ): string {
         $xml = new \DOMDocument('1.0', 'UTF-8');
         $xml->formatOutput = true;
 
-        $root = $xml->createElementNS(self::NS_SRU, 'scanResponse');
+        $env = $this->envelope($version, 'scan');
+
+        $root = $this->envelopeElement($xml, $env, 'scanResponse');
         $xml->appendChild($root);
 
-        $ns = self::NS_SRU;
-
-        // FIX 1b: use createElementNS for all SRU root-level child elements
-        $versionEl = $xml->createElementNS($ns, 'version', $this->escapeXml($version));
-        $root->appendChild($versionEl);
-
-        $termsEl = $xml->createElementNS($ns, 'terms');
-        $root->appendChild($termsEl);
-
-        foreach ($terms as $offset => $termData) {
-            $termEl = $xml->createElementNS($ns, 'term');
-            $termsEl->appendChild($termEl);
-
-            $value = $xml->createElementNS($ns, 'value', $this->escapeXml($termData['value'] ?? ''));
-            $termEl->appendChild($value);
-
-            $number = $xml->createElementNS($ns, 'numberOfRecords', (string) ($termData['frequency'] ?? 0));
-            $termEl->appendChild($number);
-
-            $position = $xml->createElementNS($ns, 'position', (string) ($responsePosition + $offset));
-            $termEl->appendChild($position);
+        // SRU 2.0 dropped <version> from the scan response and its echo.
+        if (!$env['v2']) {
+            $root->appendChild($this->envelopeElement($xml, $env, 'version', $this->escapeXml($version)));
         }
 
-        $echoed = $xml->createElementNS($ns, 'echoedScanRequest');
+        // <terms> is optional and holds at least one <term>, in 1.x and 2.0
+        // alike: past either end of the index it is left out.
+        if ($terms !== []) {
+            $termsEl = $this->envelopeElement($xml, $env, 'terms');
+            $root->appendChild($termsEl);
+
+            foreach ($terms as $offset => $termData) {
+                $termEl = $this->envelopeElement($xml, $env, 'term');
+                $termsEl->appendChild($termEl);
+
+                $termEl->appendChild($this->envelopeElement($xml, $env, 'value', $this->escapeXml($termData['value'])));
+                $termEl->appendChild($this->envelopeElement($xml, $env, 'numberOfRecords', (string) $termData['frequency']));
+
+                // Not an SRU element (the 2.0 schema has no room for it): the
+                // 1-based place of the term in this list, kept for the 1.x
+                // clients that already read it.
+                if (!$env['v2']) {
+                    $termEl->appendChild($this->envelopeElement($xml, $env, 'position', (string) ($offset + 1)));
+                }
+            }
+        }
+
+        $echoed = $this->envelopeElement($xml, $env, 'echoedScanRequest');
         $root->appendChild($echoed);
-        $echoed->appendChild($xml->createElementNS($ns, 'scanClause', $this->escapeXml($scanClause)));
+        if (!$env['v2']) {
+            $echoed->appendChild($this->envelopeElement($xml, $env, 'version', $this->escapeXml($version)));
+        }
+        $echoed->appendChild($this->envelopeElement($xml, $env, 'scanClause', $this->escapeXml($scanClause)));
+        $echoed->appendChild($this->envelopeElement($xml, $env, 'responsePosition', (string) $responsePosition));
+        $echoed->appendChild($this->envelopeElement($xml, $env, 'maximumTerms', (string) $maximumTerms));
 
         return $xml->saveXML();
     }
@@ -1950,34 +2118,37 @@ class SRUServer
             default   => 'searchRetrieveResponse',
         };
 
-        $root = $xml->createElementNS(self::NS_SRU, $rootElement);
+        $env = $this->envelope($version, $operation);
+
+        $root = $this->envelopeElement($xml, $env, $rootElement);
         $xml->appendChild($root);
 
-        $ns = self::NS_SRU;
-
-        $versionEl = $xml->createElementNS($ns, 'version', $this->escapeXml($version));
-        $root->appendChild($versionEl);
+        // SRU 2.0 dropped <version> from its responses; in 1.x it comes first.
+        if (!$env['v2']) {
+            $root->appendChild($this->envelopeElement($xml, $env, 'version', $this->escapeXml($version)));
+        }
 
         // numberOfRecords is mandatory in a searchRetrieveResponse, also when
         // the request failed.
         if ($rootElement === 'searchRetrieveResponse') {
-            $root->appendChild($xml->createElementNS($ns, 'numberOfRecords', '0'));
+            $root->appendChild($this->envelopeElement($xml, $env, 'numberOfRecords', '0'));
         }
 
-        $diagnostics = $xml->createElementNS($ns, 'diagnostics');
+        $diagnostics = $this->envelopeElement($xml, $env, 'diagnostics');
         $root->appendChild($diagnostics);
 
-        // <diag:diagnostic> with uri/details/message, all in the SRU
-        // diagnostic namespace. The info:srw URI is the TEXT of <uri>.
-        $diagnostic = $xml->createElementNS(self::NS_DIAG, 'diag:diagnostic');
+        // <diag:diagnostic> with uri/details/message, all in the diagnostic
+        // namespace of the answered version. The info:srw URI is the TEXT of
+        // <uri>, in 1.x and 2.0 alike.
+        $diagnostic = $xml->createElementNS($env['diag'], 'diag:diagnostic');
         $diagnostics->appendChild($diagnostic);
 
-        $diagnostic->appendChild($xml->createElementNS(self::NS_DIAG, 'diag:uri', self::DIAG_URI_PREFIX . $code));
+        $diagnostic->appendChild($xml->createElementNS($env['diag'], 'diag:uri', self::DIAG_URI_PREFIX . $code));
 
         $detailText = $details !== null && $details !== '' ? $details : $message;
-        $diagnostic->appendChild($xml->createElementNS(self::NS_DIAG, 'diag:details', $this->escapeXml($detailText)));
+        $diagnostic->appendChild($xml->createElementNS($env['diag'], 'diag:details', $this->escapeXml($detailText)));
 
-        $diagnostic->appendChild($xml->createElementNS(self::NS_DIAG, 'diag:message', $this->escapeXml($message)));
+        $diagnostic->appendChild($xml->createElementNS($env['diag'], 'diag:message', $this->escapeXml($message)));
 
         return $xml->saveXML();
     }

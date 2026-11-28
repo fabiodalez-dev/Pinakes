@@ -320,6 +320,13 @@ class ReservationManager
                 // closure can put after the requested one (an open day stays as it is).
                 $storedEndDate = (string) $endDate;
                 $endDate = \App\Support\LibraryCalendar::requestDueDate($this->db, (string) $endDate, 0, $bookId);
+                if ($endDate < $today) {
+                    // The window is over, closures included: promoting it
+                    // would write a loan request dated in the past and hold
+                    // the copy the next reader is waiting for. The row stays
+                    // for cancelExpiredReservations(), which tells the reader.
+                    continue;
+                }
                 $nextReservation['data_fine_richiesta'] = $endDate;
                 $headQueuePos = isset($nextReservation['queue_position']) ? (int) $nextReservation['queue_position'] : null;
 
@@ -1005,6 +1012,12 @@ class ReservationManager
      * altro codice rilegge completata + notifica_inviata=0). Finestra di 7 giorni:
      * oltre, l'avviso non è più utile all'utente.
      *
+     * The seven days run from the promotion (the creation of the promoted
+     * loan): every failed attempt stamps prenotazioni.updated_at again, so that
+     * column never ages. And the e-mail says "wait for approval", so it is only
+     * due while the promoted loan is still pending: after approval the reader
+     * has already been told the book is ready.
+     *
      * Da chiamare FUORI da ogni transazione (invia email direttamente):
      * MaintenanceService::runAll() e il cron automatic-notifications.
      *
@@ -1047,10 +1060,9 @@ class ReservationManager
                 )
             ) AND pr.libro_id = r.libro_id AND pr.utente_id = r.utente_id AND pr.origine = 'prenotazione'
             WHERE r.stato = 'completata' AND r.notifica_inviata = 0
-              AND ((pr.attivo = 0 AND pr.stato = 'pendente')
-                   OR (pr.attivo = 1 AND pr.stato IN ('prenotato', 'da_ritirare', 'in_corso', 'in_ritardo')))
+              AND pr.attivo = 0 AND pr.stato = 'pendente'
               AND COALESCE(r.data_inizio_richiesta, DATE(r.data_scadenza_prenotazione)) IS NOT NULL
-              AND r.updated_at >= ?
+              AND pr.created_at >= ?
             ORDER BY r.updated_at ASC
             LIMIT ?
         ");
@@ -1182,6 +1194,9 @@ class ReservationManager
      * Marks reservations as 'annullata' when data_scadenza_prenotazione
      * is in the past, reorders queue positions for affected books and
      * notifies the affected users (M11: prima la scadenza era silenziosa).
+     * A row without a stored deadline (imports, legacy data) expires at the
+     * end of its last requested day: promotion refuses a window that is over,
+     * so such a row would otherwise wait in the queue forever.
      *
      * Uses transaction to ensure atomic update and queue reordering; le
      * notifiche partono solo DOPO il commit (differite via
@@ -1205,6 +1220,18 @@ class ReservationManager
             // il web non imposta nulla). Un unico valore condiviso da SELECT e
             // UPDATE garantisce anche che le due query vedano le stesse righe.
             $now = \App\Support\DateHelper::now();
+            $today = substr($now, 0, 10);
+            // Candidate rows: a stored deadline that has passed or, without
+            // one, a last requested day before today. Bound to (now, today).
+            $expiringSql = "(
+                    data_scadenza_prenotazione < ?
+                    OR (data_scadenza_prenotazione IS NULL
+                        AND COALESCE(data_fine_richiesta, data_inizio_richiesta) >= '1000-01-01'
+                        AND COALESCE(data_fine_richiesta, data_inizio_richiesta) < ?)
+                )";
+            $deadlineOf = static fn (array $row): string => $row['data_scadenza_prenotazione'] !== null
+                ? (string) $row['data_scadenza_prenotazione']
+                : (string) ($row['data_fine_richiesta'] ?? $row['data_inizio_richiesta']) . ' 23:59:59';
 
             // Resolve affected books first, then lock them in deterministic order
             // BEFORE locking reservation rows. The previous reservations->libri
@@ -1213,11 +1240,10 @@ class ReservationManager
                 SELECT DISTINCT libro_id
                 FROM prenotazioni
                 WHERE stato = 'attiva'
-                  AND data_scadenza_prenotazione IS NOT NULL
-                  AND data_scadenza_prenotazione < ?
+                  AND {$expiringSql}
                 ORDER BY libro_id
             ");
-            $booksStmt->bind_param('s', $now);
+            $booksStmt->bind_param('ss', $now, $today);
             $booksStmt->execute();
             $booksResult = $booksStmt->get_result();
             $affectedBooks = [];
@@ -1246,15 +1272,14 @@ class ReservationManager
             // tabelle) and collect the data needed for queue reordering and for
             // the user notifications (M11).
             $selectStmt = $this->db->prepare("
-                SELECT id, libro_id, utente_id, data_scadenza_prenotazione
+                SELECT id, libro_id, utente_id, data_scadenza_prenotazione, data_inizio_richiesta, data_fine_richiesta
                 FROM prenotazioni
                 WHERE stato = 'attiva'
-                AND data_scadenza_prenotazione IS NOT NULL
-                AND data_scadenza_prenotazione < ?
+                AND {$expiringSql}
                 AND libro_id IN ($bookIdsSql)
                 FOR UPDATE
             ");
-            $selectStmt->bind_param('s', $now);
+            $selectStmt->bind_param('ss', $now, $today);
             $selectStmt->execute();
             $result = $selectStmt->get_result();
             $expiring = $result ? $result->fetch_all(MYSQLI_ASSOC) : [];
@@ -1262,7 +1287,7 @@ class ReservationManager
 
             $expiring = array_values(array_filter($expiring, fn (array $row): bool =>
                 \App\Support\LibraryCalendar::reservationExpired(
-                    $this->db, (string) $row['data_scadenza_prenotazione'], (int) $row['libro_id'], $now
+                    $this->db, $deadlineOf($row), (int) $row['libro_id'], $now
                 )
             ));
             if ($expiring === []) {
@@ -1305,7 +1330,7 @@ class ReservationManager
                             // Raw: formattata da sendQueueReservationExpiredNotification()
                             // The effective deadline expiry used, not a closed stored day.
                             'data_scadenza' => \App\Support\LibraryCalendar::reservationDeadline(
-                                $this->db, (string) $row['data_scadenza_prenotazione'], (int) $row['libro_id']
+                                $this->db, $deadlineOf($row), (int) $row['libro_id']
                             ),
                         ],
                     ];
@@ -1319,11 +1344,10 @@ class ReservationManager
                 UPDATE prenotazioni
                 SET stato = 'annullata'
                 WHERE stato = 'attiva'
-                AND data_scadenza_prenotazione IS NOT NULL
-                AND data_scadenza_prenotazione < ?
+                AND {$expiringSql}
                 AND id IN ($expiredIdsSql)
             ");
-            $stmt->bind_param('s', $now);
+            $stmt->bind_param('ss', $now, $today);
             $stmt->execute();
             $cancelledCount = $this->db->affected_rows;
             $stmt->close();
