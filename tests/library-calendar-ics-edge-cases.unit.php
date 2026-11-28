@@ -68,6 +68,16 @@ $eq($parse("DTSTART:20261025T003000\nDURATION:P1D"), [['2026-10-25', '2026-10-26
     'A9 while P1D is a calendar day, and reaches the same time of the next one');
 $eq($parse("DTSTART:20261224T230000Z\nDURATION:PT1H"), [['2026-12-25', '2026-12-25', false]],
     'A8 the duration starts from the local day of a UTC DTSTART');
+// 22:30 UTC on 28 March 2026 is 23:30 in Rome; a day later in UTC is 22:30
+// UTC on the 29th, which after the clocks go forward is 00:30 on the 30th.
+// Adding the day on Rome's clock instead would stop at 23:30 on the 29th.
+$eq($parse("DTSTART:20260328T223000Z\nDURATION:P1D"), [['2026-03-28', '2026-03-30', false]],
+    'A8b a UTC DTSTART adds its days in UTC, across the start of DST');
+// 18:30 in New York on 7 March is 00:30 on the 8th in Rome. New York's
+// clocks go forward on the 8th, so a day later there is 18:30 EDT, 23:30 in
+// Rome: still the 8th. A day on Rome's clock would reach 00:30 on the 9th.
+$eq($parse("DTSTART;TZID=America/New_York:20260307T183000\nDURATION:P1D"), [['2026-03-08', '2026-03-08', false]],
+    'A8c a TZID DTSTART adds its days on its own clock (New York changes on 8 March)');
 $eq($parse("DTSTART;VALUE=DATE:20261224\nDTEND;VALUE=DATE:20261226\nDURATION:P14D"), [['2026-12-24', '2026-12-25', false]],
     'A9 a DTEND, when present, is what counts');
 foreach (['-P3D', 'P', '14D', 'PT', 'P1Y', 'garbage'] as $i => $invalid) {

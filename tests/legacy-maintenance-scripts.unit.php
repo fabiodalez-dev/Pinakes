@@ -53,6 +53,14 @@ $e2eNamesServer = (getenv('E2E_DB_HOST') ?: '') !== '' || (getenv('E2E_DB_PORT')
 $socket = $e2eSocket !== '' ? $e2eSocket : ($e2eNamesServer ? '' : ($env['DB_SOCKET'] ?? ''));
 $useSocket = $socket !== '' && file_exists($socket);
 $dbHost = $useSocket ? 'localhost' : (getenv('E2E_DB_HOST') ?: ($env['DB_HOST'] ?? '127.0.0.1'));
+// Without a socket the connection is TCP, here and in the scripts run below
+// alike. "localhost" would make mysqli pick its default socket in this
+// process, and the scripts the first socket they find: with two servers on
+// the machine the fixtures and maintenance.php's global purge could land on
+// different ones.
+if (!$useSocket && strcasecmp($dbHost, 'localhost') === 0) {
+    $dbHost = '127.0.0.1';
+}
 $dbPort = (int) (getenv('E2E_DB_PORT') ?: ($env['DB_PORT'] ?? 3306));
 $dbUser = getenv('E2E_DB_USER') ?: ($env['DB_USER'] ?? '');
 // An E2E password set to the empty string is a password, not a missing one.

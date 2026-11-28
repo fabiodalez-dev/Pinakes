@@ -84,7 +84,9 @@ $bookIds = [];
 /** @var int[] $userIds */
 $userIds = [];
 $catalogueRow = $db->query("SELECT setting_value FROM system_settings WHERE category = 'system' AND setting_key = 'catalogue_mode'")->fetch_row();
-$cleanup = static function () use ($db, &$bookIds, &$userIds, $catalogueRow, $prefix): void {
+// Set when catalogue_mode cannot be put back: that alone fails the run.
+$restoreError = null;
+$cleanup = static function () use ($db, &$bookIds, &$userIds, $catalogueRow, $prefix, &$restoreError): void {
     try {
         foreach ($bookIds as $id) {
             try { $db->query("DELETE FROM log_modifiche WHERE tabella = 'libri' AND record_id = {$id}"); } catch (Throwable) {}
@@ -101,7 +103,7 @@ $cleanup = static function () use ($db, &$bookIds, &$userIds, $catalogueRow, $pr
         // Catalogue mode is restored to exactly what this run found, also when
         // a delete above failed: a database left in catalogue mode refuses the
         // circulation of every suite that runs after this one. An error here
-        // is reported, and never hides the one of the deletes.
+        // is reported and fails the run, and never hides the one of the deletes.
         try {
             if ($catalogueRow === null) {
                 $db->query("DELETE FROM system_settings WHERE category = 'system' AND setting_key = 'catalogue_mode'");
@@ -114,6 +116,7 @@ $cleanup = static function () use ($db, &$bookIds, &$userIds, $catalogueRow, $pr
                 $stmt->close();
             }
         } catch (Throwable $e) {
+            $restoreError ??= $e;
             fwrite(STDERR, 'FAIL: catalogue_mode not restored: ' . $e->getMessage() . PHP_EOL);
         }
     }
@@ -408,6 +411,11 @@ if ($fatal !== null) {
 }
 if ($cleanupError !== null) {
     fwrite(STDERR, 'FAIL: cleanup ' . $cleanupError->getMessage() . ' @ ' . $cleanupError->getFile() . ':' . $cleanupError->getLine() . PHP_EOL);
+    exit(1);
+}
+if ($restoreError !== null) {
+    // Already reported by the cleanup; the database is left in a mode the
+    // suites after this one did not ask for.
     exit(1);
 }
 

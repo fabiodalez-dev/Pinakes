@@ -1687,7 +1687,7 @@ final class LibraryCalendar
         foreach ($lines as $line) {
             $line = rtrim($line);
             if (strcasecmp($line, 'BEGIN:VEVENT') === 0) {
-                $current = ['start' => null, 'startKey' => null, 'end' => null, 'endIsDate' => false, 'endAtMidnight' => false, 'summary' => '', 'rrule' => null, 'exdates' => [],
+                $current = ['start' => null, 'startKey' => null, 'startSource' => null, 'startZone' => null, 'end' => null, 'endIsDate' => false, 'endAtMidnight' => false, 'summary' => '', 'rrule' => null, 'exdates' => [],
                     'duration' => null, 'cancelled' => false, 'uid' => null, 'override' => false];
                 $nested = 0;
                 continue;
@@ -1710,7 +1710,7 @@ final class LibraryCalendar
                     if ($end === null) {
                         $end = $current['duration'] === null
                             ? $start
-                            : (self::icsDurationEnd((string) $current['startKey'], $current['duration'], $timezone) ?? $start);
+                            : (self::icsDurationEnd((string) $current['startSource'], (string) $current['startZone'], $current['duration'], $timezone) ?? $start);
                     } elseif ($current['endIsDate'] || ($current['endAtMidnight'] && $end > $start)) {
                         $end = self::shift($end, -1);
                     }
@@ -1763,6 +1763,8 @@ final class LibraryCalendar
                 if ($name === 'DTSTART') {
                     $current['start'] = $date;
                     $current['startKey'] = $parsed['key'];
+                    $current['startSource'] = $parsed['source'];
+                    $current['startZone'] = $parsed['zone'];
                 } else {
                     $current['end'] = $date;
                     $current['endIsDate'] = $isDate;
@@ -1855,9 +1857,14 @@ final class LibraryCalendar
      * exclusive: one that falls on midnight does not close that day. Null for
      * a duration that is not a positive one, which leaves DTSTART's day.
      *
-     * @param string $startKey DTSTART as icsDateTime() gives it: local date, or date and time
+     * The duration runs in DTSTART's own zone (RFC 5545 §3.3.6: a day is a
+     * day on that clock), so a UTC DTSTART adds its days in UTC; the end is
+     * then converted to $timezone, where the midnight rule applies.
+     *
+     * @param string $source DTSTART as written: date, or date and time
+     * @param string $zone   the zone $source is in (icsDateTime()'s 'zone')
      */
-    private static function icsDurationEnd(string $startKey, string $duration, string $timezone): ?string
+    private static function icsDurationEnd(string $source, string $zone, string $duration, string $timezone): ?string
     {
         if (preg_match('/^\+?P(?=\d|T\d)(?:(\d{1,5})W)?(?:(\d{1,6})D)?(?:T(?=\d)(?:(\d{1,6})H)?(?:(\d{1,7})M)?(?:(\d{1,8})S)?)?$/i', trim($duration), $m) !== 1) {
             return null;
@@ -1865,10 +1872,11 @@ final class LibraryCalendar
         $days = (int) ($m[1] ?? 0) * 7 + (int) ($m[2] ?? 0);
         $seconds = (int) ($m[3] ?? 0) * 3600 + (int) ($m[4] ?? 0) * 60 + (int) ($m[5] ?? 0);
         try {
-            $start = new \DateTimeImmutable($startKey, new \DateTimeZone($timezone));
+            $start = new \DateTimeImmutable($source, new \DateTimeZone($zone));
             // Days are calendar days, the time part is elapsed time: modify()
             // would add it on the wall clock, an hour off across a DST change.
-            $end = $start->modify("+{$days} days")->add(new \DateInterval("PT{$seconds}S"));
+            $end = $start->modify("+{$days} days")->add(new \DateInterval("PT{$seconds}S"))
+                ->setTimezone(new \DateTimeZone($timezone));
         } catch (\Throwable $e) {
             return null;
         }
@@ -1975,7 +1983,11 @@ final class LibraryCalendar
      * Europe/Rome is 2026-04-11. An unknown TZID is read as floating. Anything
      * after the date or time makes the value invalid.
      *
-     * @return array{date: string, midnight: bool, key: string}|null
+     * 'source' and 'zone' are the value as written and the zone it is in
+     * ($timezone for a DATE, a floating time or an unknown TZID), for
+     * arithmetic that must run on DTSTART's own clock.
+     *
+     * @return array{date: string, midnight: bool, key: string, source: string, zone: string}|null
      */
     private static function icsDateTime(string $value, string $timezone, ?string $tzid = null): ?array
     {
@@ -1988,7 +2000,7 @@ final class LibraryCalendar
             return null;
         }
         if (($m[4] ?? '') === '') {
-            return ['date' => $date, 'midnight' => true, 'key' => $date];
+            return ['date' => $date, 'midnight' => true, 'key' => $date, 'source' => $date, 'zone' => $timezone];
         }
         $time = sprintf('%s:%s:%s', $m[4], $m[5], ($m[6] ?? '') !== '' ? $m[6] : '00');
         $source = null;
@@ -2001,12 +2013,13 @@ final class LibraryCalendar
             try {
                 $local = (new \DateTimeImmutable($date . 'T' . $time, new \DateTimeZone($source)))
                     ->setTimezone(new \DateTimeZone($timezone));
-                return ['date' => $local->format('Y-m-d'), 'midnight' => $local->format('H:i:s') === '00:00:00', 'key' => $local->format('Y-m-d\TH:i:s')];
+                return ['date' => $local->format('Y-m-d'), 'midnight' => $local->format('H:i:s') === '00:00:00', 'key' => $local->format('Y-m-d\TH:i:s'),
+                    'source' => $date . 'T' . $time, 'zone' => $source];
             } catch (\Throwable $e) {
                 // An unknown TZID: the time as written.
             }
         }
-        return ['date' => $date, 'midnight' => $time === '00:00:00', 'key' => $date . 'T' . $time];
+        return ['date' => $date, 'midnight' => $time === '00:00:00', 'key' => $date . 'T' . $time, 'source' => $date . 'T' . $time, 'zone' => $timezone];
     }
 
     /** app.timezone, with the same fallback as DateHelper::today(). */

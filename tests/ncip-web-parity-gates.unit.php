@@ -82,7 +82,9 @@ $restoreCatalogueMode = static function () use ($db, $catalogueRow): void {
     $stmt->close();
 };
 
-$cleanup = static function () use ($db, $run, $titlePrefix, $emailDomain, $restoreCatalogueMode): void {
+// Set when catalogue_mode cannot be put back: that alone fails the run.
+$restoreError = null;
+$cleanup = static function () use ($db, $run, $titlePrefix, $emailDomain, $restoreCatalogueMode, &$restoreError): void {
     $titleLike = $titlePrefix . '%';
     // The accounts of this run only ($makeUser puts $run in the address):
     // another run on the same database keeps its own.
@@ -119,10 +121,12 @@ $cleanup = static function () use ($db, $run, $titlePrefix, $emailDomain, $resto
     } finally {
         // Also when a delete above failed: a database left in catalogue mode
         // refuses the circulation of every suite that runs after this one.
-        // An error here is reported, and never hides the one of the deletes.
+        // An error here is reported and fails the run, and never hides the
+        // one of the deletes.
         try {
             $restoreCatalogueMode();
         } catch (Throwable $e) {
+            $restoreError ??= $e;
             fwrite(STDERR, 'FAIL: catalogue_mode not restored: ' . $e->getMessage() . "\n");
         }
     }
@@ -476,6 +480,8 @@ try {
         fwrite(STDERR, "FAIL: cleanup failed: {$cleanupError->getMessage()}\n");
         $fatal ??= $cleanupError;
     }
+    // After the deletes' error, so that one stays the one reported.
+    $fatal ??= $restoreError;
     $smtpProbe->setValue(null, $originalSmtpReachable);
     $db->close();
 }
