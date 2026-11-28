@@ -25,7 +25,7 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 [![Documentation](https://img.shields.io/badge/Documentazione-Docsify-4285f4?style=for-the-badge&logo=readthedocs&logoColor=white)](https://fabiodalez-dev.github.io/Pinakes/)
 [![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-ffdd00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black)](https://buymeacoffee.com/fabiodalez)
 
-## What's New in v0.9.7
+## What's New in v0.9.7-beta.1
 
 **Long admin lists are easier to page through.** Books, authors, publishers, users and loans get a pager above the table too, and changing page from the pager below brings the first row of the new page back into view instead of leaving the reader at the bottom ([#544](https://github.com/fabiodalez-dev/Pinakes/issues/544)). The donation form on the page of a wanted book now lines up with the description above it and no longer repeats its heading ([#543](https://github.com/fabiodalez-dev/Pinakes/pull/543)). In the public catalogue, the active-filter chip shows the name of the selected genre instead of its internal ID ([#547](https://github.com/fabiodalez-dev/Pinakes/issues/547)). **A full review of circulation** fixed the queue (a reservation whose dates had passed could still be promoted), closures, reader and book deletions, catalogue-only mode, NCIP and the Mobile API; a reader's request can no longer start more than 180 days ahead. **SRU and OAI-PMH** answer third-party clients correctly: SRU 1.x responses carry the conventional `zs:` prefix, SRU 2.0 uses its own namespaces, `scan` browses the index from the start term, and the OAI-PMH `earliestDatestamp` covers deleted records. No migration. Full details in **[CHANGELOG.md](CHANGELOG.md)**.
 
