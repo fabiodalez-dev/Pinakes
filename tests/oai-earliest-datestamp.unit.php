@@ -22,6 +22,7 @@ declare(strict_types=1);
  */
 
 use App\Plugins\OaiPmhServer\OaiPmhServerPlugin;
+use App\Support\BookVisibility;
 use App\Support\HookManager;
 use Slim\Psr7\Factory\ServerRequestFactory;
 use Slim\Psr7\Response as SlimResponse;
@@ -119,6 +120,20 @@ try {
     $stmt->execute();
     $stmt->close();
 
+    // A book withdrawn from the catalogue 60 days ago. Its deleted header is
+    // only listed inside a window that depends on the request (90 days with a
+    // from=, 30 without), so this one is in a from= harvest and not in a
+    // bare one: the two are not the same list, by design.
+    $withdrawn = BookVisibility::hasDesiderata($db) && BookVisibility::hasCataloguedAt($db);
+    if ($withdrawn) {
+        $stmt = $db->prepare('INSERT INTO libri (titolo, is_desiderata, catalogued_at, created_at, updated_at)'
+            . ' VALUES (?, 1, DATE_SUB(NOW(), INTERVAL 200 DAY), DATE_SUB(NOW(), INTERVAL 200 DAY), DATE_SUB(NOW(), INTERVAL 60 DAY))');
+        $withdrawnTitle = $staleTitle . ' withdrawn';
+        $stmt->bind_param('s', $withdrawnTitle);
+        $stmt->execute();
+        $stmt->close();
+    }
+
     $earliest = $earliestOf($oai(['verb' => 'Identify']));
     $check($earliest === $utc($tombstoneAt), "02 earliestDatestamp is the oldest tombstone's datestamp ({$earliest}, expected " . $utc($tombstoneAt) . ')');
 
@@ -128,13 +143,34 @@ try {
     $check(count($found) === 1 && $found[0]['deleted'] && $found[0]['datestamp'] === $utc($tombstoneAt),
         '03 from=earliestDatestamp harvests that tombstone as a deleted header');
 
-    // The contract itself: nothing the list verbs answer is dated before it.
+    // The contract itself: nothing the list verbs answer is dated before it,
+    // neither in a bare harvest nor in one that asks from the beginning of
+    // time.
     $everything = $harvest(['verb' => 'ListIdentifiers', 'metadataPrefix' => 'oai_dc']);
-    $datestamps = array_column($everything, 'datestamp');
-    $check($datestamps !== [] && min($datestamps) >= $earliest,
-        '04 no header of a full harvest is dated before earliestDatestamp (' . count($everything) . ' headers, oldest ' . ($datestamps !== [] ? min($datestamps) : 'none') . ')');
-    $check(count($fromEarliest) === count($everything),
-        '05 from=earliestDatestamp returns the whole repository (' . count($fromEarliest) . ' of ' . count($everything) . ')');
+    $sinceEpoch = $harvest(['verb' => 'ListIdentifiers', 'metadataPrefix' => 'oai_dc', 'from' => '1970-01-01T00:00:00Z']);
+    $datestamps = array_merge(array_column($everything, 'datestamp'), array_column($sinceEpoch, 'datestamp'));
+    $check($everything !== [] && $sinceEpoch !== [] && min($datestamps) >= $earliest,
+        '04 no header of a full harvest, bare or from=1970, is dated before earliestDatestamp (' . count($everything) . ' and ' . count($sinceEpoch)
+        . ' headers, oldest ' . ($datestamps !== [] ? min($datestamps) : 'none') . ')');
+    // from=earliestDatestamp leaves nothing out. The reference is the from=1970
+    // harvest, not the bare one: a from= widens the window of the withdrawn
+    // books' deleted headers, so only two harvests that both carry a from=
+    // list the same repository.
+    $ids = static function (array $headers): array {
+        $out = array_map(static fn(array $h): string => ($h['deleted'] ? 'deleted ' : '') . $h['id'], $headers);
+        sort($out);
+        return $out;
+    };
+    $check($ids($fromEarliest) === $ids($sinceEpoch),
+        '05 from=earliestDatestamp returns the whole repository (' . count($fromEarliest) . ' of ' . count($sinceEpoch) . ' headers of a from=1970 harvest)');
+    if ($withdrawn) {
+        // Every header of the bare harvest is in the from= one as well; the
+        // from= one may only add deleted headers (the wider window).
+        $extra = array_values(array_diff($ids($fromEarliest), $ids($everything)));
+        $check(array_diff($ids($everything), $ids($fromEarliest)) === []
+            && array_filter($extra, static fn(string $id): bool => !str_starts_with($id, 'deleted ')) === [],
+            '05b a bare harvest is contained in it, and what it adds are deleted headers only (' . count($extra) . ' more)');
+    }
 
     // ── 2. A live record is dated by updated_at, not created_at ────────────
     $stmt = $db->prepare('INSERT INTO libri (titolo, created_at, updated_at) VALUES (?, NOW(), ?)');
@@ -167,7 +203,7 @@ try {
 }
 
 $left = (int) $db->query("SELECT (SELECT COUNT(*) FROM oai_deleted_records WHERE entity_id = {$tombstoneId})"
-    . " + (SELECT COUNT(*) FROM libri WHERE titolo = '" . $db->real_escape_string($staleTitle) . "')")->fetch_row()[0];
+    . " + (SELECT COUNT(*) FROM libri WHERE titolo LIKE '" . $db->real_escape_string($staleTitle) . "%')")->fetch_row()[0];
 $check($left === 0, '10 the fixtures were rolled back');
 
 echo "\n{$pass} PASS, {$fail} FAIL\n";

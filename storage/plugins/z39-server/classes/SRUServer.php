@@ -1918,6 +1918,10 @@ class SRUServer
      * in the collation of the column that also orders the list, so nothing in
      * it (%, _, quotes, backslashes) is ever a pattern or SQL.
      *
+     * Terms are distinct in that same collation: spellings it holds equal
+     * (case, accents) are one term, listed once under one fixed spelling, with
+     * the records of all of them counted together.
+     *
      * @param list<string> $sources scanTermSources()
      * @param '>='|'>'|'<' $operator
      * @return list<array{value:string, frequency:int}>
@@ -1929,8 +1933,17 @@ class SRUServer
         }
         $direction = $operator === '<' ? 'DESC' : 'ASC';
         $arms = array_map(static fn(string $sql): string => str_replace('{cmp}', $operator . ' ?', $sql), $sources);
-        $sql = 'SELECT term, COUNT(DISTINCT record_id) AS frequency FROM (' . implode(' UNION ALL ', $arms) . ') AS scan_terms'
-            . " GROUP BY term ORDER BY term {$direction} LIMIT ?";
+        // GROUP BY term groups in the column's collation, which is the index's
+        // own notion of "the same term": "Pride and Prejudice" and "Pride and
+        // prejudice" are one term carried by two records, exactly what a
+        // searchRetrieve on either spelling returns. Which of the spellings
+        // stands for the group must not be left to the server: a bare `term`
+        // in the select list is whichever row the plan reads first, so the
+        // same scan could answer either one. The byte-wise lowest spelling is
+        // the same on every run, plan and engine.
+        $sql = 'SELECT MIN(term COLLATE utf8mb4_bin) AS term, COUNT(DISTINCT record_id) AS frequency FROM ('
+            . implode(' UNION ALL ', $arms) . ') AS scan_terms'
+            . " GROUP BY scan_terms.term ORDER BY scan_terms.term {$direction} LIMIT ?";
 
         $terms = [];
         try {

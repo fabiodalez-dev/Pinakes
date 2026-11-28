@@ -203,6 +203,12 @@ try {
     $gamma2  = $addBook("{$run} Gamma");
     $deleted = $addBook("{$run} delta");
     $literalBook = $addBook($literal);
+    // Three spellings the collation holds equal: one term, three records. The
+    // byte-wise lowest is written last, so "whichever row comes first" is not
+    // it.
+    $addBook("{$run} Omega");
+    $addBook("{$run} omega");
+    $addBook("{$run} OMEGA");
     // CI-SOFT-DELETE-EXEMPT: the fixture is soft-deleted on purpose.
     $db->query("UPDATE libri SET deleted_at = NOW() WHERE id = {$deleted}");
     if ($hasDesiderata) {
@@ -442,13 +448,56 @@ try {
     $xp = $xpathOf($sru(['operation' => 'scan', 'version' => '1.2', 'scanClause' => 'dc.date=1980']));
     $check($text($xp, '//d1:diagnostic/d1:uri') === 'info:srw/diagnostic/1/16' && $text($xp, '//d1:diagnostic/d1:details') === 'dc.date',
         'D20 an index with no term list is diagnostic 16, not another index\'s terms');
-    $ascending = $scanTerms(['scanClause' => 'dc.title=a', 'maximumTerms' => '100']);
-    $inOrder = [];
-    $res = $db->query("SELECT titolo FROM libri WHERE deleted_at IS NULL AND titolo <> '' AND titolo >= 'a' AND " . BookVisibility::catalogue($db) . ' GROUP BY titolo ORDER BY titolo LIMIT 100');
+    // The whole catalogue from "a" on, against the titles read row by row.
+    // The collation decides what one term is: WEIGHT_STRING is its sort key,
+    // so rows sharing it are one term however they are spelled, and a plain
+    // GROUP BY titolo here would only repeat the server's query, arbitrary
+    // spelling included. Expected, per term: the byte-wise lowest spelling and
+    // the number of records.
+    $expected = [];
+    $lastKey = null;
+    $db->real_query("SELECT titolo, HEX(WEIGHT_STRING(RTRIM(titolo))) FROM libri WHERE deleted_at IS NULL AND titolo <> '' AND titolo >= 'a' AND "
+        . BookVisibility::catalogue($db) . ' ORDER BY titolo');
+    $res = $db->use_result();
     while ($row = $res->fetch_row()) {
-        $inOrder[] = (string) $row[0];
+        $spelling = rtrim((string) $row[0], ' ');
+        if ($row[1] !== $lastKey) {
+            if (count($expected) === 100) {
+                break;
+            }
+            $expected[] = ['value' => $spelling, 'records' => 0];
+            $lastKey = $row[1];
+        }
+        $last = count($expected) - 1;
+        $expected[$last]['records']++;
+        if (strcmp($spelling, $expected[$last]['value']) < 0) {
+            $expected[$last]['value'] = $spelling;
+        }
     }
-    $check($ascending !== [] && $ascending === $inOrder, 'D21 dc.title=a answers the catalogue\'s titles from "a" on (' . count($ascending) . ' terms)');
+    $res->free();
+    $xp = $xpathOf($sru(['operation' => 'scan', 'version' => '1.2', 'scanClause' => 'dc.title=a', 'maximumTerms' => '100']));
+    $answered = [];
+    foreach ($xp->query('//zs:term') ?: [] as $term) {
+        $answered[] = ['value' => rtrim((string) $xp->evaluate('string(zs:value)', $term), ' '), 'records' => (int) $xp->evaluate('string(zs:numberOfRecords)', $term)];
+    }
+    $firstDifference = '';
+    foreach ($expected as $i => $want) {
+        if (($answered[$i] ?? null) !== $want) {
+            $firstDifference = "; term {$i}: expected " . json_encode($want, JSON_UNESCAPED_UNICODE) . ', answered ' . json_encode($answered[$i] ?? null, JSON_UNESCAPED_UNICODE);
+            break;
+        }
+    }
+    $check($expected !== [] && $answered === $expected,
+        'D21 dc.title=a answers the catalogue\'s distinct titles from "a" on, each with its records (' . count($answered) . ' of ' . count($expected) . " terms{$firstDifference})");
+
+    $ofThisRun = static fn(array $terms): array => array_values(array_filter($terms, static fn(string $t): bool => str_starts_with($t, $run)));
+    $xp = $xpathOf($sru(['operation' => 'scan', 'version' => '1.2', 'scanClause' => $title('o'), 'maximumTerms' => '5']));
+    $omega = $ofThisRun($texts($xp, '//zs:term/zs:value'));
+    $check($omega === ["{$run} OMEGA"] && $text($xp, '//zs:term[1]/zs:numberOfRecords') === '3',
+        'D22 spellings the collation holds equal are one term, under one fixed spelling, counting all their records (' . implode(' | ', $omega) . ')');
+    $check($ofThisRun($scanTerms(['scanClause' => $title('OMEGA'), 'maximumTerms' => '5', 'responsePosition' => '0'])) === []
+        && $scanTerms(['scanClause' => $title('omega'), 'maximumTerms' => '1', 'responsePosition' => '2']) === [$literal],
+        'D23 browsing around any of those spellings treats them as that one term');
 } catch (\Throwable $e) {
     $check(false, 'unexpected ' . get_class($e) . ': ' . $e->getMessage() . ' @' . basename($e->getFile()) . ':' . $e->getLine());
 } finally {
