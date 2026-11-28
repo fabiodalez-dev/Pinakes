@@ -1,6 +1,7 @@
 // @ts-check
-// Catalog facet tests — read-only against the dev catalog (/catalogo).
-// No login required, no DB writes. Run via:
+// Catalog facet tests against the dev catalog (/catalogo). No login
+// required. Read-only except test 20, which seeds and removes its own genre,
+// subgenre and book when the E2E database is configured. Run via:
 //   /tmp/run-e2e.sh tests/catalog-facets.spec.js \
 //     --config=tests/playwright.config.js --workers=1
 
@@ -8,6 +9,7 @@ const { test, expect } = require('@playwright/test');
 test.describe.configure({ mode: 'serial' });
 
 const F = require('./helpers/circulation-fixtures');
+const { flushCache } = require('./helpers/flush-cache');
 
 const BASE = process.env.E2E_BASE_URL || 'http://localhost:8081';
 
@@ -716,11 +718,36 @@ test.describe('Catalog facets', () => {
   // (the facet list is empty then, so the name cannot come from it).
   // -------------------------------------------------------------------------
   test('20. The genre chip shows the genre name, never its ID (#547)', async () => {
+    // Whatever the files before this one left in the catalogue, the test brings
+    // its own genre, subgenre and book when the database is at hand, so the
+    // subgenre step always runs. Direct writes bypass the app's cache
+    // invalidation, hence the flush before the first navigation.
+    const seeded = { bookIds: [], genreIds: [] };
+    if (F.CONFIGURED) {
+      const tag = `E2E547 ${Date.now()}`;
+      F.dbQuery(`INSERT INTO generi (nome, parent_id) VALUES (${F.sqlStr(`${tag} Root`)}, NULL)`);
+      const rootId = F.dbInt(`SELECT id FROM generi WHERE nome=${F.sqlStr(`${tag} Root`)} AND parent_id IS NULL`);
+      F.dbQuery(`INSERT INTO generi (nome, parent_id) VALUES (${F.sqlStr(`${tag} Sub`)}, ${rootId})`);
+      const subId = F.dbInt(`SELECT id FROM generi WHERE nome=${F.sqlStr(`${tag} Sub`)} AND parent_id=${rootId}`);
+      seeded.genreIds.push(subId, rootId);
+      const book = F.createTitle(tag.replace(' ', '-'));
+      seeded.bookIds.push(book.id);
+      F.dbQuery(`UPDATE libri SET genere_id=${rootId}, sottogenere_id=${subId} WHERE id=${book.id}`);
+      await flushCache();
+    }
+    try {
     await page.goto(`${BASE}/catalogo`, { waitUntil: 'networkidle', timeout: 30000 });
     const { filter_options: facets } = await apiCatalog(page);
     const roots = facets.generi.filter(root => root.cnt > 0);
+    if (!F.CONFIGURED) {
+      test.skip(roots.length === 0, 'no genre with books in this catalogue and no database to seed one');
+    }
     expect(roots.length, 'the catalogue has at least one genre with books').toBeGreaterThan(0);
-    const withChild = roots.find(root => (root.children || []).some(sub => sub.cnt > 0));
+    const own = seeded.genreIds.length ? roots.find(root => Number(root.id) === seeded.genreIds[1]) : undefined;
+    if (seeded.genreIds.length) {
+      expect(own, 'the seeded genre is listed in the facet').toBeTruthy();
+    }
+    const withChild = own || roots.find(root => (root.children || []).some(sub => sub.cnt > 0));
     const genre = withChild || roots[0];
     const chip = page.locator('#active-filters-list .filter-tag');
     const named = name => new RegExp(`^[^:]+: ${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}×$`);
@@ -788,6 +815,15 @@ test.describe('Catalog facets', () => {
     await genreChip.locator('.filter-tag-remove').click();
     expect(new URL(page.url()).searchParams.has('genere_id')).toBe(false);
     await expect(chip.filter({ hasNotText: 'zzqx547nomatch' })).toHaveCount(0);
+    } finally {
+      if (seeded.bookIds.length) F.deleteTitles(seeded.bookIds);
+      // Child first: the parent's ON DELETE CASCADE would take it anyway, but
+      // an explicit order keeps the cleanup readable.
+      for (const id of seeded.genreIds) {
+        try { F.dbQuery(`DELETE FROM generi WHERE id=${Number(id)}`); } catch { /* best effort */ }
+      }
+      if (F.CONFIGURED) await flushCache();
+    }
   });
 
   // -------------------------------------------------------------------------
