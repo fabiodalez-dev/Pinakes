@@ -75,15 +75,19 @@ $restoreCatalogueMode = static function () use ($db, $catalogueRow): void {
         return;
     }
     $stmt = $db->prepare("UPDATE system_settings SET setting_value = ? WHERE category = 'system' AND setting_key = 'catalogue_mode'");
-    $value = (string) $catalogueRow[0];
+    // Not cast: a row whose value is SQL NULL goes back to NULL.
+    $value = $catalogueRow[0];
     $stmt->bind_param('s', $value);
     $stmt->execute();
     $stmt->close();
 };
 
-$cleanup = static function () use ($db, $titlePrefix, $emailDomain, $restoreCatalogueMode): void {
+$cleanup = static function () use ($db, $run, $titlePrefix, $emailDomain, $restoreCatalogueMode): void {
     $titleLike = $titlePrefix . '%';
-    $emailLike = 'zzncipgate+%' . $emailDomain;
+    // The accounts of this run only ($makeUser puts $run in the address):
+    // another run on the same database keeps its own.
+    $emailLike = 'zzncipgate+' . $run . '-%' . $emailDomain;
+    try {
     foreach ([
         'DELETE tx FROM ncip_transactions tx JOIN prestiti p ON p.id = tx.prestito_id JOIN libri l ON l.id = p.libro_id WHERE l.titolo LIKE ?',
         'DELETE tx FROM ncip_transactions tx JOIN prenotazioni r ON r.id = tx.prenotazione_id JOIN libri l ON l.id = r.libro_id WHERE l.titolo LIKE ?',
@@ -112,7 +116,16 @@ $cleanup = static function () use ($db, $titlePrefix, $emailDomain, $restoreCata
             // best effort: optional tables differ between schema versions
         }
     }
-    $restoreCatalogueMode();
+    } finally {
+        // Also when a delete above failed: a database left in catalogue mode
+        // refuses the circulation of every suite that runs after this one.
+        // An error here is reported, and never hides the one of the deletes.
+        try {
+            $restoreCatalogueMode();
+        } catch (Throwable $e) {
+            fwrite(STDERR, 'FAIL: catalogue_mode not restored: ' . $e->getMessage() . "\n");
+        }
+    }
 };
 
 // The handlers email the borrower post-commit: stop before any SMTP contact.
@@ -251,6 +264,23 @@ try {
         );
         $check($loansOf($a1Book, $a1Reader) === 0, 'A1 no bare pending loan is written beside the hold');
 
+        // A1b: the free days come late. One copy, fourteen one-day loans four
+        // days apart: each 3-day window the search tries ends on one of them,
+        // and only the fifteenth is free, well inside the horizon.
+        [$lateBook, $lateCopy] = $makeBook();
+        $lateBorrower = $makeUser();
+        $lateReader = $makeUser();
+        for ($k = 0; $k < 14; $k++) {
+            $makeActiveLoan($lateBook, $lateCopy, $lateBorrower, $day(3 + 4 * $k), $day(3 + 4 * $k), 'prenotato');
+        }
+        $firstHoldWindow = new ReflectionMethod(NcipServerPlugin::class, 'firstHoldWindow');
+        $lateWindow = $firstHoldWindow->invoke($ncip, $lateBook, $lateReader, $today, $day(3), 3, ReservationsController::requestStartUntil($today));
+        $check(
+            is_array($lateWindow) && $lateWindow[0] > $day(3 + 4 * 13) && $lateWindow[0] <= ReservationsController::requestStartUntil($today)
+                && $capacity->hasFreeCapacity($lateBook, $lateWindow[0], $lateWindow[1], excludeUserId: $lateReader, forQueue: true),
+            'A1b the search goes on to the horizon: a window that opens after fourteen full ones is found (' . json_encode($lateWindow) . ')'
+        );
+
         // A2: every copy is lost: nothing can ever serve the hold.
         [$a2Book] = $makeBook('perso');
         $a2Reader = $makeUser();
@@ -349,6 +379,45 @@ try {
         $b5NoUser = $send('CancelRequestItem', $b5Book, null, $staff);
         $check($isProblem($b5NoUser) && $loanRow($b5Pending)['stato'] === 'pendente', 'B5 CancelRequestItem without UserId is refused as well');
 
+        // The cases above hand the operator to the handler directly. The guard
+        // is only as good as the identity ncipAction() gives it: one exchange
+        // through the public entry point, authenticated with Basic auth.
+        $db->query("UPDATE utenti SET email_verificata = 1 WHERE id = {$staffId}");
+        $staffEmail = (string) $db->query("SELECT email FROM utenti WHERE id = {$staffId}")->fetch_row()[0];
+        $viaEndpoint = static function (string $type, int $bookId, int $userId) use ($ncip, $staffEmail): array {
+            $message = "<NCIPMessage><{$type}>"
+                . "<UserId><UserIdentifierValue>{$userId}</UserIdentifierValue></UserId>"
+                . "<ItemId><ItemIdentifierValue>{$bookId}</ItemIdentifierValue></ItemId>"
+                . "</{$type}></NCIPMessage>";
+            $authenticated = (new ServerRequestFactory())->createServerRequest('POST', '/ncip', ['REMOTE_ADDR' => '127.0.0.1'])
+                ->withHeader('Authorization', 'Basic ' . base64_encode($staffEmail . ':test'))
+                ->withBody((new \Slim\Psr7\Factory\StreamFactory())->createStream($message));
+            // No InitiationHeader in the message: it is optional, and reading
+            // the initiator through a missing one must not raise a warning.
+            $warnings = [];
+            set_error_handler(static function (int $severity, string $text) use (&$warnings): bool {
+                $warnings[] = $text;
+                return true;
+            });
+            try {
+                $response = $ncip->ncipAction($authenticated, new SlimResponse());
+            } finally {
+                restore_error_handler();
+            }
+            return [$response->getStatusCode(), (string) $response->getBody(), $warnings];
+        };
+        [$b7OwnBook] = $makeBook();
+        [$b7OtherBook] = $makeBook();
+        $b7Reader = $makeUser();
+        $b7Own = $viaEndpoint('CheckOutItem', $b7OwnBook, $staffId);
+        $check($isProblem($b7Own) && $b7Own[0] === 403 && $loansOf($b7OwnBook, $staffId) === 0,
+            'B7 through the endpoint: the operator Basic auth names is refused its own checkout (got ' . $b7Own[0] . ')');
+        $b7Other = $viaEndpoint('CheckOutItem', $b7OtherBook, $b7Reader);
+        $check(!$isProblem($b7Other) && $loansOf($b7OtherBook, $b7Reader) === 1,
+            'B7 and the same operator checks out for another reader');
+        $check($b7Own[2] === [] && $b7Other[2] === [],
+            'B7 a message without an InitiationHeader raises no PHP warning: ' . json_encode(array_merge($b7Own[2], $b7Other[2])));
+
         // The guard judges the operator, not the message: the same writes go
         // through for another reader, and an administrator is exempt.
         $b6Reader = $makeUser();
@@ -399,10 +468,13 @@ try {
 } catch (Throwable $e) {
     $fatal = $e;
 } finally {
+    // A teardown that fails leaves rows behind for the suites after this one:
+    // it fails the run, also when every check passed.
     try {
         $cleanup();
     } catch (Throwable $cleanupError) {
-        fwrite(STDERR, "cleanup failed: {$cleanupError->getMessage()}\n");
+        fwrite(STDERR, "FAIL: cleanup failed: {$cleanupError->getMessage()}\n");
+        $fatal ??= $cleanupError;
     }
     $smtpProbe->setValue(null, $originalSmtpReachable);
     $db->close();

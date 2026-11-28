@@ -180,6 +180,8 @@ $isbnAlfa = $isbn13($isbnBase . '11');
 $isbnBeta = $isbn13($isbnBase . '22');
 $author = ucfirst($run) . ' Autore';
 $subject = ucfirst($run) . ' Soggetto';
+$subSubject = ucfirst($run) . ' Sottosoggetto';
+$translator = ucfirst($run) . ' Traduttore';
 $literal = "{$run} m 50%_o'x";
 $hasDesiderata = BookVisibility::hasDesiderata($db);
 
@@ -229,6 +231,20 @@ try {
     $subjectId = (int) $db->insert_id;
     $stmt->close();
     $db->query("UPDATE libri SET genere_id = {$subjectId} WHERE id IN ({$alfa}, {$gamma1}, {$gamma2})");
+    // A subgenre of it, on one book.
+    $stmt = $db->prepare('INSERT INTO generi (nome, parent_id) VALUES (?, ?)');
+    $stmt->bind_param('si', $subSubject, $subjectId);
+    $stmt->execute();
+    $subSubjectId = (int) $db->insert_id;
+    $stmt->close();
+    $db->query("UPDATE libri SET sottogenere_id = {$subSubjectId} WHERE id = {$alfa}");
+    // A name that is on a book only as its translator.
+    $stmt = $db->prepare('INSERT INTO autori (nome) VALUES (?)');
+    $stmt->bind_param('s', $translator);
+    $stmt->execute();
+    $translatorId = (int) $db->insert_id;
+    $stmt->close();
+    $db->query("INSERT INTO libri_autori (libro_id, autore_id, ruolo) VALUES ({$epsilon}, {$translatorId}, 'traduttore')");
 
     $oneBook = ['operation' => 'searchRetrieve', 'query' => 'dc.title="' . $run . ' Alfa"', 'recordSchema' => 'marcxml'];
 
@@ -286,8 +302,9 @@ try {
         'B01 searchRetrieve: the root is in the OASIS sruResponse namespace');
     $check($count($xp, '//*[starts-with(namespace-uri(), "' . NS_LOC . '")]') === 0 && !str_contains($xml, NS_LOC),
         'B02 searchRetrieve: no element, and no declaration, of the 1.x namespace');
-    $check($text($xp, '/sru:searchRetrieveResponse/sru:version') === '2.0' && $text($xp, '/sru:searchRetrieveResponse/sru:numberOfRecords') === '1',
-        'B03 searchRetrieve: version 2.0, numberOfRecords 1');
+    $check($count($xp, '//*[local-name() = "version"]') === 0 && $text($xp, '/sru:searchRetrieveResponse/sru:numberOfRecords') === '1'
+        && $xp->query('/sru:searchRetrieveResponse/*')?->item(0)?->localName === 'numberOfRecords',
+        'B03 searchRetrieve: numberOfRecords 1 comes first, and neither the response nor its echo has a version element (SRU 2.0 removed it)');
     $check($texts($xp, '/sru:searchRetrieveResponse/sru:records/sru:record/*[namespace-uri() = "' . NS_OASIS . '"]/@*') === []
         && array_map(static fn(\DOMNode $n): string => (string) $n->localName, iterator_to_array($xp->query('/sru:searchRetrieveResponse/sru:records/sru:record/*') ?: [], false))
             === ['recordSchema', 'recordXMLEscaping', 'recordData', 'recordPosition'],
@@ -310,6 +327,7 @@ try {
     $check($text($xp, '/sru:searchRetrieveResponse/sru:diagnostics/d2:diagnostic/d2:uri') === 'info:srw/diagnostic/1/71'
         && $text($xp, '//d2:diagnostic/d2:details') === 'bogus' && $count($xp, '//d1:*') === 0,
         'B10 an unknown recordXMLEscaping is diagnostic 71, in the OASIS diagnostic namespace');
+    $check($count($xp, '//*[local-name() = "version"]') === 0, 'B10b a 2.0 diagnostic response has no version element either');
 
     $xml = $sru(['operation' => 'explain', 'version' => '2.0']);
     $xp = $xpathOf($xml);
@@ -317,6 +335,7 @@ try {
         'B11 explain: sruResponse envelope around the same ZeeRex record');
     $check($text($xp, '//ex:serverInfo/@version') === '2.0' && $text($xp, '/sru:explainResponse/sru:record/sru:recordXMLEscaping') === 'xml',
         'B12 explain: serverInfo names 2.0, the record says recordXMLEscaping');
+    $check($count($xp, '/sru:explainResponse/sru:version') === 0, 'B12b explain: no version element in the 2.0 envelope');
 
     $xml = $sru(['operation' => 'scan', 'version' => '2.0', 'scanClause' => 'dc.title="' . $run . '"', 'maximumTerms' => '2']);
     $xp = $xpathOf($xml);
@@ -423,6 +442,20 @@ try {
     $xp = $xpathOf($sru(['operation' => 'scan', 'version' => '1.2', 'scanClause' => $title('e'), 'maximumTerms' => '3', 'responsePosition' => '5']));
     $check($text($xp, '/zs:scanResponse/zs:diagnostics/d1:diagnostic/d1:uri') === 'info:srw/diagnostic/1/120' && $count($xp, '//zs:term') === 0,
         'D11 a responsePosition beyond maximumTerms+1 is diagnostic 120');
+    // SRU 2.0 has no such limit: the list begins responsePosition - 1 terms
+    // before the start term and holds maximumTerms of them. Before Omega come
+    // Alfa, beta, Epsilon, Gamma and the literal title: four back is beta.
+    $check($scanTerms(['version' => '2.0', 'scanClause' => $title('Omega'), 'maximumTerms' => '3', 'responsePosition' => '5']) === ["{$run} beta", "{$run} Epsilon", "{$run} Gamma"],
+        'D11b in 2.0 a responsePosition beyond maximumTerms+1 lists terms further before the start term');
+    $check($scanTerms(['version' => '2.0', 'scanClause' => $title('Omega'), 'maximumTerms' => '3', 'responsePosition' => '4']) === ["{$run} Epsilon", "{$run} Gamma", $literal],
+        'D11c and maximumTerms+1 is still the terms right before it');
+    // Eight terms before beta is far before this run's titles (only Alfa
+    // precedes it): whatever the catalogue holds there, it is not an error.
+    $far = $xpathOf($sru(['operation' => 'scan', 'version' => '2.0', 'scanClause' => $title('beta'), 'maximumTerms' => '2', 'responsePosition' => '9']));
+    $farTerms = $texts($far, '/scan:scanResponse/scan:terms/scan:term/scan:value');
+    $check($count($far, '//d2:diagnostic') === 0 && count($farTerms) <= 2
+        && array_filter($farTerms, static fn(string $term): bool => str_starts_with($term, $run . ' ')) === [],
+        'D11d a position far before the start term answers what the index holds there, none of the terms next to it, and no diagnostic');
     $xp = $xpathOf($sru(['operation' => 'scan', 'version' => '1.2', 'scanClause' => $title('e'), 'maximumTerms' => '3', 'responsePosition' => '2']));
     $check($text($xp, '//zs:echoedScanRequest/zs:responsePosition') === '2' && $text($xp, '//zs:echoedScanRequest/zs:maximumTerms') === '3',
         'D12 the request is echoed with its responsePosition and maximumTerms');
@@ -438,12 +471,27 @@ try {
     $check($scanTerms(['scanClause' => 'dc.creator="' . $author . '"', 'maximumTerms' => '1']) === [$author], 'D15 dc.creator browses author names');
     $xp = $xpathOf($sru(['operation' => 'scan', 'version' => '1.2', 'scanClause' => 'dc.creator="' . $author . '"', 'maximumTerms' => '1']));
     $check($text($xp, '//zs:term[1]/zs:numberOfRecords') === '2', 'D16 the author\'s count leaves out the soft-deleted book (2 of 3)');
+    // A term is something the index can be searched for: dc.creator searches
+    // authors and co-authors, so a translator is not one of its terms.
+    $xp = $xpathOf($sru(['operation' => 'searchRetrieve', 'version' => '1.2', 'query' => 'dc.creator exact "' . $translator . '"']));
+    $check(!in_array($translator, $scanTerms(['scanClause' => 'dc.creator="' . $translator . '"', 'maximumTerms' => '5']), true)
+        && $text($xp, '/zs:searchRetrieveResponse/zs:numberOfRecords') === '0',
+        'D16b a name that is only a translator is not a dc.creator term, as the search does not find it');
     $xp = $xpathOf($sru(['operation' => 'scan', 'version' => '1.2', 'scanClause' => 'dc.subject="' . $subject . '"', 'maximumTerms' => '1']));
     $check($text($xp, '//zs:term[1]/zs:value') === $subject && $text($xp, '//zs:term[1]/zs:numberOfRecords') === '3', 'D17 dc.subject browses genres, with their record count');
+    $xp = $xpathOf($sru(['operation' => 'scan', 'version' => '1.2', 'scanClause' => 'dc.subject="' . $subSubject . '"', 'maximumTerms' => '1']));
+    $found = $xpathOf($sru(['operation' => 'searchRetrieve', 'version' => '1.2', 'query' => 'dc.subject exact "' . $subSubject . '"']));
+    $check($text($xp, '//zs:term[1]/zs:value') === $subSubject && $text($xp, '//zs:term[1]/zs:numberOfRecords') === '1'
+        && $text($found, '/zs:searchRetrieveResponse/zs:numberOfRecords') === '1',
+        'D17b a subgenre is a dc.subject term, and searching it finds the same one record');
     $check($scanTerms(['scanClause' => 'bath.isbn=' . $isbnBase, 'maximumTerms' => '2']) === [$isbnAlfa, $isbnBeta], 'D18 bath.isbn browses ISBNs from a partial number on');
 
     $first = $scanTerms(['scanClause' => 'dc.title', 'maximumTerms' => '3']);
-    $lowest = (string) $db->query("SELECT MIN(titolo) FROM libri WHERE deleted_at IS NULL AND titolo <> '' AND " . BookVisibility::catalogue($db))->fetch_row()[0];
+    // Among the spellings the collation holds equal to the lowest title, the
+    // server answers the byte-wise lowest one: MIN(titolo) alone may be any.
+    $visible = "deleted_at IS NULL AND titolo <> '' AND " . BookVisibility::catalogue($db);
+    $lowest = (string) $db->query("SELECT MIN(titolo COLLATE utf8mb4_bin) FROM libri WHERE {$visible}
+                                   AND titolo = (SELECT MIN(titolo) FROM libri WHERE {$visible})")->fetch_row()[0];
     $check($first !== [] && $first[0] === $lowest, 'D19 scanClause=dc.title, an index alone, browses it from its first term');
     $xp = $xpathOf($sru(['operation' => 'scan', 'version' => '1.2', 'scanClause' => 'dc.date=1980']));
     $check($text($xp, '//d1:diagnostic/d1:uri') === 'info:srw/diagnostic/1/16' && $text($xp, '//d1:diagnostic/d1:details') === 'dc.date',

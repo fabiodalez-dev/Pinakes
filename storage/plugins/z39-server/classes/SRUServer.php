@@ -33,7 +33,9 @@ class SRUServer
         ],
         'dc.subject' => [
             'type' => 'text',
-            'columns' => ['l.parole_chiave', 'g.nome'],
+            // Keywords, genre and subgenre: scan lists the last two as terms
+            // (scanTermSources()), so each of them must be searchable.
+            'columns' => ['l.parole_chiave', 'g.nome', 'sg.nome'],
         ],
         'dc.publisher' => [
             'type' => 'text',
@@ -72,6 +74,7 @@ class SRUServer
                 'l.parole_chiave',
                 'l.collana',
                 'g.nome',
+                'sg.nome',
             ],
         ],
         // Library-specific indexes for advanced searching
@@ -295,8 +298,10 @@ class SRUServer
         $root = $this->envelopeElement($xml, $env, 'explainResponse');
         $xml->appendChild($root);
 
-        // Version
-        $root->appendChild($this->envelopeElement($xml, $env, 'version', $this->escapeXml($version)));
+        // Version: a 1.x element, removed from every SRU 2.0 response.
+        if (!$env['v2']) {
+            $root->appendChild($this->envelopeElement($xml, $env, 'version', $this->escapeXml($version)));
+        }
 
         // Record
         $record = $this->envelopeElement($xml, $env, 'record');
@@ -649,10 +654,12 @@ class SRUServer
             return $this->errorResponse(7, 'Mandatory parameter not supplied: scanClause', $version, 'scan');
         }
 
-        // responsePosition runs from 0 (the start term sits just before the
-        // list) to maximumTerms + 1 (just after it). Beyond that is SRU
-        // diagnostic 120, "Response position out of range".
-        if ($responsePosition > $maximumTerms + 1) {
+        // In SRU 1.x responsePosition runs from 0 (the start term sits just
+        // before the list) to maximumTerms + 1 (just after it); beyond that is
+        // diagnostic 120, "Response position out of range". SRU 2.0 has no
+        // upper limit: a larger position asks for terms further before the
+        // start term (performScanQuery()).
+        if ($version !== '2.0' && $responsePosition > $maximumTerms + 1) {
             return $this->errorResponse(120, 'Response position out of range', $version, 'scan', (string) $responsePosition);
         }
 
@@ -813,6 +820,7 @@ class SRUServer
             -- query doesn't multiply rows (libri_autori × copie × libri_editori)
             -- before GROUP BY. Payload publishers come from fetchPublishersForRecords().
             LEFT JOIN generi g ON l.genere_id = g.id
+            LEFT JOIN generi sg ON l.sottogenere_id = sg.id
             -- #5: resolve shelf/location from the CURRENT columns. The admin
             -- book save hard-sets libri.posizione_id = NULL and stores the
             -- location in libri.scaffale_id / libri.mensola_id / libri.collocazione,
@@ -1773,8 +1781,11 @@ class SRUServer
         // SRU 1.2 fixes the child order: version, numberOfRecords,
         // resultSetId?, resultSetIdleTime?, records?, nextRecordPosition?,
         // echoedSearchRetrieveRequest?, diagnostics?, extraResponseData?.
-        // SRU 2.0 keeps the same order for the elements written here.
-        $root->appendChild($this->envelopeElement($xml, $env, 'version', $this->escapeXml($version)));
+        // SRU 2.0 keeps the same order for the elements written here, without
+        // <version>: it removed the element from the response and its echo.
+        if (!$env['v2']) {
+            $root->appendChild($this->envelopeElement($xml, $env, 'version', $this->escapeXml($version)));
+        }
         $root->appendChild($this->envelopeElement($xml, $env, 'numberOfRecords', (string) $totalRecords));
 
         $schemaKey = strtolower($recordSchema);
@@ -1822,7 +1833,9 @@ class SRUServer
         // Echo the request (version and query first, as the schema requires)
         $echoedQuery = $this->envelopeElement($xml, $env, 'echoedSearchRetrieveRequest');
         $root->appendChild($echoedQuery);
-        $echoedQuery->appendChild($this->envelopeElement($xml, $env, 'version', $this->escapeXml($version)));
+        if (!$env['v2']) {
+            $echoedQuery->appendChild($this->envelopeElement($xml, $env, 'version', $this->escapeXml($version)));
+        }
         $echoedQuery->appendChild($this->envelopeElement($xml, $env, 'query', $this->escapeXml($query)));
         $echoedQuery->appendChild($this->envelopeElement($xml, $env, 'startRecord', (string) $startRecord));
         $echoedQuery->appendChild($this->envelopeElement($xml, $env, 'maximumRecords', (string) $maximumRecords));
@@ -1879,11 +1892,14 @@ class SRUServer
         return match ($index) {
             // The number of records a searchRetrieve would return for the
             // author, not the number of authority rows sharing the name. The
-            // INNER JOINs drop authors whose only books are soft-deleted.
+            // INNER JOINs drop authors whose only books are soft-deleted, and
+            // the roles are those bookFromClause() searches: a translator is
+            // not a dc.creator term, the search would not find it.
             'dc.creator' => ["
                 SELECT a.nome AS term, l.id AS record_id
                 FROM autori a
                 JOIN libri_autori la ON la.autore_id = a.id
+                                    AND la.ruolo IN ('principale', 'co-autore')
                 JOIN libri l ON l.id = la.libro_id AND l.deleted_at IS NULL AND {$holdingOnly}
                 WHERE a.nome <> '' AND a.nome {cmp}
             "],
@@ -1924,9 +1940,10 @@ class SRUServer
      *
      * @param list<string> $sources scanTermSources()
      * @param '>='|'>'|'<' $operator
+     * @param int $offset how many of the nearest terms to leave out first
      * @return list<array{value:string, frequency:int}>
      */
-    private function scanTerms(array $sources, string $operator, string $start, int $limit): array
+    private function scanTerms(array $sources, string $operator, string $start, int $limit, int $offset = 0): array
     {
         if ($limit <= 0) {
             return [];
@@ -1943,7 +1960,7 @@ class SRUServer
         // the same on every run, plan and engine.
         $sql = 'SELECT MIN(term COLLATE utf8mb4_bin) AS term, COUNT(DISTINCT record_id) AS frequency FROM ('
             . implode(' UNION ALL ', $arms) . ') AS scan_terms'
-            . " GROUP BY scan_terms.term ORDER BY scan_terms.term {$direction} LIMIT ?";
+            . " GROUP BY scan_terms.term ORDER BY scan_terms.term {$direction} LIMIT ? OFFSET ?";
 
         $terms = [];
         try {
@@ -1953,7 +1970,8 @@ class SRUServer
             }
             $values = array_fill(0, count($arms), $start);
             $values[] = $limit;
-            $stmt->bind_param(str_repeat('s', count($arms)) . 'i', ...$values);
+            $values[] = max(0, $offset);
+            $stmt->bind_param(str_repeat('s', count($arms)) . 'ii', ...$values);
             $stmt->execute();
             $result = $stmt->get_result();
             if ($result instanceof \mysqli_result) {
@@ -1983,6 +2001,9 @@ class SRUServer
      * it. N puts N - 1 preceding terms in front of it. 0 leaves it out: the
      * list starts with the first term after it. $limit + 1 puts it right
      * after the list, which is then made of the $limit terms before it.
+     * A larger N (SRU 2.0) moves the list further back: it still begins
+     * N - 1 terms before the start term and holds $limit of them, so the
+     * terms nearest to the start term are left out.
      * Either side comes back shorter when the index ends there.
      *
      * @return list<array{value:string, frequency:int}>
@@ -2003,8 +2024,12 @@ class SRUServer
             return $this->scanTerms($sources, '>', $start, $limit);
         }
 
-        $before = array_reverse($this->scanTerms($sources, '<', $start, min($responsePosition - 1, $limit)));
-        $from = $this->scanTerms($sources, '>=', $start, $limit - ($responsePosition - 1));
+        // The list begins $preceding terms before the start term. When that is
+        // more than it can hold, the nearest of them fall after its end.
+        $preceding = $responsePosition - 1;
+        $skipped = max(0, $preceding - $limit);
+        $before = array_reverse($this->scanTerms($sources, '<', $start, min($preceding, $limit), $skipped));
+        $from = $this->scanTerms($sources, '>=', $start, $limit - $preceding);
 
         return array_merge($before, $from);
     }
@@ -2098,9 +2123,8 @@ class SRUServer
         $root = $this->envelopeElement($xml, $env, $rootElement);
         $xml->appendChild($root);
 
-        // SRU 2.0 dropped <version> from the scan response; everywhere else
-        // it comes first.
-        if (!($env['v2'] && $rootElement === 'scanResponse')) {
+        // SRU 2.0 dropped <version> from its responses; in 1.x it comes first.
+        if (!$env['v2']) {
             $root->appendChild($this->envelopeElement($xml, $env, 'version', $this->escapeXml($version)));
         }
 

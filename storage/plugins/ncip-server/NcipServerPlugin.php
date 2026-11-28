@@ -90,12 +90,6 @@ class NcipServerPlugin
     ];
 
     /**
-     * How many successive windows RequestItem tries before refusing a hold:
-     * each one starts after the last full day of the previous window.
-     */
-    private const MAX_HOLD_WINDOW_PROBES = 12;
-
-    /**
      * Maximum accepted request body size for the unauthenticated /ncip endpoint.
      *
      * FIX F048: tightened from 1 MiB to 256 KiB. NCIP request messages are
@@ -1410,7 +1404,9 @@ class NcipServerPlugin
         }
         // Same navigation as resolvePartner(): SimpleXML keeps the namespace
         // context of messageNode(), so this works with and without the NCIP ns.
-        $node = $message->InitiationHeader->FromAgencyId->AgencyId;
+        // A message with no InitiationHeader gives null at the second step:
+        // the header is optional, reading through it must not warn.
+        $node = $message->InitiationHeader->FromAgencyId?->AgencyId;
         if (!$node instanceof \SimpleXMLElement || $node->getName() === '') {
             return null;
         }
@@ -2362,10 +2358,11 @@ class NcipServerPlugin
             return null;
         }
         $forQueue = $capacity->hasPhysicalCopies($bookId);
-        for ($probe = 0; $probe < self::MAX_HOLD_WINDOW_PROBES; $probe++) {
-            if ($startDate > $startUntil) {
-                return null;
-            }
+        // Every round starts after the last full day of the window before it,
+        // so the start only moves forward and the horizon ends the search: a
+        // fixed number of rounds would give up on a title whose free days
+        // come late, with the horizon still ahead.
+        while ($startDate <= $startUntil) {
             if ($capacity->hasFreeCapacity($bookId, $startDate, $dueDate, excludeUserId: $userId, forQueue: $forQueue)) {
                 return [$startDate, $dueDate];
             }
@@ -2379,7 +2376,12 @@ class NcipServerPlugin
             // No earlier start can work: any window from here to the last
             // full day would contain it.
             $afterLastFullDay = \App\Support\LibraryCalendar::shift($fullDays[count($fullDays) - 1], 1);
-            $startDate = \App\Support\LibraryCalendar::requestStartDay($this->db, $afterLastFullDay, $bookId);
+            $nextStart = \App\Support\LibraryCalendar::requestStartDay($this->db, $afterLastFullDay, $bookId);
+            if ($nextStart <= $startDate) {
+                // Cannot happen with the rule above; never loop on the same day.
+                return null;
+            }
+            $startDate = $nextStart;
             $dueDate = \App\Support\LibraryCalendar::requestDueDate($this->db, $startDate, $durationDays, $bookId);
         }
         return null;
