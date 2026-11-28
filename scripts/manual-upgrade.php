@@ -13,7 +13,7 @@
  *
  * Safety:
  *   - Creates a full DB backup before any changes
- *   - Preserves: .env, storage/uploads, public/uploads, storage/plugins, covers, etc.
+ *   - Preserves .env, uploads, covers and third-party plugins.
  *   - All migrations are idempotent (safe to run multiple times)
  */
 
@@ -345,7 +345,15 @@ function verifyUpgradeSpace(string $rootPath, array $requirements): void
     }
 }
 
-/** @return array<string, int> Space needed for the actual copy destinations. */
+/**
+ * Space needed for the actual copy destinations.
+ *
+ * The same walk refuses a destination that is a symbolic link, before anything
+ * is written: copyTree() refuses it too, but by then part of the live tree has
+ * already been overwritten, and this script has no file rollback.
+ *
+ * @return array<string, int>
+ */
 function upgradeCopyRequirements(string $source, string $dest, array $preserve): array
 {
     $requirements = [$dest => 4096];
@@ -364,11 +372,53 @@ function upgradeCopyRequirements(string $source, string $dest, array $preserve):
             }
         }
         $target = $dest . '/' . $relative;
+        if (is_link($target)) {
+            throw new RuntimeException('Percorso destinazione simbolico non consentito: ' . $target);
+        }
         $dir = $item->isDir() ? $target : dirname($target);
         $bytes = $item->isDir() ? 4096 : max(4096, (int) ceil($item->getSize() / 4096) * 4096);
         $requirements[$dir] = ($requirements[$dir] ?? 0) + $bytes;
     }
     return $requirements;
+}
+
+/**
+ * Plugin paths the standalone upgrade must leave alone.
+ *
+ * The bundled plugins are part of the release and are copied with it; every
+ * other entry of the package's plugin directory is skipped, and a plugin that
+ * exists only in the installation is never touched by a copy. The whole
+ * directory is preserved, as before, when the package does not say which
+ * plugins are bundled, or when the installed directory is a symbolic link.
+ *
+ * @return list<string>
+ */
+function upgradePreservedPluginPaths(string $source, string $dest = ''): array
+{
+    $plugins = 'storage/plugins';
+    if ($dest !== '' && is_link($dest . '/' . $plugins)) {
+        if (isset($GLOBALS['log']) && is_array($GLOBALS['log'])) {
+            $GLOBALS['log'][] = '[ATTENZIONE] ' . $plugins . ' è un collegamento simbolico: i plugin inclusi nel pacchetto non vengono aggiornati. Copiali a mano dal pacchetto.';
+        }
+        return [$plugins];
+    }
+    $manifest = $source . '/app/Support/BundledPlugins.php';
+    // This script also runs on older installations. Read the package's slug
+    // list as data, without loading or executing PHP from the uploaded ZIP.
+    $content = is_file($manifest) ? @file_get_contents($manifest) : false;
+    if (!is_string($content) || preg_match('/public\s+const\s+LIST\s*=\s*\[(.*?)\]\s*;/s', $content, $list) !== 1
+        || !preg_match_all("/'([a-z0-9][a-z0-9-]*)'/", $list[1], $bundled)) {
+        return [$plugins];
+    }
+    $entries = is_dir($source . '/' . $plugins) ? scandir($source . '/' . $plugins) : false;
+    if ($entries === false || array_intersect($entries, $bundled[1]) === []) {
+        return [$plugins];
+    }
+
+    return array_values(array_map(
+        static fn(string $entry): string => $plugins . '/' . $entry,
+        array_diff($entries, ['.', '..', ...$bundled[1]])
+    ));
 }
 
 /**
@@ -570,12 +620,15 @@ function copyTree(string $src, string $dst, string $rootDst, array $skipRelative
         if (is_link($srcPath)) {
             throw new RuntimeException('Elemento simbolico non consentito nel pacchetto: ' . $srcPath);
         }
+        if (is_link($dstPath)) {
+            throw new RuntimeException('Percorso destinazione simbolico non consentito: ' . $dstPath);
+        }
 
         if (is_dir($srcPath)) {
             $count += copyTree($srcPath, $dstPath, $rootDst, $skipRelative);
         } else {
             $dstDir = dirname($dstPath);
-            if (is_link($dstPath) || is_link($dstDir)) {
+            if (is_link($dstDir)) {
                 throw new RuntimeException('Percorso destinazione simbolico non consentito: ' . $dstPath);
             }
             if (!is_dir($dstDir) && !@mkdir($dstDir, 0755, true) && !is_dir($dstDir)) {
@@ -1288,7 +1341,7 @@ if ($authenticated && $requestMethod === 'POST' && isset($_FILES['zipfile'])) {
             '.env.backup',
             'storage/uploads',
             'storage/digital', // Digital Library files (#480): may be a symlink to a larger disk
-            'storage/plugins',
+            ...upgradePreservedPluginPaths($extractedRoot, $rootPath),
             'storage/backups',
             'storage/cache',
             'storage/logs',
@@ -1655,7 +1708,7 @@ if (PHP_SAPI === 'cli') {
 
                 <ul class="checklist" style="margin-bottom: 1.5rem;">
                     <li>Backup automatico del database prima dell'upgrade</li>
-                    <li>Preserva: copertine, uploads, .env, plugin, configurazioni</li>
+                    <li>Preserva copertine, uploads, .env, plugin di terze parti e configurazioni</li>
                     <li>Esegue le migrazioni DB mancanti automaticamente</li>
                     <li>Le migrazioni sono idempotenti (sicure da rieseguire)</li>
                 </ul>
