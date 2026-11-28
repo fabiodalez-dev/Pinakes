@@ -92,7 +92,10 @@ $cleanup = static function () use ($db, &$bookIds, &$userIds, $settings, $savedL
     // The whole-catalogue recalculation of the test ran with the limit at 1
     // and the overrides on: it also rewrote the counters of every title that
     // is not a fixture. Now that both are back, compute them again.
-    $restored = (new DataIntegrity($db))->recalculateAllBookAvailability();
+    // Scoped to this connection, like the test itself: the rules and the
+    // limit must be read from the database being recalculated, not from the
+    // one the application is configured with.
+    $restored = ConfigStore::usingConnection($db, static fn (): array => (new DataIntegrity($db))->recalculateAllBookAvailability());
     if ($restored['errors'] !== []) {
         throw new RuntimeException('catalogue counters not restored: ' . json_encode($restored['errors']));
     }

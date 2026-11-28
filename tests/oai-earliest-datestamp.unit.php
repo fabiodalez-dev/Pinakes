@@ -121,11 +121,13 @@ $staleAt = '2000-06-07 08:09:10';
 
 // The fixtures are dated 2000, 2001 and 2002 and must be the oldest records
 // of the repository: the checks below name those datestamps. A database that
-// already holds something older cannot run them, and says so instead of
-// failing on a datestamp nobody recognises.
-$alreadyThere = $earliestOf($oai(['verb' => 'Identify']));
-if ($alreadyThere !== '' && $alreadyThere < '2003-01-01T00:00:00Z') {
-    fwrite(STDERR, "FAIL: this database already holds a record dated {$alreadyThere}, older than the fixtures of this suite (2000-2002): run it on a test database whose records are newer.\n");
+// already holds something that old cannot run them, and says so instead of
+// failing on a datestamp nobody recognises. Asked of the list verb, not of
+// Identify: an empty repository answers earliestDatestamp 1970-01-01, which
+// is its fallback and not a record.
+$alreadyThere = $harvest(['verb' => 'ListIdentifiers', 'metadataPrefix' => 'oai_dc', 'from' => '1970-01-01T00:00:00Z', 'until' => '2002-12-31T23:59:59Z']);
+if ($alreadyThere !== []) {
+    fwrite(STDERR, 'FAIL: this database already holds ' . count($alreadyThere) . " record(s) dated before 2003, the oldest {$alreadyThere[0]['datestamp']}: as old as the fixtures of this suite (2000-2002). Run it on a test database whose records are newer.\n");
     exit(1);
 }
 
