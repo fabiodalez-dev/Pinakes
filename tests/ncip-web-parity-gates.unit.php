@@ -22,6 +22,7 @@ declare(strict_types=1);
  * Run: php tests/ncip-web-parity-gates.unit.php
  */
 
+use App\Controllers\ReservationsController;
 use App\Models\CopyRepository;
 use App\Models\SettingsRepository;
 use App\Plugins\NcipServer\NcipServerPlugin;
@@ -280,6 +281,38 @@ try {
             !$isProblem($a4) && $a4Hold !== null && $a4Hold['s'] > $today
                 && $capacity->hasFreeCapacity($a4Book, (string) $a4Hold['s'], (string) $a4Hold['e'], excludeUserId: $a4Reader, forQueue: true),
             'A4 behind an overdue copy the hold starts after today, on a window the web accepts'
+        );
+
+        // A5: the only copy is out until past the last day a request may start
+        // on (ReservationsController::requestStartUntil()). The web form and
+        // the Mobile API refuse such a start; NCIP must not store it either.
+        $startUntil = ReservationsController::requestStartUntil($today);
+        [$a5Book, $a5Copy] = $makeBook();
+        $a5Borrower = $makeUser();
+        $a5Reader = $makeUser();
+        $makeActiveLoan($a5Book, $a5Copy, $a5Borrower, $day(-2), LibraryCalendar::shift($startUntil, 5));
+        $a5 = $send('RequestItem', $a5Book, $a5Reader, $admin);
+        $a5Hold = $holdOf($a5Book, $a5Reader);
+        $check(
+            $a5Hold === null || $a5Hold['s'] <= $startUntil,
+            'A5 no hold starts after the request start horizon ' . $startUntil . ' (starts ' . ($a5Hold['s'] ?? 'n/a') . ')'
+        );
+        $check($isProblem($a5) && str_contains($a5[1], 'Item Not Available By Need Before Date'), 'A5 a hold that could only start past the horizon is answered request-item-not-available');
+        $check(!str_contains($a5[1], 'Temporary Processing Failure'), 'A5 the refusal is permanent, not a retryable processing failure');
+        $check($a5Hold === null && $loansOf($a5Book, $a5Reader) === 0, 'A5 nothing is stored for the refused hold');
+
+        // A6: the copy comes back a few days before the horizon: the hold is
+        // still taken, and starts within it.
+        [$a6Book, $a6Copy] = $makeBook();
+        $a6Borrower = $makeUser();
+        $a6Reader = $makeUser();
+        $makeActiveLoan($a6Book, $a6Copy, $a6Borrower, $day(-2), LibraryCalendar::shift($startUntil, -20));
+        $a6 = $send('RequestItem', $a6Book, $a6Reader, $admin);
+        $a6Hold = $holdOf($a6Book, $a6Reader);
+        $check(
+            !$isProblem($a6) && $a6Hold !== null && $a6Hold['s'] <= $startUntil
+                && $a6Hold['s'] > LibraryCalendar::shift($startUntil, -20),
+            'A6 a copy due back before the horizon still takes the hold, starting within it (starts ' . ($a6Hold['s'] ?? 'n/a') . ')'
         );
 
         // ── B. Separation of duties ────────────────────────────────────────

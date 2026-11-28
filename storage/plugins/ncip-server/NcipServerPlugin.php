@@ -2251,7 +2251,8 @@ class NcipServerPlugin
                 $userId,
                 $startDate,
                 $dueDate,
-                $requestedDue === null ? $requestPolicy->requestDurationDays() : null
+                $requestedDue === null ? $requestPolicy->requestDurationDays() : null,
+                \App\Controllers\ReservationsController::requestStartUntil($today)
             );
             if ($window === null) {
                 $failureReason = 'not_available';
@@ -2347,9 +2348,14 @@ class NcipServerPlugin
      * search moves to the day after the last full one and tries again; null
      * keeps the window fixed. Call it under the book lock.
      *
-     * @return array{0: string, 1: string}|null [start, due], or null when no copy can serve the hold
+     * The search stops at $startUntil, the last day a request may start on
+     * (ReservationsController::requestStartUntil(), the horizon the web form
+     * and the Mobile API enforce): a hold never starts later than a reader
+     * could have asked for.
+     *
+     * @return array{0: string, 1: string}|null [start, due], or null when no copy can serve the hold within the horizon
      */
-    private function firstHoldWindow(int $bookId, int $userId, string $startDate, string $dueDate, ?int $durationDays): ?array
+    private function firstHoldWindow(int $bookId, int $userId, string $startDate, string $dueDate, ?int $durationDays, string $startUntil): ?array
     {
         $capacity = new \App\Services\CapacityService($this->db, lockingReads: true);
         if ($capacity->totalCopies($bookId) <= 0) {
@@ -2357,6 +2363,9 @@ class NcipServerPlugin
         }
         $forQueue = $capacity->hasPhysicalCopies($bookId);
         for ($probe = 0; $probe < self::MAX_HOLD_WINDOW_PROBES; $probe++) {
+            if ($startDate > $startUntil) {
+                return null;
+            }
             if ($capacity->hasFreeCapacity($bookId, $startDate, $dueDate, excludeUserId: $userId, forQueue: $forQueue)) {
                 return [$startDate, $dueDate];
             }
