@@ -2,7 +2,7 @@
 
 Full version-by-version history for Pinakes. The README shows only the last three releases; everything older lives here.
 
-## [0.9.7]
+## [0.9.7-beta.1]
 
 Several fixes: long admin lists get a pager above the table and bring the first row back into view after a page change ([#544](https://github.com/fabiodalez-dev/Pinakes/issues/544), [#545](https://github.com/fabiodalez-dev/Pinakes/pull/545)), the donation form on the page of a wanted book lines up with the rest of the page ([#543](https://github.com/fabiodalez-dev/Pinakes/pull/543)), the active-filter chip of the public catalogue shows the name of the genre instead of its internal ID ([#547](https://github.com/fabiodalez-dev/Pinakes/issues/547)), the standalone upgrader brings the bundled plugins up to date with the rest of the release, and four SRU and OAI-PMH interoperability fixes come from running third-party clients against the two servers, plus two dependency security updates. It also carries the fixes from a full review of circulation: the queue, closures, deletions, catalogue-only mode, NCIP and the Mobile API. No migration.
 
