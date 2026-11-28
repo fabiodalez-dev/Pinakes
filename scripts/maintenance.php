@@ -43,11 +43,10 @@ fwrite($lockHandle, (string)getmypid());
 fflush($lockHandle);
 
 // Register shutdown function to release lock
-register_shutdown_function(function () use ($lockHandle, $lockFile) {
+register_shutdown_function(function () use ($lockHandle) {
     flock($lockHandle, LOCK_UN);
     fclose($lockHandle);
-    // Optionally remove lock file (commented out to avoid race with next execution)
-    // @unlink($lockFile);
+    // The lock file is never removed: unlinking it would race with the next run.
 });
 
 // ============================================================
@@ -85,9 +84,11 @@ use App\Support\RememberMeService;
 $settings = require __DIR__ . '/../config/settings.php';
 $cfg = $settings['db'];
 
-// Connect to database
-$socket = null;
-if ($cfg['hostname'] === 'localhost') {
+// Connect to database. The configured socket (DB_SOCKET) first, as the cron
+// entry points do: guessing a path could reach another server on a host
+// that runs two.
+$socket = $cfg['socket'] ?? null;
+if ($socket === null && $cfg['hostname'] === 'localhost') {
     // Try common socket locations for localhost
     $socketPaths = [
         '/tmp/mysql.sock',
@@ -119,6 +120,16 @@ if ($db->connect_error) {
 
 $db->set_charset($cfg['charset']);
 \App\Support\DateHelper::synchronizeDatabaseSession($db);
+
+// The installation locale, as cron/full-maintenance.php loads it: in CLI the
+// locale would stay the static it_IT and the e-mails queued below would go
+// out in Italian on every other installation.
+try {
+    \App\Support\I18n::loadFromDatabase($db);
+} catch (\Throwable $e) {
+    // Same fallback as the web bootstrap: the hardcoded locales.
+    error_log('Maintenance: languages not loaded from the database: ' . $e->getMessage());
+}
 
 $reservationManager = new ReservationManager($db);
 
@@ -189,12 +200,16 @@ while ($row = $result->fetch_assoc()) {
 
 echo "✓ Processed $processedBooks books with reservations\n\n";
 
-// Clean up old completed/cancelled reservations (older than 30 days)
+// Clean up reservations closed more than 30 days ago. Counted from the day
+// the row was closed (updated_at), not from the day it was made: one that
+// waited in the queue for over a month would be deleted on the run after its
+// promotion. A completed one whose "book available" notice is still unsent
+// is kept as well: the notification retry reads it.
 echo "Cleaning up old reservations...\n";
 $stmt = $db->prepare("
     DELETE FROM prenotazioni
-    WHERE stato IN ('completata', 'annullata')
-    AND created_at < DATE_SUB(NOW(), INTERVAL 30 DAY)
+    WHERE (stato = 'annullata' OR (stato = 'completata' AND notifica_inviata = 1))
+    AND updated_at < DATE_SUB(NOW(), INTERVAL 30 DAY)
 ");
 $stmt->execute();
 $cleanedUp = $db->affected_rows;

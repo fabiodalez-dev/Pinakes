@@ -9431,5 +9431,9 @@
   "Durata non valida": "Ugyldig spilletid",
   "La durata deve essere un numero intero di minuti tra 1 e %d.": "Spilletiden skal være et helt antal minutter mellem 1 og %d.",
   "Impossibile registrare il tentativo di accesso: la cartella storage/cache/installer-login non è scrivibile. Verifica i permessi della cartella storage/ sul server.": "Loginforsøget kunne ikke registreres: mappen storage/cache/installer-login er ikke skrivbar. Kontrollér rettighederne for mappen storage/ på serveren.",
-  "Il database configurato non risponde come previsto. Il dettaglio dell'errore è nel log del server.": "Den konfigurerede database svarer ikke som forventet. Fejldetaljerne findes i serverens log."
+  "Il database configurato non risponde come previsto. Il dettaglio dell'errore è nel log del server.": "Den konfigurerede database svarer ikke som forventet. Fejldetaljerne findes i serverens log.",
+  "Ripristina le scadenze prorogate dai giorni che rimuovo": "Gendan de afleveringsfrister, som de fjernede dage forlængede",
+  "Da usare se le date erano sbagliate. Senza questa opzione i lettori mantengono la scadenza già comunicata.": "Bruges, hvis datoerne var forkerte. Uden denne mulighed beholder læserne den afleveringsfrist, de allerede har fået oplyst.",
+  "L'utente ha uno storico (prestiti, prenotazioni o altri dati collegati) e non può essere eliminato: è stato sospeso.": "Brugeren har en historik (udlån, reservationer eller andre tilknyttede data) og kan ikke slettes: Kontoen er blevet suspenderet.",
+  "Impossibile eliminare: questi libri hanno prestiti o prenotazioni attive: %s": "Kan ikke slette: Disse bøger har aktive udlån eller reservationer: %s"
 }

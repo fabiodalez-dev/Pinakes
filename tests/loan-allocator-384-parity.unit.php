@@ -4,6 +4,12 @@ declare(strict_types=1);
 /**
  * #384 allocator parity suite.
  *
+ * The loan desk (PrestitiController::store(), section "Desk allocator" below)
+ * is the fifth: it keeps its own lenient date-overlap rule, like the
+ * reassignment, and since 0.9.7 picks among the free copies in the order the
+ * canonical three would (it used to take whichever row the engine returned
+ * first: `LIMIT 1` with no ORDER BY).
+ *
  * Four allocators bind copies to engagements: the request gate
  * (LoanRequestGate::findAssignableInLibraryCopyThrough), the FIFO promotion
  * (ReservationManager), the approval Step-2d allocator (LoanApprovalController)
@@ -23,10 +29,15 @@ declare(strict_types=1);
  * Run: php tests/loan-allocator-384-parity.unit.php
  */
 
+use App\Controllers\PrestitiController;
 use App\Services\CapacityService;
 use App\Services\LoanRequestGate;
 use App\Services\ReservationReassignmentService;
+use App\Support\ConfigStore;
 use App\Support\DateHelper;
+use App\Support\OneTimeFormToken;
+use Slim\Psr7\Factory\ServerRequestFactory;
+use Slim\Psr7\Response as SlimResponse;
 
 require dirname(__DIR__) . '/vendor/autoload.php';
 
@@ -73,6 +84,8 @@ $bookIds = [];
 $userIds = [];
 $cleanup = static function () use ($db, &$bookIds, &$userIds): void {
     foreach ($bookIds as $id) {
+        // The desk section records real loans: drop the operator notice each wrote.
+        $db->query("DELETE FROM admin_notifications WHERE type = 'general' AND related_id IN (SELECT id FROM prestiti WHERE libro_id = {$id})");
         $db->query("DELETE FROM prenotazioni WHERE libro_id = {$id}");
         $db->query("DELETE FROM prestiti WHERE libro_id = {$id}");
         $db->query("DELETE FROM copie WHERE libro_id = {$id}");
@@ -207,6 +220,53 @@ $futureOnA = $insertLoan($bookP, $copyA, $other, $d(30), $d(40), 'prenotato', 1)
 $picked = $gateAlloc->invoke($gate, $bookP, $d(7));
 $check($picked === $copyB, '09 the gate shares the preference: keep the copy a future loan already needs');
 
+// ═════════ Desk allocator — behavioral (the real PrestitiController::store()) ═════════
+// Each loan is handed over at the desk (start today, 'in_corso'): that path
+// sends the reader no e-mail. Settings are read from THIS connection.
+[$bookD, [$deskA, $deskB]] = $makeBook('D', 2); // deskA has the LOWER id
+$deskReader = $makeUser('desk');
+$deskOperator = $makeUser('operator');
+$db->query("UPDATE utenti SET tipo_utente = 'admin' WHERE id = {$deskOperator}");
+$savedSession = $_SESSION ?? [];
+$deskLoan = static function (int $book, int $reader) use ($db, $deskOperator): ?int {
+    $_SESSION = ['user' => ['id' => $deskOperator, 'tipo_utente' => 'admin', 'stato' => 'attivo']];
+    ConfigStore::usingConnection($db, static function () use ($db, $book, $reader): void {
+        // "Today" as this database's settings define it, so the loan is an
+        // immediate one whatever timezone the default connection is set to.
+        $start = DateHelper::today();
+        $request = (new ServerRequestFactory())->createServerRequest('POST', '/admin/loans/store')->withParsedBody([
+            'utente_id' => (string) $reader, 'libro_id' => (string) $book, 'copy_code' => '',
+            'data_prestito' => $start,
+            'data_scadenza' => (new DateTimeImmutable($start))->modify('+7 days')->format('Y-m-d'),
+            'consegna_immediata' => '1',
+            'loan_submission_token' => OneTimeFormToken::issue('loan.create'),
+        ]);
+        (new PrestitiController())->store($request, new SlimResponse(), $db);
+    });
+    $row = $db->query("SELECT copia_id FROM prestiti WHERE libro_id = {$book} AND utente_id = {$reader} AND origine = 'diretto' ORDER BY id DESC LIMIT 1")->fetch_row();
+    return $row === null || $row[0] === null ? null : (int) $row[0];
+};
+
+// 24 — preference (DISCRIMINATING): the LOWER id carries a commitment after
+// the desk loan's window, its sibling is clean. An unordered `LIMIT 1` bound
+// the lower id; the #384 preference binds the clean copy.
+$futureOnDeskA = $insertLoan($bookD, $deskA, $other, $d(30), $d(40), 'prenotato', 1);
+$check($deskLoan($bookD, $deskReader) === $deskB, '24 the desk binds the copy with NO later commitment (the lower id is needed by a scheduled loan)');
+
+// 25 — tie-break: with nothing scheduled on either copy the lower id is bound.
+$db->query("DELETE FROM prestiti WHERE libro_id = {$bookD}");
+$db->query("UPDATE copie SET stato = 'disponibile' WHERE libro_id = {$bookD}");
+$check($deskLoan($bookD, $deskReader) === $deskA, '25 with equal preference the desk tie-break is the lower copy id');
+
+// 26 — furthest next commitment: both copies are promised later, the one
+// whose next loan is further away is bound (here the HIGHER id).
+$db->query("DELETE FROM prestiti WHERE libro_id = {$bookD}");
+$db->query("UPDATE copie SET stato = 'disponibile' WHERE libro_id = {$bookD}");
+$insertLoan($bookD, $deskA, $other, $d(20), $d(25), 'prenotato', 1);
+$insertLoan($bookD, $deskB, $holder, $d(40), $d(45), 'prenotato', 1);
+$check($deskLoan($bookD, $deskReader) === $deskB, '26 the desk prefers the copy whose next commitment is furthest away');
+$_SESSION = $savedSession;
+
 // ═════════ Capacity gate + headQueuePos (#157 F.21b) ═════════
 [$bookC] = $makeBook('C', 1);
 $uH = $makeUser('head');
@@ -295,6 +355,22 @@ $check($checkoutSrc !== ''
     && str_contains($checkoutSrc, 'no request idempotency')
     && !str_contains($checkoutSrc, 'committedCopyIds'),
     '23 CheckOutItem documents and enforces title-level replay safety');
+
+// The desk allocator (PrestitiController::store()) orders its candidates: the
+// statement that picks the copy is sliced out of the method, so a sentinel
+// elsewhere in the 3000-line controller cannot satisfy these.
+$deskSrc = (string) file_get_contents($root . '/app/Controllers/PrestitiController.php');
+$storeAt = strpos($deskSrc, 'public function store(');
+$storeEnd = $storeAt === false ? false : strpos($deskSrc, 'public function editForm(', $storeAt);
+$storeSrc = $storeAt === false || $storeEnd === false ? '' : substr($deskSrc, $storeAt, $storeEnd - $storeAt);
+$deskAllocator = preg_match('/\$overlapStmt = \$db->prepare\("(.*?)"\);/s', $storeSrc, $m) === 1 ? $m[1] : '';
+$check($deskAllocator !== '' && str_contains($deskAllocator, "'9999-12-31'")
+    && preg_match('/MIN\(future\.data_prestito\).*?DESC,\s+c\.id ASC\s+LIMIT 1/s', $deskAllocator) === 1,
+    '27 the desk allocator carries the #384 preference and the id tie-break before LIMIT 1');
+$check($deskAllocator !== '' && preg_match('/ORDER BY EXISTS \(\s*SELECT 1 FROM prestiti prior.*?prior\.data_prestito <= \?.*?\) ASC,/s', $deskAllocator) === 1,
+    '28 the desk allocator first prefers a copy with no preceding commitment (the hard rule of the canonical three, as a preference)');
+$check($deskAllocator !== '' && str_contains($deskAllocator, 'p.data_prestito <= ?') && str_contains($deskAllocator, 'p.data_scadenza >= ?'),
+    '29 the desk keeps its lenient date-overlap rule: a date-disjoint earlier loan does not refuse the title');
 
 $cleanup();
 $db->close();

@@ -8,13 +8,13 @@ namespace App\Plugins\MobileApi\Support;
  * "Is this title still in circulation?" — the guard that must pass before a
  * book is soft-deleted.
  *
- * The two queries are the same ones LibriController::delete() runs before it
- * allows a deletion from the web back office: an approved loan that still holds
- * (or will hold) a copy, or an active wait-list entry. They are kept here, in
- * the plugin, rather than shared through a new core helper so the plugin keeps
- * working against the core version it declares in requires_app; the unit test
- * tests/mobile-api-staff.unit.php pins them to the core text so the two
- * cannot drift apart silently.
+ * The two queries state the same rule the web back office applies before a
+ * single or a bulk deletion (App\Support\DataIntegrity::booksBlockingDeletion):
+ * an approved loan that still holds (or will hold) a copy, or an active
+ * wait-list entry. They are kept here, in the plugin, rather than calling the
+ * core helper so the plugin keeps working against the core version it declares
+ * in requires_app; the unit test tests/mobile-api-staff.unit.php pins them to
+ * the core rule so the two cannot drift apart silently.
  */
 final class BookCirculationCheck
 {

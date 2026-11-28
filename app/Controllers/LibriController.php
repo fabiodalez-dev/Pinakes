@@ -2469,37 +2469,9 @@ class LibriController
     {
         // CSRF validated by CsrfMiddleware
 
-        // Case 10: Prevent deletion if there are active loans/reservations
-        // Check prestiti table (approved loans only)
-        $stmt = $db->prepare("
-            SELECT COUNT(*) as count
-            FROM prestiti
-            WHERE libro_id = ?
-            AND attivo = 1
-            AND stato IN ('in_corso', 'da_ritirare', 'prenotato', 'in_ritardo')
-        ");
-        $stmt->bind_param('i', $id);
-        $stmt->execute();
-        $result = $stmt->get_result();
-        $row = $result ? $result->fetch_assoc() : null;
-        $prestitiCount = (int) ($row['count'] ?? 0);
-        $stmt->close();
-
-        // Also check prenotazioni table (waitlist entries with stato='attiva')
-        $stmt = $db->prepare("
-            SELECT COUNT(*) as count
-            FROM prenotazioni
-            WHERE libro_id = ?
-            AND stato = 'attiva'
-        ");
-        $stmt->bind_param('i', $id);
-        $stmt->execute();
-        $result = $stmt->get_result();
-        $row = $result ? $result->fetch_assoc() : null;
-        $prenotazioniCount = (int) ($row['count'] ?? 0);
-        $stmt->close();
-
-        if ($prestitiCount > 0 || $prenotazioniCount > 0) {
+        // Case 10: no deletion while an approved loan or a live queue entry
+        // points at the title. Same predicate as the bulk delete.
+        if (\App\Support\DataIntegrity::booksBlockingDeletion($db, [$id]) !== []) {
             $_SESSION['error_message'] = __('Impossibile eliminare il libro: ci sono prestiti o prenotazioni attive. Termina prima i prestiti/prenotazioni.');
             return $response->withHeader('Location', url('/admin/books/' . $id))->withStatus(302);
         }

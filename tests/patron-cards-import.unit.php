@@ -485,8 +485,22 @@ try {
         @chmod(PatronPhoto::directory(), $dirMode); // running as root: permissions do not apply
     }
     unset($_SESSION['error_message']);
-    // A DELETE refused by a foreign key (a reservation still pointing to the
-    // reader, here a scratch child table) leaves the photo and its reference.
+    // A DELETE the database refuses (here a trigger: nothing the controller
+    // could have seen beforehand) leaves the photo and its reference.
+    $refusal = 'zz_pci_refuse_' . $suffix;
+    $db->query("CREATE TRIGGER {$refusal} BEFORE DELETE ON utenti FOR EACH ROW BEGIN IF OLD.id = {$victimId} THEN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'ZZ simulated refusal'; END IF; END");
+    try {
+        $status = $deleteUser();
+    } catch (\Throwable $e) {
+        $status = 0;
+    } finally {
+        $db->query("DROP TRIGGER IF EXISTS {$refusal}");
+    }
+    $check($status === 302 && $victimExists() && $victimPhoto !== null && is_file($victimPhoto) && PatronPhoto::storedFor($db, $victimId) !== null && isset($_SESSION['error_message']), 'a DELETE refused by the database keeps the reader\'s photo and its reference');
+    unset($_SESSION['error_message'], $_SESSION['success_message']);
+    // A row that forbids the DELETE through a foreign key (a reservation, here
+    // a scratch child table) is history: the reader is suspended, not erased,
+    // and the photo goes with the account as for a reader kept for the loans.
     $holder = 'zz_pci_hold_' . $suffix;
     $db->query("CREATE TABLE {$holder} (utente_id INT NOT NULL, FOREIGN KEY (utente_id) REFERENCES utenti (id)) ENGINE=InnoDB");
     $db->query("INSERT INTO {$holder} (utente_id) VALUES ({$victimId})");
@@ -494,10 +508,13 @@ try {
         $status = $deleteUser();
     } catch (\Throwable $e) {
         $status = 0;
+    } finally {
+        $db->query("DROP TABLE IF EXISTS {$holder}");
     }
-    $db->query("DROP TABLE IF EXISTS {$holder}");
-    $check($status === 302 && $victimExists() && $victimPhoto !== null && is_file($victimPhoto) && PatronPhoto::storedFor($db, $victimId) !== null && isset($_SESSION['error_message']), 'a DELETE refused by the database keeps the reader\'s photo and its reference');
-    unset($_SESSION['error_message']);
+    $victimState = $db->query("SELECT stato FROM utenti WHERE id = {$victimId}")->fetch_row()[0] ?? null;
+    $check($status === 302 && $victimState === 'sospeso' && isset($_SESSION['success_message']) && !isset($_SESSION['error_message']), 'a reader a foreign key forbids erasing is suspended, with no failed DELETE');
+    $check($victimPhoto !== null && !is_file($victimPhoto) && PatronPhoto::storedFor($db, $victimId) === null, 'and the photo goes with the account');
+    unset($_SESSION['error_message'], $_SESSION['success_message']);
     $check($deleteUser() === 302 && !$victimExists() && $victimPhoto !== null && !is_file($victimPhoto), 'deleting a reader without loans removes the account and its photo');
     $_SESSION = [];
 

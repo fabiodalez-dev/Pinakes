@@ -128,20 +128,31 @@ class LoanEligibility
      * Matches a real requested start that has arrived — with a '1000-01-01'
      * floor (MySQL's minimum valid DATE) that rejects 0000-00-00 dump rows
      * without embedding the literal a NO_ZERO_DATE server refuses at prepare
-     * time — OR a legacy no-start row while its deadline is still today or in
-     * the future.
+     * time — OR a legacy no-start row, and in both cases only while the window
+     * can still be used: a start that has arrived says nothing about the end,
+     * and a window that is over would become a loan dated in the past. The end
+     * is the one the promotion resolves (requested end, else the legacy
+     * deadline, else the start); a legacy row keeps reading its deadline.
      *
-     * Requires TWO positional placeholders: today, then the oldest legacy
-     * deadline that could still be usable (normally today).
+     * Requires TWO positional placeholders: today, then the oldest stored end
+     * that could still be usable (today; an earlier day only when the days in
+     * between were closed, see LibraryCalendar::legacyReservationDeadlineFloor).
+     * The promotion checks the effective end again under its lock.
      * $alias is the `prenotazioni` table alias: a fixed literal, never user input.
      */
     public static function promotableReservationWhere(string $alias): string
     {
         return "(
-                    ({$alias}.data_inizio_richiesta >= '1000-01-01' AND {$alias}.data_inizio_richiesta <= ?)
-                    OR ({$alias}.data_inizio_richiesta IS NULL
-                        AND {$alias}.data_scadenza_prenotazione IS NOT NULL
-                        AND DATE({$alias}.data_scadenza_prenotazione) >= ?)
+                    (
+                        ({$alias}.data_inizio_richiesta >= '1000-01-01' AND {$alias}.data_inizio_richiesta <= ?)
+                        OR ({$alias}.data_inizio_richiesta IS NULL
+                            AND {$alias}.data_scadenza_prenotazione IS NOT NULL)
+                    )
+                    AND COALESCE(
+                        IF({$alias}.data_inizio_richiesta IS NULL, NULL, {$alias}.data_fine_richiesta),
+                        DATE({$alias}.data_scadenza_prenotazione),
+                        {$alias}.data_inizio_richiesta
+                    ) >= ?
                 )";
     }
 

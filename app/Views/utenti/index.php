@@ -723,19 +723,30 @@ document.addEventListener('DOMContentLoaded', function() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
+          'Accept': 'application/json',
         },
         body: `csrf_token=${encodeURIComponent(csrfToken)}`
       })
-      .then(response => {
-        if (response.ok || response.redirected) {
-          table.ajax.reload(null, false);
-          window.SwalApp.success(__('Eliminato!'), __('L\'utente è stato eliminato.'));
-        } else {
-          return response.text().then(text => {
-            console.error('Delete failed - Status:', response.status, 'Body:', text);
-            window.SwalApp.error(undefined, __('Non è stato possibile eliminare l\'utente. Controlla la console.'));
-          });
+      .then(async (response) => {
+        // Only the server's own JSON verdict counts. An answer that merely
+        // loaded (a redirect followed to an HTML page, an expired session)
+        // says nothing about the reader and must not read as "deleted".
+        const text = await response.text();
+        let data = null;
+        try { data = JSON.parse(text); } catch (e) { data = null; }
+        table.ajax.reload(null, false);
+        if (response.ok && data && data.success === true) {
+          if (data.outcome === 'suspended') {
+            // Kept for the history and suspended: not the same as erased.
+            window.SwalApp.warning(undefined, [data.message, data.warning].filter(Boolean).join(' '));
+          } else {
+            window.SwalApp.success(__('Eliminato!'), __('L\'utente è stato eliminato.'));
+          }
+          return;
         }
+        console.error('Delete failed - Status:', response.status, 'Body:', text);
+        const reason = data && typeof (data.error || data.message) === 'string' ? (data.error || data.message) : '';
+        window.SwalApp.error(undefined, reason || __('Non è stato possibile eliminare l\'utente. Controlla la console.'));
       })
       .catch(error => {
         console.error('Delete error:', error);

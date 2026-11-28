@@ -31,11 +31,15 @@ declare(strict_types=1);
  *     committed a second loan on the same copy. Post-fix: the re-check is
  *     FOR UPDATE and aborts, the claim is reverted, the copy keeps ONE loan.
  *
- *   SOURCE INVARIANTS: every one of the 8 affected transactions must resolve
+ *   SOURCE INVARIANTS: every one of the 10 affected transactions must resolve
  *     the book id BEFORE begin_transaction() so the FIRST in-transaction
  *     statement is the locking `libri ... FOR UPDATE` read (read view created
  *     post-lock); ReservationManager must keep the locking queue read, the
- *     guarded claim and the locking overlap re-check.
+ *     guarded claim and the locking overlap re-check. The desk's
+ *     confirmPickup() and cancelReservation() joined the list in 0.9.7: both
+ *     opened the transaction first, and their behaviour under a competing
+ *     commit is exercised with the real controllers in
+ *     tests/circulation-review-097.unit.php (cases E1, E2).
  *
  * Touches only data it creates (titles ZZ_MVCC_%, users zzmvcc-%), cleans up
  * after itself.
@@ -297,7 +301,7 @@ try {
     check(count($deferredNotifications($rm2)) === 0, 'race 2: no notification queued for the aborted promotion');
 
     /* =====================================================================
-     * SOURCE INVARIANTS — lock-first ordering in all 8 transactions +
+     * SOURCE INVARIANTS — lock-first ordering in all 10 transactions +
      * ReservationManager guards.
      * ===================================================================== */
     $readSource = static function (string $path) use ($root): string {
@@ -324,6 +328,8 @@ try {
         ['/app/Controllers/LoanApprovalController.php', 'function rejectLoan(', 'SELECT libro_id FROM prestiti'],
         ['/app/Controllers/LoanApprovalController.php', 'function returnLoan(', 'SELECT libro_id FROM prestiti'],
         ['/app/Controllers/LoanApprovalController.php', 'function cancelPickup(', 'SELECT libro_id FROM prestiti'],
+        ['/app/Controllers/LoanApprovalController.php', 'function confirmPickup(', 'SELECT libro_id FROM prestiti'],
+        ['/app/Controllers/LoanApprovalController.php', 'function cancelReservation(', 'SELECT libro_id FROM prenotazioni'],
         ['/app/Controllers/PrestitiController.php', 'function processReturn(', 'SELECT libro_id FROM prestiti'],
         ['/app/Models/LoanRepository.php', 'function close(', 'SELECT libro_id FROM prestiti'],
         ['/app/Controllers/UserActionsController.php', 'function cancelLoan(', 'SELECT libro_id'],

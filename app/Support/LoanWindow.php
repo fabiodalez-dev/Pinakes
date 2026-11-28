@@ -20,17 +20,31 @@ use DateTime;
  * return date and the day from which the book is already booked. A loan
  * that would start on a blocked day cannot be shortened, so no cap is
  * reported and the caller keeps its generic message.
+ *
+ * With the closures calendar the return date is the last OPEN day before the
+ * first blocked one: every request surface moves a due date that falls on a
+ * closed day forward to the next open day (LibraryCalendar::requestDueDate(),
+ * CirculationPolicy::dueDateFor()), so a proposal on a closed day would be
+ * stored on the blocked day itself, or refused again with the same proposal.
  */
 final class LoanWindow
 {
     /**
      * @param string[] $conflictDates Y-m-d days inside [startDate, endDate]
      *                                without a free copy (CapacityService::unavailableDatesInRange()).
+     * @param LibraryCalendar|null $calendar The closures calendar: the return
+     *        date steps back to the last open day before the first blocked one,
+     *        as renewalCap() does. Without it (or without rules) the return
+     *        date is the day before the conflict, as before 0.9.7.
+     * @param int|list<int>|null $sedeId The branch whose closures move the due
+     *        date of this request: LibraryCalendar::requestScope() of the title
+     *        while no copy is chosen, LibraryCalendar::branchOfCopy() once one is.
      * @return array{first_conflict_date: string, max_end_date: string, max_duration_days: int}|null
      *         null when nothing bounds the window, when the start day itself is blocked,
-     *         or when the next day is (no loan of at least one day is possible).
+     *         or when no open day is left after it before the first blocked one
+     *         (no loan of at least one day is possible).
      */
-    public static function cap(string $startDate, array $conflictDates): ?array
+    public static function cap(string $startDate, array $conflictDates, ?LibraryCalendar $calendar = null, int|array|null $sedeId = null): ?array
     {
         $future = array_filter($conflictDates, static fn (string $d): bool => $d > $startDate);
         if ($future === []) {
@@ -41,13 +55,24 @@ final class LoanWindow
             return null;
         }
         $maxEnd = (new DateTime($firstConflict))->modify('-1 day')->format('Y-m-d');
-        $maxDays = (int) (new DateTime($startDate))->diff(new DateTime($maxEnd))->days;
-        // The very next day is blocked: no loan of at least one day exists
-        // from this start, so there is nothing to propose and the caller
-        // keeps its generic refusal (the calendars say so before sending).
-        if ($maxDays < 1) {
+        if ($calendar !== null && $calendar->hasRules()) {
+            $maxEnd = $calendar->previousOpenDay($maxEnd, $sedeId);
+            // previousOpenDay() gives its argument back when it finds no open
+            // day within its scan: a closed day is never a return date.
+            if (!$calendar->isOpen($maxEnd, $sedeId)) {
+                return null;
+            }
+        }
+        // The very next day is blocked, or every day up to the first blocked
+        // one is closed: no loan of at least one day exists from this start,
+        // so there is nothing to propose and the caller keeps its generic
+        // refusal (the calendars say so before sending). Compared as dates:
+        // the step back can land before the start, where a day count is
+        // positive again.
+        if ($maxEnd <= $startDate) {
             return null;
         }
+        $maxDays = (int) (new DateTime($startDate))->diff(new DateTime($maxEnd))->days;
 
         return [
             'first_conflict_date' => $firstConflict,
@@ -82,11 +107,12 @@ final class LoanWindow
      * Mobile API delegation). Empty when nothing bounds the window.
      *
      * @param string[] $conflictDates
+     * @param int|list<int>|null $sedeId
      * @return array{max_loan_days?: int, max_end_date?: string, blocked_from?: string}
      */
-    public static function redirectParams(string $startDate, array $conflictDates): array
+    public static function redirectParams(string $startDate, array $conflictDates, ?LibraryCalendar $calendar = null, int|array|null $sedeId = null): array
     {
-        $cap = self::cap($startDate, $conflictDates);
+        $cap = self::cap($startDate, $conflictDates, $calendar, $sedeId);
         if ($cap === null) {
             return [];
         }

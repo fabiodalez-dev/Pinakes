@@ -733,12 +733,33 @@ class UsersController
         if (!$userToDelete) { return $response->withStatus(404); }
         if (!\App\Support\UserRoleAssignment::canEdit($userToDelete)) { return $response->withStatus(403); }
 
-        // Check for any loans (active or not) to preserve history. Ledger rows
+        // The list's fetch() call asks for JSON so it can tell the operator what
+        // really happened (erased, suspended, failed); a plain form keeps the
+        // redirect and the session flash.
+        $wantsJson = str_contains(strtolower($request->getHeaderLine('Accept')), 'application/json');
+        $answer = static function (int $status, array $payload, string $location) use ($response, $wantsJson): Response {
+            if ($wantsJson) {
+                $response->getBody()->write((string) json_encode($payload, JSON_UNESCAPED_UNICODE));
+                return $response->withHeader('Content-Type', 'application/json')->withStatus($status);
+            }
+            if (isset($payload['error'])) {
+                $_SESSION['error_message'] = $payload['error'];
+            } else {
+                $_SESSION['success_message'] = $payload['message'];
+                if (isset($payload['warning'])) {
+                    $_SESSION['error_message'] = $payload['warning'];
+                }
+            }
+            return $response->withHeader('Location', $location)->withStatus(302);
+        };
+
+        // Check for any history to preserve. Loans are history; ledger rows
         // (payments, charges) are history too: a reader with movements is
-        // suspended like one with loans, never erased with the ledger. The
-        // check and the delete run under the user row lock that ledger writes
-        // and loan limits take too, so a payment committed in between cannot
-        // be erased by the cascade.
+        // suspended like one with loans, never erased with the ledger. So is
+        // every row that forbids the DELETE (reservations, feedback, donations):
+        // erasing such a reader can only fail. The check and the delete run
+        // under the user row lock that ledger writes and loan limits take too,
+        // so a payment committed in between cannot be erased by the cascade.
         $db->begin_transaction();
         try {
             $lockUser = $db->prepare('SELECT id FROM utenti WHERE id = ? FOR UPDATE');
@@ -755,9 +776,10 @@ class UsersController
             $loanCheck->execute();
             $loanResult = $loanCheck->get_result()->fetch_assoc();
             $loanCheck->close();
+            $restrictedBy = (int) $loanResult['count'] > 0 ? [] : $this->tablesForbiddingUserDelete($db, $id);
 
-            if ($loanResult['count'] > 0) {
-                // Cannot delete user with loan history - mark as suspended instead
+            if ($loanResult['count'] > 0 || $restrictedBy !== []) {
+                // Cannot delete user with history - mark as suspended instead
                 // The pending email-verification token goes too, as in
                 // update(): a stale verification link must not be able to
                 // re-activate an account the administrator has "deleted".
@@ -774,27 +796,31 @@ class UsersController
                 $photoRemoved = \App\Support\PatronPhoto::delete($db, $id);
 
                 // Audit logging
-                \App\Support\SecureLogger::info('User marked as deleted (has loan history)', [
+                \App\Support\SecureLogger::info('User marked as deleted (has history)', [
                     'user_id' => $id,
                     'user_name' => full_name($userToDelete['nome'] ?? '', $userToDelete['cognome'] ?? ''),
                     'user_email' => $userToDelete['email'],
                     'loan_count' => $loanResult['count'],
+                    'referenced_by' => $restrictedBy,
                     'deleted_by' => $_SESSION['user']['id'] ?? 'unknown'
                 ]);
 
-                $_SESSION['success_message'] = 'L\'utente ha uno storico prestiti e non può essere eliminato. È stato contrassegnato come sospeso.';
+                $suspended = [
+                    'success' => true,
+                    'outcome' => 'suspended',
+                    'message' => __('L\'utente ha uno storico (prestiti, prenotazioni o altri dati collegati) e non può essere eliminato: è stato sospeso.'),
+                ];
                 if (!$photoRemoved) {
-                    $_SESSION['error_message'] = __('La foto del lettore non è stata rimossa: eliminala dalla scheda del lettore.');
+                    $suspended['warning'] = __('La foto del lettore non è stata rimossa: eliminala dalla scheda del lettore.');
                 }
-                return $response->withHeader('Location', url('/admin/users'))->withStatus(302);
+                return $answer(200, $suspended, url('/admin/users'));
             }
 
-            // No loans - safe to delete. The row and its photo (personal data)
+            // No history - safe to delete. The row and its photo (personal data)
             // go together: the DELETE runs first and the file is removed before
-            // the commit. A DELETE that fails (a reservation still pointing to
-            // the reader) leaves the photo untouched, and a file that cannot be
-            // removed rolls the DELETE back instead of being orphaned. The row
-            // is already locked above.
+            // the commit. A DELETE that fails leaves the photo untouched, and a
+            // file that cannot be removed rolls the DELETE back instead of
+            // being orphaned. The row is already locked above.
             $stmt = $db->prepare("SELECT foto_profilo_url FROM utenti WHERE id = ?");
             $stmt->bind_param("i", $id);
             $stmt->execute();
@@ -811,8 +837,10 @@ class UsersController
             }
             if (!\App\Support\PatronPhoto::deleteFile(is_string($photo) ? $photo : null)) {
                 $db->rollback();
-                $_SESSION['error_message'] = __('Utente non eliminato: la sua foto non può essere rimossa dal disco. Riprova o controlla i permessi della cartella storage.');
-                return $response->withHeader('Location', url('/admin/users'))->withStatus(302);
+                return $answer(500, [
+                    'success' => false,
+                    'error' => __('Utente non eliminato: la sua foto non può essere rimossa dal disco. Riprova o controlla i permessi della cartella storage.'),
+                ], url('/admin/users'));
             }
             $db->commit();
         } catch (\Throwable $e) {
@@ -821,8 +849,7 @@ class UsersController
                 'user_id' => $id,
                 'mysqli_error' => $e->getMessage(),
             ]);
-            $_SESSION['error_message'] = __('Errore durante l\'eliminazione');
-            return $response->withHeader('Location', url('/admin/users?error=db_error'))->withStatus(302);
+            return $answer(500, ['success' => false, 'error' => __('Errore durante l\'eliminazione')], url('/admin/users?error=db_error'));
         }
         // Leftovers of earlier photos whose unlink failed go with the account.
         \App\Support\PatronPhoto::sweepOrphans($id, null);
@@ -842,8 +869,55 @@ class UsersController
             'deleted_by_role' => $_SESSION['user']['tipo_utente'] ?? 'unknown'
         ]);
 
-        $_SESSION['success_message'] = __('Utente eliminato con successo.');
-        return $response->withHeader('Location', url('/admin/users'))->withStatus(302);
+        return $answer(200, ['success' => true, 'outcome' => 'deleted', 'message' => __('Utente eliminato con successo.')], url('/admin/users'));
+    }
+
+    /**
+     * The tables holding a row that forbids erasing this reader: a foreign key
+     * to utenti with ON DELETE RESTRICT (or NO ACTION) and at least one row
+     * for the reader. Read from the schema, not from a list kept here, so a
+     * table added by a migration or a plugin is covered the day it exists.
+     *
+     * @return list<string>
+     */
+    private function tablesForbiddingUserDelete(mysqli $db, int $userId): array
+    {
+        $refs = $db->prepare("
+            SELECT k.TABLE_NAME AS tbl, k.COLUMN_NAME AS col
+            FROM information_schema.REFERENTIAL_CONSTRAINTS r
+            JOIN information_schema.KEY_COLUMN_USAGE k
+              ON k.CONSTRAINT_SCHEMA = r.CONSTRAINT_SCHEMA
+             AND k.CONSTRAINT_NAME = r.CONSTRAINT_NAME
+             AND k.TABLE_NAME = r.TABLE_NAME
+            WHERE r.CONSTRAINT_SCHEMA = DATABASE()
+              AND r.REFERENCED_TABLE_NAME = 'utenti'
+              AND k.REFERENCED_TABLE_NAME = 'utenti'
+              AND r.DELETE_RULE IN ('RESTRICT', 'NO ACTION')
+            ORDER BY k.TABLE_NAME, k.COLUMN_NAME
+        ");
+        if ($refs === false) {
+            throw new \RuntimeException($db->error);
+        }
+        $refs->execute();
+        $references = $refs->get_result()->fetch_all(MYSQLI_ASSOC);
+        $refs->close();
+
+        $blocking = [];
+        foreach ($references as $reference) {
+            $table = str_replace('`', '``', (string) $reference['tbl']);
+            $column = str_replace('`', '``', (string) $reference['col']);
+            $probe = $db->prepare("SELECT 1 FROM `{$table}` WHERE `{$column}` = ? LIMIT 1");
+            if ($probe === false) {
+                throw new \RuntimeException($db->error);
+            }
+            $probe->bind_param('i', $userId);
+            $probe->execute();
+            if ($probe->get_result()->fetch_row() !== null) {
+                $blocking[] = (string) $reference['tbl'];
+            }
+            $probe->close();
+        }
+        return array_values(array_unique($blocking));
     }
 
     public function details(Request $request, Response $response, mysqli $db, int $id): Response

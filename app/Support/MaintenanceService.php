@@ -310,6 +310,11 @@ class MaintenanceService
             }
         }
 
+        // Queue reservations whose window is over. The sweeps above can run
+        // first because no promotion path turns such a window into a loan
+        // (ReservationManager::processBookAvailability refuses it), and this
+        // step promotes the queue of every book it frees, so a reader waiting
+        // behind a dead reservation is served in this same pass.
         try {
             $reservationManager = new \App\Controllers\ReservationManager($this->db);
             $results['expired_waitlist_reservations'] = $reservationManager->cancelExpiredReservations();

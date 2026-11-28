@@ -4,16 +4,68 @@ Full version-by-version history for Pinakes. The README shows only the last thre
 
 ## [0.9.7]
 
-Two layout fixes: long admin lists get a pager above the table and bring the first row back into view after a page change ([#544](https://github.com/fabiodalez-dev/Pinakes/issues/544), [#545](https://github.com/fabiodalez-dev/Pinakes/pull/545)), and the donation form on the page of a wanted book lines up with the rest of the page ([#543](https://github.com/fabiodalez-dev/Pinakes/pull/543)), plus a dependency security update. No migration.
+Two layout fixes: long admin lists get a pager above the table and bring the first row back into view after a page change ([#544](https://github.com/fabiodalez-dev/Pinakes/issues/544), [#545](https://github.com/fabiodalez-dev/Pinakes/pull/545)), and the donation form on the page of a wanted book lines up with the rest of the page ([#543](https://github.com/fabiodalez-dev/Pinakes/pull/543)), plus two dependency security updates. It also carries the fixes from a full review of circulation: the queue, closures, deletions, catalogue-only mode, NCIP and the Mobile API. No migration.
 
 ### Security
 
 - **league/csv 9.28.0 → 9.29.1**, for the `CharsetConverter` denial-of-service advisory published on 22 November ([GHSA-m9j4-54gj-jvf8](https://github.com/thephpleague/csv/security/advisories/GHSA-m9j4-54gj-jvf8)). Pinakes does not call `CharsetConverter`, but the affected version was installed. Since 9.29 the export also protects a cell that already starts with an apostrophe (`'Twas the night` is written as `''Twas the night`); the book CSV, LibraryThing and patron imports now undo that prefix with the library's own rule, so an export followed by an import keeps such a title, author or note exactly as it was. The patron import also takes the prefix off a value that starts with a tab, which it used to keep.
+- **symfony/html-sanitizer 6.4.50 → 6.4.51**, for the meta-refresh advisory published on 25 November ([CVE-2026-133756](https://symfony.com/cve-2026-133756)): a refresh URL placed after a vertical tab or a Unicode space was not checked. Pinakes never allows a `meta` element in sanitized content, so it was not exposed, but the affected version was installed. The update also brings the sanitizer's own dependencies forward: masterminds/html5 2.10.0 → 2.12.0, league/uri and league/uri-interfaces 7.8.1 → 7.10.0.
 
 ### Fixes
 
 - **Admin lists (books, authors, publishers, users, loans) have a pager above the table as well as below it**, next to the page-size menu. Moving to another page from the pager below the table scrolls back to the top of the table, so the first row of the new page is what shows; a change from the pager above, already in view, leaves the scroll where it is, and a page request that fails scrolls nowhere. The two pagers carry different names for screen readers ("Pagination above the table" / "below the table"), translated in every language. From the keyboard, the focus goes up with the window: it lands on the same button of the pager above (or on the current page number, when that button is disabled on the last page), so the next Enter or Tab acts where the user is looking.
 - **Desiderata: the donation form on the public page of a wanted book starts at the same left edge as the description above it** (a container wrapper pushed it 28px right), and the "Propose a donation" heading is no longer repeated by the form. The homepage form is unchanged.
+
+### Circulation review
+
+I went through the whole loan and reservation pipeline (requests, the queue, closures, lost copies, overdue loans, deletions, NCIP, the Mobile API) and fixed what the review confirmed. Every fix has a regression test that fails on the old code.
+
+**Behaviour changes to know about**
+
+- **A reader's request cannot start more than 180 days ahead.** The date picker never offered a later day; a start posted by hand is now refused on the website and in the Mobile API (422 `invalid_date`).
+- **Deleting a reader who has reservations, donations or feedback suspends the account**, as it already did for a reader with loans. The users list says which of the two happened.
+- **Bulk book delete refuses titles with a reservation in the queue**, like the single delete, and answers 400 with `code: books_in_use` and the list of titles.
+- **NCIP**: `RequestItem` answers "Item Not Available By Need Before Date" when no copy can serve the hold, `CheckOutItem` and `RequestItem` answer "Unsupported Service" in catalogue-only mode, and an operator acting on their own account gets HTTP 403. Administrators are exempt from the last one, as at the loan desk.
+- **Mobile API**: a staff member cancelling their own reservation gets 403 `not_permitted` (reason `self_dealing`) instead of 409.
+
+**The queue**
+
+- **A reservation whose dates had already passed could still be promoted.** When a copy came back, the reservation at the head of the queue became a loan request dated in the past and kept the copy from the next reader until the next maintenance run. A window that is over, closures included, is no longer promoted: it is cancelled with the usual notice and the next reader is served in the same run. A reservation with no stored deadline now expires at the end of its last requested day.
+- **Admin: a new reservation for a period that is already over is refused**, as the edit form already did; a past start with a later end starts today.
+- **The "waiting for approval" e-mail after a promotion** was retried even after the loan had been approved, and its seven-day limit never ran out because every failed attempt renewed it. It is now sent only while the request is still pending, for seven days from the promotion.
+- **A pending request that already holds a copy follows that copy** when it is marked lost, damaged or in maintenance: it moves to a free copy or goes back to waiting, like a promoted reservation. Before, it stayed bound to the unusable copy.
+- **Editing a loan so that it gives days back** (a later start, an earlier due date) promotes the waiting readers at once instead of at the next maintenance run.
+- **The availability badge counted the reservations of readers the booking gate skips** (suspended, expired card, debt block, loan limit reached) on installs without a closures calendar: a copy that could still be lent was shown as reserved.
+
+**Dates and closures**
+
+- **The longest loan proposed when a later booking blocks a request now ends on an open day.** It ended on the day before the booking even when the library was closed that day, so the shortened request was moved onto the blocked day and refused again with the same proposal.
+- **Editing a closure so that it covers fewer days** offers the same choice as deleting one: a new checkbox restores the due dates that the removed days had extended; without it readers keep their date, and that is recorded in the loan history.
+- **Calendar import (ICS)**: events given as a start and a `DURATION`, cancelled events (`STATUS:CANCELLED`) and single changed occurrences of a recurring event (`RECURRENCE-ID`) are read correctly, and an alarm inside an event no longer lends it its own duration or title.
+
+**The loan desk**
+
+- **The copy picked for a loan created at the desk is now deterministic** and is the one the request gate and the queue would pick (issue #384): free of earlier commitments first, then the one whose next booking is furthest away.
+- **Confirming a pickup and cancelling a reservation take the title lock before they read**, like the other desk actions: a reader suspended, or a copy returned, a moment earlier is now seen.
+- **The staff alert for an overdue loan no longer depends on the reader's e-mail going out**: an address that keeps failing does not hide the loan from the staff. The alert is sent once per overdue period.
+
+**Deletions, catalogue-only mode, stocktake**
+
+- **Users list: "Deleted!" was shown when nothing had been deleted.** The delete of a reader with reservations, donations or feedback was refused by the database and the list reported success. See the behaviour change above; a failure is now shown as a failure.
+- **Bulk book delete** runs under the title locks and writes one activity entry per title, like the single delete.
+- **Catalogue-only mode**: the reader's loan request, reservation and date change, and the admin's reservation create and edit, still wrote rows that no loan screen could process. They are refused now. Cancelling, returning and renewing what already exists stay open.
+- **Stocktake: a copy that is only booked for a later day is a shelf copy**: found when scanned, missing when not. It was reported "on loan" from the moment the loan was approved.
+
+**NCIP and the Mobile API**
+
+- **NCIP `RequestItem` checks capacity like the web form**: the hold is placed on the first window in which a copy is free instead of on top of the commitments already there.
+- **Mobile API (staff)**: changing one of the two date pairs of a reservation moves its twin, so a deadline can no longer be left before the new window starts.
+- **Mobile API (readers)**: the pending list hides a bare request on an archived title, as the website does, and the outcome of a loan or reservation request can no longer be supplied by the caller through a forged `Referer`.
+- **Push notifications are written in the installation language** even when the sweep is started by an administrator browsing in another one.
+
+**Legacy scripts**
+
+- **`scripts/maintenance.php`** purged closed reservations 30 days after they were created, so one that had waited in the queue for more than a month was deleted on the run after its promotion. The 30 days now count from the day it was closed, and a promoted reservation whose notice is still unsent is kept. This script and `scripts/check-expired-reservations.php` send their e-mails in the installation language and use the configured database socket.
 
 ## [0.9.6]
 

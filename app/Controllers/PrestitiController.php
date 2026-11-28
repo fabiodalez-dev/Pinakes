@@ -28,11 +28,24 @@ class PrestitiController
      * still possible (LoanWindow::redirectParams()), so the form can say
      * "maximum N days, booked from D" instead of asking staff to wait for a
      * return that is not what blocks them.
+     *
+     * The due date it proposes is an open day: store() moves a typed due date
+     * on a closed day forward, which from the day before the conflict is the
+     * blocked day itself. $copyId is the copy the loan is being written for,
+     * when one is already chosen (its branch's closures apply); before that
+     * the branches lending the title decide, as for a reader's request.
      */
-    private function noCapacityRedirect($response, \App\Services\CapacityService $capacity, int $libroId, string $start, string $end)
+    private function noCapacityRedirect($response, mysqli $db, \App\Services\CapacityService $capacity, int $libroId, string $start, string $end, ?int $copyId = null)
     {
         $blocked = array_filter([$capacity->firstUnavailableDateInRange($libroId, $start, $end)]);
-        $query = http_build_query(['error' => 'no_copies_available'] + \App\Support\LoanWindow::redirectParams($start, $blocked));
+        $query = http_build_query(['error' => 'no_copies_available'] + \App\Support\LoanWindow::redirectParams(
+            $start,
+            $blocked,
+            \App\Support\LibraryCalendar::forDb($db),
+            $copyId !== null
+                ? \App\Support\LibraryCalendar::branchOfCopy($db, $copyId)
+                : \App\Support\LibraryCalendar::requestScope($db, $libroId)
+        ));
         return $response->withHeader('Location', url('/admin/loans/create') . '?' . $query)->withStatus(302);
     }
 
@@ -520,7 +533,7 @@ class PrestitiController
                 $capacity = new \App\Services\CapacityService($db);
                 if (!$capacity->hasFreeCapacity($libro_id, $data_prestito, $data_scadenza)) {
                     $db->rollback();
-                    return $this->noCapacityRedirect($response, $capacity, $libro_id, $data_prestito, $data_scadenza);
+                    return $this->noCapacityRedirect($response, $db, $capacity, $libro_id, $data_prestito, $data_scadenza, $forcedCopyId);
                 }
 
                 $selectedCopy = ['id' => $forcedCopyId];
@@ -534,13 +547,23 @@ class PrestitiController
                 $capacity = new \App\Services\CapacityService($db);
                 if (!$capacity->hasFreeCapacity($libro_id, $data_prestito, $data_scadenza)) {
                     $db->rollback();
-                    return $this->noCapacityRedirect($response, $capacity, $libro_id, $data_prestito, $data_scadenza);
+                    return $this->noCapacityRedirect($response, $db, $capacity, $libro_id, $data_prestito, $data_scadenza);
                 }
 
                 // Pick a physical copy free for the whole interval. A copy may be
                 // physically 'prestato' today yet legitimately reusable for a
                 // disjoint future window, so only operationally non-lendable states
                 // are excluded here.
+                // #384 parity: which of the free copies is bound is decided, not
+                // left to the order the engine returns rows in. The request gate
+                // (LoanRequestGate::findAssignableInLibraryCopyThrough), the queue
+                // promotion and the approval refuse a copy with a preceding
+                // commitment and then prefer the one with no later commitment, or
+                // whose next one is furthest away, then the lower id. The desk
+                // keeps its own lenient rule (the operator may stack a loan onto a
+                // date-disjoint earlier one when that is the only copy left), so
+                // their hard rule is the first preference here and their ordering
+                // follows: whenever they would bind a copy, the desk binds the same.
                 $overlapStmt = $db->prepare("
                     SELECT c.id FROM copie c
                     WHERE c.libro_id = ?
@@ -568,9 +591,29 @@ class PrestitiController
                             OR (p.stato = 'pendente' AND p.copia_id IS NOT NULL)
                         )
                     )
+                    ORDER BY EXISTS (
+                        SELECT 1 FROM prestiti prior
+                        WHERE prior.copia_id = c.id
+                          AND prior.data_prestito <= ?
+                          AND (
+                              (prior.attivo = 1 AND prior.stato IN ('prenotato','da_ritirare','in_corso','in_ritardo'))
+                              OR (prior.attivo = 0 AND prior.stato = 'pendente' AND prior.copia_id IS NOT NULL)
+                          )
+                    ) ASC,
+                    COALESCE((
+                        SELECT MIN(future.data_prestito)
+                        FROM prestiti future
+                        WHERE future.copia_id = c.id
+                          AND future.data_prestito > ?
+                          AND (
+                              (future.attivo = 1 AND future.stato IN ('in_corso','da_ritirare','prenotato','in_ritardo'))
+                              OR (future.stato = 'pendente' AND future.copia_id IS NOT NULL)
+                          )
+                    ), '9999-12-31') DESC,
+                    c.id ASC
                     LIMIT 1
                 ");
-                $overlapStmt->bind_param('iiisss', $libro_id, $libro_id, $utente_id, $data_scadenza, $today, $data_prestito);
+                $overlapStmt->bind_param('iiisssss', $libro_id, $libro_id, $utente_id, $data_scadenza, $today, $data_prestito, $data_scadenza, $data_scadenza);
                 $overlapStmt->execute();
                 $overlapResult = $overlapStmt->get_result();
                 $selectedCopy = $overlapResult ? $overlapResult->fetch_assoc() : null;
@@ -603,7 +646,7 @@ class PrestitiController
                 $branchCapacity = new \App\Services\CapacityService($db);
                 if (!$branchCapacity->hasFreeCapacity($libro_id, $data_prestito, $branchDue)) {
                     $db->rollback();
-                    return $this->noCapacityRedirect($response, $branchCapacity, $libro_id, $data_prestito, $branchDue);
+                    return $this->noCapacityRedirect($response, $db, $branchCapacity, $libro_id, $data_prestito, $branchDue, (int) $selectedCopy['id']);
                 }
                 $data_scadenza = $branchDue;
             }
@@ -1245,7 +1288,14 @@ class PrestitiController
                         $explained = [];
                         if ($isExtension) {
                             $blocked = array_filter([$capacity->firstUnavailableDateInRange($libroId, $claimStart, $claimEnd, null, $id)]);
-                            $explained = \App\Support\LoanWindow::redirectParams($newPrestito, $blocked);
+                            // An open day at the loan's branch: the edit moves
+                            // a due date on a closed day forward ($dueFromSubmitted).
+                            $explained = \App\Support\LoanWindow::redirectParams(
+                                $newPrestito,
+                                $blocked,
+                                \App\Support\LibraryCalendar::forDb($db),
+                                \App\Support\LibraryCalendar::branchOfCopy($db, $locked['copia_id'] !== null ? (int) $locked['copia_id'] : null)
+                            );
                         }
                         $query = http_build_query(['error' => 'no_copies_available'] + $explained);
                         return $response->withHeader('Location', url('/admin/loans') . '?' . $query)->withStatus(302);
@@ -1436,6 +1486,28 @@ class PrestitiController
 
             \App\Support\ActivityLog::recordLoanEvent($db, $id, 'loan.updated', $activityBefore, source: 'manual');
             $db->commit();
+
+            // An edit that gives days back (a later start, an earlier due date)
+            // can make room for a reader already waiting: promote the queue
+            // now, as a return or a cancellation does, instead of leaving the
+            // freed days idle until the next maintenance run. After the commit
+            // and on its own: the manager opens one transaction per promotion
+            // (book lock first), and a failure there is logged and left to that
+            // maintenance run, never reported as a failed edit — the edit is
+            // already stored. Dates compared on their day part (DATE columns).
+            $freedDays = substr($newPrestito, 0, 10) > substr($oldPrestito, 0, 10)
+                || substr($newScadenza, 0, 10) < substr($oldScadenza, 0, 10);
+            if ($freedDays) {
+                try {
+                    $reservationManager = new ReservationManager($db);
+                    for ($promoGuard = 0; $promoGuard < 1000 && $reservationManager->processBookAvailability($libroId); $promoGuard++) {
+                        // keep promoting while the freed days convert the next queued reservation
+                    }
+                    $reservationManager->flushDeferredNotifications();
+                } catch (\Throwable $promotionError) {
+                    SecureLogger::warning('Loan update queue promotion failed', ['loan_id' => $id, 'libro_id' => $libroId, 'error' => $promotionError->getMessage()]);
+                }
+            }
 
             // Estensione manuale della scadenza su un prestito già fuori
             // (in_corso/in_ritardo): informa il lettore come fa renew() — prima

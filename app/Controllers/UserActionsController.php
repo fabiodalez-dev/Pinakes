@@ -569,6 +569,13 @@ class UserActionsController
         if (strtotime($date) < strtotime(\App\Support\DateHelper::today())) {
             return $response->withHeader('Location', RouteTranslator::route('reservations') . '?error=past_date')->withStatus(302);
         }
+        // No request starts later than the last day the request calendar
+        // offers (ReservationsController::requestStartUntil()): a date posted
+        // by hand beyond it is refused like a malformed one.
+        $startUntil = ReservationsController::requestStartUntil();
+        if ($date > $startUntil) {
+            return $response->withStatus(422);
+        }
 
         $uid = (int) $user['id'];
         try {
@@ -608,6 +615,11 @@ class UserActionsController
             }
 
             $startDate = \App\Support\LibraryCalendar::requestStartDay($db, $date, $libroId);
+            // A closed day at the end of the horizon must not carry the start past it.
+            if ($startDate > $startUntil) {
+                $db->rollback();
+                return $response->withStatus(422);
+            }
             $loanDays = (new \App\Services\CirculationPolicy($db))->forLoan($uid, $libroId)->requestDurationDays();
             $endDate = \App\Support\LibraryCalendar::requestDueDate($db, $startDate, $loanDays, $libroId);
 
@@ -623,7 +635,14 @@ class UserActionsController
                 // out the moved row itself, which belongs to this user.
                 $blocked = $capacity->unavailableDatesInRange($libroId, $startDate, $endDate, $uid, null, $rid, forQueue: true);
                 $db->rollback();
-                $query = http_build_query(['error' => 'not_available'] + \App\Support\LoanWindow::redirectParams($startDate, $blocked));
+                // The proposed end is an open day of the branch that lends:
+                // a closed one would be moved onto the blocked day when stored.
+                $query = http_build_query(['error' => 'not_available'] + \App\Support\LoanWindow::redirectParams(
+                    $startDate,
+                    $blocked,
+                    \App\Support\LibraryCalendar::forDb($db),
+                    \App\Support\LibraryCalendar::requestScope($db, $libroId)
+                ));
                 return $response->withHeader('Location', RouteTranslator::route('reservations') . '?' . $query)->withStatus(302);
             }
 
@@ -771,8 +790,15 @@ class UserActionsController
                 // page and the Mobile API can explain instead of a bare refusal.
                 $blocked = (new \App\Services\CapacityService($db))
                     ->unavailableDatesInRange($libroId, $data_prestito, $data_scadenza, $utenteId);
+                // The return date it names is an open day: requestDueDate()
+                // moves a closed one forward, onto the blocked day.
                 return $this->back($response, ['loan_error' => 'not_available']
-                    + \App\Support\LoanWindow::redirectParams($data_prestito, $blocked));
+                    + \App\Support\LoanWindow::redirectParams(
+                        $data_prestito,
+                        $blocked,
+                        \App\Support\LibraryCalendar::forDb($db),
+                        \App\Support\LibraryCalendar::requestScope($db, $libroId)
+                    ));
             }
 
             // Check for existing active loan from this user for this book:
@@ -982,6 +1008,14 @@ class UserActionsController
         if ($desired !== '' && strtotime($desired) < strtotime($today)) {
             return $this->back($response, ['reserve_error' => 'past_date']);
         }
+        // No request starts later than the last day the request calendars
+        // offer (ReservationsController::requestStartUntil(), the horizon of
+        // the book page and of the app): a date posted by hand beyond it is
+        // refused like any other date the picker cannot produce.
+        $startUntil = ReservationsController::requestStartUntil($today);
+        if ($desired !== '' && $desired > $startUntil) {
+            return $this->back($response, ['reserve_error' => 'invalid_date']);
+        }
         $utenteId = (int) $user['id'];
 
         // User eligibility gate (M7): stato/tessera are only verified at login,
@@ -996,6 +1030,10 @@ class UserActionsController
         // is closed moves to the next open day, as the request calendar
         // proposes it; identical without closures.
         $start = \App\Support\LibraryCalendar::requestStartDay($db, ($desired !== '') ? $desired : $today, $libroId);
+        // A closed day at the end of the horizon must not carry a chosen start past it.
+        if ($desired !== '' && $start > $startUntil) {
+            return $this->back($response, ['reserve_error' => 'invalid_date']);
+        }
         $reservePolicy = (new \App\Services\CirculationPolicy($db))->forLoan($utenteId, $libroId);
         $end = \App\Support\LibraryCalendar::requestDueDate($db, $start, $reservePolicy->requestDurationDays(), $libroId);
         // Optional return date (Mobile API 1.8.2), bounded as in loan().
@@ -1082,7 +1120,12 @@ class UserActionsController
                 $db->rollback();
                 $blocked = $capacity->unavailableDatesInRange($libroId, $start, $end, $utenteId, forQueue: true);
                 return $this->back($response, ['reserve_error' => 'not_available']
-                    + \App\Support\LoanWindow::redirectParams($start, $blocked));
+                    + \App\Support\LoanWindow::redirectParams(
+                        $start,
+                        $blocked,
+                        \App\Support\LibraryCalendar::forDb($db),
+                        \App\Support\LibraryCalendar::requestScope($db, $libroId)
+                    ));
             }
 
             // Calculate queue position

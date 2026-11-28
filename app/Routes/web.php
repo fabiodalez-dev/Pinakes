@@ -73,6 +73,44 @@ return function (App $app): void {
     };
 
 
+    // Catalogue-only mode has no circulation: a route that creates or changes
+    // a loan request or a reservation refuses, or it would write a row that
+    // staff, whose loan screens are closed in that mode, can never process.
+    // Added FIRST on a route, so it runs after authentication and CSRF: a
+    // visitor who is not signed in goes to the login, not to this refusal.
+    // Cancelling, returning and renewing are not gated here: what already
+    // exists must still be closable.
+    $noCirculationInCatalogueMode = static function (bool $adminRoute): \Closure {
+        // Not static: Slim binds a closure middleware to the container.
+        return function (
+            \Psr\Http\Message\ServerRequestInterface $request,
+            \Psr\Http\Server\RequestHandlerInterface $handler
+        ) use ($adminRoute): \Psr\Http\Message\ResponseInterface {
+            if (!\App\Support\ConfigStore::isCatalogueMode()) {
+                return $handler->handle($request);
+            }
+            $message = __('Funzione non disponibile in modalità catalogo.');
+            $path = $request->getUri()->getPath();
+            $wantsJson = str_contains($path, '/api/')
+                || strtolower($request->getHeaderLine('X-Requested-With')) === 'xmlhttprequest'
+                || str_contains($request->getHeaderLine('Accept'), 'application/json');
+            if ($wantsJson) {
+                // Same status and code as the Mobile API and the module gate.
+                $refusal = new Response(404);
+                $refusal->getBody()->write((string) json_encode([
+                    'success' => false,
+                    'error' => 'feature_disabled',
+                    'code' => 'feature_disabled',
+                    'message' => $message,
+                ], JSON_UNESCAPED_UNICODE));
+                return $refusal->withHeader('Content-Type', 'application/json');
+            }
+            $_SESSION['error_message'] = $message;
+            return (new Response(302))->withHeader('Location', $adminRoute ? url('/admin/dashboard') : RouteTranslator::route('user_dashboard'));
+        };
+    };
+
+
     // ==========================================
     // Plugin Routes Hook (register early)
     // ==========================================
@@ -553,12 +591,12 @@ return function (App $app): void {
         $db = $app->getContainer()->get('db');
         $controller = new UserActionsController();
         return $controller->loan($request, $response, $db);
-    })->add(new CsrfMiddleware())->add(new AuthMiddleware(['admin', 'staff', 'standard', 'premium']));
+    })->add($noCirculationInCatalogueMode(false))->add(new CsrfMiddleware())->add(new AuthMiddleware(['admin', 'staff', 'standard', 'premium']));
     $app->post('/user/reserve', function ($request, $response) use ($app) {
         $db = $app->getContainer()->get('db');
         $controller = new UserActionsController();
         return $controller->reserve($request, $response, $db);
-    })->add(new CsrfMiddleware())->add(new AuthMiddleware(['admin', 'staff', 'standard', 'premium']));
+    })->add($noCirculationInCatalogueMode(false))->add(new CsrfMiddleware())->add(new AuthMiddleware(['admin', 'staff', 'standard', 'premium']));
 
     // Rotte frontend per gestire le prenotazioni dell'utente (slug '/prenotazioni')
 
@@ -584,7 +622,7 @@ return function (App $app): void {
         $db = $app->getContainer()->get('db');
         $controller = new UserActionsController();
         return $controller->changeReservationDate($request, $response, $db);
-    })->add(new CsrfMiddleware())->add(new AuthMiddleware(['admin', 'staff', 'standard', 'premium']));
+    })->add($noCirculationInCatalogueMode(false))->add(new CsrfMiddleware())->add(new AuthMiddleware(['admin', 'staff', 'standard', 'premium']));
 
     // User reservations count (for badge)
     // If authenticated (via session user), returns JSON {count: N}
@@ -2138,7 +2176,7 @@ return function (App $app): void {
         $controller = new PrestitiController();
         $db = $app->getContainer()->get('db');
         return $controller->update($request, $response, $db, (int) $args['id']);
-    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+    })->add($noCirculationInCatalogueMode(true))->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
     $app->post('/prestiti/close/{id:\d+}', function ($request, $response, $args) use ($app) {
         $controller = new PrestitiController();
         $db = $app->getContainer()->get('db');
@@ -2387,7 +2425,7 @@ return function (App $app): void {
         $db = $app->getContainer()->get('db');
         $controller = new ReservationsAdminController();
         return $controller->store($request, $response, $db);
-    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+    })->add($noCirculationInCatalogueMode(true))->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
     $app->get('/admin/reservations/edit/{id:\\d+}', function ($request, $response, $args) use ($app) {
         $db = $app->getContainer()->get('db');
         $controller = new ReservationsAdminController();
@@ -2397,7 +2435,7 @@ return function (App $app): void {
         $db = $app->getContainer()->get('db');
         $controller = new ReservationsAdminController();
         return $controller->update($request, $response, $db, (int) $args['id']);
-    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+    })->add($noCirculationInCatalogueMode(true))->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
     // Book availability endpoint
     $app->get('/api/books/{id:\\d+}/availability', function ($request, $response, $args) use ($app) {
@@ -2463,8 +2501,8 @@ return function (App $app): void {
         $days = (int) (($request->getQueryParams()['days'] ?? 60));
         if ($days < 1)
             $days = 30;
-        if ($days > 180)
-            $days = 180;
+        if ($days > \App\Controllers\ReservationsController::REQUEST_START_HORIZON_DAYS)
+            $days = \App\Controllers\ReservationsController::REQUEST_START_HORIZON_DAYS;
         $controller = new \App\Controllers\ReservationsController($db);
         // Exclude the requesting user's own reservations, like the mobile
         // calendar and the server-side write gate already do: without it the
@@ -3212,7 +3250,7 @@ return function (App $app): void {
             $db = $app->getContainer()->get('db');
             $controller = new \App\Controllers\ReservationsController($db);
             return $controller->createReservation($request, $response, $args);
-        }, [new AuthMiddleware(['admin', 'staff', 'standard', 'premium']), new CsrfMiddleware()]);
+        }, [$noCirculationInCatalogueMode(false), new AuthMiddleware(['admin', 'staff', 'standard', 'premium']), new CsrfMiddleware()]);
     }
 
     // API endpoint for AJAX catalog filtering (all language variants)

@@ -21,8 +21,9 @@ use mysqli;
  *
  * The expected copies always end in exactly one bucket of the report:
  * found, misplaced, on loan (lent, or waiting on the pickup shelf) or missing.
- * Unknown codes, copies outside the filter and repeated scans are counted on
- * the side.
+ * A copy that is only booked for a later day is a shelf copy: found when it
+ * is scanned, missing when it is not. Unknown codes, copies outside the
+ * filter and repeated scans are counted on the side.
  *
  * While the session is open the bucket of an unscanned copy follows the loan
  * desk (a return makes it missing, a loan makes it on loan). Closing writes
@@ -46,21 +47,27 @@ final class StocktakeService
     /**
      * Copy states that already explain why a copy is not on the shelf. A missing
      * copy in one of these states is reported, but closing with "mark as lost"
-     * leaves it alone: it is lent or waiting on the pickup shelf, damaged, at
-     * the restorer's, in transit, in maintenance, or already lost.
+     * leaves it alone: it is lent, damaged, at the restorer's, in transit, in
+     * maintenance, or already lost. 'prenotato' is not one of them: that state
+     * says the copy is promised to someone, not where it is (see below).
      */
-    private const AWAY_STATES = ['prestato', 'prenotato', 'perso', 'danneggiato', 'in_restauro', 'in_trasferimento', 'manutenzione'];
+    private const AWAY_STATES = ['prestato', 'perso', 'danneggiato', 'in_restauro', 'in_trasferimento', 'manutenzione'];
 
     /**
      * The "on loan" bucket of the report: a copy lent to a reader or set aside
-     * on the pickup shelf for one, by its own state or by an active loan row.
-     * Such a copy is where the loan desk put it, so it is never declared lost
-     * (a copy marked lost would also have its hold moved to another copy).
-     * A scheduled loan (prestiti 'prenotato') is not in the bucket: the copy
-     * stays on its shelf until MaintenanceService activates the pickup, and
-     * only then does the copy itself become 'prenotato'.
+     * on the pickup shelf for one. Such a copy is where the loan desk put it,
+     * so it is never declared lost.
+     *
+     * A lent copy is told by its own state ('prestato') or by its loan; a copy
+     * on the pickup shelf only by its 'da_ritirare' loan. The copy state
+     * 'prenotato' alone proves nothing: approving a loan for next month sets
+     * it at once (LoanApprovalController, DataIntegrity), and a request
+     * promoted from the queue holds its copy the same way, while the copy
+     * stays on its shelf until the pickup starts. Such a copy is a shelf copy:
+     * found when scanned, missing when not, and when a close marks it lost its
+     * hold is moved to another copy like the hold of any other lost copy.
      */
-    private const ON_LOAN_COPY_STATES = ['prestato', 'prenotato'];
+    private const ON_LOAN_COPY_STATES = ['prestato'];
     private const ON_LOAN_LOAN_STATES = ['in_corso', 'in_ritardo', 'da_ritirare'];
 
     /**
