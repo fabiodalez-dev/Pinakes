@@ -27,7 +27,7 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 
 ## What's New in v0.9.7
 
-**Long admin lists are easier to page through.** Books, authors, publishers, users and loans get a pager above the table too, and changing page from the pager below brings the first row of the new page back into view instead of leaving the reader at the bottom ([#544](https://github.com/fabiodalez-dev/Pinakes/issues/544)). The donation form on the page of a wanted book now lines up with the description above it and no longer repeats its heading ([#543](https://github.com/fabiodalez-dev/Pinakes/pull/543)). No migration. Full details in **[CHANGELOG.md](CHANGELOG.md)**.
+**Long admin lists are easier to page through.** Books, authors, publishers, users and loans get a pager above the table too, and changing page from the pager below brings the first row of the new page back into view instead of leaving the reader at the bottom ([#544](https://github.com/fabiodalez-dev/Pinakes/issues/544)). The donation form on the page of a wanted book now lines up with the description above it and no longer repeats its heading ([#543](https://github.com/fabiodalez-dev/Pinakes/pull/543)). In the public catalogue, the active-filter chip shows the name of the selected genre instead of its internal ID ([#547](https://github.com/fabiodalez-dev/Pinakes/issues/547)). No migration. Full details in **[CHANGELOG.md](CHANGELOG.md)**.
 
 ---
 
