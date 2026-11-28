@@ -131,26 +131,50 @@ try {
     $check(file_get_contents($installed . '/storage/plugins/only-installed/plugin.json') === 'mine'
         && file_get_contents($installed . '/storage/plugins/desiderata/views/book-detail.php') === $package, 'a plugin the package does not carry is left alone');
 
-    // A bundled plugin directory replaced by a link that leaves the
-    // installation: refused before anything is written, and by the copy itself.
+    // A bundled plugin kept elsewhere, behind a link (as the whole plugin
+    // directory can be): it is preserved, not copied, and the log says so.
     $outside = $root . '/outside';
     mkdir($outside);
+    file_put_contents($outside . '/plugin.json', 'linked');
     CliSpaceFixture\deleteDirectory($installed . '/storage/plugins/desiderata');
     symlink($outside, $installed . '/storage/plugins/desiderata');
+    $GLOBALS['log'] = [];
+    $linkedPreserve = CliSpaceFixture\upgradePreservedPluginPaths($package, $installed);
+    $check(in_array('storage/plugins/desiderata', $linkedPreserve, true)
+        && in_array('storage/plugins/local-extension', $linkedPreserve, true), 'a bundled plugin whose installed directory is a link is preserved, beside the third-party ones');
+    $check(count($GLOBALS['log']) === 1
+        && str_starts_with((string) $GLOBALS['log'][0], '[ATTENZIONE] ')
+        && str_contains((string) $GLOBALS['log'][0], 'storage/plugins/desiderata'), 'the log names the linked plugin that was not updated');
+    $accepted = true;
+    try {
+        $space = CliSpaceFixture\upgradeCopyRequirements($package, $installed, $linkedPreserve);
+        CliSpaceFixture\copyTree($package, $installed, $installed, $linkedPreserve);
+    } catch (RuntimeException $e) {
+        $accepted = false;
+        $space = [];
+    }
+    $check($accepted && !isset($space[$installed . '/storage/plugins/desiderata/views']), 'the upgrade goes ahead and budgets nothing for the linked plugin');
+    $check(is_link($installed . '/storage/plugins/desiderata')
+        && (scandir($outside) ?: []) === ['.', '..', 'plugin.json']
+        && file_get_contents($outside . '/plugin.json') === 'linked', 'nothing is written through the linked plugin directory, and the link stays');
+    // Without the destination the link cannot be seen: the list is the plain
+    // one, and both the preflight and the copy itself still refuse the link.
+    $GLOBALS['log'] = [];
+    $check(CliSpaceFixture\upgradePreservedPluginPaths($package) === $preserve && $GLOBALS['log'] === [], 'without a destination no plugin is reported as linked');
     $refused = false;
     try {
         CliSpaceFixture\upgradeCopyRequirements($package, $installed, $preserve);
     } catch (RuntimeException $e) {
         $refused = str_contains($e->getMessage(), 'simbolico');
     }
-    $check($refused, 'the preflight refuses a linked destination before the copy starts');
+    $check($refused, 'the preflight refuses a linked destination that is not preserved, before the copy starts');
     $refused = false;
     try {
         CliSpaceFixture\copyTree($package, $installed, $installed, $preserve);
     } catch (RuntimeException $e) {
         $refused = str_contains($e->getMessage(), 'simbolico');
     }
-    $check($refused && (scandir($outside) ?: []) === ['.', '..'], 'the copy creates nothing through a linked plugin directory');
+    $check($refused && (scandir($outside) ?: []) === ['.', '..', 'plugin.json'], 'the copy creates nothing through a linked plugin directory left out of the preserve list');
     unlink($installed . '/storage/plugins/desiderata');
 
     // The whole plugin directory on another disk, behind a link: left as it is.

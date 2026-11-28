@@ -390,6 +390,10 @@ function upgradeCopyRequirements(string $source, string $dest, array $preserve):
  * exists only in the installation is never touched by a copy. The whole
  * directory is preserved, as before, when the package does not say which
  * plugins are bundled, or when the installed directory is a symbolic link.
+ * A single bundled plugin whose installed directory is a symbolic link is
+ * preserved the same way: the copy never writes through a link, and refusing
+ * the whole upgrade for it would close a route that worked while the whole
+ * directory was preserved. Both link cases are written to the upgrade log.
  *
  * @return list<string>
  */
@@ -415,10 +419,23 @@ function upgradePreservedPluginPaths(string $source, string $dest = ''): array
         return [$plugins];
     }
 
-    return array_values(array_map(
+    $preserved = array_values(array_diff($entries, ['.', '..', ...$bundled[1]]));
+    if ($dest !== '') {
+        foreach (array_intersect($entries, $bundled[1]) as $entry) {
+            if (!is_link($dest . '/' . $plugins . '/' . $entry)) {
+                continue;
+            }
+            $preserved[] = $entry;
+            if (isset($GLOBALS['log']) && is_array($GLOBALS['log'])) {
+                $GLOBALS['log'][] = '[ATTENZIONE] ' . $plugins . '/' . $entry . ' è un collegamento simbolico: questo plugin incluso nel pacchetto non viene aggiornato. Copialo a mano dal pacchetto.';
+            }
+        }
+    }
+
+    return array_map(
         static fn(string $entry): string => $plugins . '/' . $entry,
-        array_diff($entries, ['.', '..', ...$bundled[1]])
-    ));
+        $preserved
+    );
 }
 
 /**
