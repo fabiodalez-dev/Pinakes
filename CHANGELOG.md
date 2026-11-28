@@ -20,6 +20,8 @@ Several fixes: long admin lists get a pager above the table and bring the first 
 - **SRU 1.1/1.2 responses are written with the conventional `zs:` prefix** (`<zs:searchRetrieveResponse xmlns:zs="http://www.loc.gov/zing/srw/">`) instead of in the default namespace. It is the same XML for a namespace-aware parser, and Pinakes' own SRU client reads both forms, but clients that match element names as text found no `zs:record` or `zs:recordData`, and the unprefixed envelope `<record>` shared its name with the MARCXML `<record>` inside it: `explain` came back with no title and no indexes. The ZeeRex record keeps its own namespace, and its elements are now created in it. `serverInfo` names the highest version of the family the response is written in (1.2, or 2.0 for a 2.0 request).
 - **SRU 2.0 responses use the SRU 2.0 namespaces.** A `version=2.0` request was answered in the 1.x namespace with a `2.0` version number on it. It now gets `http://docs.oasis-open.org/ns/search-ws/sruResponse` for searchRetrieve and explain, `.../scan` for scan and `.../diagnostic` for diagnostics, with `recordXMLEscaping` in place of `recordPacking` (as a request parameter too; `recordPacking=xml|string` on a 2.0 request is still read the 1.x way, and `packed`/`unpacked` are accepted) and no `version` element in the scan response. The responses validate against the OASIS schemas. 1.1 and 1.2 keep their namespace.
 - **SRU `scan` browses the index instead of matching a prefix.** `scanClause=dc.title=a` returned only the titles beginning with "a", so often nothing. It now returns the terms at and after the start term in index order, whether or not the term exists, and `responsePosition` works: `N` puts `N-1` preceding terms before the start position, `0` starts right after it, `maximumTerms+1` returns the terms before it, anything higher is diagnostic 120. The request is echoed with `responsePosition` and `maximumTerms`, `scanClause=dc.title` alone browses from the first term, and an index with no term list (`dc.date`, `dc.publisher`, `library.*`, ...) answers diagnostic 16 where it used to answer the list of titles. Soft-deleted and requested (desiderata) books are still left out, and the start term is still a bound value.
+- **SRU 2.0 responses carry no `<version>` element.** SRU 2.0 removed it from the response, from the echoed request and from diagnostics; 1.1 and 1.2 keep it. In 2.0 `scan` also accepts a `responsePosition` beyond `maximumTerms + 1` and lists the terms further before the start term, while 1.x still answers diagnostic 120.
+- **Every term SRU `scan` lists can be searched.** A name that is on a book only as its translator was listed as a `dc.creator` term although the search looks at authors and co-authors only: it is no longer a term. `dc.subject` listed subgenres that the search did not look at: it searches them now, and so does `cql.anywhere`.
 - **OAI-PMH `earliestDatestamp` covers deleted records.** `Identify` computed it as the creation date of the oldest live record, while the repository declares `deletedRecord=persistent` and answers tombstones dated by their own datestamp, and dates live records by their last change: a harvester starting at `from=earliestDatestamp` was never told about the deletions dated before it. It is now the minimum over every datestamp a response can carry, live and deleted, in every set, read from the same query the list verbs page through.
 
 ### Circulation review
@@ -31,12 +33,14 @@ I went through the whole loan and reservation pipeline (requests, the queue, clo
 - **A reader's request cannot start more than 180 days ahead.** The date picker never offered a later day; a start posted by hand is now refused on the website and in the Mobile API (422 `invalid_date`).
 - **Deleting a reader who has reservations, donations or feedback suspends the account**, as it already did for a reader with loans. The users list says which of the two happened.
 - **Bulk book delete refuses titles with a reservation in the queue**, like the single delete, and answers 400 with `code: books_in_use` and the list of titles.
+- **A book cannot be deleted while a pending loan holds one of its copies**: a promoted reservation waiting for its pickup to be confirmed, or a request with a copy set aside. The reservation it came from is already closed, so nothing stopped the delete. A bare request, with no copy, still does not block. The single delete, the bulk delete and the Mobile API apply the same rule.
 - **NCIP**: `RequestItem` answers "Item Not Available By Need Before Date" when no copy can serve the hold, `CheckOutItem` and `RequestItem` answer "Unsupported Service" in catalogue-only mode, and an operator acting on their own account gets HTTP 403. Administrators are exempt from the last one, as at the loan desk.
 - **Mobile API**: a staff member cancelling their own reservation gets 403 `not_permitted` (reason `self_dealing`) instead of 409.
 
 **The queue**
 
 - **A reservation whose dates had already passed could still be promoted.** When a copy came back, the reservation at the head of the queue became a loan request dated in the past and kept the copy from the next reader until the next maintenance run. A window that is over, closures included, is no longer promoted: it is cancelled with the usual notice and the next reader is served in the same run. A reservation with no stored deadline now expires at the end of its last requested day.
+- **A closure that lasts beyond the 180-day horizon leaves no day to start on.** A reservation or a loan request sent without a chosen date started on the first open day, also when that was past the horizon. It is refused now, like a date chosen beyond it.
 - **Admin: a new reservation for a period that is already over is refused**, as the edit form already did; a past start with a later end starts today.
 - **The "waiting for approval" e-mail after a promotion** was retried even after the loan had been approved, and its seven-day limit never ran out because every failed attempt renewed it. It is now sent only while the request is still pending, for seven days from the promotion.
 - **A pending request that already holds a copy follows that copy** when it is marked lost, damaged or in maintenance: it moves to a free copy or goes back to waiting, like a promoted reservation. Before, it stayed bound to the unusable copy.
@@ -48,23 +52,28 @@ I went through the whole loan and reservation pipeline (requests, the queue, clo
 - **The longest loan proposed when a later booking blocks a request now ends on an open day.** It ended on the day before the booking even when the library was closed that day, so the shortened request was moved onto the blocked day and refused again with the same proposal.
 - **Editing a closure so that it covers fewer days** offers the same choice as deleting one: a new checkbox restores the due dates that the removed days had extended; without it readers keep their date, and that is recorded in the loan history.
 - **Calendar import (ICS)**: events given as a start and a `DURATION`, cancelled events (`STATUS:CANCELLED`) and single changed occurrences of a recurring event (`RECURRENCE-ID`) are read correctly, and an alarm inside an event no longer lends it its own duration or title.
+- **Calendar import (ICS): the time part of a `DURATION` is elapsed time.** `PT24H` from 00:30 on the night the clocks go back ends at 23:30 of the same day; it was read as 00:30 of the next one and closed a day too many.
 
 **The loan desk**
 
 - **The copy picked for a loan created at the desk is now deterministic** and is the one the request gate and the queue would pick (issue #384): free of earlier commitments first, then the one whose next booking is furthest away.
 - **Confirming a pickup and cancelling a reservation take the title lock before they read**, like the other desk actions: a reader suspended, or a copy returned, a moment earlier is now seen.
 - **The staff alert for an overdue loan no longer depends on the reader's e-mail going out**: an address that keeps failing does not hide the loan from the staff. The alert is sent once per overdue period.
+- **A staff alert that fails no longer stops the overdue run**: the reader's notice is still settled and the loans after it are still notified.
 
 **Deletions, catalogue-only mode, stocktake**
 
 - **Users list: "Deleted!" was shown when nothing had been deleted.** The delete of a reader with reservations, donations or feedback was refused by the database and the list reported success. See the behaviour change above; a failure is now shown as a failure.
 - **Bulk book delete** runs under the title locks and writes one activity entry per title, like the single delete.
+- **The single book delete checks and archives under the title lock too**: a loan or a reservation confirmed between the check and the delete can no longer end up on an archived title. Deleting a title that is already archived changes nothing and logs nothing, and a bulk selection that still contains one is no longer refused because of it.
 - **Catalogue-only mode**: the reader's loan request, reservation and date change, and the admin's reservation create and edit, still wrote rows that no loan screen could process. They are refused now. Cancelling, returning and renewing what already exists stay open.
+- **Catalogue-only mode: the staff can still cancel a reservation from its edit form.** The refusal added to that form covered the cancellation as well; only the other changes are refused.
 - **Stocktake: a copy that is only booked for a later day is a shelf copy**: found when scanned, missing when not. It was reported "on loan" from the moment the loan was approved.
 
 **NCIP and the Mobile API**
 
 - **NCIP `RequestItem` checks capacity like the web form**: the hold is placed on the first window in which a copy is free instead of on top of the commitments already there.
+- **NCIP `RequestItem` looks for a free window up to the 180-day horizon** instead of giving up after twelve attempts, which refused a hold on a title whose free days came late. A message without an `InitiationHeader` no longer raises a PHP warning.
 - **Mobile API (staff)**: changing one of the two date pairs of a reservation moves its twin, so a deadline can no longer be left before the new window starts.
 - **Mobile API (readers)**: the pending list hides a bare request on an archived title, as the website does, and the outcome of a loan or reservation request can no longer be supplied by the caller through a forged `Referer`.
 - **Push notifications are written in the installation language** even when the sweep is started by an administrator browsing in another one.
@@ -72,6 +81,7 @@ I went through the whole loan and reservation pipeline (requests, the queue, clo
 **Legacy scripts**
 
 - **`scripts/maintenance.php`** purged closed reservations 30 days after they were created, so one that had waited in the queue for more than a month was deleted on the run after its promotion. The 30 days now count from the day it was closed, which also keeps a promoted reservation for as long as its notice can still be retried. This script and `scripts/check-expired-reservations.php` send their e-mails in the installation language and use the configured database socket.
+- **The two legacy scripts and the two cron entry points say so when the installed languages cannot be read**: the method reports it with a return value, not an exception, and the fallback to the built-in locales went unlogged.
 
 ## [0.9.6]
 
