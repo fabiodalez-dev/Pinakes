@@ -203,12 +203,14 @@ echo "✓ Processed $processedBooks books with reservations\n\n";
 // Clean up reservations closed more than 30 days ago. Counted from the day
 // the row was closed (updated_at), not from the day it was made: one that
 // waited in the queue for over a month would be deleted on the run after its
-// promotion. A completed one whose "book available" notice is still unsent
-// is kept as well: the notification retry reads it.
+// promotion. The notice flag plays no part: the retry of a failed "book
+// available" e-mail stops seven days after the promotion, and every attempt
+// stamps updated_at again, so a row the retry can still read is never 30 days
+// old. Keeping the unsent ones would only keep them for good.
 echo "Cleaning up old reservations...\n";
 $stmt = $db->prepare("
     DELETE FROM prenotazioni
-    WHERE (stato = 'annullata' OR (stato = 'completata' AND notifica_inviata = 1))
+    WHERE stato IN ('completata', 'annullata')
     AND updated_at < DATE_SUB(NOW(), INTERVAL 30 DAY)
 ");
 $stmt->execute();

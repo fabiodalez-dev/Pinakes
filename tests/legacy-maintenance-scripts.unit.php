@@ -8,8 +8,10 @@ declare(strict_types=1);
  *     created_at. A reservation that waited in the queue for more than 30
  *     days was deleted on the very run after its promotion, before its
  *     "book available" e-mail (retried while notifica_inviata = 0) went out.
- *     The purge now counts from the day the reservation was closed and never
- *     takes a completed one whose notification is still unsent.
+ *     The purge now counts from the day the reservation was closed. That
+ *     alone keeps every row the notification retry can still read (it gives
+ *     up seven days after the promotion); one left unsent for good goes with
+ *     the others, 30 days after it was closed.
  *  B. Neither script loaded the installed languages, so their e-mails fell
  *     back to it_IT whatever the installation locale: both now bootstrap
  *     I18n from the database as cron/full-maintenance.php does.
@@ -168,6 +170,7 @@ try {
 
     $justPromoted = $reservation('completata', 40, 0, 0);
     $closedRecently = $reservation('completata', 40, 5, 1);
+    $unsentInRetryWindow = $reservation('completata', 40, 6, 0);
     $unsentForLong = $reservation('completata', 80, 40, 0);
     $oldNotified = $reservation('completata', 80, 40, 1);
     $oldCancelled = $reservation('annullata', 80, 40, 0);
@@ -183,7 +186,8 @@ try {
     }
     $check($exists($justPromoted), 'A2 a reservation promoted today after 40 days in the queue is kept: its notification is still to go');
     $check($exists($closedRecently), 'A3 a reservation closed five days ago is kept, however long ago it was made');
-    $check($exists($unsentForLong), 'A4 a completed reservation whose notification never went out is kept');
+    $check($exists($unsentInRetryWindow), 'A3b a reservation promoted six days ago is kept while its notification can still be retried');
+    $check(!$exists($unsentForLong), 'A4 a completed reservation closed 40 days ago is purged even though its notification never went out: the retry gave up long before');
     $check(!$exists($oldNotified), 'A5 a completed, notified reservation closed 40 days ago is purged');
     $check(!$exists($oldCancelled), 'A6 a reservation cancelled 40 days ago is purged');
     $check(str_contains($maintenance['out'], 'PROBE languages=1'), 'A7 the installed languages are loaded before any e-mail is written');

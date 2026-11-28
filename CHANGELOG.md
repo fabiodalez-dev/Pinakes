@@ -71,7 +71,7 @@ I went through the whole loan and reservation pipeline (requests, the queue, clo
 
 **Legacy scripts**
 
-- **`scripts/maintenance.php`** purged closed reservations 30 days after they were created, so one that had waited in the queue for more than a month was deleted on the run after its promotion. The 30 days now count from the day it was closed, and a promoted reservation whose notice is still unsent is kept. This script and `scripts/check-expired-reservations.php` send their e-mails in the installation language and use the configured database socket.
+- **`scripts/maintenance.php`** purged closed reservations 30 days after they were created, so one that had waited in the queue for more than a month was deleted on the run after its promotion. The 30 days now count from the day it was closed, which also keeps a promoted reservation for as long as its notice can still be retried. This script and `scripts/check-expired-reservations.php` send their e-mails in the installation language and use the configured database socket.
 
 ## [0.9.6]
 
