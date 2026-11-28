@@ -42,10 +42,18 @@ foreach (preg_split('/\r?\n/', (string) @file_get_contents($root . '/.env')) ?: 
     [$key, $value] = explode('=', $line, 2);
     $env[trim($key)] = trim(trim($value), "\"'");
 }
+// The sweep below claims every due or overdue loan of the database and hands
+// it to a provider double: on real data the readers would never get those
+// pushes, already recorded as delivered. Same refusal as the other suites
+// that sweep: never the DB_NAME of a .env.
+$dbName = getenv('E2E_DB_NAME') ?: '';
+if ($dbName === '') {
+    fwrite(STDERR, "FAIL: refusing to run — this suite runs the GLOBAL push sweep against a provider double. Export E2E_DB_NAME (plus E2E_DB_HOST/E2E_DB_USER/E2E_DB_PASS or E2E_DB_SOCKET) pointing at a dedicated test database.\n");
+    exit(1);
+}
 $socket = getenv('E2E_DB_SOCKET') ?: ($env['DB_SOCKET'] ?? '');
 $dbUser = getenv('E2E_DB_USER') ?: ($env['DB_USER'] ?? '');
 $dbPass = getenv('E2E_DB_PASS') ?: ($env['DB_PASS'] ?? ($env['DB_PASSWORD'] ?? ''));
-$dbName = getenv('E2E_DB_NAME') ?: ($env['DB_NAME'] ?? '');
 try {
     $db = $socket !== '' && file_exists($socket)
         ? new mysqli(null, $dbUser, $dbPass, $dbName, 0, $socket)
@@ -61,16 +69,32 @@ $run = substr(hash('sha256', uniqid((string) getmypid(), true)), 0, 10);
 $title = 'ZZ_PUSHLOCALE_' . $run;
 $email = 'zzpushlocale+' . $run . '@pushlocale.test.local';
 $processLocale = I18n::getLocale();
-// Highest mobile_push_log id before the sweep, once the table is known to exist.
+// What the sweep of this run wrote: the highest mobile_push_log id before it
+// (once the table is known to exist) and the readers its provider double was
+// handed a push for. Plus the due-soon window the run found, to put back.
 $log = new class {
     public ?int $before = null;
+    /** @var array<int,true> */
+    public array $users = [];
+    public bool $windowChanged = false;
+    public ?string $window = null;
 };
 
 $cleanup = static function () use ($db, $title, $email, $log): void {
     $titleLike = $title . '%';
-    // The sweep claims every due or overdue loan it finds, not only these.
-    if ($log->before !== null) {
-        $db->query('DELETE FROM mobile_push_log WHERE id > ' . $log->before);
+    // The sweep claims every due or overdue loan it finds, not only these:
+    // its records go, for the readers it pushed to. Nothing else in the log
+    // is touched, whatever its id.
+    if ($log->before !== null && $log->users !== []) {
+        $db->query('DELETE FROM mobile_push_log WHERE id > ' . $log->before . ' AND user_id IN (' . implode(',', array_keys($log->users)) . ')');
+    }
+    if ($log->windowChanged) {
+        $settings = new \App\Models\SettingsRepository($db);
+        $log->window === null
+            ? $settings->delete('advanced', 'days_before_expiry_warning')
+            : $settings->set('advanced', 'days_before_expiry_warning', $log->window);
+        ConfigStore::clearCache();
+        $log->windowChanged = false;
     }
     foreach ([
         ['DELETE p FROM prestiti p JOIN libri l ON l.id = p.libro_id WHERE l.titolo LIKE ?', $titleLike],
@@ -125,6 +149,18 @@ try {
         // Due on the first open day from today (a closed day is never "due"),
         // and one loan long overdue.
         $dueDay = LibraryCalendar::forDb($db)->nextOpenDay($today);
+        // The sweep reads the loans due within the due-soon window, which an
+        // installation may set to 0 days and a closure may outlast: for this
+        // run the window reaches the fixture's due day, whatever it found.
+        $settings = new \App\Models\SettingsRepository($db);
+        $windowDays = (int) ((strtotime($dueDay) - strtotime($today)) / 86400);
+        if ($settings->daysBeforeExpiryWarning() < $windowDays) {
+            $found = $settings->get('advanced', 'days_before_expiry_warning', null);
+            $log->window = $found === null ? null : (string) $found;
+            $log->windowChanged = true;
+            $settings->set('advanced', 'days_before_expiry_warning', (string) $windowDays);
+            ConfigStore::clearCache();
+        }
         $dueLoan = $loan('due', $dueDay, 'in_corso');
         $lateLoan = $loan('late', LibraryCalendar::shift($today, -40), 'in_ritardo');
         $stmt = $db->prepare("INSERT INTO mobile_push_subscriptions (user_id, provider, endpoint) VALUES (?, 'unifiedpush', ?)");
@@ -135,9 +171,12 @@ try {
         // Quiet hours would hold the push back: this reader has none.
         $db->query("DELETE FROM mobile_push_prefs WHERE user_id = {$userId}");
 
-        $provider = new class implements PushProvider {
+        $provider = new class($log) implements PushProvider {
             /** @var list<PushPayload> */
             public array $payloads = [];
+            public function __construct(private object $log)
+            {
+            }
             public function name(): string
             {
                 return 'unifiedpush';
@@ -145,6 +184,7 @@ try {
             public function send(array $subscription, PushPayload $payload): PushResult
             {
                 $this->payloads[] = $payload;
+                $this->log->users[(int) ($subscription['user_id'] ?? 0)] = true;
                 return PushResult::ok();
             }
         };

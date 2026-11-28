@@ -89,6 +89,13 @@ $cleanup = static function () use ($db, &$bookIds, &$userIds, $settings, $savedL
     }
     Features::resetOverrides();
     LibraryCalendar::reset();
+    // The whole-catalogue recalculation of the test ran with the limit at 1
+    // and the overrides on: it also rewrote the counters of every title that
+    // is not a fixture. Now that both are back, compute them again.
+    $restored = (new DataIntegrity($db))->recalculateAllBookAvailability();
+    if ($restored['errors'] !== []) {
+        throw new RuntimeException('catalogue counters not restored: ' . json_encode($restored['errors']));
+    }
 };
 set_exception_handler(static function (Throwable $e) use ($cleanup, $db): void {
     try { $cleanup(); } catch (Throwable) {}

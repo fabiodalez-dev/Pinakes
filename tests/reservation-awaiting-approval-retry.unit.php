@@ -41,6 +41,14 @@ foreach (preg_split('/\r?\n/', (string) @file_get_contents($root . '/.env')) as 
     [$key, $value] = explode('=', $line, 2);
     $env[trim($key)] = trim(trim($value), "\"'");
 }
+// retryUnsentReservationNotifications() below claims every unsent notice of the
+// database, not only this run's: on real data it would mark them as sent
+// while the mail double of this suite delivers nothing.
+// Same refusal as the other suites that sweep: never the DB_NAME of a .env.
+if ((getenv('E2E_DB_NAME') ?: '') === '') {
+    fwrite(STDERR, "FAIL: refusing to run — this suite runs the GLOBAL retry of unsent reservation notices against a mail double. Export E2E_DB_NAME (plus E2E_DB_HOST/E2E_DB_USER/E2E_DB_PASS or E2E_DB_SOCKET) pointing at a dedicated test database.\n");
+    exit(1);
+}
 $socket = getenv('E2E_DB_SOCKET') ?: ($env['DB_SOCKET'] ?? '');
 try {
     $db = $socket !== '' && file_exists($socket)

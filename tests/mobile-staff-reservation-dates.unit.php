@@ -214,15 +214,21 @@ $exit = ConfigStore::usingConnection($db, static function () use ($db): int {
         $check($status === 200 && $stored($own)[4] === 'annullata', '10 an administrator can still cancel it');
 
         echo PHP_EOL . "Passed: {$passed}   Failed: {$failed}" . PHP_EOL;
-        return $failed === 0 ? 0 : 1;
+        $result = $failed === 0 ? 0 : 1;
     } catch (Throwable $e) {
         fwrite(STDERR, 'FAIL: uncaught ' . get_class($e) . ': ' . $e->getMessage() . ' @ ' . basename($e->getFile()) . ':' . $e->getLine() . PHP_EOL);
-        return 1;
-    } finally {
-        try { $cleanup(); } catch (Throwable $cleanupError) {
-            fwrite(STDERR, 'cleanup: ' . $cleanupError->getMessage() . PHP_EOL);
-        }
+        $result = 1;
     }
+    // The verdict comes after the teardown: one that fails leaves rows behind
+    // for the suites after this one, so it fails the run even when every
+    // check passed.
+    try {
+        $cleanup();
+    } catch (Throwable $cleanupError) {
+        fwrite(STDERR, 'FAIL: cleanup: ' . $cleanupError->getMessage() . PHP_EOL);
+        $result = 1;
+    }
+    return $result;
 });
 
 $db->close();

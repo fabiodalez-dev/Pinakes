@@ -237,6 +237,13 @@ test.describe.serial('#544 admin list pagination', () => {
     page.on('dialog', (dialog) => dialog.dismiss());
     await page.goto(F.BASE + path);
     const { wrapper, pagers } = parts(page, table);
+    // The length menu is there before the first answer is: changing it then
+    // starts a second request, and the first one, arriving late, would be the
+    // xhr this test waits for below instead of the reload it fails.
+    await page.waitForFunction(
+      (sel) => Boolean(window.jQuery) && window.jQuery.fn.dataTable.isDataTable(sel) && window.jQuery(sel).DataTable().ready() === true,
+      table
+    );
     await wrapper.locator('.dt-length select').selectOption('10');
     await expect(page.locator(`${table} tbody tr`)).toHaveCount(10);
     await pagers.last().locator('.dt-paging-button.next').focus();

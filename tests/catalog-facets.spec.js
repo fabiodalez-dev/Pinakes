@@ -722,20 +722,22 @@ test.describe('Catalog facets', () => {
     // its own genre, subgenre and book when the database is at hand, so the
     // subgenre step always runs. Direct writes bypass the app's cache
     // invalidation, hence the flush before the first navigation.
-    const seeded = { bookIds: [], genreIds: [] };
+    // Each id is recorded the moment it exists, and the preparation is inside
+    // the try: an insert or the cache flush that fails half-way still leaves
+    // the finally everything it needs to remove what was written.
+    const seeded = { bookIds: [], rootId: 0, subId: 0 };
+    try {
     if (F.CONFIGURED) {
       const tag = `E2E547 ${Date.now()}`;
       F.dbQuery(`INSERT INTO generi (nome, parent_id) VALUES (${F.sqlStr(`${tag} Root`)}, NULL)`);
-      const rootId = F.dbInt(`SELECT id FROM generi WHERE nome=${F.sqlStr(`${tag} Root`)} AND parent_id IS NULL`);
-      F.dbQuery(`INSERT INTO generi (nome, parent_id) VALUES (${F.sqlStr(`${tag} Sub`)}, ${rootId})`);
-      const subId = F.dbInt(`SELECT id FROM generi WHERE nome=${F.sqlStr(`${tag} Sub`)} AND parent_id=${rootId}`);
-      seeded.genreIds.push(subId, rootId);
+      seeded.rootId = F.dbInt(`SELECT id FROM generi WHERE nome=${F.sqlStr(`${tag} Root`)} AND parent_id IS NULL`);
+      F.dbQuery(`INSERT INTO generi (nome, parent_id) VALUES (${F.sqlStr(`${tag} Sub`)}, ${seeded.rootId})`);
+      seeded.subId = F.dbInt(`SELECT id FROM generi WHERE nome=${F.sqlStr(`${tag} Sub`)} AND parent_id=${seeded.rootId}`);
       const book = F.createTitle(tag.replace(' ', '-'));
       seeded.bookIds.push(book.id);
-      F.dbQuery(`UPDATE libri SET genere_id=${rootId}, sottogenere_id=${subId} WHERE id=${book.id}`);
+      F.dbQuery(`UPDATE libri SET genere_id=${seeded.rootId}, sottogenere_id=${seeded.subId} WHERE id=${book.id}`);
       await flushCache();
     }
-    try {
     await page.goto(`${BASE}/catalogo`, { waitUntil: 'networkidle', timeout: 30000 });
     const { filter_options: facets } = await apiCatalog(page);
     const roots = facets.generi.filter(root => root.cnt > 0);
@@ -743,8 +745,8 @@ test.describe('Catalog facets', () => {
       test.skip(roots.length === 0, 'no genre with books in this catalogue and no database to seed one');
     }
     expect(roots.length, 'the catalogue has at least one genre with books').toBeGreaterThan(0);
-    const own = seeded.genreIds.length ? roots.find(root => Number(root.id) === seeded.genreIds[1]) : undefined;
-    if (seeded.genreIds.length) {
+    const own = seeded.rootId ? roots.find(root => Number(root.id) === seeded.rootId) : undefined;
+    if (seeded.rootId) {
       expect(own, 'the seeded genre is listed in the facet').toBeTruthy();
     }
     const withChild = own || roots.find(root => (root.children || []).some(sub => sub.cnt > 0));
@@ -819,7 +821,8 @@ test.describe('Catalog facets', () => {
       if (seeded.bookIds.length) F.deleteTitles(seeded.bookIds);
       // Child first: the parent's ON DELETE CASCADE would take it anyway, but
       // an explicit order keeps the cleanup readable.
-      for (const id of seeded.genreIds) {
+      for (const id of [seeded.subId, seeded.rootId]) {
+        if (!id) continue;
         try { F.dbQuery(`DELETE FROM generi WHERE id=${Number(id)}`); } catch { /* best effort */ }
       }
       if (F.CONFIGURED) await flushCache();

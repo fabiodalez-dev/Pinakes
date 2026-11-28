@@ -91,19 +91,26 @@ $harvest = static function (array $query) use ($oai): array {
     $headers = [];
     for ($page = 0; $page < 2000; $page++) {
         $body = $oai($query);
-        if (str_contains($body, '<error')) {
-            break;
+        if (preg_match('/<error code="([^"]*)"/', $body, $error)) {
+            // "Nothing matches" is an answer, an empty list. Any other error
+            // in the middle of a harvest would leave a partial list that the
+            // checks below would compare as if it were the whole repository.
+            if ($error[1] === 'noRecordsMatch' && $page === 0) {
+                return [];
+            }
+            throw new RuntimeException("harvest page {$page} answered the OAI error {$error[1]}");
         }
         preg_match_all('/<header( status="deleted")?>\s*<identifier>([^<]+)<\/identifier>\s*<datestamp>([^<]+)<\/datestamp>/', $body, $m, PREG_SET_ORDER);
         foreach ($m as $h) {
             $headers[] = ['id' => $h[2], 'datestamp' => $h[3], 'deleted' => $h[1] !== ''];
         }
         if (!preg_match('/<resumptionToken[^>]*>([^<]+)<\/resumptionToken>/', $body, $t)) {
-            break;
+            // No token, or the empty one that closes the list: complete.
+            return $headers;
         }
         $query = ['verb' => 'ListIdentifiers', 'resumptionToken' => html_entity_decode($t[1], ENT_QUOTES | ENT_XML1)];
     }
-    return $headers;
+    throw new RuntimeException('harvest not finished after 2000 pages: a resumption token is still open');
 };
 
 $tombstoneId = 2000000001;
@@ -111,6 +118,16 @@ $tombstoneOai = 'oai:earliest-datestamp-test:book:' . $tombstoneId;
 $tombstoneAt = '2001-02-03 04:05:06';
 $staleTitle = 'ZZ earliest datestamp ' . bin2hex(random_bytes(4));
 $staleAt = '2000-06-07 08:09:10';
+
+// The fixtures are dated 2000, 2001 and 2002 and must be the oldest records
+// of the repository: the checks below name those datestamps. A database that
+// already holds something older cannot run them, and says so instead of
+// failing on a datestamp nobody recognises.
+$alreadyThere = $earliestOf($oai(['verb' => 'Identify']));
+if ($alreadyThere !== '' && $alreadyThere < '2003-01-01T00:00:00Z') {
+    fwrite(STDERR, "FAIL: this database already holds a record dated {$alreadyThere}, older than the fixtures of this suite (2000-2002): run it on a test database whose records are newer.\n");
+    exit(1);
+}
 
 $db->begin_transaction();
 try {

@@ -17,8 +17,10 @@ declare(strict_types=1);
  *     I18n from the database as cron/full-maintenance.php does.
  *
  * Each script runs for real, as a CLI process, from a scratch tree (its own
- * .env, lock and marker files) that points at the database in E2E_DB_* (or
- * the worktree .env). Only rows this run creates are asserted and removed.
+ * .env, lock and marker files) that points at the database in E2E_DB_*.
+ * Only rows this run creates are asserted and removed, but maintenance.php
+ * purges and sweeps the whole database: E2E_DB_NAME must name a dedicated
+ * one, and the DB_NAME of the worktree .env is never used in its place.
  *
  * Run: php tests/legacy-maintenance-scripts.unit.php
  */
@@ -36,13 +38,26 @@ foreach (preg_split('/\r?\n/', (string) @file_get_contents($root . '/.env')) ?: 
     [$key, $value] = explode('=', $line, 2);
     $env[trim($key)] = trim(trim($value), "\"'");
 }
-$socket = getenv('E2E_DB_SOCKET') ?: ($env['DB_SOCKET'] ?? '');
+// The real maintenance.php runs below: its purge and its sweeps are not
+// limited to this run's rows. Same refusal as the other suites that sweep.
+$dbName = getenv('E2E_DB_NAME') ?: '';
+if ($dbName === '') {
+    fwrite(STDERR, "FAIL: refusing to run — this suite runs the real scripts/maintenance.php, whose purge and sweeps are GLOBAL. Export E2E_DB_NAME (plus E2E_DB_HOST/E2E_DB_USER/E2E_DB_PASS or E2E_DB_SOCKET) pointing at a dedicated test database.\n");
+    exit(1);
+}
+// An explicit E2E_DB_SOCKET wins. The socket of the .env is used only when
+// E2E names no server of its own: with E2E_DB_HOST or E2E_DB_PORT set it
+// would silently connect somewhere else.
+$e2eSocket = (string) (getenv('E2E_DB_SOCKET') ?: '');
+$e2eNamesServer = (getenv('E2E_DB_HOST') ?: '') !== '' || (getenv('E2E_DB_PORT') ?: '') !== '';
+$socket = $e2eSocket !== '' ? $e2eSocket : ($e2eNamesServer ? '' : ($env['DB_SOCKET'] ?? ''));
 $useSocket = $socket !== '' && file_exists($socket);
 $dbHost = $useSocket ? 'localhost' : (getenv('E2E_DB_HOST') ?: ($env['DB_HOST'] ?? '127.0.0.1'));
 $dbPort = (int) (getenv('E2E_DB_PORT') ?: ($env['DB_PORT'] ?? 3306));
 $dbUser = getenv('E2E_DB_USER') ?: ($env['DB_USER'] ?? '');
-$dbPass = getenv('E2E_DB_PASS') ?: ($env['DB_PASS'] ?? ($env['DB_PASSWORD'] ?? ''));
-$dbName = getenv('E2E_DB_NAME') ?: ($env['DB_NAME'] ?? '');
+// An E2E password set to the empty string is a password, not a missing one.
+$e2ePass = getenv('E2E_DB_PASS');
+$dbPass = $e2ePass !== false ? $e2ePass : ($env['DB_PASS'] ?? ($env['DB_PASSWORD'] ?? ''));
 try {
     $db = $useSocket
         ? new mysqli(null, $dbUser, $dbPass, $dbName, 0, $socket)

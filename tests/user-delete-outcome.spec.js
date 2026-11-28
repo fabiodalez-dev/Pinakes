@@ -13,8 +13,9 @@
  * Each test presses the real button of the reader's row and reads both the
  * dialog and the database.
  *
- * Run with:
- *   npx playwright test tests/user-delete-outcome.spec.js --config=tests/playwright.config.js --workers=1
+ * Run with (the wrapper exports the admin and database variables this file
+ * needs; without them every test here is skipped):
+ *   /tmp/run-e2e.sh tests/user-delete-outcome.spec.js --config=tests/playwright.config.js --workers=1
  */
 const { test, expect } = require('@playwright/test');
 const { execFileSync } = require('child_process');
@@ -27,6 +28,7 @@ const DB_USER = process.env.E2E_DB_USER || '';
 const DB_PASS = process.env.E2E_DB_PASS ?? '';
 const DB_NAME = process.env.E2E_DB_NAME || '';
 const DB_SOCKET = process.env.E2E_DB_SOCKET || '';
+const DB_PORT = process.env.E2E_DB_PORT || '';
 
 const HAS_E2E_ENV = Boolean(ADMIN_EMAIL && ADMIN_PASS && DB_USER && DB_NAME && (DB_HOST || DB_SOCKET));
 
@@ -35,6 +37,7 @@ test.skip(!HAS_E2E_ENV, 'Missing E2E env vars for the user delete outcome tests'
 function mysqlArgs(sql = '', batch = false) {
   const args = [];
   if (DB_HOST) args.push('-h', DB_HOST);
+  if (DB_PORT) args.push('-P', DB_PORT);
   if (DB_SOCKET) args.push('-S', DB_SOCKET);
   args.push('-u', DB_USER);
   if (DB_PASS !== '') args.push(`-p${DB_PASS}`);
