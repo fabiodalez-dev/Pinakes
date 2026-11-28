@@ -177,6 +177,16 @@ try {
     check(($facet[4] ?? 0) === 2 && ($facet[3] ?? 0) === 3, 'each level counts what sits under it');
     check(($facet[2] ?? 0) === 3, 'a book whose genre and subgenre share a branch is counted once');
     check(($facet[5] ?? 0) === 1 && ($facet[6] ?? 0) === 1, 'a genre cycle neither hangs the count nor counts twice');
+
+    $frontend = new \App\Controllers\FrontendController();
+    $displayGenres = new ReflectionMethod($frontend, 'getDisplayGenres');
+    $visibleGenres = [['id' => 10, 'nome' => 'Storia', 'parent_id' => null, 'cnt' => 1]];
+    $emptyGenre = $displayGenres->invoke($frontend, $db, $visibleGenres, 13);
+    check(($emptyGenre['selectedGenre']['nome'] ?? null) === 'Letteratura'
+        && $emptyGenre['genres'] === $visibleGenres, 'a saved URL can label a genre absent from the book facets');
+    $missingGenre = $displayGenres->invoke($frontend, $db, $visibleGenres, 999999);
+    check(!isset($missingGenre['selectedGenre']), 'a missing genre ID produces no fabricated label');
+
     $db->query("UPDATE plugins SET is_active=0");
     check($page(['search'=>'Probe'])===null, 'disabled plugin is absent from catalogue');
     check($find->invoke($resolver,['rft.atitle'=>'Probe 01 Article'],'journal')===null, 'disabled plugin is absent from resolver');

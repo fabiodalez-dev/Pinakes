@@ -725,13 +725,13 @@ function debounceSearch(value) {
 }
 
 function updateFilter(key, value) {
+    if (key === 'genere_id' && Number(currentFilters.genere_id || 0) !== Number(value || 0)) {
+        currentGenreName = '';
+    }
     if (value && value !== '' && value !== 0) {
         currentFilters[key] = value;
     } else {
         delete currentFilters[key];
-        if (key === 'genere_id') {
-            currentGenreName = '';
-        }
     }
 
     // A new selection (or a clear) always re-collapses that facet
@@ -868,7 +868,7 @@ function updateActiveFiltersDisplay() {
             };
             displayValue = availabilityLabels[value] || value;
         } else if (filterKey === 'genere_id') {
-            displayValue = currentGenreName || value;
+            displayValue = currentGenreName;
         } else if (filterKey === 'autore_id') {
             displayValue = autoreSelectedLabel() || i18n.autore;
         } else if (filterKey === 'tipo_media') {
@@ -879,7 +879,7 @@ function updateActiveFiltersDisplay() {
 
         const tag = document.createElement('span');
         tag.className = 'filter-tag';
-        tag.textContent = (filterLabels[filterKey] || filterKey) + ': ' + displayValue;
+        tag.textContent = (filterLabels[filterKey] || filterKey) + (displayValue === '' ? '' : ': ' + displayValue);
 
         const closeBtn = document.createElement('span');
         closeBtn.className = 'filter-tag-remove';
@@ -951,10 +951,10 @@ function loadBooks() {
 
             // Update filter options if provided
             if (data.filter_options) {
-                if (data.genre_display && data.genre_display.selectedGenre) {
-                    currentGenreName = data.genre_display.selectedGenre.nome;
-                } else {
-                    currentGenreName = '';
+                const genreName = data.genre_display?.selectedGenre?.nome || '';
+                if (genreName !== currentGenreName) {
+                    currentGenreName = genreName;
+                    updateActiveFiltersDisplay();
                 }
                 updateFilterOptions(data.filter_options, data.genre_display);
             }
@@ -1207,7 +1207,7 @@ function mediaSelectedLabel() {
 }
 
 function genereSelectedLabel() {
-    return currentGenreName || String(currentFilters.genere_id || '');
+    return currentGenreName;
 }
 
 // Shared collapse-on-select: when the facet has a selected value, replace the
