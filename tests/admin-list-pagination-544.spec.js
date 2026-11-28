@@ -230,4 +230,56 @@ test.describe.serial('#544 admin list pagination', () => {
     await page.unroute('**/api/libri**');
     expect(Math.abs((await settledScrollY(page)) - scrollBefore), 'a sort after a failed page request must not scroll').toBeLessThanOrEqual(2);
   });
+
+  test('books: a failed older request does not cancel scrolling for the next page', async ({ page }) => {
+    test.skip(F.dbInt(LISTS[0].count) <= 10, 'needs more than 10 books');
+    const { path, table } = LISTS[0];
+    page.on('dialog', (dialog) => dialog.dismiss());
+    await page.goto(F.BASE + path);
+    const { wrapper, pagers } = parts(page, table);
+    await wrapper.locator('.dt-length select').selectOption('10');
+    await expect(page.locator(`${table} tbody tr`)).toHaveCount(10);
+    await pagers.last().locator('.dt-paging-button.next').focus();
+    expect(await wrapperTop(page, table)).toBeLessThan(0);
+    const before = await firstRowText(page, table);
+
+    let failReload = () => {};
+    let sendPage = () => {};
+    const reloadAnswer = new Promise(resolve => { failReload = () => resolve(undefined); });
+    const pageAnswer = new Promise(resolve => { sendPage = () => resolve(undefined); });
+    const api = '**/api/libri?*';
+    function startsAt(requestUrl, start) {
+      const url = new URL(requestUrl);
+      return url.pathname.endsWith('/api/libri') && url.searchParams.get('start') === start;
+    }
+    await page.route(api, async (route) => {
+      if (startsAt(route.request().url(), '0')) {
+        await reloadAnswer;
+        return route.fulfill({ status: 500, body: 'error' });
+      }
+      await pageAnswer;
+      return route.continue();
+    });
+    try {
+      const reload = page.waitForRequest(request => startsAt(request.url(), '0'));
+      await page.evaluate(sel => {
+        const $table = window.jQuery(sel);
+        $table.one('xhr.dt', (event, settings, json) => { window.__pkOlderPageFailed = json === null; });
+        $table.DataTable().ajax.reload(null, false);
+      }, table);
+      await reload;
+      const pageRequest = page.waitForRequest(request => startsAt(request.url(), '10'));
+      await page.keyboard.press('Enter');
+      await pageRequest;
+      failReload();
+      await page.waitForFunction(() => window.__pkOlderPageFailed === true);
+      sendPage();
+      await waitForNewPage(page, table, before);
+      await expect.poll(() => wrapperTop(page, table)).toBeGreaterThanOrEqual(0);
+    } finally {
+      failReload();
+      sendPage();
+      await page.unroute(api);
+    }
+  });
 });

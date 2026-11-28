@@ -94,7 +94,8 @@
             }
             table.__pkPageScroll = true;
             labelPagers(table);
-            $(table).on('page.dt', function (e) {
+            var $table = $(table);
+            $table.on('page.dt', function (e, settings) {
                 if (e.target !== table) {
                     return;
                 }
@@ -107,20 +108,40 @@
                 // Each page change replaces the decision of the one before:
                 // a change from the pager above, made while an earlier change
                 // from below still waits for its data, must not scroll.
-                $(table).off('.pkPageScroll');
+                $table.off('.pkPageScroll');
                 if (table.getBoundingClientRect().top >= 0) {
                     return;
                 }
-                // A page request that fails never draws: drop the scroll
-                // then, or the next unrelated redraw (search, sort) would
-                // run it.
-                $(table).one('xhr.dt.pkPageScroll', function (ev, settings, json) {
-                    if (json === null) {
-                        $(table).off('.pkPageScroll');
+                var serverSide = !!(settings && settings.oFeatures && settings.oFeatures.bServerSide);
+                var requestDraw;
+                if (serverSide) {
+                    // The scroll belongs to this page change's own request,
+                    // the first one sent from here on: its draw number is
+                    // kept. A request that fails never draws, and one that
+                    // was already on its way when the page changed says
+                    // nothing about this one, so a failure cancels nothing
+                    // by itself. Any later request (a sort, a search) takes
+                    // the place of the page request: the scroll is dropped
+                    // then, or that unrelated redraw would run it.
+                    $table.on('preXhr.dt.pkPageScroll', function (ev, s, data) {
+                        if (ev.target !== table) {
+                            return;
+                        }
+                        if (requestDraw !== undefined) {
+                            $table.off('.pkPageScroll');
+                            return;
+                        }
+                        requestDraw = data ? data.draw : null;
+                    });
+                }
+                $table.on('draw.dt.pkPageScroll', function (ev, drawn) {
+                    if (ev.target !== table) {
+                        return;
                     }
-                });
-                $(table).one('draw.dt.pkPageScroll', function () {
-                    $(table).off('.pkPageScroll');
+                    $table.off('.pkPageScroll');
+                    if (serverSide && (!drawn || drawn.iDraw !== requestDraw)) {
+                        return;
+                    }
                     var anchor = table.closest('.dt-container, .dataTables_wrapper') || table;
                     var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
                     // Leave a little room above the table, plus the height of

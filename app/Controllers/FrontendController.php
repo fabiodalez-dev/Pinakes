@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Controllers;
 
+use App\Models\GenereRepository;
 use App\Repositories\RecensioniRepository;
 use App\Support\Branding;
 use App\Support\ConfigStore;
@@ -457,7 +458,7 @@ class FrontendController
         }
 
         // Get hierarchical genre display based on current selection
-        $genre_display = $this->getDisplayGenres($filter_options['generi'], (int)($filters['genere_id'] ?? 0));
+        $genre_display = $this->getDisplayGenres($db, $filter_options['generi'], (int)($filters['genere_id'] ?? 0));
 
         // Render template
         $container = $this->container;
@@ -613,7 +614,7 @@ class FrontendController
         }
 
         // Get hierarchical genre display for correct sidebar rendering
-        $genre_display = $this->getDisplayGenres($filter_options['generi'], (int)($filters['genere_id'] ?? 0));
+        $genre_display = $this->getDisplayGenres($db, $filter_options['generi'], (int)($filters['genere_id'] ?? 0));
 
         // Available-books count (same filter set, restricted to loanable copies)
         // so the home hero "Disponibili" stat can show a real number instead of
@@ -3175,7 +3176,7 @@ private function computeFilterOptions(mysqli $db, array $filters = []): array
      * @param int $selectedGenreId Currently selected genre ID (0 = none)
      * @return array ['genres' => display genres, 'level' => current level, 'parent' => parent genre for back button]
      */
-    private function getDisplayGenres(array $allGenres, int $selectedGenreId): array
+    private function getDisplayGenres(mysqli $db, array $allGenres, int $selectedGenreId): array
     {
         if ($selectedGenreId === 0) {
             // Level 0: Show all root genres
@@ -3190,12 +3191,15 @@ private function computeFilterOptions(mysqli $db, array $filters = []): array
         // genre facet now lists every level, and so does the filter.
         [$selectedGenreData, $parentGenre] = self::findGenreInTree($allGenres, $selectedGenreId);
 
-        if (!$selectedGenreData) {
-            return [
-                'genres' => $allGenres,
-                'level' => 0,
-                'parent' => null
-            ];
+        if ($selectedGenreData === null) {
+            // Genres without visible books are absent from the facet tree, but
+            // a saved catalogue URL can still select one by ID.
+            $genre = (new GenereRepository($db))->getById($selectedGenreId);
+            $display = ['genres' => $allGenres, 'level' => 0, 'parent' => null];
+            if ($genre !== null) {
+                $display['selectedGenre'] = ['id' => $selectedGenreId, 'nome' => $genre['nome']];
+            }
+            return $display;
         }
 
         // Determine level: if selected genre is a root (no parent), it's level 1
